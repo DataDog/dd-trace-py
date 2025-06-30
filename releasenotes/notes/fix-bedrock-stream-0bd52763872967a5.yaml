@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where modifying bedrock converse streamed chunks caused traced spans to show modified content.

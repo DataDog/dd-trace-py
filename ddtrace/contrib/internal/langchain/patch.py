@@ -75,6 +75,10 @@ config._add(
 )
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"langchain": ">=0.1"}
+
+
 def _extract_model_name(instance: Any) -> Optional[str]:
     """Extract model name or ID from llm instance."""
     for attr in ("model", "model_name", "model_id", "model_key", "repo_id"):
@@ -176,6 +180,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
     completions = None
 
@@ -234,6 +239,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=model,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -291,6 +297,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -387,6 +394,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         provider=llm_provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -490,6 +498,7 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         provider=provider,
         model=_extract_model_name(instance),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -542,6 +551,7 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
         "{}.{}".format(instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="chain",
+        instance=instance,
     )
     inputs = None
     final_output = None
@@ -589,6 +599,7 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
         "{}.{}".format(instance.__module__, instance.__class__.__name__),
         submit_to_llmobs=True,
         interface_type="chain",
+        instance=instance,
     )
     inputs = None
     final_output = None
@@ -638,6 +649,7 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         interface_type="similarity_search",
         provider=provider,
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -853,6 +865,7 @@ def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
         "%s" % func.__self__.name,
         interface_type="tool",
         submit_to_llmobs=True,
+        instance=instance,
     )
 
     integration.record_instance(instance, span)
@@ -906,6 +919,7 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
         "%s" % func.__self__.name,
         interface_type="tool",
         submit_to_llmobs=True,
+        instance=instance,
     )
 
     integration.record_instance(instance, span)

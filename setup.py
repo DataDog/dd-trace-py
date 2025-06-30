@@ -1,6 +1,6 @@
 import atexit
-import fnmatch
 import hashlib
+from itertools import chain
 import os
 import platform
 import re
@@ -10,6 +10,7 @@ import sys
 import sysconfig
 import tarfile
 import time
+import typing as t
 import warnings
 
 import cmake
@@ -24,6 +25,7 @@ from setuptools.command.build_py import build_py as BuildPyCommand  # isort: ski
 from pathlib import Path  # isort: skip
 from pkg_resources import get_build_platform  # isort: skip
 from distutils.command.clean import clean as CleanCommand  # isort: skip
+from distutils.dep_util import newer_group
 
 
 try:
@@ -94,7 +96,11 @@ def interpose_sccache():
         return
 
     # Check for sccache.  We don't do multi-step failover (e.g., if ${SCCACHE_PATH} is set, but the binary is invalid)
-    sccache_path = Path(os.getenv("SCCACHE_PATH", shutil.which("sccache")))
+    _sccache_path = os.getenv("SCCACHE_PATH", shutil.which("sccache"))
+    if _sccache_path is None:
+        print("WARNING: SCCACHE_PATH is not set, skipping sccache interposition")
+        return
+    sccache_path = Path(_sccache_path)
     if sccache_path.is_file() and os.access(sccache_path, os.X_OK):
         # Both the cmake and rust toolchains allow the caller to interpose sccache into the compiler commands, but this
         # misses calls from native extension builds.  So we do the normal Rust thing, but modify CC and CXX to point to
@@ -121,7 +127,7 @@ def verify_checksum_from_file(sha256_filename, filename):
     expected_checksum, expected_filename = list(filter(None, open(sha256_filename, "r").read().strip().split(" ")))
     actual_checksum = hashlib.sha256(open(filename, "rb").read()).hexdigest()
     try:
-        assert expected_filename.endswith(filename)
+        assert expected_filename.endswith(Path(filename).name)
         assert expected_checksum == actual_checksum
     except AssertionError:
         print("Checksum verification error: Checksum and/or filename don't match:")
@@ -157,7 +163,11 @@ def load_module_from_project_file(mod_name, fname):
     import importlib.util
 
     spec = importlib.util.spec_from_file_location(mod_name, fpath)
+    if spec is None:
+        raise ImportError(f"Could not find module {mod_name} in {fpath}")
     mod = importlib.util.module_from_spec(spec)
+    if spec.loader is None:
+        raise ImportError(f"Could not load module {mod_name} from {fpath}")
     spec.loader.exec_module(mod)
     return mod
 
@@ -166,14 +176,65 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+class ExtensionHashes(build_ext):
+    def run(self):
+        try:
+            dist = self.distribution
+            for ext in chain(dist.ext_modules, getattr(dist, "rust_extensions", [])):
+                if isinstance(ext, CMakeExtension):
+                    sources = ext.get_sources(self)
+                elif isinstance(ext, RustExtension):
+                    source_path = Path(ext.path).parent
+                    sources = [
+                        _
+                        for _ in source_path.glob("**/*")
+                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                    ]
+                else:
+                    sources = [Path(_) for _ in ext.sources]
+
+                sources_hash = hashlib.sha256()
+                for source in sorted(sources):
+                    sources_hash.update(source.read_bytes())
+                hash_digest = sources_hash.hexdigest()
+
+                entries: t.List[t.Tuple[str, str, str]] = []
+
+                if isinstance(ext, RustExtension):
+                    entries.extend(
+                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
+                        for module in ext.target.values()
+                    )
+                else:
+                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+
+                # Include any dependencies that might have been built alongside
+                # the extension.
+                if isinstance(ext, CMakeExtension):
+                    entries.extend(
+                        (f"{ext.name}-{dependency.name}", hash_digest, str(dependency) + "*")
+                        for dependency in ext.dependencies
+                    )
+
+                for entry in entries:
+                    print("#EXTHASH:", entry)
+
+        except Exception as e:
+            print("WARNING: Failed to compute extension hashes: %s" % e)
+            raise e
+
+
 class LibraryDownload:
+    CACHE_DIR = HERE / ".download_cache"
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
+
     name = None
-    download_dir = None
+    download_dir = Path.cwd()
     version = None
     url_root = None
-    available_releases = None
+    available_releases = {}
     expected_checksums = None
-    translate_suffix = None
+    translate_suffix = {}
 
     @classmethod
     def download_artifacts(cls):
@@ -194,7 +255,7 @@ class LibraryDownload:
                 # https://github.com/pypa/cibuildwheel/blob/main/cibuildwheel/macos.py#L250
                 target_platform = os.getenv("PLAT")
                 # Darwin Universal2 should bundle both architectures
-                if not target_platform.endswith(("universal2", arch)):
+                if target_platform and not target_platform.endswith(("universal2", arch)):
                     continue
             elif CURRENT_OS == "Windows" and (not is_64_bit_python() != arch.endswith("32")):
                 # Win32 can be built on a 64-bit machine so build_platform may not be relevant
@@ -215,20 +276,34 @@ class LibraryDownload:
                 archive_name,
             )
 
-            try:
-                filename, http_response = urlretrieve(download_address, archive_name)
-            except HTTPError as e:
-                print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
-                raise e
+            download_dest = cls.CACHE_DIR / archive_name if cls.USE_CACHE else Path(archive_name)
+            if cls.USE_CACHE and not cls.CACHE_DIR.exists():
+                cls.CACHE_DIR.mkdir(parents=True)
 
-            # Verify checksum of downloaded file
-            if cls.expected_checksums is None:
-                sha256_address = download_address + ".sha256"
-                sha256_filename, http_response = urlretrieve(sha256_address, archive_name + ".sha256")
-                verify_checksum_from_file(sha256_filename, filename)
+            if not (cls.USE_CACHE and download_dest.exists()):
+                print(f"Downloading {archive_name} to {download_dest}")
+                start_ns = time.time_ns()
+                try:
+                    filename, _ = urlretrieve(download_address, str(download_dest))
+                except HTTPError as e:
+                    print("No archive found for dynamic library {}: {}".format(cls.name, archive_dir))
+                    raise e
+
+                # Verify checksum of downloaded file
+                if cls.expected_checksums is None:
+                    sha256_address = download_address + ".sha256"
+                    sha256_filename, _ = urlretrieve(sha256_address, str(download_dest) + ".sha256")
+                    verify_checksum_from_file(sha256_filename, str(download_dest))
+                else:
+                    expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
+                    verify_checksum_from_hash(expected_checksum, str(download_dest))
+
+                DebugMetadata.download_times[archive_name] = time.time_ns() - start_ns
+
             else:
-                expected_checksum = cls.expected_checksums[CURRENT_OS][arch]
-                verify_checksum_from_hash(expected_checksum, filename)
+                # If the file exists in the cache, we will use it
+                filename = str(download_dest)
+                print(f"Using cached {filename}")
 
             # Open the tarfile first to get the files needed.
             # This could be solved with "r:gz" mode, that allows random access
@@ -248,11 +323,16 @@ class LibraryDownload:
                     renamed_file = lib_dir / "lib{}{}".format(cls.name, suffix)
                     original_file.rename(renamed_file)
 
-            Path(filename).unlink()
+            if not cls.USE_CACHE:
+                Path(filename).unlink()
 
     @classmethod
     def run(cls):
         cls.download_artifacts()
+
+    @classmethod
+    def get_package_name(cls, arch, os) -> str:
+        raise NotImplementedError()
 
     @classmethod
     def get_archive_name(cls, arch, os):
@@ -272,13 +352,13 @@ class LibDDWafDownload(LibraryDownload):
     translate_suffix = {"Windows": (".dll",), "Darwin": (".dylib",), "Linux": (".so",)}
 
     @classmethod
-    def get_package_name(cls, arch, opsys):
-        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, opsys.lower(), arch)
+    def get_package_name(cls, arch, os):
+        archive_dir = "lib%s-%s-%s-%s" % (cls.name, cls.version, os.lower(), arch)
         return archive_dir
 
     @classmethod
-    def get_archive_name(cls, arch, opsys):
-        os_name = opsys.lower()
+    def get_archive_name(cls, arch, os):
+        os_name = os.lower()
         if os_name == "linux":
             archive_dir = "lib%s-%s-%s-linux-musl.tar.gz" % (cls.name, cls.version, arch)
         else:
@@ -312,6 +392,8 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
+
     @staticmethod
     def try_strip_symbols(so_file):
         if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
@@ -349,7 +431,46 @@ class CMakeBuild(build_ext):
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
-    def build_extension_cmake(self, ext):
+    def build_extension_cmake(self, ext: "CMakeExtension") -> None:
+        if IS_EDITABLE and self.INCREMENTAL:
+            # DEV: Rudimentary incremental build support. We copy the logic from
+            # setuptools' build_ext command, best effort.
+            full_path = Path(self.get_ext_fullpath(ext.name))
+            ext_path = Path(ext.source_dir, full_path.name)
+
+            force = self.force
+
+            if ext.dependencies:
+                dependencies = [
+                    str(d.resolve())
+                    for dependency in ext.dependencies
+                    for d in dependency.parent.glob(dependency.name + "*")
+                    if d.is_file()
+                ]
+                if not dependencies:
+                    # We expected some dependencies but none were found so we
+                    # force the build to happen
+                    force = True
+
+            else:
+                dependencies = []
+
+            if not (
+                force
+                or newer_group(
+                    [str(_.resolve()) for _ in ext.get_sources(self)] + dependencies, str(ext_path.resolve()), "newer"
+                )
+            ):
+                print(f"skipping '{ext.name}' CMake extension (up-to-date)")
+
+                # We need to copy the binary where setuptools expects it
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy(ext_path, full_path)
+
+                return
+            else:
+                print(f"building '{ext.name}' CMake extension")
+
         # Define the build and output directories
         output_dir = Path(self.get_ext_fullpath(ext.name)).parent.resolve()
         extension_basename = Path(self.get_ext_fullpath(ext.name)).name
@@ -443,6 +564,7 @@ class DebugMetadata:
     enabled = "_DD_DEBUG_EXT" in os.environ
     metadata_file = os.getenv("_DD_DEBUG_EXT_FILE", "debug_ext_metadata.txt")
     build_times = {}
+    download_times = {}
 
     @classmethod
     def dump_metadata(cls):
@@ -459,17 +581,33 @@ class DebugMetadata:
         with open(cls.metadata_file, "w") as f:
             f.write(f"Total time: {total_s:0.2f}s\n")
             f.write("Environment:\n")
-            f.write(f"\tCARGO_BUILD_JOBS: {os.getenv('CARGO_BUILD_JOBS', 'unset')}\n")
-            f.write(f"\tCMAKE_BUILD_PARALLEL_LEVEL: {os.getenv('CMAKE_BUILD_PARALLEL_LEVEL', 'unset')}\n")
-            f.write(f"\tDD_COMPILE_MODE: {COMPILE_MODE}\n")
-            f.write(f"\tDD_USE_SCCACHE: {SCCACHE_COMPILE}\n")
-            f.write(f"\tDD_FAST_BUILD: {FAST_BUILD}\n")
+            for n, v in [
+                ("CARGO_BUILD_JOBS", os.getenv("CARGO_BUILD_JOBS", "unset")),
+                ("CMAKE_BUILD_PARALLEL_LEVEL", os.getenv("CMAKE_BUILD_PARALLEL_LEVEL", "unset")),
+                ("DD_COMPILE_MODE", COMPILE_MODE),
+                ("DD_USE_SCCACHE", SCCACHE_COMPILE),
+                ("DD_FAST_BUILD", FAST_BUILD),
+                ("DD_CMAKE_INCREMENTAL_BUILD", CMakeBuild.INCREMENTAL),
+            ]:
+                print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
             f.write(f"\tTotal: {build_total_s:0.2f}s ({build_percent:0.2f}%)\n")
             for ext, elapsed_ns in sorted(cls.build_times.items(), key=lambda x: x[1], reverse=True):
                 elapsed_s = elapsed_ns / 1e9
                 ext_percent = (elapsed_ns / total_ns) * 100.0
                 f.write(f"\t{ext.name}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
+
+            if cls.download_times:
+                download_total_ns = sum(cls.download_times.values())
+                download_total_s = download_total_ns / 1e9
+                download_percent = (download_total_ns / total_ns) * 100.0
+
+                f.write("Artifact download times:\n")
+                f.write(f"\tTotal: {download_total_s:0.2f}s ({download_percent:0.2f}%)\n")
+                for n, elapsed_ns in sorted(cls.download_times.items(), key=lambda x: x[1], reverse=True):
+                    elapsed_s = elapsed_ns / 1e9
+                    ext_percent = (elapsed_ns / total_ns) * 100.0
+                    f.write(f"\t{n}: {elapsed_s:0.2f}s ({ext_percent:0.2f}%)\n")
 
 
 def debug_build_extension(fn):
@@ -494,12 +632,13 @@ class CMakeExtension(Extension):
     def __init__(
         self,
         name,
-        source_dir=".",
+        source_dir=Path.cwd(),
         cmake_args=[],
         build_args=[],
         install_args=[],
         build_type=None,
         optional=True,  # By default, extensions are optional
+        dependencies=[],
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
@@ -508,6 +647,27 @@ class CMakeExtension(Extension):
         self.install_args = install_args or []
         self.build_type = build_type or COMPILE_MODE
         self.optional = optional  # If True, cmake errors are ignored
+        self.dependencies = dependencies
+
+    def get_sources(self, cmd: build_ext) -> t.List[Path]:
+        """
+        Returns the list of source files for this extension.
+        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        """
+        full_path = Path(cmd.get_ext_fullpath(self.name))
+
+        # Collect all the source files within the source directory. We exclude
+        # Python sources and anything that does not have a suffix (most likely
+        # a binary file), or that has the same name as the extension binary.
+        return (
+            [
+                _
+                for _ in Path(self.source_dir).rglob("**")
+                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
+            ]
+            if self.source_dir
+            else []
+        )
 
 
 def check_rust_toolchain():
@@ -530,28 +690,6 @@ def check_rust_toolchain():
         raise EnvironmentError("Rust toolchain not found. Please install Rust from https://rustup.rs/")
 
 
-DD_BUILD_EXT_INCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_INCLUDES", "").split(",") if _.strip()]
-DD_BUILD_EXT_EXCLUDES = [_.strip() for _ in os.getenv("DD_BUILD_EXT_EXCLUDES", "").split(",") if _.strip()]
-
-
-def filter_extensions(extensions):
-    # type: (list[Extension]) -> list[Extension]
-    if not DD_BUILD_EXT_INCLUDES and not DD_BUILD_EXT_EXCLUDES:
-        return extensions
-
-    filtered: list[Extension] = []
-    for ext in extensions:
-        if DD_BUILD_EXT_EXCLUDES and any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_EXCLUDES):
-            print(f"INFO: Excluding extension {ext.name}")
-            continue
-        elif DD_BUILD_EXT_INCLUDES and not any(fnmatch.fnmatch(ext.name, pattern) for pattern in DD_BUILD_EXT_INCLUDES):
-            print(f"INFO: Excluding extension {ext.name}")
-            continue
-        print(f"INFO: Including extension {ext.name}")
-        filtered.append(ext)
-    return filtered
-
-
 # Before adding any extensions, check that system pre-requisites are satisfied
 try:
     check_rust_toolchain()
@@ -569,12 +707,6 @@ def get_exts_for(name):
     except Exception as e:
         print("WARNING: Failed to load %s extensions, skipping: %s" % (name, e))
         return []
-
-
-if sys.byteorder == "big":
-    encoding_macros = [("__BIG_ENDIAN__", "1")]
-else:
-    encoding_macros = [("__LITTLE_ENDIAN__", "1")]
 
 
 if CURRENT_OS == "Windows":
@@ -605,7 +737,7 @@ else:
 
 
 if not IS_PYSTON:
-    ext_modules = [
+    ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
             sources=[
@@ -676,6 +808,10 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
                 optional=False,
+                dependencies=[
+                    CRASHTRACKER_DIR / "crashtracker_exe",
+                    CRASHTRACKER_DIR.parent / "libdd_wrapper",
+                ],
             )
         )
 
@@ -713,87 +849,78 @@ setup(
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
+        "ext_hashes": ExtensionHashes,
     },
     setup_requires=["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28", "setuptools-rust"],
-    ext_modules=filter_extensions(ext_modules)
+    ext_modules=ext_modules
     + cythonize(
-        filter_extensions(
-            [
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._rand",
-                    sources=["ddtrace/internal/_rand.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.internal._tagset",
-                    sources=["ddtrace/internal/_tagset.pyx"],
-                    language="c",
-                ),
-                Extension(
-                    "ddtrace.internal._encoding",
-                    ["ddtrace/internal/_encoding.pyx"],
-                    include_dirs=["."],
-                    libraries=encoding_libraries,
-                    define_macros=encoding_macros,
-                ),
-                Extension(
-                    "ddtrace.internal.telemetry.metrics_namespaces",
-                    ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector.stack",
-                    sources=["ddtrace/profiling/collector/stack.pyx"],
-                    language="c",
-                    # cython generated code errors on build in toolchains that are strict about int->ptr conversion
-                    # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
-                    # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
-                    # everything else is on a GNU-like toolchain
-                    extra_compile_args=extra_compile_args
-                    + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._traceback",
-                    sources=["ddtrace/profiling/collector/_traceback.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling._threading",
-                    sources=["ddtrace/profiling/_threading.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.collector._task",
-                    sources=["ddtrace/profiling/collector/_task.pyx"],
-                    language="c",
-                ),
-                Cython.Distutils.Extension(
-                    "ddtrace.profiling.exporter.pprof",
-                    sources=["ddtrace/profiling/exporter/pprof.pyx"],
-                    language="c",
-                ),
-            ]
-        ),
+        [
+            Cython.Distutils.Extension(
+                "ddtrace.internal._rand",
+                sources=["ddtrace/internal/_rand.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.internal._tagset",
+                sources=["ddtrace/internal/_tagset.pyx"],
+                language="c",
+            ),
+            Extension(
+                "ddtrace.internal._encoding",
+                ["ddtrace/internal/_encoding.pyx"],
+                include_dirs=["."],
+                libraries=encoding_libraries,
+                define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+            ),
+            Extension(
+                "ddtrace.internal.telemetry.metrics_namespaces",
+                ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector.stack",
+                sources=["ddtrace/profiling/collector/stack.pyx"],
+                language="c",
+                # cython generated code errors on build in toolchains that are strict about int->ptr conversion
+                # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
+                # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
+                # everything else is on a GNU-like toolchain
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._traceback",
+                sources=["ddtrace/profiling/collector/_traceback.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling._threading",
+                sources=["ddtrace/profiling/_threading.pyx"],
+                language="c",
+            ),
+            Cython.Distutils.Extension(
+                "ddtrace.profiling.collector._task",
+                sources=["ddtrace/profiling/collector/_task.pyx"],
+                language="c",
+            ),
+        ],
         compile_time_env={
             "PY_MAJOR_VERSION": sys.version_info.major,
             "PY_MINOR_VERSION": sys.version_info.minor,
             "PY_MICRO_VERSION": sys.version_info.micro,
             "PY_VERSION_HEX": sys.hexversion,
         },
-        force=True,
+        force=os.getenv("DD_SETUP_FORCE_CYTHONIZE", "0") == "1",
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + filter_extensions(get_exts_for("psutil")),
-    rust_extensions=filter_extensions(
-        [
-            RustExtension(
-                "ddtrace.internal.native._native",
-                path="src/native/Cargo.toml",
-                py_limited_api="auto",
-                binding=Binding.PyO3,
-                debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-            ),
-        ]
-    ),
+    + get_exts_for("psutil"),
+    rust_extensions=[
+        RustExtension(
+            "ddtrace.internal.native._native",
+            path="src/native/Cargo.toml",
+            py_limited_api="auto",
+            binding=Binding.PyO3,
+            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
+        ),
+    ],
 )

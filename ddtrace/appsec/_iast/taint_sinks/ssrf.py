@@ -1,5 +1,6 @@
 from typing import Callable
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._logs import iast_propagation_sink_point_debug_log
@@ -53,7 +54,7 @@ def _iast_report_ssrf(func: Callable, *args, **kwargs):
             "Failed to get URL argument from _FUNC_TO_URL_ARGUMENT dict for function %s", func_key
         )
         return
-    if report_ssrf:
+    if report_ssrf and isinstance(report_ssrf, IAST.TEXT_TYPES):
         if asm_config.is_iast_request_enabled:
             try:
                 if SSRF.has_quota() and SSRF.is_tainted_pyobject(report_ssrf):
