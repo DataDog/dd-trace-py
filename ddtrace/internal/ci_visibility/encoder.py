@@ -124,7 +124,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         all_spans_with_trace_info = []
         for trace_idx, trace in enumerate(traces):
             trace_spans = [
-                self._convert_span(span, trace[0].context.dd_origin or "", new_parent_session_span_id)
+                self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
                 for span in trace
                 if self._is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE
             ]
@@ -185,8 +185,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _pack_payload(payload):
         return msgpack_packb(payload)
 
-    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
-        # type: (Span, str, Optional[int]) -> Dict[str, Any]
+    def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
+        # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -295,7 +295,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _build_data(self, traces):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
-            self._convert_span(span, "")
+            self._convert_span(span)
             for trace in traces
             for span in trace
             if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
@@ -313,8 +313,8 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             return None, 0
         return b"\r\n".join(self._build_body(data)), len(data)
 
-    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
-        # type: (Span, str, Optional[int]) -> Dict[str, Any]
+    def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
+        # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: Dict[str, Any] = {}
 
