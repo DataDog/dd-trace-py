@@ -32,6 +32,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from typing import Dict  # noqa:F401
     from typing import List  # noqa:F401
     from typing import Optional  # noqa:F401
+    from typing import Tuple  # noqa:F401
 
     from ddtrace._trace.span import Span  # noqa:F401
 
@@ -80,7 +81,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             if count:
                 self.buffer = self.buffer[count:]
-            return payload, len(self.buffer)
+            return payload, count
 
     def _get_parent_session(self, traces):
         for trace in traces:
@@ -262,7 +263,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Optional[bytes], int
+        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
         data = self._build_data(traces)
         if not data:
             return None, 0
