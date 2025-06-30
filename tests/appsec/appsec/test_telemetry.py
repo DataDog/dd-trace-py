@@ -270,7 +270,8 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         ({}, False, False, 0, ""),
         ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
         ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
-        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_RC),
+        ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
+        ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
         ({APPSEC_ENV: "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
     ),
 )
@@ -295,3 +296,6 @@ def test_appsec_enabled_metric(
         if expected_result > 0:
             assert len(metrics[0]["tags"]) == 1
             assert f"origin:{expected_origin}" in metrics[0]["tags"]
+
+        # Restore defaults
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
