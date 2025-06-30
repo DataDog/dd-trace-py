@@ -1,10 +1,5 @@
-import concurrent.futures
-import functools
-import json
 import os
 import time
-from unittest.mock import MagicMock
-from unittest.mock import call
 from unittest.mock import patch
 import uuid
 
@@ -12,7 +7,6 @@ import pytest
 import vcr
 
 import ddtrace.llmobs.experimentation as dne
-from ddtrace.llmobs.experimentation._config import _is_locally_initialized
 from ddtrace.llmobs.experimentation._config import get_base_url
 from ddtrace.llmobs.experimentation._experiment import ExperimentResults
 from ddtrace.llmobs.experimentation.utils._ui import Color
@@ -167,9 +161,7 @@ def experiment_after_task_run(synced_dataset, experiments_vcr):
         name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
     )
     with experiments_vcr.use_cassette("test_experiment_run_task_setup.yaml"):
-        # Mock _is_locally_initialized to False to force Datadog interaction path
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            exp.run_task()  # This will create the experiment in DD via VCR
+        exp.run_task()  # This will create the experiment in DD via VCR
     assert exp.has_run
     assert not exp.has_evaluated
     assert exp._datadog_experiment_id is not None
@@ -297,11 +289,8 @@ class TestExperimentRunTask:
             name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
         )
 
-        # Ensure we hit the Datadog path
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            # Use cassette from fixture
-            with experiments_vcr.use_cassette("test_experiment_run_task_setup.yaml"):
-                exp.run_task(jobs=1)  # Use 1 job for deterministic VCR recording
+        with experiments_vcr.use_cassette("test_experiment_run_task_setup.yaml"):
+            exp.run_task(jobs=1)  # Use 1 job for deterministic VCR recording
 
         assert exp.has_run
         assert not exp.has_evaluated
@@ -323,9 +312,7 @@ class TestExperimentRunTask:
         exp = dne.Experiment(
             name="test-run-task-local", task=simple_identity_task, dataset=simple_local_dataset, evaluators=[]
         )
-        # Simulate local mode - no DD interaction expected
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
-            exp.run_task(jobs=1)
+        exp.run_task(jobs=1)
 
         assert exp.has_run
         assert not exp.has_evaluated
@@ -340,9 +327,8 @@ class TestExperimentRunTask:
         exp = dne.Experiment(
             name=exp_name, task=task_with_config, dataset=synced_dataset, evaluators=[], config=valid_config
         )
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_with_config.yaml"):
-                exp.run_task(jobs=1)
+        with experiments_vcr.use_cassette("test_experiment_run_task_with_config.yaml"):
+            exp.run_task(jobs=1)
 
         assert exp.has_run
         assert len(exp.outputs) == len(synced_dataset)
@@ -355,9 +341,8 @@ class TestExperimentRunTask:
         """Capture task errors when raise_errors=False."""
         exp_name = f"test-run-task-error-no-raise-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
-                exp.run_task(jobs=1, raise_errors=False)
+        with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
+            exp.run_task(jobs=1, raise_errors=False)
 
         assert exp.has_run
         assert len(exp.outputs) == len(synced_dataset)
@@ -372,11 +357,10 @@ class TestExperimentRunTask:
         """Raise exception from task when raise_errors=True."""
         exp_name = f"test-run-task-error-raise-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_error_raise.yaml"):
-                # We expect run_task to raise the underlying error
-                with pytest.raises(RuntimeError, match="Error on record 0: Task failed intentionally"):
-                    exp.run_task(jobs=1, raise_errors=True)
+        with experiments_vcr.use_cassette("test_experiment_run_task_error_raise.yaml"):
+            # We expect run_task to raise the underlying error
+            with pytest.raises(RuntimeError, match="Error on record 0: Task failed intentionally"):
+                exp.run_task(jobs=1, raise_errors=True)
         # Depending on execution model (e.g., thread pool), has_run might be True even if error raised mid-way
         # assert exp.has_run # This might be true or false depending on exact failure point
 
@@ -385,9 +369,8 @@ class TestExperimentRunTask:
         sample_size = 1
         exp_name = f"test-run-task-sample-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[])
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_sample.yaml"):
-                exp.run_task(jobs=1, sample_size=sample_size)
+        with experiments_vcr.use_cassette("test_experiment_run_task_sample.yaml"):
+            exp.run_task(jobs=1, sample_size=sample_size)
 
         assert exp.has_run
         assert len(exp.outputs) == sample_size
@@ -422,25 +405,24 @@ class TestExperimentRunTask:
         )
 
         # Run with single thread first
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
-            print(f"\nRunning concurrency test with 1 job (latency={request_latency}s)...")
-            start_time_1 = time.time()
-            exp.run(jobs=1, raise_errors=True)
-            duration_1 = time.time() - start_time_1
-            print(f"Duration (1 job): {duration_1:.3f}s")
+        print(f"\nRunning concurrency test with 1 job (latency={request_latency}s)...")
+        start_time_1 = time.time()
+        exp.run(jobs=1, raise_errors=True)
+        duration_1 = time.time() - start_time_1
+        print(f"Duration (1 job): {duration_1:.3f}s")
 
-            # Reset for parallel run
-            exp.has_run = False
-            exp.outputs = []
-            exp.has_evaluated = False
-            exp.evaluations = []
+        # Reset for parallel run
+        exp.has_run = False
+        exp.outputs = []
+        exp.has_evaluated = False
+        exp.evaluations = []
 
-            # Run with multiple threads
-            print(f"\nRunning concurrency test with {num_records} jobs (latency={request_latency}s)...")
-            start_time_multi = time.time()
-            exp.run(jobs=num_records, raise_errors=True)
-            duration_multi = time.time() - start_time_multi
-            print(f"Duration ({num_records} jobs): {duration_multi:.3f}s")
+        # Run with multiple threads
+        print(f"\nRunning concurrency test with {num_records} jobs (latency={request_latency}s)...")
+        start_time_multi = time.time()
+        exp.run(jobs=num_records, raise_errors=True)
+        duration_multi = time.time() - start_time_multi
+        print(f"Duration ({num_records} jobs): {duration_multi:.3f}s")
 
         print(f"\nConcurrency test timings: jobs=1 -> {duration_1:.3f}s, jobs={num_records} -> {duration_multi:.3f}s")
 
@@ -488,12 +470,11 @@ class TestExperimentRunTask:
             dataset=simple_local_dataset,  # Not pushed, _datadog_dataset_id is None
             evaluators=[],
         )
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_needs_push.yaml"):
-                with pytest.raises(
-                    ValueError, match="Dataset must be pushed to Datadog before running the experiment."
-                ):
-                    exp.run_task()
+        with experiments_vcr.use_cassette("test_experiment_run_task_needs_push.yaml"):
+            with pytest.raises(
+                ValueError, match="Dataset must be pushed to Datadog before running the experiment."
+            ):
+                exp.run_task()
 
 
 class TestExperimentRunEvaluations:
@@ -522,9 +503,8 @@ class TestExperimentRunEvaluations:
         assert exp.has_run
         assert not exp.has_evaluated
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_evals_success.yaml"):
-                results = exp.run_evaluations()  # Should push evals automatically
+        with experiments_vcr.use_cassette("test_experiment_run_evals_success.yaml"):
+            results = exp.run_evaluations()  # Should push evals automatically
 
         assert exp.has_evaluated
         assert isinstance(results, ExperimentResults)
@@ -543,9 +523,8 @@ class TestExperimentRunEvaluations:
         # Override with just length_evaluator
         override_evaluators = [length_evaluator]
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_evals_override.yaml"):
-                results = exp.run_evaluations(evaluators=override_evaluators)
+        with experiments_vcr.use_cassette("test_experiment_run_evals_override.yaml"):
+            results = exp.run_evaluations(evaluators=override_evaluators)
 
         assert exp.has_evaluated
         assert len(results) == len(exp.outputs)
@@ -560,9 +539,8 @@ class TestExperimentRunEvaluations:
         # Use failing evaluator
         exp.evaluators = [simple_match_evaluator, failing_evaluator]
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_evals_error_no_raise.yaml"):
-                results = exp.run_evaluations(raise_errors=False)
+        with experiments_vcr.use_cassette("test_experiment_run_evals_error_no_raise.yaml"):
+            results = exp.run_evaluations(raise_errors=False)
 
         assert exp.has_evaluated
         assert len(results) == len(exp.outputs)
@@ -584,11 +562,10 @@ class TestExperimentRunEvaluations:
         exp = experiment_after_task_run
         exp.evaluators = [failing_evaluator]  # Only the failing one
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_evals_error_raise.yaml"):
-                # Expect run_evaluations to raise the underlying error
-                with pytest.raises(RuntimeError, match="Evaluator 'failing_evaluator' failed on row 0"):
-                    exp.run_evaluations(raise_errors=True)
+        with experiments_vcr.use_cassette("test_experiment_run_evals_error_raise.yaml"):
+            # Expect run_evaluations to raise the underlying error
+            with pytest.raises(RuntimeError, match="Evaluator 'failing_evaluator' failed on row 0"):
+                exp.run_evaluations(raise_errors=True)
         # Should still mark as evaluated even if error occurred? Check implementation. Yes, seems so.
         assert exp.has_evaluated
 
@@ -613,9 +590,8 @@ class TestExperimentRunFull:
             evaluators=[simple_match_evaluator, length_evaluator],
         )
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_full_success.yaml"):
-                results = exp.run(jobs=1, raise_errors=False)
+        with experiments_vcr.use_cassette("test_experiment_run_full_success.yaml"):
+            results = exp.run(jobs=1, raise_errors=False)
 
         assert exp.has_run
         assert exp.has_evaluated
@@ -639,9 +615,8 @@ class TestExperimentRunFull:
             name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]  # Task fails
         )
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_full_task_error.yaml"):
-                results = exp.run(jobs=1, raise_errors=False)
+        with experiments_vcr.use_cassette("test_experiment_run_full_task_error.yaml"):
+            results = exp.run(jobs=1, raise_errors=False)
 
         assert exp.has_run  # Task ran (and failed)
         assert exp.has_evaluated  # Evaluations ran on the (None) outputs
@@ -664,9 +639,8 @@ class TestExperimentRunFull:
             evaluators=[failing_evaluator],  # Evaluator fails
         )
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_full_eval_error.yaml"):
-                results = exp.run(jobs=1, raise_errors=False)
+        with experiments_vcr.use_cassette("test_experiment_run_full_eval_error.yaml"):
+            results = exp.run(jobs=1, raise_errors=False)
 
         assert exp.has_run
         assert exp.has_evaluated
@@ -694,27 +668,24 @@ class TestExperimentPushSummaryMetric:
         """Push a numeric (score) summary metric."""
         metric_name = "overall_accuracy"
         metric_value = 0.85
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_numeric.yaml"):
-                existing_experiment.push_summary_metric(metric_name, metric_value)
+        with experiments_vcr.use_cassette("test_experiment_push_summary_metric_numeric.yaml"):
+            existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: score, score_value: 0.85
 
     def test_push_summary_metric_categorical(self, existing_experiment, experiments_vcr):
         """Push a categorical summary metric (string)."""
         metric_name = "pass_category"
         metric_value = "High"
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_categorical.yaml"):
-                existing_experiment.push_summary_metric(metric_name, metric_value)
+        with experiments_vcr.use_cassette("test_experiment_push_summary_metric_categorical.yaml"):
+            existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "high"
 
     def test_push_summary_metric_boolean(self, existing_experiment, experiments_vcr):
         """Push a boolean summary metric (treated as categorical)."""
         metric_name = "meets_criteria"
         metric_value = True
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_push_summary_metric_boolean.yaml"):
-                existing_experiment.push_summary_metric(metric_name, metric_value)
+        with experiments_vcr.use_cassette("test_experiment_push_summary_metric_boolean.yaml"):
+            existing_experiment.push_summary_metric(metric_name, metric_value)
         # VCR cassette should contain POST to /events with metric_type: categorical, categorical_value: "true"
 
     def test_push_summary_metric_before_create(self, simple_local_dataset):
@@ -789,9 +760,8 @@ class TestExperimentRepr:
         exp = dne.Experiment(
             name=exp_name, task=simple_identity_task, dataset=synced_dataset, evaluators=[simple_match_evaluator]
         )
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_repr_full_run.yaml"):
-                exp.run(jobs=1)  # Run fully
+        with experiments_vcr.use_cassette("test_experiment_repr_full_run.yaml"):
+            exp.run(jobs=1)  # Run fully
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
 
@@ -808,9 +778,8 @@ class TestExperimentRepr:
         """Repr shows error count after run_task with errors."""
         exp_name = f"repr-task-errors-{uuid.uuid4().hex[:6]}"
         exp = dne.Experiment(name=exp_name, task=failing_task, dataset=synced_dataset, evaluators=[])
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
-                exp.run_task(jobs=1, raise_errors=False)  # Run task that fails
+        with experiments_vcr.use_cassette("test_experiment_run_task_error_no_raise.yaml"):
+            exp.run_task(jobs=1, raise_errors=False)  # Run task that fails
         rep = repr(exp)
         rep_clean = self._strip_ansi(rep)
 
@@ -919,10 +888,8 @@ class TestExperimentSummaryMetrics:
     def test_run_summary_metrics_success_and_capture(self, mock_push, experiment_with_summaries, experiments_vcr):
         """Test summary metrics run, push is called, and results are stored."""
         exp = experiment_with_summaries
-        # Mock environment for pushing
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_summary_metrics.yaml"):
-                results = exp.run_evaluations()  # This triggers _run_summary_metrics
+        with experiments_vcr.use_cassette("test_experiment_run_summary_metrics.yaml"):
+            results = exp.run_evaluations()  # This triggers _run_summary_metrics
 
         assert exp.has_evaluated
         assert isinstance(results, ExperimentResults)
@@ -977,11 +944,10 @@ class TestExperimentSummaryMetrics:
         # Simulate local run - remove DD ID
         exp._datadog_experiment_id = None
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=True):
-            # Need cassette for _push_evals (which will fail here, but summary should still run)
-            with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_local.yaml"):
-                with pytest.raises(ValueError, match="Experiment has not been created in Datadog"):  # _push_evals fails
-                    exp.run_evaluations()  # This triggers _run_summary_metrics after push fails
+        # Need cassette for _push_evals (which will fail here, but summary should still run)
+        with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_local.yaml"):
+            with pytest.raises(ValueError, match="Experiment has not been created in Datadog"):  # _push_evals fails
+                exp.run_evaluations()  # This triggers _run_summary_metrics after push fails
 
         # Even though _push_evals failed, summary metrics should have run
         stored_results = exp._summary_metric_results
@@ -1023,9 +989,8 @@ class TestExperimentSummaryMetrics:
         # Make push fail for the first metric
         mock_push.side_effect = [ValueError("Push failed"), None, None]  # Fail on first call only
 
-        with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-            with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_push_fail.yaml"):
-                results = exp.run_evaluations()
+        with experiments_vcr.use_cassette("test_experiment_run_summary_metrics_push_fail.yaml"):
+            results = exp.run_evaluations()
 
         stored_results = results.summary_metric_results
         # Check the first metric captured the push error
@@ -1052,9 +1017,8 @@ class TestExperimentSummaryMetrics:
         """Test ExperimentResults repr includes summary metrics."""
         # Run evaluations to populate results
         with patch("ddtrace.llmobs.experimentation._experiment.Experiment.push_summary_metric"):  # Mock push
-            with patch("ddtrace.llmobs.experimentation._experiment._is_locally_initialized", return_value=False):
-                with experiments_vcr.use_cassette("test_experiment_results_repr_summaries.yaml"):
-                    results = experiment_with_summaries.run_evaluations()
+            with experiments_vcr.use_cassette("test_experiment_results_repr_summaries.yaml"):
+                results = experiment_with_summaries.run_evaluations()
 
         rep = repr(results)
         # Helper to strip ANSI codes for easier assertions

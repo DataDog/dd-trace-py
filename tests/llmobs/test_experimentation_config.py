@@ -44,7 +44,6 @@ class TestExperimentationConfig:
     def test_initial_state(self):
         """Verify the default state before init() is called."""
         assert not config.is_initialized()
-        assert not config._is_locally_initialized()
         assert config.get_project_name() is None
         assert config.get_api_key() is None
         assert config.get_application_key() is None
@@ -62,7 +61,6 @@ class TestExperimentationConfig:
             config.init(self.ML_APP, self.PROJECT_NAME, run_locally=True)
 
             assert not config.is_initialized()
-            assert config._is_locally_initialized()
             assert config.get_project_name() is None
             assert config.get_api_key() is None
             assert config.get_application_key() is None
@@ -84,7 +82,6 @@ class TestExperimentationConfig:
             )
 
             assert config.is_initialized()
-            assert not config._is_locally_initialized()
             assert config.get_project_name() == self.PROJECT_NAME
             assert config.get_api_key() == self.API_KEY
             assert config.get_application_key() == self.APP_KEY
@@ -169,21 +166,6 @@ class TestExperimentationConfig:
             mock_llmobs_enable.assert_called_once()
             call_args, call_kwargs = mock_llmobs_enable.call_args
             assert call_kwargs.get("site") == valid_site
-
-    def test_init_run_locally_skips_site_validation(self):
-        """Test init() with run_locally=True skips site validation."""
-        with patch("ddtrace.llmobs._llmobs.LLMObs.enable") as mock_llmobs_enable:
-            config.init(self.ML_APP, self.PROJECT_NAME, run_locally=True, site=self.INVALID_SITE)
-
-            assert not config.is_initialized()
-            assert config._is_locally_initialized()
-            assert config.get_project_name() is None
-            assert config.get_api_key() is None
-            assert config.get_application_key() is None
-            assert config.get_site() is None
-
-            config._validate_init()
-            mock_llmobs_enable.assert_not_called()
 
     @pytest.mark.parametrize(
         "site_input, expected_api_base, expected_ui_base",

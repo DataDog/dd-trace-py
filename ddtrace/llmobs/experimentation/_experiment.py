@@ -20,7 +20,6 @@ from ._config import API_PROCESSING_TIME_SLEEP
 from ._config import DEFAULT_CHUNK_SIZE
 from ._config import DEFAULT_CONCURRENT_JOBS
 from ._config import FLUSH_EVERY
-from ._config import _is_locally_initialized
 from ._config import _validate_init
 from ._config import get_base_url
 from ._config import get_project_name
@@ -346,10 +345,6 @@ class Experiment:
             raise_errors (bool, optional): If True, raises an exception upon the first error. Defaults to False.
             sample_size (int, optional): Number of records to process (from the top). If None, process all.
         """
-        if not _is_locally_initialized():
-            _validate_init()
-
-        # Print status about the run
         if sample_size is not None:
             print(f"\n{Color.BOLD}Running experiment (subset of {sample_size} rows){Color.RESET}")
         else:
@@ -358,17 +353,14 @@ class Experiment:
         print(f"  Name: {Color.CYAN}{self.name}{Color.RESET}")
         print(f"  raise_errors={raise_errors}\n")
 
-        # Make sure the dataset is pushed if not running locally
-        if not _is_locally_initialized():
-            if not self.dataset._datadog_dataset_id:
-                raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
+        if not self.dataset._datadog_dataset_id:
+            raise ValueError("Dataset must be pushed to Datadog before running the experiment.")
 
         # Create/get the project and experiment in Datadog if not running locally
-        if not _is_locally_initialized():
-            project_id = self._get_or_create_project()
-            self._datadog_project_id = project_id
-            experiment_id = self._create_experiment_in_datadog()
-            self._datadog_experiment_id = experiment_id
+        project_id = self._get_or_create_project()
+        self._datadog_project_id = project_id
+        experiment_id = self._create_experiment_in_datadog()
+        self._datadog_experiment_id = experiment_id
 
         # Possibly create a subset dataset
         if sample_size is not None and sample_size < len(self.dataset._data):
@@ -486,10 +478,7 @@ class Experiment:
                     )
 
         LLMObs.flush()
-        # Give the Datadog backend time to process **only when we're sending data there**.
-        # In local mode this unnecessary pause slows tests and user workflows.
-        if not _is_locally_initialized():
-            time.sleep(API_PROCESSING_TIME_SLEEP)
+        time.sleep(API_PROCESSING_TIME_SLEEP)
 
         os.environ["DD_EXPERIMENTS_RUNNER_ENABLED"] = "False"
         os.environ["DD_LLMOBS_ENABLED"] = "False"
@@ -519,9 +508,6 @@ class Experiment:
         Raises:
             ValueError: If the task has not been run yet.
         """
-        if not _is_locally_initialized():
-            _validate_init()
-
         if not self.has_run:
             raise ValueError("Task has not been run yet. Please call run_task() before run_evaluations().")
 
@@ -1054,14 +1040,8 @@ class ExperimentResults:
             metrics: List[Dict[str, Any]] = []
 
             for result in chunk:
-                idx = result["idx"]
                 merged_result = result
-                output = merged_result.get("output")
-                record_id = merged_result.get("record_id")
-                input_data = merged_result.get("input", {})
                 evaluations = merged_result.get("evaluations", {})
-                expected_output = merged_result.get("expected_output", {})
-                error = merged_result.get("error", {})
                 metadata = merged_result.get("metadata", {})
                 span_id = metadata.get("span_id")
                 trace_id = metadata.get("trace_id")

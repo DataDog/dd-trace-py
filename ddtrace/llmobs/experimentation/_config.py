@@ -1,6 +1,5 @@
 import os
 
-import ddtrace
 from ddtrace.internal.logger import get_logger
 
 from .._llmobs import LLMObs
@@ -35,7 +34,6 @@ _ENV_PROJECT_NAME = None
 _ENV_DD_SITE = None
 _ENV_DD_API_KEY = None
 _ENV_DD_APPLICATION_KEY = None
-_RUN_LOCALLY = False
 _ML_APP = None
 
 log = get_logger(__name__)
@@ -93,11 +91,7 @@ def init(
     """
     from .utils._ui import Color
 
-    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, _ENV_DD_APPLICATION_KEY, _RUN_LOCALLY, _ML_APP
-
-    if run_locally:
-        _RUN_LOCALLY = True
-        return
+    global _IS_INITIALIZED, _ENV_PROJECT_NAME, _ENV_DD_SITE, _ENV_DD_API_KEY, _ENV_DD_APPLICATION_KEY, _ML_APP
 
     if api_key is None:
         api_key = os.getenv("DD_API_KEY")
@@ -161,20 +155,10 @@ def _validate_init() -> None:
     Raises:
         ConfigurationError: If the environment is not yet initialized (init() has not been called).
     """
-    if not _IS_INITIALIZED and not _RUN_LOCALLY:
+    if not _IS_INITIALIZED:
         raise ConfigurationError(
             "Environment not initialized, please call ddtrace.llmobs.experiments.init() at the top of your script before calling any other functions"
         )
-
-
-def _is_locally_initialized() -> bool:
-    """
-    Check if the environment is configured to run locally.
-
-    Returns:
-        bool: True if running locally, False otherwise.
-    """
-    return _RUN_LOCALLY
 
 
 def get_api_key() -> str:
