@@ -979,17 +979,15 @@ def test_submit_evaluation_empty_span_or_trace_id_raises_error(llmobs, mock_llmo
 
 
 def test_submit_evaluation_invalid_timestamp_raises_error(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="test",
-        metric_type="categorical",
-        value="high",
-        ml_app="dummy",
-        timestamp_ms="invalid",
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
-    )
+    with pytest.raises(ValueError, match="timestamp_ms must be a non-negative integer."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="test",
+            metric_type="categorical",
+            value="high",
+            ml_app="dummy",
+            timestamp_ms="invalid",
+        )
 
 
 def test_submit_evaluation_empty_label_raises_error(llmobs, mock_llmobs_logs):
@@ -1024,7 +1022,7 @@ def test_submit_evaluation_numerical_value_raises_error(llmobs, mock_llmobs_logs
         )
     mock_llmobs_logs.warning.assert_called_once_with(
         "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-        "Converting 'numerical' metric to 'score' type."
+        "Converting `numerical` metric to `score` type."
     )
 
 
@@ -1038,7 +1036,7 @@ def test_submit_evaluation_incorrect_numerical_value_type_raises_error(llmobs, m
         )
     mock_llmobs_logs.warning.assert_called_once_with(
         "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-        "Converting 'numerical' metric to 'score' type."
+        "Converting `numerical` metric to `score` type."
     )
 
 
@@ -1049,58 +1047,42 @@ def test_submit_evaluation_incorrect_score_value_type_raises_error(llmobs, mock_
         )
 
 
-def test_submit_evaluation_invalid_tags_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags=["invalid"],
-    )
-    mock_llmobs_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+def test_submit_evaluation_invalid_tags_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="tags must be a dictionary of string key-value pairs."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            tags=["invalid"],
+        )
 
 
-def test_submit_evaluation_invalid_metadata_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        metadata=1,
-    )
-    mock_llmobs_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
+def test_submit_evaluation_invalid_metadata_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="metadata must be json serializable dictionary."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            metadata=1,
+        )
 
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_ml_app="test_app_name")],
 )
-def test_submit_evaluation_non_string_tags_raises_warning_but_still_submits(
-    llmobs, mock_llmobs_logs, mock_llmobs_eval_metric_writer
-):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={1: 2, "foo": "bar"},
-        ml_app="dummy",
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "Failed to parse tags. Tags for evaluation metrics must be strings."
-    )
-    mock_llmobs_logs.reset_mock()
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="dummy",
-            span_id="123",
-            trace_id="456",
+def test_submit_evaluation_non_string_tags_raises_error(llmobs, mock_llmobs_logs, mock_llmobs_eval_metric_writer):
+    with pytest.raises(TypeError, match="Failed to parse tags. Tags for evaluation metrics must be strings."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy", "foo:bar"],
+            value="high",
+            tags={1: 2, "foo": "bar"},
+            ml_app="dummy",
         )
-    )
 
 
 @pytest.mark.parametrize(
@@ -1156,26 +1138,16 @@ def test_submit_evaluation_metric_with_metadata_enqueues_metric(llmobs, mock_llm
         )
     )
     mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata="invalid",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
+    with pytest.raises(TypeError, match="metadata must be json serializable dictionary."):
+        llmobs.submit_evaluation(
+            span_context={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            value="high",
+            tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+            ml_app="ml_app_override",
+            metadata="invalid",
         )
-    )
 
 
 def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_llmobs_eval_metric_writer):
@@ -1259,7 +1231,7 @@ def test_submit_evaluation_with_numerical_metric_converts_to_score(
     )
     mock_llmobs_logs.warning.assert_called_once_with(
         "The evaluation metric type 'numerical' is unsupported. Use 'score' instead. "
-        "Converting 'numerical' metric to 'score' type."
+        "Converting `numerical` metric to `score` type."
     )
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         {
@@ -1899,15 +1871,15 @@ def test_submit_evaluation_llmobs_disabled_raises_debug(llmobs, mock_llmobs_logs
     )
 
 
-def test_submit_evaluation_for_invalid_metadata_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation(
-        span_context={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        metadata=1,
-    )
-    mock_llmobs_logs.warning.assert_called_once_with("metadata must be json serializable dictionary.")
+def test_submit_evaluation_for_invalid_metadata_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="metadata must be json serializable dictionary."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            metadata=1,
+        )
 
 
 def test_submit_evaluation_for_no_ml_app_raises_warning(llmobs, mock_llmobs_logs):
@@ -1991,17 +1963,15 @@ def test_submit_evaluation_for_span_with_tag_value_empty_key_or_val_raises_error
 
 
 def test_submit_evaluation_for_invalid_timestamp_raises_error(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="test",
-        metric_type="categorical",
-        value="high",
-        ml_app="dummy",
-        timestamp_ms="invalid",
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "timestamp_ms must be a non-negative integer. Evaluation metric data will not be sent"
-    )
+    with pytest.raises(ValueError, match="timestamp_ms must be a non-negative integer."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="test",
+            metric_type="categorical",
+            value="high",
+            ml_app="dummy",
+            timestamp_ms="invalid",
+        )
 
 
 def test_submit_evaluation_for_empty_label_raises_error(llmobs, mock_llmobs_logs):
@@ -2033,47 +2003,31 @@ def test_submit_evaluation_for_incorrect_score_value_type_raises_error(llmobs, m
         )
 
 
-def test_submit_evaluation_for_invalid_tags_raises_warning(llmobs, mock_llmobs_logs):
-    llmobs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags=["invalid"],
-    )
-    mock_llmobs_logs.warning.assert_called_once_with("tags must be a dictionary of string key-value pairs.")
+def test_submit_evaluation_for_invalid_tags_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="tags must be a dictionary of string key-value pairs."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
+            label="toxicity",
+            metric_type="categorical",
+            value="high",
+            tags=["invalid"],
+        )
 
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_ml_app="test_app_name")],
 )
-def test_submit_evaluation_for_non_string_tags_raises_warning_but_still_submits(
-    llmobs, mock_llmobs_logs, mock_llmobs_eval_metric_writer
-):
-    llmobs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={1: 2, "foo": "bar"},
-        ml_app="dummy",
-    )
-    mock_llmobs_logs.warning.assert_called_once_with(
-        "Failed to parse tags. Tags for evaluation metrics must be strings."
-    )
-    mock_llmobs_logs.reset_mock()
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="dummy",
-            span_id="123",
-            trace_id="456",
+def test_submit_evaluation_for_non_string_tags_raises_error(llmobs, mock_llmobs_logs, mock_llmobs_eval_metric_writer):
+    with pytest.raises(TypeError, match="Failed to parse tags. Tags for evaluation metrics must be strings."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:dummy", "foo:bar"],
+            value="high",
+            tags={1: 2, "foo": "bar"},
+            ml_app="dummy",
         )
-    )
 
 
 @pytest.mark.parametrize(
@@ -2216,26 +2170,16 @@ def test_submit_evaluation_for_metric_with_metadata_enqueues_metric(llmobs, mock
         )
     )
     mock_llmobs_eval_metric_writer.reset()
-    llmobs.submit_evaluation_for(
-        span={"span_id": "123", "trace_id": "456"},
-        label="toxicity",
-        metric_type="categorical",
-        value="high",
-        tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
-        ml_app="ml_app_override",
-        metadata="invalid",
-    )
-    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
-        _expected_llmobs_eval_metric_event(
-            ml_app="ml_app_override",
-            span_id="123",
-            trace_id="456",
+    with pytest.raises(TypeError, match="metadata must be json serializable dictionary."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"},
             label="toxicity",
             metric_type="categorical",
-            categorical_value="high",
-            tags=["ddtrace.version:{}".format(ddtrace.__version__), "ml_app:ml_app_override", "foo:bar", "bee:baz"],
+            value="high",
+            tags={"foo": "bar", "bee": "baz", "ml_app": "ml_app_override"},
+            ml_app="ml_app_override",
+            metadata="invalid",
         )
-    )
 
 
 def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
