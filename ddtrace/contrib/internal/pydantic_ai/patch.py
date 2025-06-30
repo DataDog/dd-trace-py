@@ -1,5 +1,6 @@
 import pydantic_ai
 from typing import Dict
+import sys
 
 from ddtrace import config
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -34,6 +35,7 @@ def _supported_versions() -> Dict[str, str]:
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None))
+    integration.register_span(span, "agent")
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
     span._set_ctx_item(SPAN_KIND, "agent")
 
@@ -44,10 +46,22 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    with integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True) as span:
+    resp = None
+    try:
+        span = integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True)
+        integration.register_span(span, "tool")
         span.name = getattr(instance, "name", None) or "Pydantic Tool"
         span._set_ctx_item(SPAN_KIND, "tool")
-        return await func(*args, **kwargs)
+        resp = await func(*args, **kwargs)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=resp
+        )
+        span.finish()
 
 
 def patch():
