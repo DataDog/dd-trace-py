@@ -42,6 +42,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
+    _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
     def __init__(self, *args):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
@@ -72,12 +73,14 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def encode(self):
         with self._lock:
+            if not self.buffer:
+                return None, 0
             with StopWatch() as sw:
-                payload = self._build_payload(self.buffer)
+                payload, count = self._build_payload(self.buffer)
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
-            buffer_size = len(self.buffer)
-            self._init_buffer()
-            return payload, buffer_size
+            if count:
+                self.buffer = self.buffer[count:]
+            return payload, count
 
     def _get_parent_session(self, traces):
         for trace in traces:
@@ -89,19 +92,52 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _build_payload(self, traces):
         new_parent_session_span_id = self._get_parent_session(traces)
         is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
-        normalized_spans = [
-            self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
-            for trace in traces
-            for span in trace
-            if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
-        ]
+
+        normalized_spans = []
+        traces_to_encode_count = 0
+
+        for trace in traces:
+            trace_spans = []
+            for span in trace:
+                if is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE:
+                    trace_spans.append(
+                        self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
+                    )
+
+            if not trace_spans:
+                traces_to_encode_count += 1
+                continue
+
+            payload = CIVisibilityEncoderV01._pack_payload(
+                {
+                    "version": self.PAYLOAD_FORMAT_VERSION,
+                    "metadata": self._metadata,
+                    "events": normalized_spans + trace_spans,
+                }
+            )
+
+            if len(payload) > self._MAX_PAYLOAD_SIZE and normalized_spans:
+                break
+
+            normalized_spans.extend(trace_spans)
+            traces_to_encode_count += 1
+
+            if len(payload) > self._MAX_PAYLOAD_SIZE:
+                break
+
         if not normalized_spans:
-            return None
+            log.debug("No spans to encode after filtering, returning empty payload")
+            if traces_to_encode_count > 0:
+                return None, traces_to_encode_count
+            return None, 0
+
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
 
-        # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
-        return CIVisibilityEncoderV01._pack_payload(
-            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
+        return (
+            CIVisibilityEncoderV01._pack_payload(
+                {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
+            ),
+            traces_to_encode_count,
         )
 
     @staticmethod
