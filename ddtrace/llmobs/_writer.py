@@ -13,12 +13,15 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+import os
+
 import ddtrace
 from ddtrace import config
 from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
@@ -36,8 +39,6 @@ from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
-from ddtrace.internal.utils.formats import asbool
-import os
 
 
 logger = get_logger(__name__)

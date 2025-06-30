@@ -1,6 +1,10 @@
 from functools import wraps
 import inspect
-from typing import Any, Dict, Optional, Union, List
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 
 
 def task(func):

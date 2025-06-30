@@ -1,18 +1,26 @@
 import itertools
-import os
-import uuid
-from typing import Any, Dict, List, Union
 import json
+import os
 import re
 import sys
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
+import uuid
 
 import pytest
 import vcr
 
 import ddtrace.llmobs.experimentation as dne
-from ddtrace.llmobs.experimentation._dataset import MAX_DATASET_ROWS, DEFAULT_CHUNK_SIZE, _validate_init, API_PROCESSING_TIME_SLEEP, Dataset
-from ddtrace.llmobs.experimentation.utils._exceptions import DatasetFileError
+from ddtrace.llmobs.experimentation._dataset import API_PROCESSING_TIME_SLEEP
+from ddtrace.llmobs.experimentation._dataset import DEFAULT_CHUNK_SIZE
+from ddtrace.llmobs.experimentation._dataset import MAX_DATASET_ROWS
+from ddtrace.llmobs.experimentation._dataset import Dataset
+from ddtrace.llmobs.experimentation._dataset import _validate_init
 from ddtrace.llmobs.experimentation.utils import _http
+from ddtrace.llmobs.experimentation.utils._exceptions import DatasetFileError
+
 
 # Hardcoded credentials for VCR playback (replace if needed for recording)
 DD_APPLICATION_KEY="replace-when-recording"
@@ -710,11 +718,11 @@ class TestDatasetPush:
         """Test pushing a synced dataset with no local changes."""
         initial_len = len(synced_dataset)
         initial_version = synced_dataset._datadog_dataset_version
-        
+
         # This cassette should ideally show no POST requests or minimal GETs
         with experiments_vcr.use_cassette("test_dataset_push_synced_no_change.yaml"):
             synced_dataset.push()
-        
+
         captured = capsys.readouterr()
         assert f"Dataset '{synced_dataset.name}' (v{initial_version}) is already synced and has no pending changes" in captured.out
 

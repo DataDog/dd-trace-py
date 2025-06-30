@@ -38,6 +38,10 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_ID_BAGGAGE_KEY
+from ddtrace.llmobs._constants import EXPERIMENT_INPUT
+from ddtrace.llmobs._constants import EXPERIMENT_OUTPUT
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -59,10 +63,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
-from ddtrace.llmobs._constants import EXPECTED_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_INPUT
-from ddtrace.llmobs._constants import EXPERIMENT_OUTPUT
-from ddtrace.llmobs._constants import EXPERIMENT_ID_BAGGAGE_KEY
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._utils import AnnotationContext

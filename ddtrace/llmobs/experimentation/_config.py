@@ -1,9 +1,10 @@
 import os
+
 import ddtrace
+from ddtrace.internal.logger import get_logger
 
 from .._llmobs import LLMObs
 from .utils._exceptions import ConfigurationError
-from ddtrace.internal.logger import get_logger
 
 
 # Default configuration values

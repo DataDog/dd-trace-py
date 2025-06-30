@@ -1,9 +1,15 @@
 import os
-from typing import Dict, Optional
+from typing import Dict
+from typing import Optional
 
-from ..._utils import HTTPResponse, http_request
-from .._config import get_api_key, get_application_key, get_site, get_api_base_url
-from ._exceptions import DatadogAPIError, DatadogAuthenticationError
+from ..._utils import HTTPResponse
+from ..._utils import http_request
+from .._config import get_api_base_url
+from .._config import get_api_key
+from .._config import get_application_key
+from .._config import get_site
+from ._exceptions import DatadogAPIError
+from ._exceptions import DatadogAuthenticationError
 
 
 def exp_http_request(method: str, url: str, body: Optional[bytes] = None) -> HTTPResponse:

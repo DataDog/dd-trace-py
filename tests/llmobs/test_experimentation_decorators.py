@@ -1,5 +1,10 @@
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
+
 import pytest
-from typing import Any, Dict, Optional, Union, List
 
 from ddtrace.llmobs.experimentation import _decorators as decorators
 

@@ -1,5 +1,6 @@
 import os
-from unittest.mock import patch, call
+from unittest.mock import call
+from unittest.mock import patch
 
 import pytest
 

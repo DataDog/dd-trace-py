@@ -1,18 +1,22 @@
 import concurrent.futures
+import functools
 import json
 import os
 import time
+from unittest.mock import MagicMock
+from unittest.mock import call
+from unittest.mock import patch
 import uuid
-from unittest.mock import patch, MagicMock, call
-import functools
 
 import pytest
 import vcr
 
 import ddtrace.llmobs.experimentation as dne
-from ddtrace.llmobs.experimentation._config import _is_locally_initialized, get_base_url
+from ddtrace.llmobs.experimentation._config import _is_locally_initialized
+from ddtrace.llmobs.experimentation._config import get_base_url
 from ddtrace.llmobs.experimentation._experiment import ExperimentResults
 from ddtrace.llmobs.experimentation.utils._ui import Color
+
 
 # Hardcoded VCR credentials (replace for recording)
 DD_APPLICATION_KEY="replace-when-recording"
@@ -194,13 +198,13 @@ class TestExperimentInitialization:
         """Initialize experiment successfully with a valid config."""
         exp = dne.Experiment(
             name="test-init-config",
-            task=task_with_config, 
+            task=task_with_config,
             dataset=simple_local_dataset,
             evaluators=[],
             config=valid_config
         )
         assert exp.name == "test-init-config"
-        assert exp.config == valid_config 
+        assert exp.config == valid_config
 
     def test_init_invalid_task_decorator(self, simple_local_dataset):
         """Raise TypeError if task is not decorated with @task."""
@@ -267,7 +271,7 @@ class TestExperimentRunTask:
             name=exp_name,
             task=simple_identity_task,
             dataset=synced_dataset,
-            evaluators=[simple_match_evaluator] 
+            evaluators=[simple_match_evaluator]
         )
 
         # Ensure we hit the Datadog path
@@ -385,7 +389,7 @@ class TestExperimentRunTask:
                  exp.run_task(jobs=1, sample_size=sample_size)
 
         assert exp.has_run
-        assert len(exp.outputs) == sample_size 
+        assert len(exp.outputs) == sample_size
         self._check_output_structure(exp.outputs[0])
 
     def test_run_task_concurrency(self, simple_local_dataset):
@@ -767,7 +771,7 @@ class TestExperimentRepr:
         assert "Tags: #repr" in rep_clean
         assert "URL:" not in rep_clean # Should not have URL when local
 
-    
+
     def test_repr_after_task_datadog(self, experiment_after_task_run):
         """Repr after run_task with Datadog sync."""
         exp = experiment_after_task_run # Already ran task and synced
@@ -783,7 +787,7 @@ class TestExperimentRepr:
         assert "URL:" in rep_clean
         assert f"/llm/testing/experiments/{exp._datadog_experiment_id}" in rep_clean
 
-    
+
     def test_repr_after_full_run_datadog(self, synced_dataset, experiments_vcr):
         """Repr after a full run() with Datadog sync."""
         exp_name = f"repr-full-run-{uuid.uuid4().hex[:6]}"
@@ -803,7 +807,7 @@ class TestExperimentRepr:
         assert "URL:" in rep_clean
         assert f"/llm/testing/experiments/{exp._datadog_experiment_id}" in rep_clean
 
-    
+
     def test_repr_after_task_with_errors(self, synced_dataset, experiments_vcr):
         """Repr shows error count after run_task with errors."""
         exp_name = f"repr-task-errors-{uuid.uuid4().hex[:6]}"

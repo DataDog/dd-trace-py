@@ -4,27 +4,36 @@ import json
 import os
 import time
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Iterator, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Union
 
 import ddtrace
 
+from .._llmobs import LLMObs
+from ._config import API_PROCESSING_TIME_SLEEP
+from ._config import DEFAULT_CHUNK_SIZE
+from ._config import DEFAULT_CONCURRENT_JOBS
+from ._config import FLUSH_EVERY
+from ._config import _is_locally_initialized
+from ._config import _validate_init
+from ._config import get_base_url
+from ._config import get_project_name
 from ._dataset import Dataset
 from .utils._http import exp_http_request
-from ._config import (
-    get_project_name,
-    _validate_init,
-    _is_locally_initialized,
-    DEFAULT_CONCURRENT_JOBS,
-    DEFAULT_CHUNK_SIZE,
-    get_base_url,
-    FLUSH_EVERY,
-    API_PROCESSING_TIME_SLEEP,
-)
-from .utils._ui import Color, ProgressReporter, _print_progress_bar
-from .._llmobs import LLMObs
+from .utils._ui import Color
+from .utils._ui import ProgressReporter
+from .utils._ui import _print_progress_bar
+
 
 if TYPE_CHECKING:
     import pandas as pd
+
     from ._experiment import ExperimentResults
 
 
@@ -66,7 +75,7 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
                     else:
                         type_names = expected_type.__name__
                     raise TypeError(f"Model field '{field}' must be of type {type_names}, got {type(value).__name__}")
-    
+
     return data
 
 def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
@@ -86,17 +95,17 @@ def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]
     """
     if config is None:
         return None
-        
+
     if not isinstance(config, dict):
         raise TypeError("When provided, config must be a dictionary")
-    
+
     if "models" not in config:
         return config
-        
+
     models = config["models"]
     if not isinstance(models, list):
         raise TypeError("When provided, config['models'] must be a list of model dictionaries (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])")
-    
+
     validated_models = []
     for i, model in enumerate(models):
         try:
@@ -104,7 +113,7 @@ def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]
             validated_models.append(validated_model)
         except (TypeError, ValueError) as e:
             raise ValueError(f"Invalid model at index {i}: {str(e)}")
-    
+
     # Create new validated config
     validated_config = dict(config)
     validated_config["models"] = validated_models
@@ -174,7 +183,7 @@ class Experiment:
         self.project_name = get_project_name()
         self.description = description
         self.metadata = metadata if metadata is not None else {}
-        
+
         # Validate config if provided
         self.config = validate_config(config) if config is not None else None
 
@@ -308,7 +317,7 @@ class Experiment:
 
         Returns:
             ExperimentResults
-        """      
+        """
         self.run_task(jobs=jobs, raise_errors=raise_errors, sample_size=sample_size)
         return self.run_evaluations(raise_errors=raise_errors)
 
@@ -598,9 +607,9 @@ class Experiment:
         It calculates metrics based on all outputs/evaluations, pushes them,
         and stores the results in self._summary_metric_results.
         """
-        self._summary_metric_results = {} 
+        self._summary_metric_results = {}
         if not self.summary_metrics:
-            return 
+            return
 
         if not self.has_evaluated:
             print(f"{Color.YELLOW}Warning: Cannot run summary metrics before evaluations are complete.{Color.RESET}")
@@ -614,7 +623,7 @@ class Experiment:
         outputs_data = self.outputs
         evaluations_data = self.evaluations
 
-        for position, metric_func in enumerate(self.summary_metrics): 
+        for position, metric_func in enumerate(self.summary_metrics):
             func_name = metric_func.__name__
             is_primary = getattr(metric_func, "_is_primary", False)
 
@@ -794,7 +803,7 @@ class Experiment:
         else:
             raise TypeError(f"Unsupported metric value type: {type(value)}. Must be int, float, bool, or str.")
 
-        metric_metadata = { 
+        metric_metadata = {
             # Only include position if it's not None
             **({"position": position} if position is not None else {}),
             "is_primary": is_primary,
@@ -1193,12 +1202,12 @@ class ExperimentResults:
 
         # Add evaluator section if we have evaluations
         if evaluator_names:
-            info.append(f"  Evaluations:")
+            info.append("  Evaluations:")
             info.extend(eval_info)
 
         # Add summary metrics section if available (New)
         if self.summary_metric_results:
-            info.append(f"  Summary Metrics:")
+            info.append("  Summary Metrics:")
             for name, result_data in self.summary_metric_results.items():
                 if result_data["error"]:
                     err_type = result_data["error"].get('type', 'Error')

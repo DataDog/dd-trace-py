@@ -1,19 +1,26 @@
 import csv
 import json
-import time
 import sys
-from typing import Any, Dict, Iterator, List, Optional, Union, TYPE_CHECKING, TypedDict
+import time
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import TypedDict
+from typing import Union
 from urllib.parse import quote
 
-from .utils._http import exp_http_request
-from ._config import (
-    MAX_DATASET_ROWS,
-    DEFAULT_CHUNK_SIZE,
-    _validate_init,
-    API_PROCESSING_TIME_SLEEP,
-)
-from .utils._ui import _print_progress_bar, Color
+from ._config import API_PROCESSING_TIME_SLEEP
+from ._config import DEFAULT_CHUNK_SIZE
+from ._config import MAX_DATASET_ROWS
+from ._config import _validate_init
 from .utils._exceptions import DatasetFileError
+from .utils._http import exp_http_request
+from .utils._ui import Color
+from .utils._ui import _print_progress_bar
+
 
 if TYPE_CHECKING:
     import pandas as pd

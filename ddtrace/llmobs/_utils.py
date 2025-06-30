@@ -6,8 +6,8 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 from typing import Union
-import urllib.request
 from urllib.error import HTTPError
+import urllib.request
 
 from ddtrace import config
 from ddtrace.ext import SpanTypes
