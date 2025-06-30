@@ -213,23 +213,3 @@ class CIVisibilityWriter(HTTPWriter):
                         record_endpoint_payload_request_error(endpoint, request_error)
 
         return response
-
-    def flush_queue(self, raise_exc=False):
-        # type: (bool) -> None
-        if not self._clients:
-            return
-
-        for client in self._clients:
-            while len(client.encoder) > 0:
-                try:
-                    payload, count = client.encoder.encode()
-                    if not payload or count == 0:
-                        break
-
-                    headers = self._get_finalized_headers(count, client)
-                    self._put(payload, headers, client, no_trace=True)
-                except Exception:
-                    log.error("Failed to flush queue for client %r", client, exc_info=True)
-                    if raise_exc:
-                        raise
-                    break
