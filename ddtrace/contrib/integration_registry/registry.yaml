@@ -646,7 +646,7 @@ integrations:
   - pydantic-ai-slim
   tested_versions_by_dependency:
     pydantic-ai-slim:
-      min: 0.3.3
+      min: 0.3.0
       max: 0.3.3
 
 - integration_name: pylibmc
