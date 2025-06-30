@@ -77,14 +77,14 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_input_message(self, args, kwargs, config):
         messages = []
-        
+
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
             messages.extend(self._extract_messages_from_contents(system_instruction, "system"))
-        
+
         contents = get_argument_value(args, kwargs, -1, "contents")
         messages.extend(self._extract_messages_from_contents(contents, "user"))
-        
+
         return messages
 
     def _extract_messages_from_contents(self, contents, default_role):
