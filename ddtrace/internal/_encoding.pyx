@@ -98,7 +98,10 @@ cdef inline int array_prefix_size(stdint.uint32_t l):
 
 cdef inline object truncate_string(object string):
     if string and len(string) > MAX_SPAN_META_VALUE_LEN:
-        return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
+        if PyBytesLike_Check(string):
+            return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + b"<truncated>..."
+        elif PyUnicode_Check(string):
+            return string[:TRUNCATED_SPAN_ATTRIBUTE_LEN - 14] + "<truncated>..."
     return string
 
 cdef inline int pack_bytes(msgpack_packer *pk, char *bs, Py_ssize_t l):
@@ -154,7 +157,7 @@ cdef inline int pack_text(msgpack_packer *pk, object text) except? -1:
         if len(text) > MAX_SPAN_META_VALUE_LEN:
             text = truncate_string(text)
         IF PY_MAJOR_VERSION >= 3:
-            ret = msgpack_pack_unicode(pk, text, MAX_SPAN_META_VALUE_LEN)
+            ret = msgpack_pack_unicode(pk, text, ITEM_LIMIT)
             if ret == -2:
                 raise ValueError("unicode string is too large")
         ELSE:

@@ -1,3 +1,4 @@
+import functools
 import sys
 import unittest
 from unittest import mock
@@ -20,6 +21,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import MODULE_ID
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
@@ -27,6 +29,26 @@ from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.constants import COMPONENT
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+
+
+def _disable_ci_visibility(f):
+    """Decorator to disable CI Visibility after a test finishes."""
+
+    # DEV: The tests here enable CI Visibility to test the `unittest` plugin, but this causes CI Visibility to be
+    # enabled _also_ for the pytest session that is running the tests. Disabling it in a fixture is not enough because
+    # the fixture only gets to run at teardown, by which time pytest has already tried to run some hooks (such as
+    # pytest_runtest_makereport) with CI Visibility enabled, but the session start hooks did not run because CI
+    # Visibility was disabled at the beginning of the session, causing "No session exists" errors. Therefore we need to
+    # disable CI Visibility right after the test body runs, _before_ control returns to pytest.
+    @functools.wraps(f)
+    def wrapper(*args, **kwargs):
+        try:
+            return f(*args, **kwargs)
+        finally:
+            if CIVisibility.enabled:
+                CIVisibility.disable()
+
+    return wrapper
 
 
 class UnittestTestCase(TracerTestCase):
@@ -54,6 +76,7 @@ class UnittestTestCase(TracerTestCase):
         ):
             yield
 
+    @_disable_ci_visibility
     def test_unittest_set_test_session_name(self):
         """Check that the unittest command is used to set the test session name."""
         _set_tracer(self.tracer)
@@ -70,6 +93,7 @@ class UnittestTestCase(TracerTestCase):
 
         set_test_session_name_mock.assert_called_once_with(test_command="python -m unittest")
 
+    @_disable_ci_visibility
     def test_unittest_pass_single(self):
         """Test with a `unittest` test which should pass."""
         _set_tracer(self.tracer)
@@ -125,6 +149,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(test.MODULE) is None
         assert test_session_span.get_tag(test.SUITE) is None
 
+    @_disable_ci_visibility
     def test_unittest_pass_multiple(self):
         """Tests with`unittest` tests which should pass."""
         _set_tracer(self.tracer)
@@ -194,6 +219,7 @@ class UnittestTestCase(TracerTestCase):
     @pytest.mark.skipif(
         sys.version_info[0] <= 3 and sys.version_info[1] <= 7, reason="Triggers a bug with skip reason being empty"
     )
+    @_disable_ci_visibility
     def test_unittest_skip_single_no_reason(self):
         """Tests with a `unittest` test which should be skipped."""
         _set_tracer(self.tracer)
@@ -253,6 +279,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(test.SUITE) is None
         assert test_session_span.get_tag(test.SKIP_REASON) is None
 
+    @_disable_ci_visibility
     def test_unittest_skip_single_reason(self):
         """Tests with a `unittest` test which should be skipped."""
         _set_tracer(self.tracer)
@@ -312,6 +339,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(test.SUITE) is None
         assert test_session_span.get_tag(test.SKIP_REASON) is None
 
+    @_disable_ci_visibility
     def test_unittest_skip_multiple_reason(self):
         """Test with `unittest` tests which should be skipped."""
         _set_tracer(self.tracer)
@@ -390,6 +418,7 @@ class UnittestTestCase(TracerTestCase):
     @pytest.mark.skipif(
         sys.version_info[0] <= 3 and sys.version_info[1] <= 7, reason="Triggers a bug with skip reason being empty"
     )
+    @_disable_ci_visibility
     def test_unittest_skip_combined(self):
         """Test with `unittest` tests which should be skipped."""
         _set_tracer(self.tracer)
@@ -466,6 +495,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(test.TEST_STATUS) == test.Status.PASS.value
         assert test_session_span.get_tag(test.SKIP_REASON) is None
 
+    @_disable_ci_visibility
     def test_unittest_fail_single(self):
         """Test with `unittest` tests which should fail."""
         _set_tracer(self.tracer)
@@ -526,6 +556,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(ERROR_MSG) is None
         assert test_session_span.get_tag(ERROR_TYPE) is None
 
+    @_disable_ci_visibility
     def test_unittest_fail_multiple(self):
         """Test with `unittest` tests which should fail."""
         _set_tracer(self.tracer)
@@ -602,6 +633,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(ERROR_MSG) is None
         assert test_session_span.get_tag(ERROR_TYPE) is None
 
+    @_disable_ci_visibility
     def test_unittest_combined(self):
         """Test with `unittest` tests which pass, get skipped and fail combined."""
         _set_tracer(self.tracer)
@@ -702,6 +734,7 @@ class UnittestTestCase(TracerTestCase):
         assert test_session_span.get_tag(ERROR_MSG) is None
         assert test_session_span.get_tag(ERROR_TYPE) is None
 
+    @_disable_ci_visibility
     def test_unittest_nested_test_cases(self):
         """Test with `unittest` test cases which pass, get skipped and fail combined."""
         _set_tracer(self.tracer)
@@ -843,6 +876,7 @@ class UnittestTestCase(TracerTestCase):
             assert spans[i].get_tag(SUITE_ID) == expected_result[i].get(SUITE_ID, None)
             assert spans[i].get_tag(test.FRAMEWORK_VERSION) == _get_runtime_and_os_metadata()[RUNTIME_VERSION]
 
+    @_disable_ci_visibility
     def test_unittest_xfail_xpass(self):
         """Test with `unittest` test cases which pass, get skipped, xfail and xpass"""
         _set_tracer(self.tracer)

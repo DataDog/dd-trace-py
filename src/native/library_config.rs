@@ -37,14 +37,14 @@ impl PyConfigurator {
         let res_config = self.configurator.get_config_from_file(
             self.local_file.as_ref(),
             self.fleet_file.as_ref(),
-            ProcessInfo::detect_global("python".to_string()),
+            &ProcessInfo::detect_global("python".to_string()),
         );
         match res_config {
             Ok(config) => {
                 let list = PyList::empty(py);
                 for c in config.iter() {
                     let dict = PyDict::new(py);
-                    dict.set_item("name", c.name.to_str().to_owned())?;
+                    dict.set_item("name", c.name.to_string().to_owned())?;
                     dict.set_item("value", c.value.clone())?;
                     dict.set_item("source", c.source.to_str().to_owned())?;
                     dict.set_item("config_id", c.config_id.as_deref().unwrap_or("").to_owned())?;

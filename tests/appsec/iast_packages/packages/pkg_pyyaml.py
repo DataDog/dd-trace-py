@@ -3,6 +3,7 @@ PyYAML==6.0.1
 
 https://pypi.org/project/PyYAML/
 """
+
 import json
 
 from flask import Blueprint
@@ -30,7 +31,7 @@ def pkg_pyyaml_view():
 def pkg_pyyaml_propagation_view():
     import yaml
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

@@ -5,7 +5,6 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_reported
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
-from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast.constants import HTML_TAGS_REMOVE
 from ddtrace.appsec._iast.constants import STACKTRACE_EXCEPTION_REGEX
@@ -15,7 +14,6 @@ from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.settings.asm import config as asm_config
 
 
-@oce.register
 class StacktraceLeak(VulnerabilityBase):
     vulnerability_type = VULN_STACKTRACE_LEAK
     skip_location = True

@@ -1,5 +1,6 @@
 import inspect
 import os
+from typing import Dict
 from typing import Union
 import unittest
 
@@ -68,6 +69,10 @@ config._add(
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"unittest": "*"}
 
 
 def _enable_unittest_if_not_started():
@@ -654,7 +659,7 @@ def _start_test_session_span(instance) -> ddtrace.trace.Span:
         "true" if _CIVisibility._instance._collect_coverage_enabled else "false",
     )
 
-    _CIVisibility.set_test_session_name(test_command=test_command)
+    _CIVisibility._instance.set_test_session_name(test_command=test_command)
 
     if _CIVisibility.test_skipping_enabled():
         _set_test_skipping_tags_to_span(test_session_span)

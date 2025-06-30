@@ -1,9 +1,8 @@
-import functools
 import ipaddress
 import sys
 from types import TracebackType
-from typing import Any  # noqa:F401
-from typing import AnyStr  # noqa:F401
+from typing import Any
+from typing import AnyStr
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -37,8 +36,7 @@ def ensure_binary(s, encoding="utf-8", errors="ignore") -> bytes:
 NumericType = Union[int, float]
 
 
-def is_integer(obj):
-    # type: (Any) -> bool
+def is_integer(obj: Any) -> bool:
     """Helper to determine if the provided ``obj`` is an integer type or not"""
     # DEV: We have to make sure it is an integer and not a boolean
     # >>> type(True)
@@ -48,30 +46,8 @@ def is_integer(obj):
     return isinstance(obj, int) and not isinstance(obj, bool)
 
 
-def make_async_decorator(tracer, coro, *params, **kw_params):
-    """
-    Decorator factory that creates an asynchronous wrapper that yields
-    a coroutine result. This factory is required to handle Python 2
-    compatibilities.
-
-    :param object tracer: the tracer instance that is used
-    :param function f: the coroutine that must be executed
-    :param tuple params: arguments given to the Tracer.trace()
-    :param dict kw_params: keyword arguments given to the Tracer.trace()
-    """
-
-    @functools.wraps(coro)
-    async def func_wrapper(*args, **kwargs):
-        with tracer.trace(*params, **kw_params):
-            result = await coro(*args, **kwargs)
-            return result
-
-    return func_wrapper
-
-
 # DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
-def to_unicode(s):
-    # type: (AnyStr) -> Text
+def to_unicode(s: AnyStr) -> Text:
     """Return a unicode string for the given bytes or string instance."""
     # No reason to decode if we already have the unicode compatible object we expect
     # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
@@ -90,8 +66,7 @@ def to_unicode(s):
     return str(s)
 
 
-def maybe_stringify(obj):
-    # type: (Any) -> Optional[str]
+def maybe_stringify(obj: Any) -> Optional[str]:
     if obj is not None:
         return str(obj)
     return None
@@ -109,8 +84,7 @@ def is_valid_ip(ip: str) -> bool:
         return False
 
 
-def ip_is_global(ip):
-    # type: (str) -> bool
+def ip_is_global(ip: str) -> bool:
     """
     is_global is Python 3+ only. This could raise a ValueError if the IP is not valid.
     """

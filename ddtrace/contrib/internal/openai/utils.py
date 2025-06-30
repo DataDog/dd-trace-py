@@ -25,20 +25,24 @@ _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+    def __init__(self, wrapped, integration, span, kwargs, operation_type="chat"):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         prompts = kwargs.get("prompt", "")
-        if is_completion and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
+        if operation_type == "completion" and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
             n *= len(prompts)
         self._dd_span = span
         self._streamed_chunks = [[] for _ in range(n)]
         self._dd_integration = integration
-        self._is_completion = is_completion
+        self._operation_type = operation_type
         self._kwargs = kwargs
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace OpenAI stream objects for chat/completion/response.
+    """
+
     def __enter__(self):
         self.__wrapped__.__enter__()
         return self
@@ -60,7 +64,11 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                    self._dd_integration,
+                    self._dd_span,
+                    self._kwargs,
+                    self._streamed_chunks,
+                    self._operation_type,
                 )
             self._dd_span.finish()
 
@@ -72,7 +80,11 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                self._dd_integration,
+                self._dd_span,
+                self._kwargs,
+                self._streamed_chunks,
+                self._operation_type,
             )
             self._dd_span.finish()
             raise
@@ -102,6 +114,10 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace AsyncOpenAI stream objects for chat/completion/response.
+    """
+
     async def __aenter__(self):
         await self.__wrapped__.__aenter__()
         return self
@@ -123,7 +139,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
                 )
             self._dd_span.finish()
 
@@ -135,7 +151,7 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             return chunk
         except StopAsyncIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
             )
             self._dd_span.finish()
             raise
@@ -247,40 +263,55 @@ def _is_async_generator(resp):
 
 
 def _loop_handler(span, chunk, streamed_chunks):
-    """Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
-
-    When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
+    """
+    Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
+    When handling a streamed chat/completion/responses,
+    this function is called for each chunk in the streamed response.
     """
     if span.get_tag("openai.response.model") is None:
-        span.set_tag("openai.response.model", chunk.model)
-    for choice in chunk.choices:
+        if hasattr(chunk, "type") and chunk.type.startswith("response."):
+            response = getattr(chunk, "response", None)
+            model = getattr(response, "model", "")
+        else:
+            model = getattr(chunk, "model", "")
+        span.set_tag_str("openai.response.model", model)
+
+    response = getattr(chunk, "response", None)
+    if getattr(chunk, "type", "") == "response.completed":
+        streamed_chunks[0].append(response)
+
+    # Completions/chat completions are returned as `choices`
+    for choice in getattr(chunk, "choices", []):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
 
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
     try:
-        if is_completion:
+        if operation_type == "response":
+            formatted_completions = streamed_chunks[0][0]
+        elif operation_type == "completion":
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        else:
+        elif operation_type == "chat":
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
-        operation = "completion" if is_completion else "chat"
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
+        if integration.is_pc_sampled_span(span) and not operation_type == "response":
+            _tag_streamed_completions(integration, span, formatted_completions)
+        _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
+        integration.llmobs_set_tags(
+            span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
+        )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
-def _tag_streamed_response(integration, span, completions_or_messages=None):
+def _tag_streamed_completions(integration, span, completions_or_messages=None):
     """Tagging logic for streamed completions and chat completions."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
@@ -302,15 +333,22 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion responses.
+def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
+    usage = None
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
-        prompt_tokens = getattr(usage, "prompt_tokens", 0)
-        completion_tokens = getattr(usage, "completion_tokens", 0)
+    elif response and getattr(response, "usage", None):
+        usage = response.usage
+
+    if usage:
+        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
+            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
+            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")

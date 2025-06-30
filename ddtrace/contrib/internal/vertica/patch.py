@@ -1,9 +1,9 @@
 import importlib
+from typing import Dict
 
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -126,6 +126,10 @@ def get_version():
     return vertica_python.__version__
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"vertica": ">=0.6"}
+
+
 def patch():
     global _PATCHED
     if _PATCHED:
@@ -236,9 +240,6 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
                 if "span_start" in conf:
                     conf["span_start"](instance, span, conf, *args, **kwargs)
-
-                # set analytics sample rate
-                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.get_analytics_sample_rate())
 
                 result = wrapped(*args, **kwargs)
                 return result

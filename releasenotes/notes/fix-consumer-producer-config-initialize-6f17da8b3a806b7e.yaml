@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    kafka: Fixes an issue where a producer or consumer initialized with an unpacked config resulted in TypeError, causing a failed connection.
+    confluent-kafka supports both unpacked and packed config; this change allows initialization with either.

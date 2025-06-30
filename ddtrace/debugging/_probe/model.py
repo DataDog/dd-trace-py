@@ -66,6 +66,12 @@ class CaptureLimits:
 DEFAULT_CAPTURE_LIMITS = CaptureLimits()
 
 
+# NOTE: Probe dataclasses are mutable, but have an identity, so can be hashed.
+# When defining a probe class, the `eq` parameter of the `dataclass` decorator
+# should be set to `False` to allow the `__hash__` method from the base Probe
+# class to be used.
+
+
 @dataclass
 class Probe(abc.ABC):
     __context_creator__ = False
@@ -194,12 +200,12 @@ class MetricProbeMixin(AbstractProbeMixIn):
     value: Optional[DDExpression]
 
 
-@dataclass
+@dataclass(eq=False)
 class MetricLineProbe(Probe, LineLocationMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class MetricFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, MetricProbeMixin, ProbeConditionMixin):
     pass
 
@@ -251,13 +257,13 @@ class LogProbeMixin(AbstractProbeMixIn):
         return 10 if self.take_snapshot else 100
 
 
-@dataclass
+@dataclass(eq=False)
 class LogLineProbe(Probe, LineLocationMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
         return self.take_snapshot
 
 
-@dataclass
+@dataclass(eq=False)
 class LogFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, LogProbeMixin, ProbeConditionMixin, RateLimitMixin):
     def is_global_rate_limited(self) -> bool:
         return self.take_snapshot
@@ -268,7 +274,7 @@ class SpanProbeMixin:
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanFunctionProbe(Probe, FunctionLocationMixin, SpanProbeMixin, ProbeConditionMixin):
     __context_creator__: bool = field(default=True, init=False, repr=False, compare=False)
 
@@ -296,12 +302,12 @@ class SpanDecorationMixin:
     decorations: List[SpanDecoration]
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanDecorationLineProbe(Probe, LineLocationMixin, SpanDecorationMixin):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class SpanDecorationFunctionProbe(Probe, FunctionLocationMixin, TimingMixin, SpanDecorationMixin):
     pass
 
@@ -312,12 +318,12 @@ class SessionMixin:
     level: int
 
 
-@dataclass
+@dataclass(eq=False)
 class TriggerLineProbe(Probe, LineLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 
 
-@dataclass
+@dataclass(eq=False)
 class TriggerFunctionProbe(Probe, FunctionLocationMixin, SessionMixin, ProbeConditionMixin, RateLimitMixin):
     pass
 

@@ -3,6 +3,7 @@ cachetools==5.3.3
 
 https://pypi.org/project/cachetools/
 """
+
 from flask import Blueprint
 from flask import jsonify
 from flask import request
@@ -50,7 +51,7 @@ def pkg_cachetools_view():
 def pkg_cachetools_propagation_view():
     import cachetools
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
 

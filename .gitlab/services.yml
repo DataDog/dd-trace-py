@@ -15,7 +15,7 @@
     name: registry.ddbuild.io/images/mirror/dd-apm-test-agent/ddapm-test-agent:v1.21.0
     alias: testagent
     variables:
-      LOG_LEVEL: INFO
+      LOG_LEVEL: ERROR
       SNAPSHOT_DIR: ${CI_PROJECT_DIR}/tests/snapshots
       SNAPSHOT_CI: 1
       PORT: 9126
@@ -123,3 +123,16 @@
   azurite:
     name: registry.ddbuild.io/images/mirror/azure-storage/azurite:3.34.0
     alias: azurite
+  azureservicebusemulator:
+    name: registry.ddbuild.io/images/mirror/azure-messaging/servicebus-emulator:1.1.2
+    alias: azureservicebusemulator
+    variables:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Localtestpass1!"
+      SQL_SERVER: azuresqledge
+  azuresqledge:
+    name: registry.ddbuild.io/images/mirror/azure-sql-edge:1.0.7
+    alias: azuresqledge
+    variables:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Localtestpass1!"

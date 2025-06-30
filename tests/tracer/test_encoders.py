@@ -12,7 +12,6 @@ from hypothesis.strategies import dictionaries
 from hypothesis.strategies import floats
 from hypothesis.strategies import integers
 from hypothesis.strategies import text
-import mock
 import msgpack
 import pytest
 
@@ -31,7 +30,6 @@ from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.encoding import MsgpackEncoderV04
 from ddtrace.internal.encoding import MsgpackEncoderV05
 from ddtrace.internal.encoding import _EncoderBase
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
@@ -509,15 +507,18 @@ def test_span_link_v04_encoding():
     ]
 
 
-@pytest.mark.parametrize(
-    "version,trace_native_span_events",
-    [
-        ("v0.4", False),
-        ("v0.4", True),
-        ("v0.5", False),
-    ],
+@pytest.mark.subprocess(
+    parametrize={"DD_TRACE_API_VERSION": ["v0.4", "v0.5"], "DD_TRACE_NATIVE_SPAN_EVENTS": ["True", "False"]}, err=None
 )
-def test_span_event_encoding_msgpack(version, trace_native_span_events):
+def test_span_event_encoding_msgpack():
+    import os
+
+    import mock
+
+    from ddtrace.internal.encoding import MSGPACK_ENCODERS
+    from ddtrace.trace import Span
+    from tests.tracer.test_encoders import decode
+
     expected_top_level_span_encoding = [
         {
             b"name": b"Something went so wrong",
@@ -555,7 +556,9 @@ def test_span_event_encoding_msgpack(version, trace_native_span_events):
     with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
-    agent_config.trace_native_span_events = trace_native_span_events
+    # Get test parameters from environment variables
+    version = os.getenv("DD_TRACE_API_VERSION")
+    trace_native_span_events = os.getenv("DD_TRACE_NATIVE_SPAN_EVENTS") == "True"
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])

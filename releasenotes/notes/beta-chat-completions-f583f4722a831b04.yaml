@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where using `client.beta.chat.completions.stream` with LLM Observability enabled caused an attribute error.
+  - |
+    openai: This fix resolves an issue where using `client.beta.chat.completions.stream` with openai patching caused an attribute error.
+

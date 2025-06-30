@@ -20,6 +20,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _extract_span
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
+from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -41,6 +42,10 @@ DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
+
+
+def _disable_telemetry_dependency_collection():
+    telemetry_config.DEPENDENCY_COLLECTION = False
 
 
 def is_enabled(config):
@@ -113,6 +118,7 @@ if _USE_PLUGIN_V2:
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol_wrapper  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
@@ -136,6 +142,7 @@ else:
 def pytest_configure(config):
     config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
     if is_enabled(config):
+        _disable_telemetry_dependency_collection()
         _versioned_pytest_configure(config)
 
 

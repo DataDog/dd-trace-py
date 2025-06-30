@@ -4,7 +4,10 @@ METADATA = "_ml_obs.meta.metadata"
 METRICS = "_ml_obs.metrics"
 ML_APP = "_ml_obs.meta.ml_app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
+PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
+PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
 TAGS = "_ml_obs.tags"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
@@ -27,6 +30,7 @@ SPAN_START_WHILE_DISABLED_WARNING = (
 
 GEMINI_APM_SPAN_NAME = "gemini.request"
 LANGCHAIN_APM_SPAN_NAME = "langchain.request"
+LITELLM_APM_SPAN_NAME = "litellm.request"
 OPENAI_APM_SPAN_NAME = "openai.request"
 VERTEXAI_APM_SPAN_NAME = "vertexai.request"
 CREWAI_APM_SPAN_NAME = "crewai.request"
@@ -82,8 +86,11 @@ DISPATCH_ON_TOOL_CALL = "on_tool_call"
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
 
-# Experiments related
 EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
 EXPERIMENT_INPUT = "_ml_obs.meta.input"
 EXPERIMENT_OUTPUT = "_ml_obs.meta.output"
 EXPERIMENT_ID_BAGGAGE_KEY = "experiment_id"
+
+LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
+
+PROXY_REQUEST = "llmobs.proxy_request"

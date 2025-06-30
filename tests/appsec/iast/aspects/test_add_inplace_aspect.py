@@ -6,9 +6,9 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TaintRange_
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.iast_utils import string_strategies
 

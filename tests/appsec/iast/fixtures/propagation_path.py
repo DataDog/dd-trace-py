@@ -2,12 +2,11 @@
 CAVEAT: the line number is important to some IAST tests, be careful to modify this file and update the tests if you
 make some changes
 """
+import _io
 import asyncio
 import os
 import re
 import sys
-
-import _io
 
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))

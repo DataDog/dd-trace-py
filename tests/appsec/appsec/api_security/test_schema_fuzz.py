@@ -15,11 +15,13 @@ def build_schema(obj):
         rules.update(json.load(f_apisec))
     waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
     ctx = waf._at_request_start()
+    if ctx is None:
+        raise RuntimeError("Failed to create WAF context")
     res = waf.run(
         ctx,
         {"server.request.body": obj, constants.WAF_DATA_NAMES.PROCESSOR_SETTINGS: {"extract-schema": True}},
         timeout_ms=50_000.0,
-    ).derivatives
+    ).api_security
     return res["_dd.appsec.s.req.body"]
 
 

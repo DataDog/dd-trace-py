@@ -7,6 +7,7 @@ To start the service manually, invoke the ``enable`` method::
 """
 
 from ._llmobs import LLMObs
+from ._llmobs import LLMObsSpan
 
 
-__all__ = ["LLMObs"]
+__all__ = ["LLMObs", "LLMObsSpan"]

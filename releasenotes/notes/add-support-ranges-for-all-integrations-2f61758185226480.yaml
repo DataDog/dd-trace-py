@@ -1,0 +1,6 @@
+---
+other:
+  - |
+    Adds explicit support ranges for all integrations. These support ranges can be used in conjunction with
+    `DD_TRACE_SAFE_INSTRUMENTATION_ENABLED=true` to enable safer patching of integrations, by ensuring that only
+    compatible versions of an integration are patched.

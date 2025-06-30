@@ -4,8 +4,7 @@ This is the entry point for the Error Tracking automatic reporting of handled ex
 from ddtrace.settings.errortracking import config
 
 
-# TODO[dubloom]: Uncomment when the product is ready
-# requires = ["tracer"]
+requires = ["tracer"]
 
 
 def post_preload():

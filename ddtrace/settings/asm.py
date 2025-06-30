@@ -14,6 +14,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
+from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
@@ -64,6 +65,8 @@ class ASMConfig(DDConfig):
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
+    _asm_processed_span_types = {SpanTypes.WEB, SpanTypes.GRPC}
+    _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
@@ -137,6 +140,9 @@ class ASMConfig(DDConfig):
     )
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
+
+    _iast_is_testing = False
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -171,11 +177,14 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_apm_tracing_enabled",
+        "_bypass_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
         "_iast_propagation_debug",
         "_iast_telemetry_report_lvl",
+        "_iast_security_controls",
+        "_iast_is_testing",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_auto_user_instrumentation_local_mode",
@@ -224,9 +233,21 @@ class ASMConfig(DDConfig):
 
     def __init__(self):
         super().__init__()
+
+        if in_aws_lambda():
+            self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
+            self._asm_http_span_types.add(SpanTypes.SERVERLESS)
+
+            # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
+            tracer_config._remote_config_enabled = False
+            self._api_security_enabled = False
+            self._ep_enabled = False
+            self._iast_supported = False
+
         if not self._iast_supported:
             self._iast_enabled = False
-        if not self._asm_libddwaf_available or in_aws_lambda():
+
+        if not self._asm_libddwaf_available:
             self._asm_enabled = False
             self._asm_can_be_enabled = False
             self._iast_enabled = False

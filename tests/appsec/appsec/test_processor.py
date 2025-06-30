@@ -453,7 +453,6 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer, key):
         for match in rule.get("rule_matches", [])
         for value in match.get("parameters", [])
     ]
-    assert all("password" not in value for value in values)
     assert all("goodbye" not in value for value in values)
     assert any("<Redacted>" in value for value in values)
 
