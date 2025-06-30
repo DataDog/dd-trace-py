@@ -455,7 +455,7 @@ class Config(object):
                 self._trace_rate_limit,
             )
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
-        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 300, int)
+        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 200, int)
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)

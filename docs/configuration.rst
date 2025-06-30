@@ -246,7 +246,7 @@ Traces
 
    DD_TRACE_PARTIAL_FLUSH_MIN_SPANS:
      type: Integer
-     default: 300
+     default: 200
      description: Maximum number of spans sent per trace per payload when ``DD_TRACE_PARTIAL_FLUSH_ENABLED=True``.
 
    DD_TRACE_PROPAGATION_EXTRACT_FIRST:
@@ -307,7 +307,7 @@ Traces
 
    DD_TRACE_WRITER_BUFFER_SIZE_BYTES:
      type: Int
-     default: 8388608
+     default: 31457280
      description: The max size in bytes of traces to buffer between flushes to the agent.
 
    DD_TRACE_WRITER_INTERVAL_SECONDS:
@@ -317,7 +317,7 @@ Traces
 
    DD_TRACE_WRITER_MAX_PAYLOAD_SIZE_BYTES:
      type: Int
-     default: 8388608
+     default: 31457280
      
      description: |
          The max size in bytes of each payload item sent to the trace agent. If the max payload size is greater than buffer size,
