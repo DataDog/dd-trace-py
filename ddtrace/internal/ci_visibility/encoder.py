@@ -100,9 +100,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             trace_spans = []
             for span in trace:
                 if is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE:
-                    trace_spans.append(
-                        self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
-                    )
+                    trace_spans.append(self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id))
 
             if not trace_spans:
                 traces_to_encode_count += 1
