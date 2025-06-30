@@ -59,6 +59,7 @@ def asm_context(
     block_request_callable: typing.Optional[typing.Callable[[], bool]] = None,
     service: typing.Optional[str] = None,
     config=None,
+    rc_payload=None,
 ) -> typing.Iterator[Span]:
     with override_global_config(config) if config else contextlib.nullcontext():
         if tracer is None:
@@ -68,6 +69,10 @@ def asm_context(
             tracer._span_aggregator.writer._api_version = "v0.4"
             tracer._recreate()
         patch_for_waf_addresses()
+        if rc_payload:
+            processor = tracer._appsec_processor
+            if processor:
+                processor._update_rules([], rc_payload)
         with core.context_with_data(
             "test.asm",
             remote_addr=ip_addr,
