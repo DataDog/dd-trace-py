@@ -592,7 +592,9 @@ class SpanTestCase(TracerTestCase):
         try:
             raise RuntimeError("bim")
         except RuntimeError as e:
-            span.record_exception(e, {"foo": "bar", "toto": ["titi", 1], "bim": 2**100, "tata": [[1]], "tutu": {"a": "b"}})
+            span.record_exception(
+                e, {"foo": "bar", "toto": ["titi", 1], "bim": 2**100, "tata": [[1]], "tutu": {"a": "b"}}
+            )
         span.finish()
 
         span.assert_span_event_count(1)
@@ -603,7 +605,11 @@ class SpanTestCase(TracerTestCase):
             mock.call("record_exception: Attribute %s must be a string, number, or boolean: %s.", "tutu", {"a": "b"}),
             mock.call("record_exception: Attribute %s array must be homogenous: %s.", "toto", ["titi", 1]),
             mock.call("record_exception: List values %s must be string, number, or boolean: %s.", "tata", [[1]]),
-            mock.call("record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.", "bim", 2**100),
+            mock.call(
+                "record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.",
+                "bim",
+                2**100,
+            ),
         ]
         span_log.warning.assert_has_calls(expected_calls, any_order=True)
         assert span_log.warning.call_count == 4
