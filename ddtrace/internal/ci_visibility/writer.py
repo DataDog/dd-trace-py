@@ -17,7 +17,6 @@ from ddtrace.settings._agent import config as agent_config
 from ddtrace.vendor.dogstatsd import DogStatsd  # noqa:F401
 
 from .. import service
-from ..logger import get_logger
 from ..runtime import get_runtime_id
 from ..writer import HTTPWriter
 from ..writer import WriterClientBase
@@ -37,9 +36,6 @@ from .telemetry.payload import record_endpoint_payload_bytes
 from .telemetry.payload import record_endpoint_payload_request
 from .telemetry.payload import record_endpoint_payload_request_error
 from .telemetry.payload import record_endpoint_payload_request_time
-
-
-log = get_logger(__name__)
 
 
 if TYPE_CHECKING:  # pragma: no cover
