@@ -94,47 +94,89 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         new_parent_session_span_id = self._get_parent_session(traces)
         is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
 
-        normalized_spans = []
-        traces_to_encode_count = 0
+        # Convert all traces to spans
+        all_spans_with_trace_info = []
+        for trace_idx, trace in enumerate(traces):
+            trace_spans = [
+                self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
+                for span in trace
+                if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
+            ]
+            all_spans_with_trace_info.append((trace_idx, trace_spans))
 
-        for trace in traces:
-            trace_spans = []
-            for span in trace:
-                if is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE:
-                    trace_spans.append(self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id))
+        # Count all traces (including those with no spans after filtering)
+        total_traces = len(traces)
 
-            if not trace_spans:
-                traces_to_encode_count += 1
+        # Get all spans (flattened)
+        all_spans = []
+        for _, trace_spans in all_spans_with_trace_info:
+            all_spans.extend(trace_spans)
+
+        if not all_spans:
+            log.debug("No spans to encode after filtering, returning empty payload")
+            return None, total_traces
+
+        # Try to fit all spans first
+        payload = CIVisibilityEncoderV01._pack_payload(
+            {
+                "version": self.PAYLOAD_FORMAT_VERSION,
+                "metadata": self._metadata,
+                "events": all_spans,
+            }
+        )
+
+        if len(payload) <= self._MAX_PAYLOAD_SIZE:
+            # All traces fit, we're done
+            record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
+            return payload, total_traces
+
+        # Payload is too big, bisectto find the maximum number of traces that fit
+        left, right = 1, len(traces)
+        best_traces_count = 1  # At minimum, include 1 trace to avoid infinite loops
+        best_spans = []
+
+        while left <= right:
+            mid = (left + right) // 2
+
+            # Collect spans for the first 'mid' traces
+            spans_subset = []
+            for i in range(mid):
+                _, trace_spans = all_spans_with_trace_info[i]
+                spans_subset.extend(trace_spans)
+
+            if not spans_subset:
+                # No spans in this subset, try with more traces
+                left = mid + 1
                 continue
 
-            payload = CIVisibilityEncoderV01._pack_payload(
+            test_payload = CIVisibilityEncoderV01._pack_payload(
                 {
                     "version": self.PAYLOAD_FORMAT_VERSION,
                     "metadata": self._metadata,
-                    "events": normalized_spans + trace_spans,
+                    "events": spans_subset,
                 }
             )
 
-            if len(payload) > self._MAX_PAYLOAD_SIZE and normalized_spans:
-                break
+            if len(test_payload) <= self._MAX_PAYLOAD_SIZE:
+                # This fits, try with more traces
+                best_traces_count = mid
+                best_spans = spans_subset
+                left = mid + 1
+            else:
+                # This is too big, try with fewer traces
+                right = mid - 1
 
-            normalized_spans.extend(trace_spans)
-            traces_to_encode_count += 1
-
-            if len(payload) > self._MAX_PAYLOAD_SIZE:
-                break
-
-        if not normalized_spans:
-            log.debug("No spans to encode after filtering, returning empty payload")
-            return None, traces_to_encode_count
-
-        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
+        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(best_spans))
 
         return (
             CIVisibilityEncoderV01._pack_payload(
-                {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
+                {
+                    "version": self.PAYLOAD_FORMAT_VERSION,
+                    "metadata": self._metadata,
+                    "events": best_spans,
+                }
             ),
-            traces_to_encode_count,
+            best_traces_count,
         )
 
     @staticmethod
