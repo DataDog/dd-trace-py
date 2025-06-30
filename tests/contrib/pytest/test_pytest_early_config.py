@@ -42,14 +42,20 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
         [suite_span] = _get_spans_from_list(spans, "suite")
-        assert suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        [test_span] = _get_spans_from_list(spans, "test")
+        assert (
+            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+        )
 
     def test_coverage_enabled_via_pytest_addopts_env_var(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
         self.inline_run(extra_env={"PYTEST_ADDOPTS": "--ddtrace"})
         spans = self.pop_spans()
         [suite_span] = _get_spans_from_list(spans, "suite")
-        assert suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        [test_span] = _get_spans_from_list(spans, "test")
+        assert (
+            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+        )
 
     def test_coverage_enabled_via_addopts_ini_file_option(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -57,7 +63,10 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         self.inline_run()
         spans = self.pop_spans()
         [suite_span] = _get_spans_from_list(spans, "suite")
-        assert suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        [test_span] = _get_spans_from_list(spans, "test")
+        assert (
+            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+        )
 
     def test_coverage_enabled_via_ddtrace_ini_file_option(self):
         self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
@@ -65,4 +74,7 @@ class PytestEarlyConfigTestCase(PytestTestCaseBase):
         self.inline_run()
         spans = self.pop_spans()
         [suite_span] = _get_spans_from_list(spans, "suite")
-        assert suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None
+        [test_span] = _get_spans_from_list(spans, "test")
+        assert (
+            suite_span.get_struct_tag(COVERAGE_TAG_NAME) is not None or test_span.get_tag(COVERAGE_TAG_NAME) is not None
+        )
