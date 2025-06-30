@@ -332,7 +332,7 @@ def _inject():
                 )
                 RESULT = "abort"
                 RESULT_REASON = "Found incompatible executable: %s." % incompatible_sysarg
-                RESULT_CLASS = "incompatible_executable"
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
@@ -365,7 +365,7 @@ def _inject():
 
                 RESULT = "abort"
                 RESULT_REASON = "Found incompatible packages: %s." % incompatible_packages
-                RESULT_CLASS = "incompatible_packages"
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported dependencies and continuing.",
@@ -417,7 +417,7 @@ def _inject():
             )
             RESULT = "error"
             RESULT_REASON = "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
-            RESULT_CLASS = "missing_packages"
+            RESULT_CLASS = "incorrect_installation"
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -438,7 +438,7 @@ def _inject():
             )
             RESULT = "error"
             RESULT_REASON = "Failed to load ddtrace module: %s" % e
-            RESULT_CLASS = "import_error"
+            RESULT_CLASS = "internal_error"
             return
         else:
             try:
@@ -495,7 +495,7 @@ def _inject():
                 )
                 RESULT = "error"
                 RESULT_REASON = "Failed to load ddtrace.bootstrap.sitecustomize: %s" % e
-                RESULT_CLASS = "import_error"
+                RESULT_CLASS = "internal_error"
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
@@ -511,7 +511,7 @@ def _inject():
         )
         RESULT = "abort"
         RESULT_REASON = "User-installed ddtrace found: %s, aborting site-packages injection" % module_origin
-        RESULT_CLASS = "manually_instrumented"
+        RESULT_CLASS = "already_instrumented"
 
 
 try:
