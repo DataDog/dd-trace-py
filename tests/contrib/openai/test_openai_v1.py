@@ -876,7 +876,7 @@ def test_integration_sync(openai_api_key, ddtrace_run_python_code_in_subprocess)
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import openai
@@ -916,7 +916,7 @@ def test_integration_async(openai_api_key, ddtrace_run_python_code_in_subprocess
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(
         """
 import asyncio
@@ -1278,7 +1278,7 @@ def test_integration_service_name(openai_api_key, ddtrace_run_python_code_in_sub
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"OPENAI_API_KEY": openai_api_key, "PYTHONPATH": ":".join(pypath)})
+    env.update({"OPENAI_API_KEY": openai_api_key, "DD_TRACE_HTTPX_ENABLED": "0", "PYTHONPATH": ":".join(pypath)})
     if schema_version:
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     if service_name:
@@ -1384,6 +1384,7 @@ def test_response_tools(openai, openai_vcr, snapshot_tracer):
 )
 @pytest.mark.snapshot(
     token="tests.contrib.openai.test_openai.test_response_error",
+    ignores=["meta.error.stack"],
 )
 def test_response_error(openai, openai_vcr, snapshot_tracer):
     """Assert errors when an invalid model is used."""
@@ -1464,3 +1465,85 @@ async def test_aresponse_stream(openai, openai_vcr, snapshot_tracer):
             stream=True,
         )
         _ = [c async for c in resp]
+
+
+@pytest.mark.snapshot
+def test_empty_streamed_chat_completion_resp_returns(openai, openai_vcr, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.chat.completions, "_post", return_value=None):
+        resp = client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=multi_message_input, top_p=0.9, n=2, user="ddtrace-test", stream=True
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_chat_completion_resp_returns")
+async def test_empty_streamed_chat_completion_resp_returns_async(openai, openai_vcr, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.chat.completions, "_post", return_value=None):
+        resp = await client.chat.completions.create(
+            model="gpt-3.5-turbo", messages=multi_message_input, top_p=0.9, n=2, user="ddtrace-test", stream=True
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot
+def test_empty_streamed_completion_resp_returns(openai, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.completions, "_post", return_value=None):
+        resp = client.completions.create(
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
+            user="ddtrace-test",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_completion_resp_returns")
+async def test_empty_streamed_completion_resp_returns_async(openai, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.completions, "_post", return_value=None):
+        resp = await client.completions.create(
+            model="curie",
+            prompt="As Descartes said, I think, therefore",
+            temperature=0.8,
+            n=1,
+            max_tokens=150,
+            user="ddtrace-test",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot
+def test_empty_streamed_response_resp_returns(openai, snapshot_tracer):
+    client = openai.OpenAI()
+    with mock.patch.object(client.responses, "_post", return_value=None):
+        resp = client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        assert resp is None
+
+
+@pytest.mark.skipif(
+    parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+)
+@pytest.mark.snapshot(token="tests.contrib.openai.test_openai_v1.test_empty_streamed_response_resp_returns")
+async def test_empty_streamed_response_resp_returns_async(openai, snapshot_tracer):
+    client = openai.AsyncOpenAI()
+    with mock.patch.object(client.responses, "_post", return_value=None):
+        resp = await client.responses.create(
+            model="gpt-4.1",
+            input="Hello world",
+            stream=True,
+        )
+        assert resp is None

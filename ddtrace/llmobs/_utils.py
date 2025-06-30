@@ -16,9 +16,11 @@ from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
 from ddtrace.llmobs._constants import LANGCHAIN_APM_SPAN_NAME
+from ddtrace.llmobs._constants import LITELLM_APM_SPAN_NAME
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OPENAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import VERTEXAI_APM_SPAN_NAME
@@ -33,6 +35,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
     GEMINI_APM_SPAN_NAME,
     LANGCHAIN_APM_SPAN_NAME,
     VERTEXAI_APM_SPAN_NAME,
+    LITELLM_APM_SPAN_NAME,
 )
 
 
@@ -161,7 +164,7 @@ def _is_evaluation_span(span: Span) -> bool:
     return False
 
 
-def _get_ml_app(span: Span) -> str:
+def _get_ml_app(span: Span) -> Optional[str]:
     """
     Return the ML app name for a given span, by checking the span's nearest LLMObs span ancestor.
     Default to the global config LLMObs ML app name otherwise.
@@ -175,7 +178,7 @@ def _get_ml_app(span: Span) -> str:
         if ml_app is not None:
             return ml_app
         llmobs_parent = _get_nearest_llmobs_ancestor(llmobs_parent)
-    return ml_app or config._llmobs_ml_app or "unknown-ml-app"
+    return ml_app or span.context._meta.get(PROPAGATED_ML_APP_KEY) or config._llmobs_ml_app
 
 
 def _get_session_id(span: Span) -> Optional[str]:

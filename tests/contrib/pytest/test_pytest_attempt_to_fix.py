@@ -257,7 +257,6 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_suite.attrib["skipped"] == "1"
         assert test_suite.attrib["errors"] == "0"
 
-    @pytest.mark.xfail(reason="JUnit XML miscounts quarantined tests")
     def test_pytest_attempt_to_fix_junit_xml_quarantined(self):
         self.testdir.makepyfile(test_quarantined=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
 

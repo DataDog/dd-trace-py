@@ -40,11 +40,15 @@ variables:
     analyze-results.sh
 
     upload-results-to-s3.sh || :
+
+    # We have to move artifacts to ${CI_PROJECT_DIR} if we want to attach as GitLab artifact
+    cp -R /artifacts ${CI_PROJECT_DIR}/
   artifacts:
     name: "reports"
     when: always
     paths:
       - reports/
+      - artifacts/
     expire_in: 3 months
   variables:
     UPSTREAM_PROJECT_ID: $CI_PROJECT_ID # The ID of the current project. This ID is unique across all projects on the GitLab instance.
@@ -145,6 +149,7 @@ microbenchmarks:
         - "flask_sqli"
         - "core_api"
         - "otel_span"
+        - "otel_sdk_span"
         - "appsec_iast_aspects"
         - "appsec_iast_aspects_ospath"
         - "appsec_iast_aspects_re_module"
@@ -161,6 +166,7 @@ microbenchmarks:
         - "rate_limiter"
         - "packages_package_for_root_module_mapping"
         - "packages_update_imported_dependencies"
+        - "recursive_computation"
         - "telemetry_add_metric"
         - "startup"
 

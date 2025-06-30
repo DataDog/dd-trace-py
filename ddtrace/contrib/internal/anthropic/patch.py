@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import anthropic
 
@@ -29,6 +30,10 @@ def get_version():
     return getattr(anthropic, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"anthropic": ">=0.28.0"}
+
+
 config._add(
     "anthropic",
     {
@@ -43,18 +48,16 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.is_default_base_url(str(base_url) if base_url else None),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None
@@ -118,18 +121,16 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
     chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = anthropic._datadog_integration
     stream = False
-    client = getattr(instance, "_client", None)
-    base_url = getattr(client, "_base_url", None) if client else None
 
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        # only report LLM Obs spans if base_url has not been changed
-        submit_to_llmobs=integration.is_default_base_url(str(base_url) if base_url else None),
+        submit_to_llmobs=True,
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
         api_key=_extract_api_key(instance),
+        instance=instance,
     )
 
     chat_completions = None

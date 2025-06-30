@@ -5,9 +5,9 @@ from typing import Coroutine
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -68,7 +68,7 @@ async def test_async_yield_function():
     assert isinstance(result, AsyncIterable)
     async_iterator = mod.async_yield_function(obj1)
 
-    result = await anext(async_iterator)
+    result = await anext(async_iterator)  # noqa: F821
     assert isinstance(result, str)
     assert is_pyobject_tainted(result) is True
     ranges_result = get_tainted_ranges(result)
@@ -76,7 +76,7 @@ async def test_async_yield_function():
     assert ranges_result[0].start == 1
     assert ranges_result[0].length == 11
 
-    result = await anext(async_iterator)
+    result = await anext(async_iterator)  # noqa: F821
     assert is_pyobject_tainted(result) is True
     ranges_result = get_tainted_ranges(result)
     assert len(ranges_result) == 1
@@ -84,7 +84,7 @@ async def test_async_yield_function():
     assert ranges_result[0].length == 11
 
     with pytest.raises(StopAsyncIteration):
-        _ = await anext(async_iterator)
+        _ = await anext(async_iterator)  # noqa: F821
 
 
 @pytest.mark.skipif(sys.version_info < (3, 10), reason="anext was introduced in version 3.10")
@@ -101,12 +101,12 @@ async def test_async_yield_function_2():
 
     async_iterator = mod.async_yield_function_list(list_1)
 
-    result = await anext(async_iterator)
+    result = await anext(async_iterator)  # noqa: F821
     assert result == ["my_string_1", "my_string_2", "a"]
 
     list_1.append(obj1)
 
-    result = await anext(async_iterator)
+    result = await anext(async_iterator)  # noqa: F821
     assert result == ["my_string_1", "my_string_2", "a", obj1, "b"]
 
     assert is_pyobject_tainted(result[3]) is True

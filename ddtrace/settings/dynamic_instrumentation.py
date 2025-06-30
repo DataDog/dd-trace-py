@@ -86,12 +86,13 @@ class DynamicInstrumentationConfig(DDConfig):
         help="Timeout in seconds for uploading Dynamic Instrumentation payloads",
     )
 
-    upload_flush_interval = DDConfig.v(
+    upload_interval_seconds = DDConfig.v(
         float,
-        "upload.flush_interval",
+        "upload.interval_seconds",
         default=1.0,  # seconds
         help_type="Float",
         help="Interval in seconds for flushing the dynamic logs upload queue",
+        deprecations=[("upload.flush_interval", None, "4.0")],
     )
 
     diagnostics_interval = DDConfig.v(
@@ -126,6 +127,15 @@ class DynamicInstrumentationConfig(DDConfig):
         lambda c: re.compile(f"^(?:{'|'.join((_.replace('.', '[.]').replace('*', '.*') for _ in c.redacted_types))})$")
         if c.redacted_types
         else None,
+    )
+
+    redaction_excluded_identifiers = DDConfig.v(
+        set,
+        "redaction_excluded_identifiers",
+        map=normalize_ident,
+        default=set(),
+        help_type="List",
+        help="List of identifiers to exclude from redaction",
     )
 
 

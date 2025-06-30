@@ -58,7 +58,7 @@ def test_call_script_pprof_output(tmp_path):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    _, _, _, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    _, _, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
     profile = pprof_utils.parse_profile(filename + "." + str(pid))
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0

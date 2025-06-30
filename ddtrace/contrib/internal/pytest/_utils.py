@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
 from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -20,7 +21,6 @@ from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
@@ -80,7 +80,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
 
 @cached()
-def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
+def _get_test_id_from_item(item: pytest.Item) -> TestId:
     """Converts an item to a CITestId, which recursively includes the parent IDs
 
     NOTE: it is mandatory that the session, module, suite, and test IDs for a given test and parameters combination
@@ -94,7 +94,7 @@ def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
     module_id = TestModuleId(module_name)
     suite_id = TestSuiteId(module_id, suite_name)
 
-    test_id = InternalTestId(suite_id, test_name)
+    test_id = TestId(suite_id, test_name)
 
     return test_id
 
@@ -240,7 +240,9 @@ class _TestOutcome(t.NamedTuple):
 
 
 def get_user_property(report, key, default=None):
-    for k, v in report.user_properties:
+    # DEV: `CollectReport` does not have `user_properties`.
+    user_properties = getattr(report, "user_properties", [])
+    for k, v in user_properties:
         if k == key:
             return v
     return default

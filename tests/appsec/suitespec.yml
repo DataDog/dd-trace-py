@@ -89,7 +89,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast_tdd_propagation/*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_pygoat:
     parallelism: 3
@@ -153,7 +153,7 @@ suites:
       - testagent
     timeout: 40m
   appsec_integrations_django:
-    parallelism: 12
+    parallelism: 22
     paths:
       - '@bootstrap'
       - '@core'
@@ -178,7 +178,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/fastapi_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
   appsec_threats_django:

@@ -81,7 +81,7 @@ class ASM_Environment:
     It is contained into a ContextVar.
     """
 
-    def __init__(self, span: Optional[Span] = None):
+    def __init__(self, span: Optional[Span] = None, rc_products: str = ""):
         self.root = not in_asm_context()
         if self.root:
             core.add_suppress_exception(BlockingException)
@@ -105,6 +105,7 @@ class ASM_Environment:
         self.blocked: Optional[Dict[str, Any]] = None
         self.finalized: bool = False
         self.api_security_reported: int = 0
+        self.rc_products: str = rc_products
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -260,6 +261,8 @@ def finalize_asm_env(env: ASM_Environment) -> None:
         res_headers = waf_adresses.get(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES, {})
         if res_headers:
             _set_headers(root_span, res_headers, kind="response")
+        if env.rc_products:
+            root_span.set_tag_str(APPSEC.RC_PRODUCTS, env.rc_products)
 
     core.discard_local_item(_ASM_CONTEXT)
 
@@ -513,10 +516,10 @@ def store_waf_results_data(data) -> None:
     env.waf_triggers.extend(data)
 
 
-def start_context(span: Span):
+def start_context(span: Span, rc_products: str):
     if asm_config._asm_enabled:
         # it should only be called at start of a core context, when ASM_Env is not set yet
-        core.set_item(_ASM_CONTEXT, ASM_Environment(span=span))
+        core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))
         asm_request_context_set(
             core.get_local_item("remote_addr"),
             core.get_local_item("headers"),
@@ -575,22 +578,20 @@ def _set_headers_and_response(response, headers, *_):
             set_body_response(response)
 
 
-def _call_waf_first(integration, *_):
+def _call_waf_first(integration, *_) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_request"
     logger.debug(info, extra=log_extra)
-    result = call_waf_callback()
-    return result.derivatives if result is not None else None
+    call_waf_callback()
 
 
-def _call_waf(integration, *_):
+def _call_waf(integration, *_) -> None:
     if not asm_config._asm_enabled:
         return
     info = f"{integration}::srb_on_response"
     logger.debug(info, extra=log_extra)
-    result = call_waf_callback()
-    return result.derivatives if result is not None else None
+    call_waf_callback()
 
 
 def _on_block_decided(callback):
@@ -666,7 +667,7 @@ def asm_listen():
     core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
     core.on("flask._patched_request", _on_pre_tracedrequest)
     core.on("wsgi.block_decided", _on_block_decided)
-    core.on("flask.start_response", _call_waf_first, "waf")
+    core.on("flask.start_response", _call_waf_first)
 
     core.on("django.start_response.post", _call_waf_first)
     core.on("django.finalize_response", _call_waf)

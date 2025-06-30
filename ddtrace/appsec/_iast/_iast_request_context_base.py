@@ -10,6 +10,7 @@ from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
 from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
+from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
@@ -37,6 +38,7 @@ def start_iast_context(span: Optional["Span"] = None):
 def end_iast_context(span: Optional["Span"] = None):
     env = _get_iast_env()
     if env is not None and env.span is span:
+        update_global_vulnerability_limit(env)
         finalize_iast_env(env)
     reset_propagation_context()
 
@@ -58,20 +60,24 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def get_iast_stacktrace_id() -> int:
-    env = _get_iast_env()
-    if env:
-        env.iast_stack_trace_id += 1
-        return env.iast_stack_trace_id
-    return 0
-
-
 def set_iast_request_enabled(request_enabled) -> None:
     env = _get_iast_env()
     if env:
         env.request_enabled = request_enabled
     else:
         log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
+
+
+def set_iast_request_endpoint(method, route) -> None:
+    if asm_config._iast_enabled:
+        env = _get_iast_env()
+        if env:
+            if method:
+                env.endpoint_method = method
+            if route:
+                env.endpoint_route = route
+        else:
+            log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
 def _move_iast_data_to_root_span():

@@ -6,6 +6,7 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import datetime
 import os
 import subprocess
 import typing as t
@@ -244,82 +245,24 @@ prechecks:
     key: v1-precheck-pip-cache
     paths:
       - .cache
-        """
+"""
         )
+
+
+def gen_cached_testrunner() -> None:
+    """Generate the cached testrunner job."""
+    with TESTS_GEN.open("a") as f:
+        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
 
 
 def gen_build_base_venvs() -> None:
-    """Generate the list of base jobs for building virtual environments."""
+    """Generate the list of base jobs for building virtual environments.
 
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
     with TESTS_GEN.open("a") as f:
-        f.write(
-            f"""
-build_base_venvs:
-  extends: .testrunner
-  stage: setup
-  needs: []
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
-    DD_PROFILING_NATIVE_TESTS: '1'
-    DD_USE_SCCACHE: '1'
-    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_FAST_BUILD: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
-  script: |
-    set -e -o pipefail
-    if [ ! -f cache_used.txt ];
-    then
-      echo "No cache found, building native extensions and base venv"
-      apt update && apt install -y sccache
-      pip install riot==0.20.1
-      riot -P -v generate --python=$PYTHON_VERSION
-      echo "Running smoke tests"
-      riot -v run -s --python=$PYTHON_VERSION smoke_test
-      touch cache_used.txt
-    else
-      echo "Skipping build, using compiled files/venv from cache"
-      echo "Fixing ddtrace versions"
-      pip install "setuptools_scm[toml]>=4"
-      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
-        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
-      echo "Using version: ${{ddtrace_version}}"
-    fi
-  cache:
-    # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
-      paths:
-        - .cache
-    # Reuse job artifacts between runs if no native source files have been changed
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
-      paths:
-        - .riot/venv_*
-        - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-        - ddtrace/internal/datadog/profiling/test/test_*
-        - cache_used.txt
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-      - ddtrace/internal/datadog/profiling/test/test_*
-        """
-        )
+        f.write(template("build-base-venvs"))
 
 
 # -----------------------------------------------------------------------------
@@ -353,6 +296,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+
+def template(name: str, **params):
+    """Render a template file with the given parameters."""
+    if not (template_path := (GITLAB / "templates" / name).with_suffix(".yml")).exists():
+        raise FileNotFoundError(f"Template file {template_path} does not exist")
+    return "\n" + template_path.read_text().format(**params).strip() + "\n"
+
 
 has_error = False
 

@@ -4,11 +4,13 @@ import typing as t
 
 from envier import En
 
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._config import Config
 from ddtrace.settings._config import config
 from ddtrace.settings.http import HttpConfig
+from ddtrace.vendor.debtcollector import deprecate
 
 
 requires = ["remote-configuration"]
@@ -44,17 +46,6 @@ def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
             if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                 tracer.enabled = True
 
-    if "_logs_injection" in items:
-        # TODO: Refactor the logs injection code to import from a core component
-        if config._logs_injection:
-            from ddtrace.contrib.internal.logging.patch import patch
-
-            patch()
-        else:
-            from ddtrace.contrib.internal.logging.patch import unpatch
-
-            unpatch()
-
 
 def post_preload():
     if _config.enabled:
@@ -77,6 +68,15 @@ def start():
     if _config.global_tags:
         from ddtrace.trace import tracer
 
+        # ddtrace library supports setting tracer tags using both DD_TRACE_GLOBAL_TAGS and DD_TAGS
+        # moving forward we should only support DD_TRACE_GLOBAL_TAGS.
+        # TODO(munir): Set dd_tags here
+        deprecate(
+            "DD_TRACE_GLOBAL_TAGS is deprecated",
+            message="Please migrate to using DD_TAGS instead",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
         tracer.set_tags(_config.global_tags)
 
 
@@ -95,10 +95,10 @@ def stop(join=False):
 
 
 def at_exit(join=False):
-    from ddtrace.trace import tracer
-
-    if tracer.enabled:
-        tracer._atexit()
+    # at_exit hooks are currently registered when the tracer is created. This is
+    # required to support non-global tracers (ex: CiVisibility and the Dummy Tracers used in tests).
+    # TODO: Move the at_exit hooks from ddtrace.trace.Tracer._init__(....) to the product protocol,
+    pass
 
 
 class APMCapabilities(enum.IntFlag):
@@ -128,7 +128,7 @@ def apm_tracing_rc(lib_config, dd_config):
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
     if "log_injection_enabled" in lib_config:
-        base_rc_config["_logs_injection"] = lib_config["log_injection_enabled"]
+        base_rc_config["_logs_injection"] = str(lib_config["log_injection_enabled"]).lower()
 
     if "tracing_tags" in lib_config:
         tags = lib_config["tracing_tags"]

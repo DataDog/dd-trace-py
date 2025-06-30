@@ -25,7 +25,6 @@ from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import EXPLOIT_PREVENTION
-from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._constants import STACK_TRACE
 from ddtrace.appsec._constants import WAF_ACTIONS
@@ -36,8 +35,7 @@ from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import DDWaf_result
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _RUNTIME_FAMILY
-from ddtrace.ext import SpanTypes
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
@@ -128,7 +126,7 @@ class AppSecSpanProcessor(SpanProcessor):
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
-            log.warning("[DDAS-0005-00] WAF initialization failed")
+            log.warning("[DDAS-0005-00] WAF initialization failed", exc_info=True)
 
         self._update_required()
 
@@ -180,21 +178,21 @@ class AppSecSpanProcessor(SpanProcessor):
         if not hasattr(self, "_ddwaf"):
             self.delayed_init()
 
-        if span.span_type not in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type not in asm_config._asm_processed_span_types:
             return
 
-        _asm_request_context.start_context(span)
-
         ctx = self._ddwaf._at_request_start()
+        _asm_request_context.start_context(span, ctx.rc_products if ctx is not None else "")
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
+        root_span = span._local_root or span
 
-        span.set_metric(APPSEC.ENABLED, 1.0)
-        span.set_tag_str(_RUNTIME_FAMILY, "python")
+        root_span.set_metric(APPSEC.ENABLED, 1.0)
+        root_span.set_tag_str(_RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None, **kwargs):
-            return self._waf_action(span._local_root or span, ctx, custom_data, **kwargs)
+            return self._waf_action(root_span, ctx, custom_data, **kwargs)
 
         _asm_request_context.set_waf_callback(waf_callable)
         _asm_request_context.add_context_callback(self.metrics._set_waf_request_metrics)
@@ -233,9 +231,6 @@ class AppSecSpanProcessor(SpanProcessor):
         be retrieved from the `core`. This can be used when you don't want to store
         the value in the `core` before checking the `WAF`.
         """
-        if span.span_type not in (SpanTypes.WEB, SpanTypes.HTTP, SpanTypes.GRPC):
-            return None
-
         if _asm_request_context.get_blocked():
             # We still must run the waf if we need to extract schemas for API SECURITY
             if not custom_data or not custom_data.get("PROCESSOR_SETTINGS", {}).get("extract-schema", False):
@@ -311,10 +306,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 for rule in waf_results.data:
                     rule[EXPLOIT_PREVENTION.STACK_TRACE_ID] = stack_trace_id
 
-        # FingerPrinting
-        for key, value in waf_results.derivatives.items():
-            if key.startswith(FINGERPRINTING.PREFIX):
-                root_span.set_tag_str(key, value)
+        # Trace tagging
+        for key, value in waf_results.meta_tags.items():
+            root_span.set_tag_str(key, value)
+        for key, value in waf_results.metrics.items():
+            root_span.set_metric(key, value)
 
         if waf_results.data:
             log.debug("[DDAS-011-00] ASM In-App WAF returned: %s. Timeout %s", waf_results.data, waf_results.timeout)
@@ -323,9 +319,7 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.set_blocked(blocked)
 
         allowed = True
-        if waf_results.data or blocked:
-            # We run the rate limiter only if there is an attack,
-            # its goal is to limit the number of collected asm events
+        if waf_results.keep:
             allowed = self._rate_limiter.is_allowed()
 
         _asm_request_context.set_waf_telemetry_results(
@@ -336,10 +330,7 @@ class AppSecSpanProcessor(SpanProcessor):
             not allowed,
         )
 
-        if not allowed:
-            return waf_results
-
-        if waf_results.data or blocked:
+        if waf_results.data:
             _asm_request_context.store_waf_results_data(waf_results.data)
             if blocked:
                 span.set_tag(APPSEC.BLOCKED, "true")
@@ -355,16 +346,19 @@ class AppSecSpanProcessor(SpanProcessor):
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            _asm_manual_keep(span)
             if span.get_tag(_ORIGIN_KEY) is None:
                 span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+
+        if waf_results.keep and allowed:
+            _asm_manual_keep(span)
+
         return waf_results
 
     def _is_needed(self, address: str) -> bool:
         return address in self._addresses_to_keep
 
     def on_span_finish(self, span: Span) -> None:
-        if span.span_type in {SpanTypes.WEB, SpanTypes.GRPC}:
+        if span.span_type in asm_config._asm_processed_span_types:
             _asm_request_context.call_waf_callback_no_instrumentation()
             self._ddwaf._at_request_end()
             _asm_request_context.end_context(span)

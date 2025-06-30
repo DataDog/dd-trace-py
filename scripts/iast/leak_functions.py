@@ -13,7 +13,7 @@ from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from tests.utils import override_env
 
 

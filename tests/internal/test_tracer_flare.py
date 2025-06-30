@@ -1,12 +1,16 @@
+import json
 import logging
 from logging import Logger
 import multiprocessing
 import os
 import pathlib
+import re
+import shutil
 from typing import Optional
 from unittest import mock
 
 from pyfakefs.fake_filesystem_unittest import TestCase
+import pytest
 
 from ddtrace.internal.flare._subscribers import TracerFlareSubscriber
 from ddtrace.internal.flare.flare import TRACER_FLARE_FILE_HANDLER_NAME
@@ -20,7 +24,12 @@ from tests.utils import remote_config_build_payload as build_payload
 
 DEBUG_LEVEL_INT = logging.DEBUG
 TRACE_AGENT_URL = "http://localhost:9126"
-MOCK_FLARE_SEND_REQUEST = FlareSendRequest(case_id="1111111", hostname="myhostname", email="user.name@datadoghq.com")
+MOCK_FLARE_SEND_REQUEST = FlareSendRequest(
+    case_id="1111111",
+    hostname="myhostname",
+    email="user.name@datadoghq.com",
+    uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+)
 
 
 class TracerFlareTests(TestCase):
@@ -37,15 +46,13 @@ class TracerFlareTests(TestCase):
         self.pid = os.getpid()
         self.flare_file_path = f"{self.shared_dir.name}/tracer_python_{self.pid}.log"
         self.config_file_path = f"{self.shared_dir.name}/tracer_config_{self.pid}.json"
+        self.prepare_called = False  # Track if prepare() was called
+
+    @pytest.fixture(autouse=True)
+    def inject_fixtures(self, caplog):
+        self._caplog = caplog
 
     def tearDown(self):
-        try:
-            self.shared_dir.cleanup()
-        except Exception:
-            # This will always fail because our Flare logic cleans up the entire directory
-            # We're explicitly calling this in tearDown so that we can remove
-            # the error log clutter for python < 3.10
-            pass
         self.confirm_cleanup()
 
     def _get_handler(self) -> Optional[logging.Handler]:
@@ -63,6 +70,7 @@ class TracerFlareTests(TestCase):
         ddlogger = get_logger("ddtrace")
 
         self.flare.prepare("DEBUG")
+        self.prepare_called = True
 
         file_handler = self._get_handler()
         valid_logger_level = self.flare._get_valid_logger_level(DEBUG_LEVEL_INT)
@@ -89,6 +97,7 @@ class TracerFlareTests(TestCase):
         with mock.patch("json.dump") as mock_json:
             mock_json.side_effect = Exception("this is an expected error")
             self.flare.prepare("DEBUG")
+            self.prepare_called = True
 
         file_handler = self._get_handler()
         assert file_handler is not None
@@ -107,6 +116,7 @@ class TracerFlareTests(TestCase):
         """
         app_logger = Logger(name="my-app", level=DEBUG_LEVEL_INT)
         self.flare.prepare("DEBUG")
+        self.prepare_called = True
 
         app_log_line = "this is an app log"
         app_logger.debug(app_log_line)
@@ -122,7 +132,417 @@ class TracerFlareTests(TestCase):
 
     def confirm_cleanup(self):
         assert not self.flare.flare_dir.exists(), f"The directory {self.flare.flare_dir} still exists"
-        assert self._get_handler() is None, "File handler was not removed"
+        # Only check for file handler cleanup if prepare() was called
+        if self.prepare_called:
+            assert self._get_handler() is None, "File handler was not removed"
+
+    def test_case_id_must_be_numeric(self):
+        """
+        Validate that case_id must be numeric (contain only digits)
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        # Test with non-numeric case_id
+        non_numeric_request = FlareSendRequest(
+            case_id="abc123",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        # The send method should return early without sending the flare
+        # We can verify this by checking that no HTTP request is made
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            self.flare.send(non_numeric_request)
+            # Verify that no HTTP connection was attempted
+            mock_connection.assert_not_called()
+
+        # Test with empty string case_id
+        empty_case_request = FlareSendRequest(
+            case_id="",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            self.flare.send(empty_case_request)
+            mock_connection.assert_not_called()
+
+        # Test with case_id containing special characters
+        special_char_request = FlareSendRequest(
+            case_id="123-456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            self.flare.send(special_char_request)
+            mock_connection.assert_not_called()
+
+        # Test with valid numeric case_id (should work)
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            # Mock a successful response
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+
+            self.flare.send(valid_request)
+            # Verify that HTTP connection was attempted for valid case_id
+            mock_connection.assert_called_once()
+
+    def test_case_id_cannot_be_zero(self):
+        """
+        Validate that case_id cannot be 0 or "0"
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        # Test with case_id as "0"
+        zero_case_request = FlareSendRequest(
+            case_id="0",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        # The send method should return early without sending the flare
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            self.flare.send(zero_case_request)
+            # Verify that no HTTP connection was attempted
+            mock_connection.assert_not_called()
+
+        # Test with valid non-zero case_id (should work)
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            # Mock a successful response
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+
+            self.flare.send(valid_request)
+            # Verify that HTTP connection was attempted for valid case_id
+            mock_connection.assert_called_once()
+
+    def test_flare_dir_cleaned_on_all_send_exit_points(self):
+        """
+        Flare directory should be cleaned up after send, regardless of exit point.
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+        # Early return: case_id is '0'
+        zero_case_request = FlareSendRequest(
+            case_id="0",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            self.flare.send(zero_case_request)
+            mock_connection.assert_not_called()
+        assert not self.flare.flare_dir.exists()
+
+        # Success case: valid case_id
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+            self.flare.send(valid_request)
+            mock_connection.assert_called_once()
+        assert not self.flare.flare_dir.exists()
+
+    def test_prepare_creates_flare_dir(self):
+        """
+        Prepare should create the flare directory if it doesn't exist.
+        """
+        # Remove directory if it exists
+        if self.flare.flare_dir.exists():
+            shutil.rmtree(self.flare.flare_dir)
+
+        # Call prepare - should create the directory
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+        assert self.flare.flare_dir.exists()
+
+        # Clean up manually since prepare doesn't call clean_up_files
+        self.flare.clean_up_files()
+        # Also revert configs to remove the file handler
+        self.flare.revert_configs()
+
+    def test_send_creates_flare_dir_if_missing(self):
+        """
+        Send should create the flare directory if it doesn't exist and then clean it up.
+        """
+        # Remove directory if it exists
+        if self.flare.flare_dir.exists():
+            shutil.rmtree(self.flare.flare_dir)
+
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+            self.flare.send(valid_request)
+            mock_connection.assert_called_once()
+        # Directory should be cleaned up after send
+        assert not self.flare.flare_dir.exists()
+
+    def test_flare_dir_cleaned_on_send_error(self):
+        """
+        Flare directory should be cleaned up if send raises an error.
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+        with mock.patch("ddtrace.internal.flare.flare.get_connection", side_effect=Exception("fail")):
+            try:
+                self.flare.send(valid_request)
+            except Exception as exc:
+                # Check that this is the Exception raised in _execute_mock_call and no other one
+                assert str(exc) == "fail"
+            else:
+                assert False, "Expected Exception('fail') to be raised"
+        assert not self.flare.flare_dir.exists()
+
+    def test_uuid_field_validation(self):
+        """
+        Validate that uuid field is properly handled in FlareSendRequest
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        # Test with valid uuid
+        valid_request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+            self.flare.send(valid_request)
+            mock_connection.assert_called_once()
+
+        # Test with empty uuid
+        empty_uuid_request = FlareSendRequest(
+            case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=""
+        )
+
+        with mock.patch("ddtrace.internal.flare.flare.get_connection") as mock_connection:
+            mock_client = mock.MagicMock()
+            mock_response = mock.MagicMock()
+            mock_response.status = 200
+            mock_client.getresponse.return_value = mock_response
+            mock_connection.return_value = mock_client
+            self.flare.send(empty_uuid_request)
+            mock_connection.assert_called_once()
+
+    def test_uuid_in_payload(self):
+        """
+        Validate that uuid field is included in the generated payload
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        test_uuid = "d53fc8a4-8820-47a2-aa7d-d565582feb81"
+        request = FlareSendRequest(
+            case_id="123456", hostname="myhostname", email="user.name@datadoghq.com", uuid=test_uuid
+        )
+
+        _, body = self.flare._generate_payload(request)
+
+        try:
+            body_str = body.decode("utf-8")
+        except UnicodeDecodeError:
+            body_str = body[:1000].decode("utf-8", errors="ignore")
+
+        assert test_uuid in body_str, f"UUID {test_uuid} should be in payload form fields"
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
+
+    def test_config_file_contents_validation(self):
+        """
+        Validate that config file contents are properly checked and logged when generation fails
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        # Test with valid config - should generate config file
+        FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        # Check that config file was created with proper contents
+        config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
+        assert len(config_files) == 1, "Should have exactly one config file"
+
+        config_file = config_files[0]
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+
+        # Validate config structure
+        assert "configs" in config_data, "Config should have 'configs' key"
+        assert config_data["configs"] == self.flare.ddconfig, "Config should contain ddconfig"
+
+        # Test with problematic ddconfig that might cause JSON serialization issues
+        problematic_config = {
+            "normal_key": "normal_value",
+            "problematic_key": object(),  # Non-serializable object
+        }
+
+        # Create a new flare instance with problematic config
+        problematic_flare = Flare(
+            trace_agent_url="http://localhost:8126",
+            ddconfig=problematic_config,
+            api_key="test_api_key",
+            flare_dir="tracer_flare_problematic_test",
+        )
+
+        # This should handle the serialization error gracefully
+        problematic_flare.prepare("DEBUG")
+
+        # Check that the flare directory still exists and contains log files
+        assert problematic_flare.flare_dir.exists(), "Flare directory should exist even if config generation fails"
+
+        # Check for log files (should still be created)
+        log_files = list(problematic_flare.flare_dir.glob("tracer_python_*.log"))
+        assert len(log_files) >= 1, "Log files should still be created even if config generation fails"
+
+        # Clean up
+        problematic_flare.clean_up_files()
+        problematic_flare.revert_configs()
+
+        # Clean up original flare
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
+
+    def test_api_key_not_in_payload(self):
+        """
+        Validate that DD-API-KEY header is not included in the payload since the agent forwards it
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        # Generate payload and check headers
+        headers, body = self.flare._generate_payload(request)
+
+        # Verify that DD-API-KEY is not in the headers
+        assert "DD-API-KEY" not in headers, "DD-API-KEY should not be in headers - agent forwards it"
+        assert "dd-api-key" not in headers, "dd-api-key should not be in headers - agent forwards it"
+
+        # Verify that the API key is not in the body content
+        body_str = body[:1000].decode("utf-8", errors="ignore")
+        api_key = self.flare._api_key
+        if api_key:
+            assert api_key not in body_str, "API key should not be in payload body - agent forwards it"
+
+        # Check that API key is redacted in the config file
+        config_files = list(self.flare.flare_dir.glob("tracer_config_*.json"))
+        assert len(config_files) == 1, "Should have exactly one config file"
+
+        config_file = config_files[0]
+        with open(config_file, "r") as f:
+            config_data = json.load(f)
+
+        # Check that _dd_api_key is redacted (should be ****last4chars format)
+        if "_dd_api_key" in config_data["configs"]:
+            redacted_key = config_data["configs"]["_dd_api_key"]
+            assert redacted_key.startswith("*" * (len(api_key) - 4)), "API key should be redacted with asterisks"
+            assert redacted_key.endswith(api_key[-4:]), "API key should end with last 4 characters"
+            assert redacted_key != api_key, "API key should not be the original value"
+
+        # Clean up
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
+
+    def test_payload_field_order(self):
+        """
+        Validate that the multipart form-data payload fields are in the correct order:
+        source, case_id, hostname, email, uuid, flare_file
+        """
+        self.flare.prepare("DEBUG")
+        self.prepare_called = True
+
+        request = FlareSendRequest(
+            case_id="123456",
+            hostname="myhostname",
+            email="user.name@datadoghq.com",
+            uuid="d53fc8a4-8820-47a2-aa7d-d565582feb81",
+        )
+
+        # Generate payload
+        headers, body = self.flare._generate_payload(request)
+
+        # Convert body to string for easier parsing
+        body_str = body.decode("utf-8", errors="ignore")
+
+        # Find all Content-Disposition lines to extract field order
+        content_disposition_pattern = r'Content-Disposition: form-data; name="([^"]+)"'
+        field_names = re.findall(content_disposition_pattern, body_str)
+
+        # Expected order: source, case_id, hostname, email, uuid, flare_file
+        expected_order = ["source", "case_id", "hostname", "email", "uuid", "flare_file"]
+
+        # Verify the order matches exactly
+        assert field_names == expected_order, f"Field order mismatch. Expected: {expected_order}, Got: {field_names}"
+
+        # Clean up
+        self.flare.clean_up_files()
+        self.flare.revert_configs()
 
 
 class TracerFlareMultiprocessTests(TestCase):

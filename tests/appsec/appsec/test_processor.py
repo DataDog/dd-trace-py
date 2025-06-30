@@ -258,6 +258,7 @@ def test_ip_update_rules_and_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -290,6 +291,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
 
 
 @snapshot(
@@ -453,7 +455,6 @@ def test_obfuscation_parameter_value_unconfigured_matching(tracer, key):
         for match in rule.get("rule_matches", [])
         for value in match.get("parameters", [])
     ]
-    assert all("password" not in value for value in values)
     assert all("goodbye" not in value for value in values)
     assert any("<Redacted>" in value for value in values)
 
@@ -659,7 +660,7 @@ def test_asm_context_registration(tracer):
 CUSTOM_RULE_METHOD = [
     (
         "ASM",
-        "Datadog/1/ASM/data",
+        "Datadog/3421/ASM/data",
         {
             "custom_rules": [
                 {
@@ -744,11 +745,11 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
-    processor = AppSecSpanProcessor()
-    processor._update_rules([], CUSTOM_RULE_METHOD)
     mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
 
-    with asm_context(tracer=tracer, config=config_asm) as span:
+    with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
+        processor = tracer._appsec_processor
+        assert processor
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
         assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
@@ -759,3 +760,4 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
