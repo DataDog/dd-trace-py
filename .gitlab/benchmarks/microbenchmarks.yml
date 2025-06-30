@@ -46,9 +46,12 @@ variables:
 
     # Check for SLO breaches in this scenario
     export ARTIFACTS_DIR="$(pwd)/artifacts/"
-    if [ -f ".gitlab/benchmarks/configs/bp-runner.${SCENARIO}.fail-on-breach.yml" ];
+    SLO_CONFIG="${CI_PROJECT_DIR:-.}/.gitlab/benchmarks/configs/bp-runner.${SCENARIO}.fail-on-breach.yml"
+    if [ -f "${SLO_CONFIG}" ];
     then
-      bp-runner ".gitlab/benchmarks/configs/bp-runner.${SCENARIO}.fail-on-breach.yml"
+      bp-runner "${SLO_CONFIG}"
+    else
+      echo "SLO config not found: bp-runner.${SCENARIO}.fail-on-breach.yml"
     fi
 
   artifacts:
