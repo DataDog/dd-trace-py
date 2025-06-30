@@ -26,6 +26,7 @@ from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
 from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import DEFAULT_BUFFER_SIZE
+from ..internal.constants import DEFAULT_FLUSH_MIN_SPANS
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
@@ -455,7 +456,7 @@ class Config(object):
                 self._trace_rate_limit,
             )
         self._partial_flush_enabled = _get_config("DD_TRACE_PARTIAL_FLUSH_ENABLED", True, asbool)
-        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", 200, int)
+        self._partial_flush_min_spans = _get_config("DD_TRACE_PARTIAL_FLUSH_MIN_SPANS", DEFAULT_FLUSH_MIN_SPANS, int)
 
         self._http = HttpConfig(header_tags=self._trace_http_header_tags)
         self._remote_config_enabled = _get_config("DD_REMOTE_CONFIGURATION_ENABLED", True, asbool)
