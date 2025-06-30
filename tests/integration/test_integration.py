@@ -199,7 +199,7 @@ def test_metrics():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    assert t._span_aggregator.partial_flush_min_spans == 30<<20
+    assert t._span_aggregator.partial_flush_min_spans == 30 << 20
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
