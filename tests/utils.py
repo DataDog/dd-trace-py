@@ -618,7 +618,7 @@ class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
         CIVisibilityWriter.write(self, spans=spans)
         # take a snapshot of the writer buffer for tests to inspect
         if spans:
-            self._encoded = self._encoder._build_payload([spans])
+            self._encoded = self._encoder._build_payload([spans])[0]
 
 
 class DummyTracer(Tracer):

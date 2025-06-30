@@ -69,7 +69,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self.buffer.append(spans)
 
     def encode_traces(self, traces):
-        return self._build_payload(traces=traces)
+        return self._build_payload(traces=traces)[0]
 
     def encode(self):
         with self._lock:
@@ -80,7 +80,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             if count:
                 self.buffer = self.buffer[count:]
-            return payload, count
+            return payload, len(self.buffer)
 
     def _get_parent_session(self, traces):
         for trace in traces:
@@ -125,9 +125,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         if not normalized_spans:
             log.debug("No spans to encode after filtering, returning empty payload")
-            if traces_to_encode_count > 0:
-                return None, traces_to_encode_count
-            return None, 0
+            return None, traces_to_encode_count
 
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
 
@@ -264,11 +262,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Optional[bytes]
+        # type: (List[List[Span]]) -> Optional[bytes], int
         data = self._build_data(traces)
         if not data:
-            return None
-        return b"\r\n".join(self._build_body(data))
+            return None, 0
+        return b"\r\n".join(self._build_body(data)), len(data)
 
     def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
         # type: (Span, str, Optional[int]) -> Dict[str, Any]
