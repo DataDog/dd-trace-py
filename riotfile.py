@@ -2840,7 +2840,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": [latest],
+                "pydantic-ai": ["==0.3.0", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
