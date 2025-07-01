@@ -66,6 +66,7 @@ def _langchain_patch():
             try:
                 # Check if the class exists and has the methods before wrapping
                 import importlib
+
                 module = importlib.import_module(agents_package)
                 class_obj = module
                 for part in class_.split("."):
