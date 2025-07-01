@@ -7,8 +7,6 @@ import anthropic
 from ddtrace import config
 from ddtrace.contrib.internal.anthropic._streaming import handle_streamed_response
 from ddtrace.contrib.internal.anthropic._streaming import is_streaming_operation
-from ddtrace.contrib.internal.anthropic.utils import _extract_api_key
-from ddtrace.contrib.internal.anthropic.utils import handle_non_streamed_response
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -50,7 +48,6 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -61,7 +58,6 @@ def traced_chat_model_generate(anthropic, pin, func, instance, args, kwargs):
         if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-        handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -85,7 +81,6 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
         interface_type="chat_model",
         provider="anthropic",
         model=kwargs.get("model", ""),
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -96,7 +91,6 @@ async def traced_async_chat_model_generate(anthropic, pin, func, instance, args,
         if is_streaming_operation(chat_completions):
             stream = True
             return handle_streamed_response(integration, chat_completions, args, kwargs, span)
-        handle_non_streamed_response(integration, chat_completions, args, kwargs, span)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

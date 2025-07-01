@@ -10,19 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685c01fb00000000",
-      "anthropic.request.api_key": "sk-...key>",
+      "_dd.p.tid": "68641a7100000000",
       "anthropic.request.model": "claude-3-opus-20240229",
       "language": "python",
-      "runtime-id": "41c1f6de724541658f5e3c966a195bb0"
+      "runtime-id": "70f7e83598864498b2be3649ba819ff1"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 86044
+      "process_id": 68705
     },
-    "duration": 10199000,
-    "start": 1750860283065889000
+    "duration": 13848000,
+    "start": 1751390833086223000
   }]]

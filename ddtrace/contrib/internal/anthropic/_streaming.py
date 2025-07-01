@@ -153,8 +153,6 @@ def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
     # builds the response message given streamed chunks and sets according span tags
     try:
         resp_message = _construct_message(streamed_chunks)
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_chat_completion_usage(integration, span, resp_message)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
@@ -265,14 +263,6 @@ def _on_error_chunk(chunk, message):
         if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
-
-
-def _tag_streamed_chat_completion_usage(integration, span, message):
-    """Tagging logic for streamed chat completions."""
-    if message is None:
-        return
-    usage = _get_attr(message, "usage", {})
-    integration.llmobs_record_usage(span, usage)
 
 
 def _is_stream(resp: Any) -> bool:
