@@ -32,7 +32,7 @@
     "start": 1749837132052826083
   },
      {
-       "name": "azure.servicebus.produce",
+       "name": "azure.servicebus.send",
        "service": "azure_servicebus",
        "resource": "queue.1",
        "trace_id": 0,
@@ -55,7 +55,7 @@
        "start": 1749837132554127500
      },
      {
-       "name": "azure.servicebus.produce",
+       "name": "azure.servicebus.send",
        "service": "azure_servicebus",
        "resource": "topic.1",
        "trace_id": 0,
