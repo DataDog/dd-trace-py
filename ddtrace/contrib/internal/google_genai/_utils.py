@@ -60,15 +60,17 @@ def extract_metrics_google_genai(response):
     if output_tokens is not None:
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if cached_tokens is not None:
-        usage["cached_tokens"] = cached_tokens #TODO(max): add constant for cached tokens when it is introduced
+        usage["cached_tokens"] = cached_tokens  # TODO(max): add constant for cached tokens when it is introduced
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
     return usage
 
 
+# TODO(max): check for cases where more than one field is set per part
 def extract_message_from_part_google_genai(part, role):
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
+
     returns a dict representing a message with format {"role": role, "content": content}
     """
     message = {"role": role}
@@ -76,13 +78,17 @@ def extract_message_from_part_google_genai(part, role):
         message["content"] = part
         return message
 
+    thought = _get_attr(part, "thought", False)
+    if thought:
+        message["role"] = "reasoning"
+
     text = _get_attr(part, "text", None)
     if text:
         message["content"] = text
         return message
 
     function_call = _get_attr(part, "function_call", None)
-    if function_call:
+    if function_call and callable(getattr(function_call, "model_dump", None)):
         function_call_dict = function_call.model_dump()
         message["tool_calls"] = [
             {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
@@ -90,7 +96,7 @@ def extract_message_from_part_google_genai(part, role):
         return message
 
     function_response = _get_attr(part, "function_response", None)
-    if function_response:
+    if function_response and callable(getattr(function_response, "model_dump", None)):
         function_response_dict = function_response.model_dump()
         message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
         return message
@@ -107,12 +113,6 @@ def extract_message_from_part_google_genai(part, role):
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
         output = _get_attr(code_execution_result, "output", "")
         message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
-        return message
-
-    thought = _get_attr(part, "thought", None)
-    # thought is just a boolean indicating if the part was a thought
-    if thought:
-        message["content"] = "[thought: {}]".format(thought)
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}

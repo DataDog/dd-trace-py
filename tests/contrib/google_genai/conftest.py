@@ -26,7 +26,6 @@ def ddtrace_global_config():
     return {}
 
 
-
 @pytest.fixture(params=["google_genai", "vertex_ai"], ids=["google_genai", "vertex_ai"])
 def genai_client(request, genai):
     """
