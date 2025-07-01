@@ -16,12 +16,16 @@ def set_otel_meter_provider():
     )
     try:
         if "grpc" == protocol:
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter as OTLPMetricExporterGRPC
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                OTLPMetricExporter as OTLPMetricExporterGRPC,
+            )
 
             exporter = OTLPMetricExporterGRPC()
 
         elif "http/protobuf" == protocol:
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as OTLPMetricExporterHTTP
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+                OTLPMetricExporter as OTLPMetricExporterHTTP,
+            )
 
             exporter = OTLPMetricExporterHTTP()
         else:
