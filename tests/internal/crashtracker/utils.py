@@ -4,11 +4,12 @@ import random
 import select
 import socket
 from typing import Optional
+from typing import Tuple
 
 import pytest
 
 
-def crashtracker_receiver_bind() -> tuple[int, socket.socket]:
+def crashtracker_receiver_bind() -> Tuple[int, socket.socket]:
     """Bind to a random port in the range 10000-19999"""
     port = None
     sock = None
