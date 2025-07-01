@@ -52,7 +52,13 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
-        for product_plugin in entry_points():
+        eps = entry_points()
+        if hasattr(eps, "select"):  # Python 3.10+
+            plugins = eps.select(group="ddtrace.product")
+        else:  # Python <3.10
+            plugins = eps.get("ddtrace.product", [])
+
+        for product_plugin in plugins:
             if product_plugin.group != "ddtrace.product":
                 continue
             name = product_plugin.name
