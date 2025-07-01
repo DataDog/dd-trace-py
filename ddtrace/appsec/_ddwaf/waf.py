@@ -158,7 +158,7 @@ class DDWaf(WAF):
         if self._handle:
             self._lifespan += 1
             ctx = py_ddwaf_context_init(self._handle)
-            ctx.rc_products = f"[{self._rc_products_str}] u:{self._rc_updates},r:{self._lifespan}"
+            ctx.rc_products = f"[{self._rc_products_str}] u:{self._rc_updates} r:{self._lifespan}"
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx

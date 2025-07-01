@@ -258,7 +258,7 @@ def test_ip_update_rules_and_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -291,7 +291,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
 
 
 @snapshot(
@@ -760,4 +760,4 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
-    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "ASM:1"
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
