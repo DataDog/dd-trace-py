@@ -2835,6 +2835,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="pydantic_ai",
+            command="pytest {cmdargs} tests/contrib/pydantic_ai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "pydantic-ai": ["==0.3.0", latest],
+                "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
@@ -2913,7 +2923,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.20.0", latest],
+                "azure.functions": ["~=1.10.1", latest],
                 "azure.servicebus": latest,
                 "requests": latest,
             },
