@@ -52,7 +52,6 @@ class APPSEC(metaclass=Constant_Class):
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
-    ENABLED_ORIGIN_DEFAULT: Literal["default"] = "default"
     ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
     ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
     ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
