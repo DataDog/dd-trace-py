@@ -740,15 +740,15 @@ venv = Venv(
                 # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
                 # To get full test coverage we must test all these version ranges
                 Venv(
-                    pys=select_pys(min_version="3.12"),
-                    pkgs={"pymongo": ["~=4.13.0"]},
+                    pys=select_pys(min_version="3.8", max_version="3.9"),
+                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
                 ),
-                # Venv(
-                #     # pymongo added support for Python 3.10 in 3.12.1
-                #     # pymongo added support for Python 3.11 in 3.12.3
-                #     pys=selmotorect_pys(min_version="3.10"),
-                #     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
-                # ),
+                Venv(
+                    # pymongo added support for Python 3.10 in 3.12.1
+                    # pymongo added support for Python 3.11 in 3.12.3
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
+                ),
             ],
         ),
         Venv(
@@ -2464,16 +2464,16 @@ venv = Venv(
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
-                "gevent": latest,
+                "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
             },
             venvs=[
                 Venv(
-                    pys=MAX_PYTHON_VERSION,
+                    pys=[MIN_PYTHON_VERSION, MAX_PYTHON_VERSION],
                     pkgs={
-                        "opentelemetry-exporter-otlp": [latest],
+                        "opentelemetry-exporter-otlp": ["~=1.15.0", latest],
                     },
-                    env={"TEST_SDK_EXPORTERS": "1"},
+                    env={"OTEL_SDK_EXPORTER_INSTALLED": "1"},
                 ),
                 Venv(
                     pys=select_pys(),

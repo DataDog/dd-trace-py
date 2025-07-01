@@ -11,7 +11,7 @@ def skipif(exporter_installed: bool = False, unsupported_otel_version: bool = Fa
     if unsupported_otel_version and OTEL_VERSION < (1, 16):
         return pytest.mark.skipif(True, reason="OpenTelemetry version 1.16 or higher is required for these tests")
 
-    is_exporter = os.getenv("TEST_SDK_EXPORTERS", "").lower() in ("true", "1")
+    is_exporter = os.getenv("OTEL_SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
     if exporter_installed:
         return pytest.mark.skipif(is_exporter, reason="Tests not compatible with the opentelemetry exporters")
     else:
@@ -89,8 +89,11 @@ def test_otel_logs_provider_auto_configured_http():
     import time
     from unittest.mock import Mock
     from unittest.mock import patch
+    from urllib.parse import urlparse
 
     from opentelemetry._logs import get_logger_provider
+
+    from ddtrace.settings._agent import config as agent_config
 
     log = getLogger()
     log.error("hi")
@@ -108,7 +111,7 @@ def test_otel_logs_provider_auto_configured_http():
         request_body = None
         for call in mock_request.call_args_list:
             method, url = call[0][:2]
-            if method == "POST" and url == "http://localhost:4318/v1/logs":
+            if method == "POST" and url == f"http://{urlparse(agent_config).hostname}:4318/v1/logs":
                 request_body = call[1].get("data", None)
                 break
         assert request_body is not None, "Expected a request body to be present in the OpenTelemetry "
@@ -137,12 +140,15 @@ def test_otel_logs_provider_auto_configured_grpc():
     from concurrent import futures
     from logging import getLogger
     import time
+    from urllib.parse import urlparse
 
     import grpc
     from opentelemetry._logs import get_logger_provider
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
     from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+    from ddtrace.settings._agent import config as agent_config
 
     class MockLogsService(LogsServiceServicer):
         def __init__(self):
@@ -157,7 +163,7 @@ def test_otel_logs_provider_auto_configured_grpc():
     # Start gRPC server in background thread
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
     add_LogsServiceServicer_to_server(mock_service, server)
-    _ = server.add_insecure_port("localhost:4317")
+    _ = server.add_insecure_port(f"http://{urlparse(agent_config).hostname}:4317")
     server.start()
 
     try:
