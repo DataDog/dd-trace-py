@@ -1,9 +1,7 @@
-import pydantic_ai
 from typing import Dict
 import sys
 
 from ddtrace import config
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
@@ -13,7 +11,6 @@ from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContex
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.trace_utils import with_traced_module
-from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.trace import Pin
 
@@ -63,9 +60,12 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
 
 
 def patch():
+    import pydantic_ai
+
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
-    
+
+
     pydantic_ai._datadog_patch = True
 
     Pin().onto(pydantic_ai)
@@ -76,9 +76,11 @@ def patch():
 
 
 def unpatch():
+    import pydantic_ai
+
     if not getattr(pydantic_ai, "_datadog_patch", False):
         return
-    
+
     pydantic_ai._datadog_patch = False
 
     unwrap(pydantic_ai.agent.Agent, "iter")

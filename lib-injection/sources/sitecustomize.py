@@ -56,6 +56,9 @@ DDTRACE_VERSION = "unknown"
 PYTHON_VERSION = "unknown"
 PYTHON_RUNTIME = "unknown"
 DDTRACE_REQUIREMENTS = {}
+RESULT = "unknown"
+RESULT_REASON = "unknown"
+RESULT_CLASS = "unknown"
 EXECUTABLES_DENY_LIST = set()
 REQUIREMENTS_FILE_LOCATIONS = (
     os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/requirements.csv")),
@@ -162,6 +165,9 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
             "runtime_version": PYTHON_VERSION,
             "tracer_version": ddtrace_version,
             "pid": os.getpid(),
+            "result": RESULT,
+            "result_reason": RESULT_REASON,
+            "result_class": RESULT_CLASS,
         },
         "points": telemetry_events,
     }
@@ -275,6 +281,9 @@ def _inject():
     global DDTRACE_REQUIREMENTS
     global EXECUTABLES_DENY_LIST
     global TELEMETRY_DATA
+    global RESULT
+    global RESULT_REASON
+    global RESULT_CLASS
     # Try to get the version of the Python runtime first so we have it for telemetry
     PYTHON_VERSION = platform.python_version()
     PYTHON_RUNTIME = platform.python_implementation().lower()
@@ -321,6 +330,9 @@ def _inject():
                         "library_entrypoint.abort.integration",
                     )
                 )
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible executable: %s." % incompatible_sysarg
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
@@ -351,6 +363,9 @@ def _inject():
                         )
                     )
 
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible packages: %s." % incompatible_packages
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported dependencies and continuing.",
@@ -368,6 +383,13 @@ def _inject():
                 abort = True
 
                 TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (
+                    PYTHON_RUNTIME,
+                    PYTHON_VERSION,
+                    RUNTIMES_ALLOW_LIST,
+                )
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
@@ -393,6 +415,9 @@ def _inject():
             TELEMETRY_DATA.append(
                 create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
             )
+            RESULT = "error"
+            RESULT_REASON = "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
+            RESULT_CLASS = "incorrect_installation"
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
@@ -411,7 +436,9 @@ def _inject():
                     "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
                 ),
             )
-
+            RESULT = "error"
+            RESULT_REASON = "Failed to load ddtrace module: %s" % e
+            RESULT_CLASS = "internal_error"
             return
         else:
             try:
@@ -457,12 +484,18 @@ def _inject():
                         ],
                     ),
                 )
+                RESULT = "success"
+                RESULT_REASON = "Successfully configured ddtrace package"
+                RESULT_CLASS = "success" if not (runtime_incomp or integration_incomp) else "success_forced"
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
                         "library_entrypoint.error", ["error_type:init_ddtrace_" + type(e).__name__.lower()]
                     ),
                 )
+                RESULT = "error"
+                RESULT_REASON = "Failed to load ddtrace.bootstrap.sitecustomize: %s" % e
+                RESULT_CLASS = "internal_error"
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
@@ -476,6 +509,9 @@ def _inject():
                 ],
             )
         )
+        RESULT = "abort"
+        RESULT_REASON = "User-installed ddtrace found: %s, aborting site-packages injection" % module_origin
+        RESULT_CLASS = "already_instrumented"
 
 
 try:

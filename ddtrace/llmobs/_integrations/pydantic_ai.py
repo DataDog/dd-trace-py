@@ -7,7 +7,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import Pin
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import NAME

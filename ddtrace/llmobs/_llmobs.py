@@ -546,6 +546,7 @@ class LLMObs(Service):
                 start_ns,
                 _auto,
                 config._llmobs_instrumented_proxy_urls,
+                config._llmobs_ml_app,
             )
 
     @classmethod
@@ -833,6 +834,7 @@ class LLMObs(Service):
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
         return span
 
     @classmethod
