@@ -1,0 +1,3 @@
+features:
+  - |
+    otel: This adds support for exporting OpenTelemetry Metrics API. Notably, the application must include its own OTLP metrics exporter.
