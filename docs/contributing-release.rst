@@ -41,9 +41,11 @@ Ensure you have followed the prerequisite steps above.
 
     $ git pull
     $ git checkout <branch>
-    $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm | less
+    $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm --wrap=none | less
 
-5. Make sure the “Set as pre-release" box is CHECKED and the “Set as latest release" box is UNCHECKED. Click “save draft”.
+5. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
+   Make sure the “Set as latest release" box is CHECKED only if publishing a new minor release or a patch release for the latest minor version.
+   Click “save draft”.
 
 6. Share the link to the GitHub draft release with someone who can confirm it's correct
 
