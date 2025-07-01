@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: Adds support to automatically submit Google GenAI Python calls to LLM Observability.
+    LLM Observability: Adds support to automatically submit Google GenAI calls to LLM Observability.
