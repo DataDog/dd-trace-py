@@ -60,7 +60,7 @@ def extract_metrics_google_genai(response):
     if output_tokens is not None:
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if cached_tokens is not None:
-        usage["cached_tokens"] = cached_tokens
+        usage["cached_tokens"] = cached_tokens #TODO(max): add constant for cached tokens when it is introduced
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
@@ -205,9 +205,8 @@ def _join_chunks(chunks):
 
     merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
 
-    if chunks:
-        last_chunk = chunks[-1]
-        merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
+    last_chunk = chunks[-1]
+    merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
 
     return merged_response
 
