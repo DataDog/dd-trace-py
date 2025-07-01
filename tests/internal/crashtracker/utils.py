@@ -3,9 +3,10 @@ import os
 import random
 import select
 import socket
+from typing import Optional
 
 
-def crashtracker_receiver_bind():
+def crashtracker_receiver_bind() -> tuple[int, socket.socket]:
     """Bind to a random port in the range 10000-19999"""
     port = None
     sock = None
@@ -23,7 +24,7 @@ def crashtracker_receiver_bind():
     return port, sock
 
 
-def listen_get_conn(sock):
+def listen_get_conn(sock: socket.socket) -> Optional[socket.socket]:
     """Given a listening socket, wait for a connection and return it"""
     if not sock:
         return None
@@ -34,7 +35,7 @@ def listen_get_conn(sock):
     return conn
 
 
-def conn_to_bytes(conn):
+def conn_to_bytes(conn: socket.socket) -> bytes:
     """Read all data from a connection and return it"""
     # Don't assume nonblocking socket, so go back up to select for everything
     ret = b""
@@ -49,7 +50,7 @@ def conn_to_bytes(conn):
     return ret
 
 
-def start_crashtracker(port: int, stdout=None, stderr=None):
+def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None) -> bool:
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
