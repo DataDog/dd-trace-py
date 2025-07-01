@@ -6,7 +6,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def configure_otel_meter_provider():
+def set_otel_meter_provider():
     """
     Get the selected OTLP exporter
     This function is intended to be called during application startup.
@@ -31,15 +31,13 @@ def configure_otel_meter_provider():
                 "Set OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=grpc or OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=http/protobuf",
                 protocol,
             )
-            return None
-    except ImportError:
-            return None
+            return
 
-    try:
+        from opentelemetry.metrics import set_meter_provider
         from opentelemetry.sdk.metrics import MeterProvider
         from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
         reader = PeriodicExportingMetricReader(exporter)
-        return MeterProvider(metric_readers=[reader])
+        set_meter_provider(MeterProvider(metric_readers=[reader]))
     except ImportError:
-            return None
+        pass

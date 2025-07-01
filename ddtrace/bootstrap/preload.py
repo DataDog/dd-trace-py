@@ -78,12 +78,9 @@ if config._otel_enabled:
 if config._otel_metrics_enabled:
     @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
     def _otel_metrics(_):
-        from ddtrace.internal.opentelemetry.metrics import configure_otel_meter_provider
-        from opentelemetry.metrics import set_meter_provider
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
 
-        meter_provider = configure_otel_meter_provider()
-        if meter_provider is not None:
-            set_meter_provider(meter_provider)
+        set_otel_meter_provider()
 
 
 if config._llmobs_enabled:
