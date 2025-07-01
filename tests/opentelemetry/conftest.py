@@ -4,7 +4,6 @@ import opentelemetry
 import pytest
 
 from ddtrace.opentelemetry import TracerProvider
-from ddtrace.opentelemetry import MeterProvider
 
 
 TRACER_PROVIDER = TracerProvider()

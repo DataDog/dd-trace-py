@@ -5,7 +5,6 @@ import opentelemetry
 
 import ddtrace
 from ddtrace.opentelemetry import TracerProvider
-from ddtrace.opentelemetry import MeterProvider
 from tests.webclient import PingFilter
 
 

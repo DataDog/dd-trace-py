@@ -77,20 +77,17 @@ if config._otel_enabled:
 
 if config._otel_metrics_enabled:
     # Invoke the preload function to get the OTLP exporter before we register our ModuleWatchdog
-    # This avoids a circular import
-    from ddtrace.internal.opentelemetry.metrics import preload_otel_meter_exporter
+    # This avoids a circular import, though technically I think we end up triggering the import ourselves
+    from ddtrace.internal.opentelemetry.metrics import preload_otel_meter_provider
 
-    metric_exporter = preload_otel_meter_exporter()
+    meter_provider = preload_otel_meter_provider()
 
     @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
     def _otel_metrics(_):
         from opentelemetry.metrics import set_meter_provider
 
-        from ddtrace.opentelemetry import MeterProvider, PeriodicExportingMetricReader
-
-        if metric_exporter is not None:
-            reader = PeriodicExportingMetricReader(metric_exporter)
-            set_meter_provider(MeterProvider(metric_reader=reader))
+        if meter_provider is not None:
+            set_meter_provider(meter_provider)
 
 
 if config._llmobs_enabled:

@@ -107,11 +107,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
 """  # noqa: E501
 
 from ddtrace.internal.opentelemetry.trace import TracerProvider
-from ddtrace.internal.opentelemetry.metrics import MeterProvider
-from ddtrace.internal.opentelemetry.metrics import PeriodicExportingMetricReader
 
 __all__ = [
     "TracerProvider",
-    "MeterProvider",
-    "PeriodicExportingMetricReader"
 ]
