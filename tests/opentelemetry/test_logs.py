@@ -1,35 +1,31 @@
 from concurrent import futures
 import os
-from typing import Tuple
 
-import grpc
 from opentelemetry import version
-from opentelemetry._logs import get_logger_provider
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
-from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
 import pytest
-
-from ddtrace.settings._agent import config as agent_config
 
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
 
-class MockLogsService(LogsServiceServicer):
-    def __init__(self):
-        self.received_requests = []
-
-    def Export(self, request, context):
-        self.received_requests.append(request)
-        return ExportLogsServiceResponse()
-
-
-def mock_grpc_exporter_connection() -> Tuple[MockLogsService, grpc.Server]:
+def mock_grpc_exporter_connection():
     """
     Mock the gRPC connection for OpenTelemetry logs exporter and return the MockLogsService.
     """
+    import grpc
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
+
+    class MockLogsService(LogsServiceServicer):
+        def __init__(self):
+            self.received_requests = []
+
+        def Export(self, request, context):
+            from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
+
+            self.received_requests.append(request)
+            return ExportLogsServiceResponse()
+
     mock_service = MockLogsService()
     # Start gRPC server in background thread
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
@@ -38,16 +34,18 @@ def mock_grpc_exporter_connection() -> Tuple[MockLogsService, grpc.Server]:
     return mock_service, server
 
 
-def decode_logs_request(request_body: bytes) -> ExportLogsServiceRequest:
+def decode_logs_request(request_body: bytes):
     """
     Decode the protobuf request body into an ExportLogsServiceRequest object.
     """
+    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
+
     export_request = ExportLogsServiceRequest()
     export_request.ParseFromString(request_body)
     return export_request
 
 
-def find_log_correlation_attributes(captured_logs: ExportLogsServiceRequest, log_message: str) -> dict[str, str]:
+def find_log_correlation_attributes(captured_logs, log_message: str) -> dict[str, str]:
     """Find and return the log correlation attributes from the received requests."""
     lc_attributes = {}
     for resource_logs in captured_logs.resource_logs:
@@ -136,14 +134,32 @@ def test_otel_logs_exporter_installed():
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
-def test_otel_logs_provider_auto_configured():
+def test_otel_logs_enabled():
     """
     Test that the OpenTelemetry logs exporter is automatically configured when DD_OTEL_LOGS_ENABLED is set.
     """
+    from opentelemetry._logs import get_logger_provider
+
     from ddtrace.internal.opentelemetry.logs import LOGS_PROVIDER_CONFIGURED
 
     lp = get_logger_provider()
     assert LOGS_PROVIDER_CONFIGURED, f"OpenTelemetry logs exporter should be configured automatically. {lp} configured."
+
+
+@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_OTEL_LOGS_ENABLED": [None, "false"]})
+def test_otel_logs_disabled_and_unset():
+    """
+    Test that the OpenTelemetry logs exporter is NOT automatically configured when DD_OTEL_LOGS_ENABLED is set.
+    """
+    from opentelemetry._logs import get_logger_provider
+
+    from ddtrace.internal.opentelemetry.logs import LOGS_PROVIDER_CONFIGURED
+
+    lp = get_logger_provider()
+    assert (
+        not LOGS_PROVIDER_CONFIGURED
+    ), f"OpenTelemetry logs exporter should not be configured automatically. {lp} configured."
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
@@ -170,6 +186,7 @@ def test_otel_logs_provider_auto_configured_http():
 
     from opentelemetry._logs import get_logger_provider
 
+    from ddtrace.settings._agent import config as agent_config
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
 
@@ -235,6 +252,8 @@ def test_otel_logs_provider_auto_configured_grpc():
     from logging import getLogger
     import time
 
+    from opentelemetry._logs import get_logger_provider
+
     from tests.opentelemetry.test_logs import mock_grpc_exporter_connection
 
     mock_service, server = mock_grpc_exporter_connection()
@@ -272,6 +291,7 @@ def test_otel_logs_provider_auto_configured_grpc():
     ddtrace_run=True,
     env={
         "DD_OTEL_LOGS_ENABLED": "true",
+        "DD_TRACE_OTEL_ENABLED": None,
         "DD_SERVICE": "test_service",
         "DD_VERSION": "1.0",
         "DD_ENV": "test_env",
@@ -287,6 +307,8 @@ def test_ddtrace_log_correlation():
     from logging import getLogger
     import os
     import time
+
+    from opentelemetry._logs import get_logger_provider
 
     from ddtrace import tracer
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
@@ -357,6 +379,7 @@ def test_otel_trace_log_correlation():
     import time
 
     from opentelemetry import trace
+    from opentelemetry._logs import get_logger_provider
 
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
     from tests.opentelemetry.test_logs import mock_grpc_exporter_connection

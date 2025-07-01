@@ -2463,24 +2463,34 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
+                "mock": latest,
                 "flask": latest,
-                "gevent": latest,  # gevent>22.12 is not compatible with py3.8
+                "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
             },
             venvs=[
                 Venv(
-                    pys=[MIN_PYTHON_VERSION, MAX_PYTHON_VERSION],
-                    pkgs={
-                        "opentelemetry-exporter-otlp": ["~=1.15.0", latest],
-                    },
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
                 Venv(
-                    pys=select_pys(),
-                    pkgs={
-                        # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                        "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
-                    },
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
             ],
         ),
