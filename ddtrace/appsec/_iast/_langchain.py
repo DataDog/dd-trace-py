@@ -49,12 +49,12 @@ def _langchain_patch():
     # Check which package contains agents module (langchain 0.1 vs langchain-community 0.2+)
     agents_package = None
     try:
-        import langchain.agents
+        import langchain.agents  # noqa: F401
 
         agents_package = "langchain"
     except ImportError:
         try:
-            import langchain_community.agents
+            import langchain_community.agents  # noqa: F401
 
             agents_package = "langchain_community"
         except ImportError:
