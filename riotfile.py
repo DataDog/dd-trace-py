@@ -2475,13 +2475,13 @@ venv = Venv(
                     },
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
-                # Venv(
-                #     pys=select_pys(),
-                #     pkgs={
-                #         # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                #         "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
-                #     },
-                # ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                        "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                    },
+                ),
             ],
         ),
         Venv(
