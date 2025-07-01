@@ -3,12 +3,17 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.trace import Pin
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.trace import Span
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import NAME
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
@@ -55,12 +60,54 @@ class PydanticAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span_links = self._get_span_links(span)
+        span_kind = span._get_ctx_item(SPAN_KIND)
+        span_links = self._get_span_links(span, span_kind)
+
+        if span_kind == "agent":
+            self._llmobs_set_tags_agent(span, args, kwargs, response, span_links)
+        elif span_kind == "tool":
+            self._llmobs_set_tags_tool(span, kwargs, response)
 
         metrics = self.extract_usage_metrics(response)
         span._set_ctx_items(
             {SPAN_KIND: span._get_ctx_item(SPAN_KIND), SPAN_LINKS: span_links, MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "", MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "", METRICS: metrics}
         )
+    
+    def _llmobs_set_tags_agent(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any], span_links: List[Dict[str, Any]]) -> None:
+        agent_instance = kwargs.get("instance", None)
+        if agent_instance:
+            agent_name = getattr(agent_instance, "name", "")
+            agent_instructions = getattr(agent_instance, "_instructions", "")
+            agent_system_prompts = getattr(agent_instance, "_system_prompts", "")
+            agent_tools = list(getattr(agent_instance, "_function_tools", {}).keys())
+            agent_model_settings = getattr(agent_instance, "model_settings", {})
+            metadata = {
+                "instructions": agent_instructions,
+                "system_prompts": agent_system_prompts,
+                "tools": agent_tools,
+            }
+            if agent_model_settings:
+                metadata["max_tokens"] = agent_model_settings.get("max_tokens", None)
+                metadata["temperature"] = agent_model_settings.get("temperature", None)
+            span._set_ctx_items(
+                {
+                    NAME: agent_name if agent_name else "PydanticAI Agent",
+                    METADATA: metadata,
+                }
+            )
+        user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
+        result = getattr(response, "result", "")
+        span._set_ctx_items(
+            {
+                INPUT_VALUE: user_prompt,
+                OUTPUT_VALUE: getattr(result, "output", ""),
+                SPAN_LINKS: span_links,
+            }
+        )
+            
+    
+    def _llmobs_set_tags_tool(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None) -> None:
+        pass
     
     def extract_usage_metrics(self, response: Any) -> Dict[str, Any]:
         usage = None
@@ -80,8 +127,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
         }
 
-    def _get_span_links(self, span: Span) -> List[Dict[str, Any]]:
-        span_kind = span._get_ctx_item(SPAN_KIND)
+    def _get_span_links(self, span: Span, span_kind: str) -> List[Dict[str, Any]]:
         span_links = []
         if span_kind == "agent":
             for tool_span_id in self._running_agents[span.span_id]:

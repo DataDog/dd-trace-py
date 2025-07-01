@@ -38,6 +38,7 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
+    kwargs["instance"] = instance
     return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
 
 
