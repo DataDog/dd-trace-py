@@ -2334,7 +2334,6 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.8"),
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
@@ -2342,14 +2341,37 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
-                "gevent": latest,
+                "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
             },
+            venvs=[
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+            ],
         ),
         Venv(
             name="asyncio",
