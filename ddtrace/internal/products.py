@@ -52,7 +52,9 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
-        for product_plugin in entry_points(group="ddtrace.products"):
+        for product_plugin in entry_points():
+            if product_plugin.group != "ddtrace.product":
+                continue
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 
