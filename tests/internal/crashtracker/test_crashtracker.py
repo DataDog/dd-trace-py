@@ -142,7 +142,7 @@ def test_crashtracker_simple():
     # Part 5
     # Check to see if the listening socket was triggered, if so accept the connection
     # then check to see if the resulting connection is readable
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     # The crash came from string_at.  Since the over-the-wire format is multipart, chunked HTTP,
     # just check for the presence of the raw string 'string_at' in the response.
     assert b"string_at" in data
@@ -177,7 +177,7 @@ def test_crashtracker_simple_fork():
         sys.exit(-1)  # just in case
 
     # Part 5, check
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"string_at" in data
 
 
@@ -230,7 +230,7 @@ def test_crashtracker_simple_sigbus():
         sys.exit(-1)  # just in case
 
     # Part 5, check
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert data
 
 
@@ -260,7 +260,7 @@ def test_crashtracker_raise_sigsegv():
         sys.exit(-1)
 
     # Part 5, check
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"os_kill" in data
 
 
@@ -290,7 +290,7 @@ def test_crashtracker_raise_sigbus():
         sys.exit(-1)
 
     # Part 5, check
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"os_kill" in data
 
 
@@ -319,7 +319,7 @@ def test_crashtracker_preload_default(ddtrace_run_python_code_in_subprocess):
     assert exitcode == -11  # exit code for SIGSEGV
 
     # Wait for the connection
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert data
     assert b"string_at" in data
 
@@ -371,7 +371,7 @@ def test_crashtracker_auto_default(run_python_code_in_subprocess):
     assert exitcode == -11
 
     # Wait for the connection
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"string_at" in data
 
 
@@ -393,7 +393,7 @@ def test_crashtracker_auto_nostack(run_python_code_in_subprocess):
     assert exitcode == -11
 
     # Wait for the connection
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert data
     assert b"string_at" not in data
 
@@ -444,7 +444,7 @@ def test_crashtracker_tags_required():
         ctypes.string_at(0)
         sys.exit(-1)
 
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"string_at" in data
 
     # Now check for the tags
@@ -482,7 +482,7 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
     assert exitcode == -11
 
     # Wait for the connection
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert data
 
     # Now check for the tags
@@ -507,7 +507,7 @@ def test_crashtracker_set_tag_profiler_config(run_python_code_in_subprocess):
     assert exitcode == -11
 
     # Wait for the connection
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert data
 
     # Now check for the profiler_config tag
@@ -551,7 +551,7 @@ def test_crashtracker_user_tags_profiling():
         ctypes.string_at(0)
         sys.exit(-1)
 
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"string_at" in data
 
     # Now check for the tags
@@ -595,7 +595,7 @@ def test_crashtracker_user_tags_core():
         ctypes.string_at(0)
         sys.exit(-1)
 
-    data = _get_crash_report(sock)
+    data = utils.get_crash_report(sock)
     assert b"string_at" in data
 
     # Now check for the tags
