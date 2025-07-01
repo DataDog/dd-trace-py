@@ -277,7 +277,11 @@ def _loop_handler(span, chunk, streamed_chunks):
         span.set_tag_str("openai.response.model", model)
 
     response = getattr(chunk, "response", None)
-    if getattr(chunk, "type", "") == "response.completed":
+    if (
+        getattr(chunk, "type", "") == "response.completed"
+        or getattr(chunk, "type", "") == "response.incomplete"
+        or getattr(chunk, "type", "") == "response.failed"
+    ):
         streamed_chunks[0].append(response)
 
     # Completions/chat completions are returned as `choices`

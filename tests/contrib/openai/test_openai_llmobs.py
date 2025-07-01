@@ -1012,6 +1012,55 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
+    def test_response_stream_incomplete(self, oai_with_test_agent_backend, mock_llmobs_writer, mock_tracer):
+        request_args = {
+            "model": "gpt-4o",
+            "max_output_tokens": 16,
+            "temperature": 0.1,
+            "stream": True,
+        }
+        resp1 = oai_with_test_agent_backend.responses.create(
+            input="Give me a multi paragraph narrative on the life of a car",
+            **request_args,
+        )
+        for chunk in resp1:
+            if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                resp_model = chunk.response.model
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp_model,
+                model_provider="openai",
+                input_messages=[
+                    {"content": "Give me a multi paragraph narrative on the life of a car", "role": "user"}
+                ],
+                output_messages=[
+                    {
+                        "role": "assistant",
+                        "content": "In the bustling city of Detroit, a sleek, metallic blue sedan rolled off the",
+                    }
+                ],
+                metadata={
+                    "max_output_tokens": 16,
+                    "temperature": 0.1,
+                    "stream": True,
+                    "top_p": 1.0,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 0,
+                },
+                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
     def test_response_function_call(self, openai, mock_llmobs_writer, mock_tracer, snapshot_tracer):
         """Test that function call response calls are recorded as LLMObs events correctly."""
         with get_openai_vcr(subdirectory_name="v1").use_cassette("response_function_call.yaml"):
