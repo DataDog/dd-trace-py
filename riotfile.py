@@ -3299,5 +3299,45 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="appsec_integrations_langchain",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-asyncio": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-experimental": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-experimental": "~=0.3",
+                    },
+                ),
+            ],
+        ),
     ],
 )
