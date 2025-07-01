@@ -1,8 +1,8 @@
-from ddtrace.llmobs._utils import _get_attr
-
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._utils import _get_attr
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -36,6 +36,7 @@ def extract_provider_and_model_name(kwargs):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
     return "custom", model_name if model_name else "custom"
+
 
 def normalize_contents(contents):
     """

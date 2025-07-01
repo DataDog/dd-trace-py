@@ -1,4 +1,3 @@
-import contextlib
 import os
 from typing import Any
 from typing import Iterator
@@ -18,7 +17,6 @@ from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
-from tests.utils import request_token
 
 
 @pytest.fixture
