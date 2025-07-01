@@ -134,7 +134,19 @@ services:
             - DD_DISABLE_ERROR_RESPONSES=true
             - ENABLED_CHECKS=trace_content_length,trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service,trace_dd_service
             - SNAPSHOT_IGNORED_ATTRS=span_id,trace_id,parent_id,duration,start,metrics.system.pid,metrics.system.process_id,metrics.process_id,meta.runtime-id,meta._dd.p.tid,meta.pathway.hash,metrics._dd.tracer_kr,meta._dd.parent_id,meta.kafka.cluster_id
-
+    # Use this for local development when making new VCR cassettes to persist to the test agent
+    # Do not use the above testagent service if using this one.
+    testagent-vcr:
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.24.0
+        ports:
+        - "127.0.0.1:9126:9126"
+        environment:
+        - LOG_LEVEL=DEBUG
+        - TRACE_LANGUAGE=javascript
+        - ENABLED_CHECKS=trace_stall,meta_tracer_version_header,trace_count_header,trace_peer_service
+        - PORT=9126
+        volumes:
+        - ${VCR_CASSETTES_PATH:-/tmp/empty-vcr}:/vcr-cassettes:delegated
     vertica:
         image: vertica/vertica-ce
         environment:
