@@ -592,7 +592,7 @@
         "dependency": "rq",
         "integration": "rq",
         "minimum_tracer_supported": "1.8.1",
-        "max_tracer_supported": "1.16.2",
+        "max_tracer_supported": "2.4.0",
         "auto-instrumented": true
     },
     {
