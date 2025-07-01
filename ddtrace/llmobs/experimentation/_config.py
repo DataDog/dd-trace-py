@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 
@@ -65,9 +66,9 @@ def get_base_url() -> str:
 def init(
     ml_app: str = DEFAULT_ML_APP,
     project_name: str = DEFAULT_PROJECT_NAME,
-    site: str = None,
-    api_key: str = None,
-    application_key: str = None,
+    site: Optional[str] = None,
+    api_key: Optional[str] = None,
+    application_key: Optional[str] = None,
     run_locally: bool = False,
 ) -> None:
     """

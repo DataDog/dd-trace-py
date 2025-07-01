@@ -7,7 +7,9 @@ from typing import Any
 from typing import Dict
 from typing import Iterator
 from typing import List
+from typing import NotRequired
 from typing import Optional
+from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from urllib.parse import quote
@@ -32,7 +34,8 @@ JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONT
 class DatasetRecord(TypedDict):
     input: JSONType
     expected_output: JSONType
-    # TODO support extra keys
+    record_id: NotRequired[Optional[str]]
+    metadata: NotRequired[Optional[Dict[str, Any]]]
 
 
 class Dataset:
@@ -49,10 +52,16 @@ class Dataset:
         version (int): Version of the dataset (not necessarily the same as the Datadog dataset version).
     """
 
+    _data: List[DatasetRecord]
+    _datadog_dataset_id: Optional[str]
+    _datadog_dataset_version: int
+    _changes: Dict[str, List[Union[DatasetRecord, Tuple[int, DatasetRecord], Tuple[int, DatasetRecord, DatasetRecord]]]]
+    _synced: bool
+
     def __init__(
         self,
         name: str,
-        data: Optional[List[Dict[str, Union[str, Dict[str, Any]]]]] = None,
+        data: Optional[List[DatasetRecord]] = None,
         description: str = "",
         version: Optional[int] = None,
     ) -> None:
@@ -61,7 +70,7 @@ class Dataset:
 
         Args:
             name (str): Name of the dataset.
-            data (List[Dict[str, Union[str, Dict[str, Any]]]], optional): List of records where each record
+            data (List[DatasetRecord], optional): List of records where each record
                 must contain 'input' and 'expected_output' fields. Both values can be strings or dictionaries.
                 If None, attempts to pull the dataset from Datadog.
             description (str, optional): Optional description of the dataset. Defaults to "".
@@ -96,7 +105,7 @@ class Dataset:
         self._changes = {"added": [], "deleted": [], "updated": []}
         self._synced = True
 
-    def __iter__(self) -> Iterator[Dict[str, Union[str, Dict[str, Any]]]]:
+    def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._data)
 
     def __len__(self) -> int:
@@ -104,7 +113,7 @@ class Dataset:
 
     def __getitem__(
         self, index: Union[int, slice]
-    ) -> Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
+    ) -> Union[DatasetRecord, List[DatasetRecord]]:
         """
         Retrieve one or more dataset records by index or slice.
         Returns a copy of the record(s) without the 'record_id' field.
@@ -113,7 +122,7 @@ class Dataset:
             index (Union[int, slice]): Index or slice of records to retrieve.
 
         Returns:
-            Union[Dict[str, Union[str, Dict[str, Any]]], List[Dict[str, Union[str, Dict[str, Any]]]]]:
+            Union[DatasetRecord, List[DatasetRecord]]:
                 A copy of the dataset record(s) at the given index/slice.
         """
         if isinstance(index, slice):
@@ -136,13 +145,13 @@ class Dataset:
         del self._data[index]
         self._synced = False
 
-    def __setitem__(self, index: int, value: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+    def __setitem__(self, index: int, value: DatasetRecord) -> None:
         """
         Validate and update a record at the specified index, tracking the change.
 
         Args:
             index (int): Index of the record to update.
-            value (Dict[str, Union[str, Dict[str, Any]]]): New record value.
+            value (DatasetRecord): New record value.
 
         Raises:
             ValueError: If the new record doesn't match the expected structure.
@@ -153,12 +162,12 @@ class Dataset:
         self._data[index] = value
         self._synced = False
 
-    def __iadd__(self, record: Dict[str, Union[str, Dict[str, Any]]]) -> "Dataset":
+    def __iadd__(self, record: DatasetRecord) -> "Dataset":
         """
         Add a new record using the += operator.
 
         Args:
-            record (Dict[str, Union[str, Dict[str, Any]]]): Record to add.
+            record (DatasetRecord): Record to add.
 
         Returns:
             Dataset: The dataset instance for method chaining.
@@ -169,12 +178,12 @@ class Dataset:
         self.add(record)
         return self
 
-    def add(self, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+    def add(self, record: DatasetRecord) -> None:
         """
         Validate and add a new record to the dataset, tracking the change.
 
         Args:
-            record (Dict[str, Union[str, Dict[str, Any]]]): Record to add.
+            record (DatasetRecord): Record to add.
 
         Raises:
             ValueError: If the record doesn't match the expected structure.
@@ -188,16 +197,17 @@ class Dataset:
         """Remove a record at the specified index."""
         del self[index]
 
-    def update(self, index: int, record: Dict[str, Union[str, Dict[str, Any]]]) -> None:
+    def update(self, index: int, record: DatasetRecord) -> None:
         """Update a record at the specified index."""
         self[index] = record
 
-    def _get_changes(self) -> Dict[str, List]:
+    def _get_changes(self) -> Dict[str, List[Union[DatasetRecord, Tuple[int, DatasetRecord], Tuple[int, DatasetRecord, DatasetRecord]]]]:
         """
         Get all tracked changes since the last push or pull.
 
         Returns:
-            Dict[str, List]: Dictionary containing lists of added, deleted, and updated records.
+            Dict[str, List[Union[DatasetRecord, Tuple[int, DatasetRecord], Tuple[int, DatasetRecord, DatasetRecord]]]]: 
+                Dictionary containing lists of added, deleted, and updated records.
         """
         return {
             "added": self._changes["added"].copy(),
@@ -255,7 +265,7 @@ class Dataset:
         # All basic checks passed – dataset rows can legitimately have different optional/metadata keys.
 
     @classmethod
-    def pull(cls, name: str, version: int = None) -> "Dataset":
+    def pull(cls, name: str, version: Optional[int] = None) -> "Dataset":
         """
         Create a dataset from an existing dataset hosted in Datadog.
 
@@ -557,7 +567,7 @@ class Dataset:
         self._datadog_dataset_version = 0  # Starts at 0 – the backend will increment after first batch.
 
     @staticmethod
-    def _build_insert_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_insert_record(record: DatasetRecord) -> Dict[str, Any]:
         """Convert an internal record representation into the *insert_records* payload format."""
         new_rec = {
             "input": record["input"],
@@ -569,7 +579,7 @@ class Dataset:
         return new_rec
 
     @staticmethod
-    def _build_update_record(old: Dict[str, Any], new: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_update_record(old: DatasetRecord, new: DatasetRecord) -> DatasetRecord:
         """Create an *update_records* payload entry by diffing two versions of a record."""
         if "record_id" not in old:
             raise ValueError("Cannot update record without a record_id – did you pull before updating?")
@@ -596,8 +606,8 @@ class Dataset:
     def _send_batch_updates(
         self,
         *,
-        insert_records: List[Dict[str, Any]],
-        update_records: List[Dict[str, Any]],
+        insert_records: List[DatasetRecord],
+        update_records: List[DatasetRecord],
         delete_records: List[str],
         first_chunk_overwrite: bool,
     ) -> None:
@@ -660,8 +670,8 @@ class Dataset:
         name: str,
         description: str = "",
         delimiter: str = ",",
-        input_columns: List[str] = None,
-        expected_output_columns: List[str] = None,
+        input_columns: Optional[List[str]] = None,
+        expected_output_columns: Optional[List[str]] = None,
     ) -> "Dataset":
         """
         Create a Dataset from a CSV file by specifying which columns correspond
@@ -814,10 +824,10 @@ class Dataset:
         """
         try:
             import pandas as pd
-        except ImportError:
+        except ImportError as e:
             raise ImportError(
                 "pandas is required to convert dataset to DataFrame. " "Please install it with `pip install pandas`"
-            )
+            ) from e
 
         if multiindex:
             column_tuples = set()

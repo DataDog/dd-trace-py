@@ -10,7 +10,9 @@ from typing import Callable
 from typing import Dict
 from typing import Iterator
 from typing import List
+from typing import NotRequired
 from typing import Optional
+from typing import TypedDict
 from typing import Union
 
 import ddtrace
@@ -33,10 +35,23 @@ from .utils._ui import _print_progress_bar
 if TYPE_CHECKING:
     import pandas as pd
 
-    from ._experiment import ExperimentResults
+
+JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+PrimitiveType = Union[str, int, float, bool, None]
 
 
-def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
+class ModelConfig(TypedDict):
+    model_name: Optional[str]
+    provider: Optional[str]
+    temperature: Optional[float]
+
+
+class ExperimentConfig(TypedDict):
+    models: NotRequired[List[ModelConfig]]
+
+
+
+def validate_model(data: ModelConfig) -> ModelConfig:
     """
     Validates that a dictionary matches the Model schema.
     All fields are optional, but must be of correct type if present.
@@ -51,15 +66,10 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
         TypeError: If data is not a dictionary or if provided fields have wrong types
         ValueError: If temperature is outside valid range
     """
-    if not isinstance(data, dict):
-        raise TypeError(
-            "Model must be a dictionary (model_name: Optional[str], provider: Optional[str], temperature: Optional[Union[int, float]])"
-        )
-
     MODEL_SCHEMA = {
         "name": str,
         "provider": str,
-        "temperature": (int, float),  # allow both int and float for temperature
+        "temperature": float,  # allow both int and float for temperature
     }
 
     for field, expected_type in MODEL_SCHEMA.items():
@@ -80,7 +90,7 @@ def validate_model(data: Dict[str, Any]) -> Dict[str, Any]:
     return data
 
 
-def validate_config(config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+def validate_config(config: Optional[ExperimentConfig]) -> Optional[ExperimentConfig]:
     """
     Validates the config dictionary structure if provided.
     Models are optional but must follow schema if present.
@@ -140,7 +150,7 @@ class Experiment:
         summary_metrics (List[Callable]): List of summary metric functions (decorated with @summary_metric).
         tags (List[str]): Tags useful for categorizing or querying the experiment.
         description (str): Description of the experiment.
-        metadata (Dict[str, Any]): Additional metadata about the experiment.
+        metadata (Dict[str, PrimitiveType]): Additional metadata about the experiment.
         config (Optional[Dict[str, Any]]): Configuration passed to the task, if it accepts it.
         has_run (bool): Indicates whether the experiment task has been executed.
         has_evaluated (bool): Indicates whether the experiment evaluations have been performed.
