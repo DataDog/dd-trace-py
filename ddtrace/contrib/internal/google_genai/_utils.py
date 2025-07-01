@@ -60,7 +60,7 @@ def extract_metrics_google_genai(response):
     if output_tokens is not None:
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if cached_tokens is not None:
-        usage["cached_tokens"] = cached_tokens  # no constant for cached tokens
+        usage["cached_tokens"] = cached_tokens
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
