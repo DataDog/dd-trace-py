@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue with the instrumentation of
+    generators with Python 3.10.
