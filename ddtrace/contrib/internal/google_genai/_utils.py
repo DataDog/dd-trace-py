@@ -177,7 +177,7 @@ def _join_chunks(chunks):
     if not chunks:
         return None
 
-    merged_text = ""
+    text_chunks = []
     non_text_parts = []
     role = None
 
@@ -195,13 +195,13 @@ def _join_chunks(chunks):
             for part in parts:
                 text = _get_attr(part, "text", None)
                 if text:
-                    merged_text += text
+                    text_chunks.append(text)
                 else:
                     non_text_parts.append(part)
 
     parts = []
-    if merged_text:
-        parts.append({"text": merged_text})
+    if text_chunks:
+        parts.append({"text": "".join(text_chunks)})
     parts.extend(non_text_parts)
 
     merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
