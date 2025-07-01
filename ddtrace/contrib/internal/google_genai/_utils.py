@@ -105,14 +105,14 @@ def extract_message_from_part_google_genai(part, role):
     if executable_code:
         language = _get_attr(executable_code, "language", "UNKNOWN")
         code = _get_attr(executable_code, "code", "")
-        message["content"] = "[executable code ({language}): {code}]".format(language=language, code=code)
+        message["content"] = {"language": language, "code": code}
         return message
 
     code_execution_result = _get_attr(part, "code_execution_result", None)
     if code_execution_result:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
         output = _get_attr(code_execution_result, "output", "")
-        message["content"] = "[code execution result ({outcome}): {output}]".format(outcome=outcome, output=output)
+        message["content"] = {"outcome": outcome, "output": output}
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
