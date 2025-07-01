@@ -46,7 +46,11 @@ def run(scenario_py, cname, cvars, output_dir):
     ]
     for cvarname, cvarval in cvars.items():
         cmd.append("--{}".format(cvarname))
-        cmd.append(json.dumps(cvarval))
+        if isinstance(cvarval, (dict, list)):
+            # convert dicts and lists to JSON strings
+            cmd.append(json.dumps(cvarval))
+        else:
+            cmd.append(str(cvarval))
 
     proc = subprocess.Popen(cmd)
     proc.wait()
