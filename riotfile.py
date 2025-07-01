@@ -2835,6 +2835,16 @@ venv = Venv(
             },
         ),
         Venv(
+            name="pydantic_ai",
+            command="pytest {cmdargs} tests/contrib/pydantic_ai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "pydantic-ai": ["==0.3.0", latest],
+                "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
             name="logbook",
             pys=select_pys(),
             command="pytest {cmdargs} tests/contrib/logbook",
