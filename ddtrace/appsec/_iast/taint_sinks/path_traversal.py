@@ -1,5 +1,6 @@
 from typing import Any
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -31,7 +32,11 @@ def check_and_report_path_traversal(*args: Any, **kwargs: Any) -> None:
     try:
         if asm_config.is_iast_request_enabled:
             filename_arg = args[0] if args else kwargs.get("file", None)
-            if PathTraversal.has_quota() and PathTraversal.is_tainted_pyobject(filename_arg):
+            if (
+                isinstance(filename_arg, IAST.TEXT_TYPES)
+                and PathTraversal.has_quota()
+                and PathTraversal.is_tainted_pyobject(filename_arg)
+            ):
                 PathTraversal.report(evidence_value=filename_arg)
 
             # Reports Span Metrics
