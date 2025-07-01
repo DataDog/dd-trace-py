@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    otel: Add support for exporting OpenTelemetry logs.
