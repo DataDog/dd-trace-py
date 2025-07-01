@@ -4,11 +4,11 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.contrib.internal.google_genai._utils import extract_message_from_part_google_genai
-from ddtrace.contrib.internal.google_genai._utils import extract_metrics_google_genai
-from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
-from ddtrace.contrib.internal.google_genai._utils import normalize_contents
-from ddtrace.contrib.internal.google_genai._utils import process_response
+from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
+from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import process_response
+from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA

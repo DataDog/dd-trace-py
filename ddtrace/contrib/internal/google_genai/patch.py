@@ -5,7 +5,7 @@ from google import genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_genai._utils import TracedAsyncGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
-from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
+from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap

@@ -170,7 +170,7 @@ async def test_google_genai_generate_content_async_stream_error(
     ],
 )
 def test_extract_provider_and_model_name(model_name, expected_provider, expected_model):
-    from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
+    from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 
     kwargs = {"model": model_name}
     provider, model = extract_provider_and_model_name(kwargs)
@@ -260,7 +260,7 @@ def test_google_genai_generate_content_with_tools(mock_generate_content_with_too
 )
 def test_normalize_contents(contents, expected):
     """Test normalize_contents function with various complex type structures."""
-    from ddtrace.contrib.internal.google_genai._utils import normalize_contents
+    from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 
     result = normalize_contents(contents)
 
