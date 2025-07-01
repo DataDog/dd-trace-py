@@ -2,7 +2,6 @@ import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
-from typing import AnyStr
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
