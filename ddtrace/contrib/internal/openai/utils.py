@@ -295,7 +295,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
     try:
-        if operation_type == "response":
+        if operation_type == "response" and streamed_chunks and streamed_chunks[0]:
             formatted_completions = streamed_chunks[0][0]
         elif operation_type == "completion":
             formatted_completions = [
