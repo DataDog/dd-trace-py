@@ -205,9 +205,7 @@ def _join_chunks(chunks):
 
     if chunks:
         last_chunk = chunks[-1]
-        usage_metadata = _get_attr(last_chunk, "usage_metadata", None)
-        if usage_metadata:
-            merged_response["usage_metadata"] = usage_metadata
+            merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
 
     return merged_response
 
