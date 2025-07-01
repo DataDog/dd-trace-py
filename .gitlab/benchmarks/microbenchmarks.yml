@@ -168,7 +168,9 @@ microbenchmarks:
         - "packages_update_imported_dependencies"
         - "recursive_computation"
         - "telemetry_add_metric"
-        - "startup"
+        # They take a long time to run, and now need the agent running
+        # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
+        # - "startup"
 
 "microbenchmarks flaky":
   extends: .benchmarks
