@@ -68,7 +68,9 @@ def extract_metrics_google_genai(response):
 
 
 def extract_message_from_part_google_genai(part, role):
-    """part is a PartUnion = Union[File, Part, PIL_Image, str]"""
+    """part is a PartUnion = Union[File, Part, PIL_Image, str]
+    returns a dict representing a message with format {"role": role, "content": content}
+    """
     message = {"role": role}
     if isinstance(part, str):
         message["content"] = part
@@ -205,7 +207,7 @@ def _join_chunks(chunks):
 
     if chunks:
         last_chunk = chunks[-1]
-            merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
+        merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
 
     return merged_response
 
