@@ -1,3 +1,0 @@
-fixes:
-  - |
-    azure_servicebus: Use the cloud messaging operation schema for the v1 operation and update the v0 operation to be consistent with the operation of the azure_servicebus integration in other Datadog tracers.
