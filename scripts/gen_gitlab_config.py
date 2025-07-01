@@ -16,6 +16,7 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
+    stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
     services: t.Optional[t.List[str]] = None
@@ -27,14 +28,6 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
-    stage: t.Optional[str] = None  # Will be determined from job name prefix
-
-    def get_stage(self) -> str:
-        """Determine stage based on job name prefix."""
-        if "::" in self.name:
-            prefix = self.name.split("::")[0]
-            return prefix
-        return "core"
 
     def __str__(self) -> str:
         lines = []
@@ -45,9 +38,8 @@ class JobSpec:
         lines.append(f"{self.name}:")
         lines.append(f"  extends: {base}")
 
-        # Set stage based on job prefix
-        stage = self.stage or self.get_stage()
-        lines.append(f"  stage: {stage}")
+        # Set stage
+        lines.append(f"  stage: {self.stage}")
 
         # Set needs based on runner type
         lines.append("  needs:")
@@ -149,14 +141,22 @@ def gen_required_suites() -> None:
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
 
-    # Update stages based on suite names
+    # Collect stages from suite configurations
     stages = {"setup"}  # setup is always needed
-    for suite_name in suites.keys():
+    for suite_name, suite_config in suites.items():
+        # Extract stage from suite name prefix if present
         if "::" in suite_name:
-            prefix = suite_name.split("::")[0]
-            stages.add(prefix)
+            stage = suite_name.split("::")[0]
+            # Remove prefix from suite name
+            clean_name = suite_name.split("::", 1)[1]
         else:
-            stages.add("core")
+            stage = "core"
+            clean_name = suite_name
+
+        stages.add(stage)
+        # Store the stage in the suite config for later use
+        suite_config["_stage"] = stage
+        suite_config["_clean_name"] = clean_name
 
     # Sort stages: setup first, then alphabetically
     sorted_stages = ["setup"] + sorted(stages - {"setup"})
@@ -172,7 +172,13 @@ def gen_required_suites() -> None:
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            jobspec = JobSpec(suite, **suites[suite])
+            suite_config = suites[suite].copy()
+            # Extract stage and clean name from config
+            stage = suite_config.pop("_stage", "core")
+            clean_name = suite_config.pop("_clean_name", suite)
+
+            # Create JobSpec with clean name and explicit stage
+            jobspec = JobSpec(clean_name, **suite_config, stage=stage)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
