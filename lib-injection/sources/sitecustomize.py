@@ -186,31 +186,15 @@ def _send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    # Mimic Popen.__exit__ which was added in Python 3.3
-    try:
-        if p.stdin:
-            p.stdin.write(event_json)
-            _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
-        else:
-            _log(
-                "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
-                level="error",
-            )
-    finally:
-        if p.stdin:
-            p.stdin.close()
-        if p.stderr:
-            p.stderr.close()
-        if p.stdout:
-            p.stdout.close()
-
-        # backwards compatible `p.wait(1)`
-        start = time.time()
-        while p.poll() is None:
-            if time.time() - start > 1:
-                p.kill()
-                break
-            time.sleep(0.05)
+    if p.stdin:
+        p.stdin.write(event_json)
+        p.stdin.close()
+        _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+    else:
+        _log(
+            "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
+            level="error",
+        )
 
 
 def send_telemetry(event):
