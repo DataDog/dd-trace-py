@@ -417,7 +417,7 @@ def _get_test_class_hierarchy(item):
 
 
 def pytest_load_initial_conftests(early_config, parser, args):
-    if _is_enabled_early(early_config):
+    if _is_enabled_early(early_config, args):
         # Enables experimental use of ModuleCodeCollector for coverage collection.
         from ddtrace.internal.ci_visibility.coverage import USE_DD_COVERAGE
         from ddtrace.internal.logger import get_logger
