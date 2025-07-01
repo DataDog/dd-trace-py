@@ -26,8 +26,8 @@ from types import ModuleType
 from typing import List, Optional, cast
 from urllib import parse
 
-from ddtrace.internal.opentelemetry.types import BoundedAttributes
-from ddtrace.internal.opentelemetry.types import AttributeValue
+from opentelemetry.attributes import BoundedAttributes
+from opentelemetry.util.types import AttributeValue
 
 # psutil: Optional[ModuleType] = None
 

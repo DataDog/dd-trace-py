@@ -14,7 +14,8 @@
 from json import dumps
 from typing import Optional
 
-from ddtrace.internal.opentelemetry.types import Attributes, BoundedAttributes
+from opentelemetry.attributes import BoundedAttributes
+from opentelemetry.util.types import Attributes
 
 
 class InstrumentationScope:
