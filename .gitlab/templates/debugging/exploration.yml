@@ -1,6 +1,7 @@
 "debugging::exploration::boto3":
   stage: exploration
   extends: .cached_testrunner
+  timeout: 30m
   variables:
     DD_DEBUGGER_EXPL_INCLUDE: "boto3"
     DD_DEBUGGER_EXPL_OUTPUT_FILE: "${{CI_PROJECT_DIR}}/debugger-expl.txt"

@@ -243,7 +243,7 @@ class ExplorationDebugger(Debugger):
         super(ExplorationDebugger, cls).disable(join=join)
 
         if failed:
-            os._exit(1)
+            os._exit(2)
 
     @classmethod
     def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
