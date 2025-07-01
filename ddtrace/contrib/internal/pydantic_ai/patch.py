@@ -55,6 +55,7 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        kwargs["instance"] = instance
         integration.llmobs_set_tags(
             span, args=args, kwargs=kwargs, response=resp
         )

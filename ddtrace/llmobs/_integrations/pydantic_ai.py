@@ -64,16 +64,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span_links = self._get_span_links(span, span_kind)
 
         if span_kind == "agent":
-            self._llmobs_set_tags_agent(span, args, kwargs, response, span_links)
+            self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
-            self._llmobs_set_tags_tool(span, kwargs, response)
+            self._llmobs_set_tags_tool(span, args, kwargs, response)
 
         metrics = self.extract_usage_metrics(response)
         span._set_ctx_items(
             {SPAN_KIND: span._get_ctx_item(SPAN_KIND), SPAN_LINKS: span_links, MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "", MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "", METRICS: metrics}
         )
     
-    def _llmobs_set_tags_agent(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any], span_links: List[Dict[str, Any]]) -> None:
+    def _llmobs_set_tags_agent(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]) -> None:
         agent_instance = kwargs.get("instance", None)
         if agent_instance:
             agent_name = getattr(agent_instance, "name", "")
@@ -101,13 +101,28 @@ class PydanticAIIntegration(BaseLLMIntegration):
             {
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: getattr(result, "output", ""),
-                SPAN_LINKS: span_links,
             }
         )
             
     
     def _llmobs_set_tags_tool(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None) -> None:
-        pass
+        tool_instance = kwargs.get("instance", None)
+        tool_call = get_argument_value(args, kwargs, 0, "message")
+        tool_name = "PydanticAI Tool"
+        tool_input = ""
+        if tool_call:
+            tool_name = getattr(tool_call, "tool_name", "")
+            tool_input = getattr(tool_call, "args", {})
+        span._set_ctx_items(
+            {
+                NAME: tool_name,
+                METADATA: {"description": getattr(tool_instance, "description", "")},
+                INPUT_VALUE: tool_input,
+            }
+        )
+        if span.error:
+            return
+        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
     
     def extract_usage_metrics(self, response: Any) -> Dict[str, Any]:
         usage = None
