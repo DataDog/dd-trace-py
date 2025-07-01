@@ -108,6 +108,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
 
 from ddtrace.internal.opentelemetry.trace import TracerProvider
 
+
 __all__ = [
     "TracerProvider",
 ]
