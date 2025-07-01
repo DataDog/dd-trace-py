@@ -44,7 +44,6 @@ class AnthropicIntegration(BaseLLMIntegration):
         if model is not None:
             span.set_tag_str(MODEL, model)
 
-
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -79,7 +78,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: metrics
+                METRICS: metrics,
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
