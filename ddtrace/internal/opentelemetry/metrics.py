@@ -41,6 +41,36 @@ log = get_logger(__name__)
 
 OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
 
+
+def preload_otel_meter_exporter():
+    """
+    Get the selected OTLP exporter
+    This function is intended to be called during application startup.
+    """
+    protocol = os.environ.get(
+        "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "grpc").lower()
+    )
+    try:
+        if "grpc" == protocol:
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter as OTLPMetricExporterGRPC
+
+            return OTLPMetricExporterGRPC()
+
+        elif "http/protobuf" == protocol:
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter as OTLPMetricExporterHTTP
+
+            return OTLPMetricExporterHTTP()
+        else:
+            log.warning(
+                "OpenTelemetry Metrics exporter protocol '%s' is not supported. "
+                "Please use OTLP gRPC or HTTP/Protobuf exporter instead. "
+                "Set OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=grpc or OTEL_EXPORTER_OTLP_METRICS_PROTOCOL=http/protobuf",
+                protocol,
+            )
+            return None
+    except ImportError:
+            return None
+
 class PeriodicExportingMetricReader():
     def __init__(self, exporter, export_interval_millis: Optional[float] = None,):
         super().__init__()

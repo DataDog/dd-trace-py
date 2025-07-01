@@ -76,18 +76,21 @@ if config._otel_enabled:
         set_tracer_provider(TracerProvider())
 
 if config._otel_metrics_enabled:
-    # This POC uses the OpenTelemetry OTLP exporter.
-    # If we implement our own exporter, we can remove this import, which seems much safer.
-    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    # Invoke the preload function to get the OTLP exporter before we register our ModuleWatchdog
+    # This avoids a circular import
+    from ddtrace.internal.opentelemetry.metrics import preload_otel_meter_exporter
+
+    metric_exporter = preload_otel_meter_exporter()
+
     @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
-    def _(_):
+    def _otel_metrics(_):
         from opentelemetry.metrics import set_meter_provider
 
         from ddtrace.opentelemetry import MeterProvider, PeriodicExportingMetricReader
 
-        exporter = OTLPMetricExporter()
-        reader = PeriodicExportingMetricReader(exporter)
-        set_meter_provider(MeterProvider(metric_reader=reader))
+        if metric_exporter is not None:
+            reader = PeriodicExportingMetricReader(metric_exporter)
+            set_meter_provider(MeterProvider(metric_reader=reader))
 
 
 if config._llmobs_enabled:
