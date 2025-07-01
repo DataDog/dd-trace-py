@@ -296,7 +296,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
     request_messages = kwargs.get("messages", None)
     try:
         if operation_type == "response":
-            formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else []
+            formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None
         elif operation_type == "completion":
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
