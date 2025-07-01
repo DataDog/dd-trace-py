@@ -405,7 +405,10 @@ ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
 def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
 
-ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32)(
+
+ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
+    ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32
+)(
     ("ddwaf_builder_get_config_paths", ddwaf),
     (
         (1, "builder"),
@@ -415,8 +418,10 @@ ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(ctypes.c_uint32, ddwaf_builder
     ),
 )
 
-def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter: str) -> int:
-    return ddwaf_builder_get_config_paths(builder.builder, None, filter.encode(), len(filter))
+
+def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter_str: str) -> int:
+    return ddwaf_builder_get_config_paths(builder.builder, None, filter_str.encode(), len(filter_str))
+
 
 ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(
     ("ddwaf_builder_destroy", ddwaf),
