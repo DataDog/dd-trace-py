@@ -3,6 +3,7 @@ import logging
 import os.path
 
 import mock
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 import pytest
 
 from ddtrace.appsec import _asm_request_context
@@ -261,6 +262,7 @@ def test_ip_update_rules_and_block(tracer):
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert py_ddwaf_builder_get_config_paths(tracer._appsec_processor._ddwaf._builder, "ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
