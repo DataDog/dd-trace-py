@@ -62,8 +62,20 @@ def _langchain_patch():
 
     if agents_package:
         for class_ in agent_output_parser_classes:
-            wrap(agents_package, class_ + ".format", _wrapper_agentoutput_parse)
-            wrap(agents_package, class_ + ".aformat", _wrapper_agentoutput_aparse)
+            # Only wrap if the class and methods exist
+            try:
+                # Check if the class exists and has the methods before wrapping
+                import importlib
+                module = importlib.import_module(agents_package)
+                class_obj = module
+                for part in class_.split("."):
+                    class_obj = getattr(class_obj, part)
+                if hasattr(class_obj, "format"):
+                    wrap(agents_package, class_ + ".format", _wrapper_agentoutput_parse)
+                if hasattr(class_obj, "aformat"):
+                    wrap(agents_package, class_ + ".aformat", _wrapper_agentoutput_aparse)
+            except (ImportError, AttributeError):
+                continue  # Class or method doesn't exist, skip it
 
 
 def _langchain_unpatch():
