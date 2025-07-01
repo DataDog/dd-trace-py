@@ -146,18 +146,3 @@ def extract_message_from_part_google_genai(part, role):
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
-
-
-def process_response(response):
-    messages = []
-    candidates = _get_attr(response, "candidates", [])
-    for candidate in candidates:
-        content = _get_attr(candidate, "content", None)
-        if not content:
-            continue
-        parts = _get_attr(content, "parts", [])
-        role = _get_attr(content, "role", None) or "model"
-        for part in parts:
-            message = extract_message_from_part_google_genai(part, role)
-            messages.append(message)
-    return messages
