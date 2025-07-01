@@ -66,6 +66,10 @@ The scenario can be run using the built image to compare two versions of the lib
 
 The version specifiers can reference published versions on PyPI, git repositories, or `.` for your local version.
 
+To run benchmarks against a single version without comparison, pass an empty string ``""`` as the second version::
+
+  scripts/perf-run-scenario <scenario> <version> "" <artifacts>
+
 Example::
 
   # Compare PyPI versions 0.50.0 vs 0.51.0
@@ -76,6 +80,9 @@ Example::
 
   # Compare git branch 1.x vs git branch my-feature
   scripts/perf-run-scenario span Datadog/dd-trace-py@1.x Datadog/dd-trace-py@my-feature ./artifacts/
+
+  # Run benchmark on a single version without comparison
+  scripts/perf-run-scenario span ddtrace==0.51.0 "" ./artifacts/
 
 
 Profiling

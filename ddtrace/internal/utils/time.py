@@ -1,4 +1,3 @@
-from datetime import datetime
 import time
 from types import TracebackType
 from typing import Optional
@@ -8,20 +7,6 @@ from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
-
-
-def parse_isoformat(date):
-    # type: (str) -> Optional[datetime]
-    if date.endswith("Z"):
-        try:
-            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%S.%fZ")
-        except ValueError:
-            return datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
-    try:
-        return datetime.fromisoformat(date)
-    except (ValueError, IndexError):
-        log.debug("unsupported isoformat: %s", date)
-    return None
 
 
 class StopWatch(object):
@@ -57,7 +42,7 @@ class StopWatch(object):
         """
         # NOTE: datetime.timedelta does not support nanoseconds, so keep a float here
         if self._started_at is None:
-            raise RuntimeError("Can not get the elapsed time of a stopwatch" " if it has not been started/stopped")
+            raise RuntimeError("Can not get the elapsed time of a stopwatch if it has not been started/stopped")
         if self._stopped_at is None:
             now = time.monotonic()
         else:
@@ -80,7 +65,7 @@ class StopWatch(object):
         # type: () -> StopWatch
         """Stops the watch."""
         if self._started_at is None:
-            raise RuntimeError("Can not stop a stopwatch that has not been" " started")
+            raise RuntimeError("Can not stop a stopwatch that has not been started")
         self._stopped_at = time.monotonic()
         return self
 

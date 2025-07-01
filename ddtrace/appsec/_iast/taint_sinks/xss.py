@@ -1,5 +1,6 @@
 from typing import Text
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -82,7 +83,7 @@ def _iast_jinja2_xss(wrapped, instance, args, kwargs):
 def _iast_report_xss(code_string: Text):
     try:
         if asm_config.is_iast_request_enabled:
-            if XSS.has_quota() and XSS.is_tainted_pyobject(code_string):
+            if isinstance(code_string, IAST.TEXT_TYPES) and XSS.has_quota() and XSS.is_tainted_pyobject(code_string):
                 XSS.report(evidence_value=code_string)
 
             # Reports Span Metrics
