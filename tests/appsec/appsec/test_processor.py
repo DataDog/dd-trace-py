@@ -160,6 +160,7 @@ def test_headers_collection(tracer):
         "meta." + FINGERPRINTING.SESSION,
         "service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -190,6 +191,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "meta." + FINGERPRINTING.SESSION,
         "service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -308,6 +310,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "service",
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -329,6 +332,7 @@ def test_appsec_span_tags_snapshot(tracer):
         "service",
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
