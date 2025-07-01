@@ -127,6 +127,7 @@ services:
         volumes:
             - ./tests/snapshots:/snapshots
         environment:
+            - PORT=9126
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots
             - SNAPSHOT_CI=0
