@@ -79,11 +79,11 @@ if config._otel_trace_enabled:
 
 if config._otel_logs_enabled:
 
-    @ModuleWatchdog.after_module_imported("opentelemetry.trace")
+    @ModuleWatchdog.after_module_imported("opentelemetry._logs")
     def _ot_logs(_):
-        from ddtrace.internal.opentelemetry.logs import set_otel_sdk_logger_provider
+        from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
 
-        set_otel_sdk_logger_provider()
+        set_otel_logs_exporter()
 
 
 if config._llmobs_enabled:

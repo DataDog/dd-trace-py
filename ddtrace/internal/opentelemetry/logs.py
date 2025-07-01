@@ -1,9 +1,14 @@
+import os
+
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 
 
 log = get_logger(__name__)
+
+
+LOGS_PROVIDER_CONFIGURED = False
 
 
 def get_configured_logger_provider():
@@ -21,35 +26,22 @@ def get_configured_logger_provider():
     return logger_provider
 
 
-def set_otel_sdk_logger_provider():
-    """
-    Sets the OpenTelemetry logger provider if it is not already set.
-    This function is intended to be called during application startup.
-    """
-    logger_provider = get_configured_logger_provider()
-
-    if logger_provider is not None:
-        log.debug(
-            "OpenTelemetry Logger Provider already set: %s, skipping initialization. "
-            "Datadog attributes will not be applied to LogRecords",
-            type(logger_provider),
-        )
+def set_otel_logs_exporter():
+    global LOGS_PROVIDER_CONFIGURED
+    if LOGS_PROVIDER_CONFIGURED:
+        log.debug("OpenTelemetry Logs exporter is already configured, skipping setup.")
         return
 
     try:
-        from opentelemetry._logs import set_logger_provider
-        from opentelemetry.sdk._logs import LoggerProvider
         from opentelemetry.sdk.resources import Resource
 
-        logger_provider = LoggerProvider(
-            resource=Resource.create(
-                {
-                    "service.name": config.service,
-                    "service.version": config.version,
-                    "deployment.environment": config.env,
-                    "host.name": get_hostname(),
-                }
-            ),
+        resource = Resource.create(
+            {
+                "service.name": config.service or "",
+                "service.version": config.version or "",
+                "deployment.environment": config.env or "",
+                "host.name": get_hostname(),
+            }
         )
     except ImportError:
         log.warning(
@@ -57,5 +49,37 @@ def set_otel_sdk_logger_provider():
             "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry "
             "Logs support (ex: via DD_OTEL_LOGS_ENABLED).",
         )
+        return
+
+    protocol = os.environ.get(
+        "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc").lower()
+    )
+    if "grpc" == protocol:
+        try:
+            from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+        except ImportError:
+            return
+    elif "http/protobuf" == protocol:
+        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
     else:
-        set_logger_provider(logger_provider)
+        log.warning(
+            "OpenTelemetry Logs exporter protocol '%s' is not supported. "
+            "Please use OTLP gRPC or HTTP/Protobuf exporter instead. "
+            "Set OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=grpc or OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf",
+            protocol,
+        )
+        return
+
+    try:
+        from opentelemetry.sdk._configuration import _init_logging
+
+        _init_logging({protocol: OTLPLogExporter}, resource=resource)
+    except ImportError as e:
+        log.warning(
+            "The installed version of the OpenTelemetry SDK does not define required component: '%s'. "
+            "An OpenTelemetry Exporter will not be automatically configured. Open an issue at "
+            "github.com/Datadog/dd-trace-py to report this bug.",
+            str(e),
+        )
+        return
+    LOGS_PROVIDER_CONFIGURED = True

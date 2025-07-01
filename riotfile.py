@@ -740,15 +740,15 @@ venv = Venv(
                 # pymmongo<3.9, 3.9<=pymongo<3.12, 3.12<=pymongo<4.5, pymongo>=4.5
                 # To get full test coverage we must test all these version ranges
                 Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"pymongo": ["~=3.8.0", "~=3.9.0", "~=3.11", "~=4.0", latest]},
+                    pys=select_pys(min_version="3.12"),
+                    pkgs={"pymongo": ["~=4.13.0"]},
                 ),
-                Venv(
-                    # pymongo added support for Python 3.10 in 3.12.1
-                    # pymongo added support for Python 3.11 in 3.12.3
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
-                ),
+                # Venv(
+                #     # pymongo added support for Python 3.10 in 3.12.1
+                #     # pymongo added support for Python 3.11 in 3.12.3
+                #     pys=selmotorect_pys(min_version="3.10"),
+                #     pkgs={"pymongo": ["~=3.12.3", "~=4.0", latest]},
+                # ),
             ],
         ),
         Venv(
@@ -2454,7 +2454,6 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.8"),
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
@@ -2462,14 +2461,28 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
                 "gevent": latest,
                 "requests": "==2.28.1",  # specific version expected by tests
             },
+            venvs=[
+                Venv(
+                    pys=MAX_PYTHON_VERSION,
+                    pkgs={
+                        "opentelemetry-exporter-otlp": [latest],
+                    },
+                    env={"TEST_SDK_EXPORTERS": "1"},
+                ),
+                Venv(
+                    pys=select_pys(),
+                    pkgs={
+                        # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
+                        "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
+                    },
+                ),
+            ],
         ),
         Venv(
             name="asyncio",
