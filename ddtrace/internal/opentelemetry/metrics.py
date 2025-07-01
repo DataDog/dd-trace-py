@@ -10,6 +10,7 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 from opentelemetry.metrics import Meter as OtelMeter
 from opentelemetry.metrics import MeterProvider as OtelMeterProvider
 from opentelemetry.metrics import CallbackOptions
+from opentelemetry.sdk.metrics.export import MetricsData, ResourceMetrics, ScopeMetrics
 
 import ddtrace
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
@@ -19,7 +20,6 @@ from ddtrace.settings._agent import config as agent_config
 from ddtrace.internal.opentelemetry.sdk.resources import Resource
 from ddtrace.internal.opentelemetry.sdk.instrumentation import InstrumentationScope
 from ddtrace.internal.opentelemetry.instrument import Counter, UpDownCounter, Gauge, ObservableCounter, ObservableUpDownCounter, ObservableGauge, Histogram
-from ddtrace.internal.opentelemetry.metric_points import MetricsData, ResourceMetrics, ScopeMetrics
 
 if TYPE_CHECKING:
     from typing import Dict  # noqa:F401

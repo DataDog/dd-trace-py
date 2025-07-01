@@ -14,20 +14,6 @@ from opentelemetry.metrics import _Gauge as OtelApiGauge
 from opentelemetry.metrics import CallbackOptions, CallbackT
 from time import time_ns
 
-# For production, there would not be a dependency between the instruments and all the data types
-# but for the POC, it's easier to implement it this way
-# from ddtrace.internal.opentelemetry.metric_points import (
-#     ExponentialHistogram,
-#     Gauge,
-#     Histogram,
-#     HistogramDataPoint,
-#     Metric,
-#     MetricsData,
-#     NumberDataPoint,
-#     ResourceMetrics,
-#     ScopeMetrics,
-#     Sum,
-# )
 from opentelemetry.sdk.metrics.export import (
     ExponentialHistogram,
     Gauge,
