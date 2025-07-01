@@ -171,11 +171,15 @@ def _join_chunks(chunks):
     chunks into a single response.
     We take in a list of GenerateContentResponse objects and return a single dict representing the object.
     This works because _get_attr allows us to treat dicts and the response object interchangeably.
+
+    All chunks should have the same role since one generation call produces consistent content type.
     """
     if not chunks:
         return None
 
-    merged_content_by_role = {}
+    merged_text = ""
+    non_text_parts = []
+    role = None
 
     for chunk in chunks:
         candidates = _get_attr(chunk, "candidates", [])
@@ -184,32 +188,23 @@ def _join_chunks(chunks):
             if not content:
                 continue
 
-            role = _get_attr(content, "role", None) or "model"
+            if role is None:
+                role = _get_attr(content, "role", "model")
+
             parts = _get_attr(content, "parts", [])
-
-            if role not in merged_content_by_role:
-                merged_content_by_role[role] = {"text": "", "non_text_parts": []}
-
             for part in parts:
                 text = _get_attr(part, "text", None)
-                if text is not None:
-                    merged_content_by_role[role]["text"] += text
+                if text:
+                    merged_text += text
                 else:
-                    merged_content_by_role[role]["non_text_parts"].append(part)
+                    non_text_parts.append(part)
 
-    merged_candidates = []
-    for role, content_data in merged_content_by_role.items():
-        parts = []
+    parts = []
+    if merged_text:
+        parts.append({"text": merged_text})
+    parts.extend(non_text_parts)
 
-        if content_data["text"]:
-            parts.append({"text": content_data["text"]})
-
-        parts.extend(content_data["non_text_parts"])
-
-        if parts:
-            merged_candidates.append({"content": {"role": role, "parts": parts}})
-
-    merged_response = {"candidates": merged_candidates}
+    merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
 
     if chunks:
         last_chunk = chunks[-1]
