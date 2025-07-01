@@ -6,7 +6,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def preload_otel_meter_provider():
+def configure_otel_meter_provider():
     """
     Get the selected OTLP exporter
     This function is intended to be called during application startup.
