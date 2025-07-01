@@ -32,7 +32,7 @@
     "start": 1749837120334504592
   },
      {
-       "name": "azure.servicebus.produce",
+       "name": "azure.servicebus.send",
        "service": "azure_servicebus",
        "resource": "queue.1",
        "trace_id": 0,
@@ -67,6 +67,10 @@
             "aas.function.name": "servicebusqueue",
             "aas.function.trigger": "ServiceBus",
             "component": "azure_functions",
+            "messaging.destination.name": "queue.1",
+            "messaging.message_id": "68f07ff4-5e14-486c-aa81-535e7c3cf562",
+            "messaging.operation": "receive",
+            "messaging.system": "servicebus",
             "runtime-id": "3e1d1c4aeb5940e298b66654dc72a8ee",
             "span.kind": "consumer"
           },
@@ -78,7 +82,7 @@
           "start": 1749837120991199551
         },
      {
-       "name": "azure.servicebus.produce",
+       "name": "azure.servicebus.send",
        "service": "azure_servicebus",
        "resource": "topic.1",
        "trace_id": 0,
@@ -114,6 +118,10 @@
             "aas.function.name": "servicebustopic",
             "aas.function.trigger": "ServiceBus",
             "component": "azure_functions",
+            "messaging.destination.name": "topic.1",
+            "messaging.message_id": "68f07ff4-5e14-486c-aa81-535e7c3cf562",
+            "messaging.operation": "receive",
+            "messaging.system": "servicebus",
             "runtime-id": "3e1d1c4aeb5940e298b66654dc72a8ee",
             "span.kind": "consumer"
           },
