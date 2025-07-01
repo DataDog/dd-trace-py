@@ -80,6 +80,8 @@ class DDWaf(WAF):
         metrics.ddwaf_version = version()
         self._rc_products: Dict[str, Set[str]] = {}
         self._rc_products_str: str = ""
+        self._rc_updates: int = 0
+        self._lifespan: int = 0
 
     @property
     def required_data(self) -> List[str]:
@@ -145,16 +147,18 @@ class DDWaf(WAF):
             ddwaf_object_free(diagnostics)
             self._asm_dd_cache.add(ASM_DD_DEFAULT)
         new_handle = py_ddwaf_builder_build_instance(self._builder)
-        self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in self._rc_products.items() if v)
+        self._rc_products_str = ",".join(f"{p}:{len(v)}" for p, v in sorted(self._rc_products.items()) if v)
         if new_handle:
             self._handle = new_handle
+            self._rc_updates += 1
         return ok
 
     def _at_request_start(self) -> Optional[ddwaf_context_capsule]:
         ctx = None
         if self._handle:
+            self._lifespan += 1
             ctx = py_ddwaf_context_init(self._handle)
-            ctx.rc_products = self._rc_products_str
+            ctx.rc_products = f"[{self._rc_products_str}] u:{self._rc_updates} r:{self._lifespan}"
         if not ctx:
             LOGGER.debug("DDWaf._at_request_start: failure to create the context.")
         return ctx
