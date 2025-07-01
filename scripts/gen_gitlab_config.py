@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 import datetime
 import os
+import re
 import subprocess
 import typing as t
 
@@ -163,7 +164,6 @@ def gen_required_suites() -> None:
 
     # Update the stages in the generated file
     content = TESTS_GEN.read_text()
-    import re
 
     stages_yaml = "stages:\n" + "\n".join(f"  - {stage}" for stage in sorted_stages)
     content = re.sub(r"stages:.*?(?=\n\w|\n\n|\Z)", stages_yaml, content, flags=re.DOTALL)
