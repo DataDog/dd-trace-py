@@ -27,6 +27,14 @@ class JobSpec:
     allow_failure: bool = False
     paths: t.Optional[t.Set[str]] = None  # ignored
     only: t.Optional[t.Set[str]] = None  # ignored
+    stage: t.Optional[str] = None  # Will be determined from job name prefix
+
+    def get_stage(self) -> str:
+        """Determine stage based on job name prefix."""
+        if "::" in self.name:
+            prefix = self.name.split("::")[0]
+            return prefix
+        return "core"
 
     def __str__(self) -> str:
         lines = []
@@ -36,6 +44,18 @@ class JobSpec:
 
         lines.append(f"{self.name}:")
         lines.append(f"  extends: {base}")
+
+        # Set stage based on job prefix
+        stage = self.stage or self.get_stage()
+        lines.append(f"  stage: {stage}")
+
+        # Set needs based on runner type
+        lines.append("  needs:")
+        lines.append("    - prechecks")
+        if self.runner == "riot":
+            # Riot jobs need build_base_venvs artifacts
+            lines.append("    - job: build_base_venvs")
+            lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -128,6 +148,27 @@ def gen_required_suites() -> None:
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
+
+    # Update stages based on suite names
+    stages = {"setup"}  # setup is always needed
+    for suite_name in suites.keys():
+        if "::" in suite_name:
+            prefix = suite_name.split("::")[0]
+            stages.add(prefix)
+        else:
+            stages.add("core")
+
+    # Sort stages: setup first, then alphabetically
+    sorted_stages = ["setup"] + sorted(stages - {"setup"})
+
+    # Update the stages in the generated file
+    content = TESTS_GEN.read_text()
+    import re
+
+    stages_yaml = "stages:\n" + "\n".join(f"  - {stage}" for stage in sorted_stages)
+    content = re.sub(r"stages:.*?(?=\n\w|\n\n|\Z)", stages_yaml, content, flags=re.DOTALL)
+    TESTS_GEN.write_text(content)
+
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
@@ -149,8 +190,9 @@ def gen_build_docs() -> None:
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
-            print("  stage: hatch", file=f)
-            print("  needs: []", file=f)
+            print("  stage: core", file=f)
+            print("  needs:", file=f)
+            print("    - prechecks", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
