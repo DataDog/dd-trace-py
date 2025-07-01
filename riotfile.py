@@ -3328,6 +3328,7 @@ venv = Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
                         "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
                         "langchain-experimental": "~=0.2",
                     },
                 ),
@@ -3335,6 +3336,7 @@ venv = Venv(
                     pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
                     pkgs={
                         "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
                         "langchain-experimental": "~=0.3",
                     },
                 ),
