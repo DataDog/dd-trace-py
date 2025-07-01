@@ -35,14 +35,16 @@ def set_otel_logs_exporter():
     try:
         from opentelemetry.sdk.resources import Resource
 
-        resource = Resource.create(
-            {
-                "service.name": config.service or "",
-                "service.version": config.version or "",
-                "deployment.environment": config.env or "",
-                "host.name": get_hostname(),
-            }
-        )
+        resource_attributes = {
+            "host.name": get_hostname(),  # lowest precedence
+            **config.tags,  # medium precedence (contains ddtags and otel resource tags)
+            "service.name": config.service,  # highest precedence (reference global ddtrace USTs)
+            "service.version": config.version,
+            "deployment.environment": config.env,
+        }
+        for k in resource_attributes:
+            resource_attributes[k] = str(resource_attributes[k]) if resource_attributes[k] is not None else ""
+        resource = Resource.create(resource_attributes)
     except ImportError:
         log.warning(
             "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
