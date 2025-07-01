@@ -21,8 +21,8 @@ from typing import Optional, Sequence, Union
 # This kind of import is needed to avoid Sphinx errors.
 # import opentelemetry.sdk.metrics._internal
 # from opentelemetry.sdk.metrics._internal.exemplar import Exemplar
-from ddtrace.internal.opentelemetry.resources import Resource
-from ddtrace.internal.opentelemetry.instrumentation import InstrumentationScope
+from ddtrace.internal.opentelemetry.sdk.resources import Resource
+from ddtrace.internal.opentelemetry.sdk.instrumentation import InstrumentationScope
 from opentelemetry.util.types import Attributes
 
 

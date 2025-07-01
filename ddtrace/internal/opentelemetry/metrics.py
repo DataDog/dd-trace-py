@@ -16,8 +16,8 @@ from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config as agent_config
 
-from ddtrace.internal.opentelemetry.resources import Resource
-from ddtrace.internal.opentelemetry.instrumentation import InstrumentationScope
+from ddtrace.internal.opentelemetry.sdk.resources import Resource
+from ddtrace.internal.opentelemetry.sdk.instrumentation import InstrumentationScope
 from ddtrace.internal.opentelemetry.instrument import Counter, UpDownCounter, Gauge, ObservableCounter, ObservableUpDownCounter, ObservableGauge, Histogram
 from ddtrace.internal.opentelemetry.metric_points import MetricsData, ResourceMetrics, ScopeMetrics
 

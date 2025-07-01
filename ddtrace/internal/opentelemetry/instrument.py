@@ -43,8 +43,8 @@ from opentelemetry.sdk.metrics.export import (
 from opentelemetry.sdk.metrics.export import Gauge as OtelGauge
 from opentelemetry.sdk.metrics.export import Histogram as OtelHistogram
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.opentelemetry.instrumentation import InstrumentationScope
-from ddtrace.internal.opentelemetry.resources import Resource
+from ddtrace.internal.opentelemetry.sdk.instrumentation import InstrumentationScope
+from ddtrace.internal.opentelemetry.sdk.resources import Resource
 
 from typing import Sequence
 
