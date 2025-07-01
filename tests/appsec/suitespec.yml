@@ -148,7 +148,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 40m
