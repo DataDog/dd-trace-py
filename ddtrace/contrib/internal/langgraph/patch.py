@@ -228,13 +228,16 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
+        instance=instance,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
+        )
         span.finish()
         raise
 
@@ -247,7 +250,11 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
             except StopIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=response,
+                    operation="graph",
                 )
                 span.finish()
                 break
@@ -255,7 +262,11 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
                     span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=None,
+                    operation="graph",
                 )
                 span.finish()
                 raise
@@ -272,13 +283,16 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
+        instance=instance,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
+        )
         span.finish()
         raise
 
@@ -291,7 +305,11 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
             except StopAsyncIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=response,
+                    operation="graph",
                 )
                 span.finish()
                 break
@@ -299,7 +317,11 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
                     span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=None,
+                    operation="graph",
                 )
                 span.finish()
                 raise
