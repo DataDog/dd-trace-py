@@ -112,7 +112,7 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
         else:
             for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
     _process_asm_features(for_the_tracer, local_tracer)
-    if local_tracer._appsec_processor is not None:
+    if (for_the_waf_removals or for_the_waf_updates) and local_tracer._appsec_processor is not None:
         local_tracer._appsec_processor._update_rules(for_the_waf_removals, for_the_waf_updates)
 
 
