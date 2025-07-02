@@ -158,6 +158,9 @@ microbenchmarks:
         # - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         - "errortracking_django_simple"
+        # They take a long time to run and frequently time out
+        # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
+        - "appsec_iast_django_startup"
         - "errortracking_flask_sqli"
         # Flaky. Timeout errors
         # - "encoder"
@@ -171,15 +174,6 @@ microbenchmarks:
         # They take a long time to run, and now need the agent running
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
         # - "startup"
-
-"microbenchmarks flaky":
-  extends: .benchmarks
-  allow_failure: true
-  parallel:
-    matrix:
-      - SCENARIO:
-        # Flaky timeouts on starting up
-        - "appsec_iast_django_startup"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
