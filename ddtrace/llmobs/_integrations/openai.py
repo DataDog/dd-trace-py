@@ -189,8 +189,10 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
 
-            # Extract prompt caching details from Chat Completions response
-            prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {})
+            # Chat completions returns `prompt_tokens_details` while responses api returns `input_tokens_details`
+            prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {}) or _get_attr(
+                token_usage, "input_tokens_details", {}
+            )
             cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
             if cached_tokens is not None:
                 metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
