@@ -239,22 +239,12 @@ def _get_trigger_ids_from_finished_tasks(
     task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
 ) -> List[str]:
     """
-    Return the set of task ids that are responsible for triggering the queued task.
+    Return the set of task ids that are responsible for triggering the queued task, returning all the trigger nodes
+    that wrote to the channel that the queued task consumes from.
 
-    Tasks are queued up by means of writes to ephemeral channels. A given finished task will "write"
-    to one of these channels, and the pregel loop creates new tasks by consuming these writes and translating
-    them into triggers for the new tasks.
-
-    Parentage for span linking is computed by looking at the writes from all of the finished tasks grouped by
-    the channel written to (this is what `task_trigger_channels_to_finished_tasks` represents). Then, for a given
-    task, we can loop over its triggers (which are representative of the channel writes), and extend its
-    triggers by the finished task ids that wrote to that trigger channel.
-
-    The one caveat is nodes queued up via `Send` commands. These nodes will have a `__pregel_push` as their trigger.
-    In this case, finished nodes that queue up these nodes from a `Send` command will write to the `__pregel_tasks`
-    channel. For given tasks/nodes whose triggers include `__pregel_push`, we'll find the first instance of a
-    `__pregel_tasks` write that is for a node with the current task's name. Since each of these writes can only
-    be used for one instance of a node queued by `Send`, we pop it from the list of `__pregel_tasks` writes.
+    The one caveat is nodes queued up via `Send` commands. These nodes will have a `__pregel_push` as their trigger, and
+    consume from the `__pregel_tasks` channel. We want to pop these instances and associate them one at a time with each
+    of the queued tasks.
     """
     task_triggers_from_task = getattr(queued_tasks, "triggers", [])
     task_triggers = task_triggers_from_task or []
