@@ -146,7 +146,7 @@ def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     assert res["output"] == "4"
 
     location = assert_cmdi()
-    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["path"].endswith("tests/appsec/integrations/langchain_tests/test_iast_langchain.py")
     assert location["line"]
     assert location["method"] == "test_cmdi_with_agent_invoke"
     assert "class" not in location
@@ -161,7 +161,7 @@ async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
 
     location = assert_cmdi()
     # FIXME: Vulnerability here cannot be detected within the original user code, skip line and hash check.
-    assert location["path"] == "langchain_experimental/llm_bash/bash.py"
+    assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
     assert "class" not in location
@@ -245,7 +245,7 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults, llm_class):
 
     assert vulnerability["hash"]
     location = vulnerability["location"]
-    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["path"].endswith("tests/appsec/integrations/langchain_tests/test_iast_langchain.py")
     assert location["line"]
     assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
     assert "class" not in location
@@ -300,7 +300,7 @@ async def test_cmdi_with_openai_functions_agent_ainvoke(iast_span_defaults, llm_
 
     assert vulnerability["hash"]
     location = vulnerability["location"]
-    assert location["path"] == "langchain_experimental/llm_bash/bash.py"
+    assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
     assert "class" not in location

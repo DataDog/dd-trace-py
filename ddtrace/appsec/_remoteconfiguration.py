@@ -8,6 +8,7 @@ from typing import Sequence
 
 from ddtrace.appsec._capabilities import _asm_feature_is_required
 from ddtrace.appsec._capabilities import _rc_capabilities
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import PRODUCTS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
@@ -165,7 +166,7 @@ def disable_asm(local_tracer: Tracer):
 
 def enable_asm(local_tracer: Tracer):
     if not asm_config._asm_enabled:
-        local_tracer.configure(appsec_enabled=True)
+        local_tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
 
 
 def _preprocess_results_appsec_1click_activation(

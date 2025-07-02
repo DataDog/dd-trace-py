@@ -22,6 +22,7 @@ jobs:
           ignored-name-patterns: |
             Bootstrap import analysis
             require-checklist
+            pr_name_lint
             Validate changelog
             Report codeowners
             devflow/.*

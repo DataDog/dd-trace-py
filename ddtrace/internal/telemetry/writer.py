@@ -622,10 +622,17 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
+    def _dispatch(self):
+        # moved core here to avoid circular import
+        from ddtrace.internal import core
+
+        core.dispatch("telemetry.periodic")
+
     def periodic(self, force_flush=False, shutting_down=False):
         # ensure app_started is called at least once in case traces weren't flushed
         self._app_started()
         self._app_product_change()
+        self._dispatch()
 
         namespace_metrics = self._namespace.flush(float(self.interval))
         if namespace_metrics:

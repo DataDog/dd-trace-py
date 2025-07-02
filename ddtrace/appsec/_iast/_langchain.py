@@ -45,9 +45,38 @@ def _langchain_patch():
         "agents.self_ask_with_search.output_parser.SelfAskOutputParser",
         "agents.structured_chat.output_parser.StructuredChatOutputParser",
     )
-    for class_ in agent_output_parser_classes:
-        wrap("langchain", class_ + ".format", _wrapper_agentoutput_parse)
-        wrap("langchain", class_ + ".aformat", _wrapper_agentoutput_aparse)
+
+    # Check which package contains agents module (langchain 0.1 vs langchain-community 0.2+)
+    agents_package = None
+    try:
+        import langchain.agents  # noqa: F401
+
+        agents_package = "langchain"
+    except ImportError:
+        try:
+            import langchain_community.agents  # noqa: F401
+
+            agents_package = "langchain_community"
+        except ImportError:
+            pass  # No agents module available
+
+    if agents_package:
+        for class_ in agent_output_parser_classes:
+            # Only wrap if the class and methods exist
+            try:
+                # Check if the class exists and has the methods before wrapping
+                import importlib
+
+                module = importlib.import_module(agents_package)
+                class_obj = module
+                for part in class_.split("."):
+                    class_obj = getattr(class_obj, part)
+                if hasattr(class_obj, "format"):
+                    wrap(agents_package, class_ + ".format", _wrapper_agentoutput_parse)
+                if hasattr(class_obj, "aformat"):
+                    wrap(agents_package, class_ + ".aformat", _wrapper_agentoutput_aparse)
+            except (ImportError, AttributeError):
+                continue  # Class or method doesn't exist, skip it
 
 
 def _langchain_unpatch():

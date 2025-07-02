@@ -265,6 +265,16 @@ def gen_build_base_venvs() -> None:
         f.write(template("build-base-venvs"))
 
 
+def gen_debugger_exploration() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
+    with TESTS_GEN.open("a") as f:
+        f.write(template("debugging/exploration"))
+
+
 # -----------------------------------------------------------------------------
 
 # The code below is the boilerplate that makes the script work. There is

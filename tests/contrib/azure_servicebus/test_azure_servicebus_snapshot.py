@@ -32,6 +32,8 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
     "DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING": "False",
 }
 
+SPAN_ATTRIBUTE_SCHEMA_V1_PARAMS = {"DD_TRACE_SPAN_ATTRIBUTE_SCHEMA": "v1"}
+
 
 @pytest.fixture(autouse=True)
 def patch_azure_servicebus():
@@ -169,8 +171,8 @@ def normalize_application_properties(
 
 @pytest.mark.parametrize(
     "env_vars",
-    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
-    ids=["default_config", "distributed_tracing_disabled"],
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS, SPAN_ATTRIBUTE_SCHEMA_V1_PARAMS],
+    ids=["default_config", "distributed_tracing_disabled", "span_attribute_schema_v1"],
 )
 @pytest.mark.snapshot
 def test_send_messages(env_vars, ddtrace_run_python_code_in_subprocess):
