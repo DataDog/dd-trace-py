@@ -155,8 +155,8 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def _handle_intermediary_graph_tick(self, graph_span: Span, next_tasks: dict, finished_tasks: dict):
         """
-        Handle graph ticks that aren't at the end of the graph execution. Link all next tasks to their parent tasks
-        from the dict of finished tasks. Any unused finished tasks (not used as parents for queued tasks) should be
+        Handle graph ticks that aren't at the end of the graph execution. Link all next tasks to their trigger tasks
+        from the dict of finished tasks. Any finished tasks that do not trigger any queued tasks should be
         linked as output --> output links for the outer graph span.
         """
         task_trigger_channels_to_finished_tasks = _map_channel_writes_to_finished_tasks_ids(finished_tasks)
@@ -181,9 +181,9 @@ class LangGraphIntegration(BaseLLMIntegration):
         task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
     ) -> List[str]:
         """
-        Create the span links for a queued task from its triggering parent tasks.
+        Create the span links for a queued task from its triggering trigger tasks.
 
-        Returns the finished task ids used as parent tasks.
+        Returns the finished task ids used as trigger tasks.
         """
         trigger_ids = _get_trigger_ids_from_finished_tasks(task, task_trigger_channels_to_finished_tasks)
 
@@ -210,7 +210,7 @@ class LangGraphIntegration(BaseLLMIntegration):
     ):
         """
         Links any unused finished tasks (terminal tasks) to the outer graph span with output --> output span links.
-        It's possible some of the finished tasks aren't used as parents to queued tasks, but the
+        It's possible some of the finished tasks aren't used as triggers to queued tasks, but the
         current graph tick is not the last tick.
         """
         standalone_terminal_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
@@ -235,11 +235,11 @@ class LangGraphIntegration(BaseLLMIntegration):
 
 
 def _get_trigger_ids_from_finished_tasks(
-    task,
+    queued_tasks,
     task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
 ) -> List[str]:
     """
-    Get the set of task ids that are responsible for triggering the queued task (parents).
+    Return the set of task ids that are responsible for triggering the queued task.
 
     Tasks are queued up by means of writes to ephemeral channels. A given finished task will "write"
     to one of these channels, and the pregel loop creates new tasks by consuming these writes and translating
@@ -247,7 +247,7 @@ def _get_trigger_ids_from_finished_tasks(
 
     Parentage for span linking is computed by looking at the writes from all of the finished tasks grouped by
     the channel written to (this is what `task_trigger_channels_to_finished_tasks` represents). Then, for a given
-    task, we can loop over its triggers (which are representative of the channel writes), and extend its parent
+    task, we can loop over its triggers (which are representative of the channel writes), and extend its
     triggers by the finished task ids that wrote to that trigger channel.
 
     The one caveat is nodes queued up via `Send` commands. These nodes will have a `__pregel_push` as their trigger.
@@ -256,18 +256,15 @@ def _get_trigger_ids_from_finished_tasks(
     `__pregel_tasks` write that is for a node with the current task's name. Since each of these writes can only
     be used for one instance of a node queued by `Send`, we pop it from the list of `__pregel_tasks` writes.
     """
-    task_triggers_from_task = getattr(task, "triggers", [])
+    task_triggers_from_task = getattr(queued_tasks, "triggers", [])
     task_triggers = task_triggers_from_task or []
 
     trigger_ids: List[str] = []
 
     for trigger in task_triggers:
-        if trigger == PREGEL_PUSH:
-            # find the nearest pregel_task that was queued up with this task's (node's) name
-            # since Send's are a one-off to be consumed, remove it from the
-            # branches to finished_tasks dict entry
+        if trigger == PREGEL_PUSH:  # handle Pregel Send writes
             pregel_pushes = cast(List[Tuple[str, str]], task_trigger_channels_to_finished_tasks.get(PREGEL_TASKS, []))
-            pregel_push_index = _find_pregel_push_index(task, pregel_pushes)
+            pregel_push_index = _find_pregel_push_index(queued_tasks, pregel_pushes)
             if pregel_push_index != -1:
                 _, trigger_id = pregel_pushes.pop(pregel_push_index)
                 trigger_ids.append(trigger_id)
@@ -280,7 +277,6 @@ def _get_trigger_ids_from_finished_tasks(
 def _find_pregel_push_index(task, pregel_pushes: List[Tuple[str, str]]) -> int:
     """
     Find the index of a specific pregel push node in the list of pregel push nodes
-    (assuming there were many pregel writes for a given graph tick).
     """
     for i, (pregel_push_node, _) in enumerate(pregel_pushes):
         if pregel_push_node == getattr(task, "name", ""):
