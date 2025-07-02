@@ -13,6 +13,7 @@ from ddtrace.contrib.internal.pytest.constants import EFD_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import RETRIES_MIN_SUPPORTED_VERSION
 from ddtrace.ext.test_visibility.api import TestExcInfo
+from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestModuleId
 from ddtrace.ext.test_visibility.api import TestSourceFileInfo
 from ddtrace.ext.test_visibility.api import TestStatus
@@ -20,7 +21,6 @@ from ddtrace.ext.test_visibility.api import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import ITR_UNSKIPPABLE_REASON
 from ddtrace.internal.ci_visibility.utils import get_source_lines_for_test_method
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
@@ -80,7 +80,7 @@ def _get_names_from_item(item: pytest.Item) -> TestNames:
 
 
 @cached()
-def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
+def _get_test_id_from_item(item: pytest.Item) -> TestId:
     """Converts an item to a CITestId, which recursively includes the parent IDs
 
     NOTE: it is mandatory that the session, module, suite, and test IDs for a given test and parameters combination
@@ -94,7 +94,7 @@ def _get_test_id_from_item(item: pytest.Item) -> InternalTestId:
     module_id = TestModuleId(module_name)
     suite_id = TestSuiteId(module_id, suite_name)
 
-    test_id = InternalTestId(suite_id, test_name)
+    test_id = TestId(suite_id, test_name)
 
     return test_id
 
@@ -211,7 +211,7 @@ def _extract_span(item):
     return getattr(item, "_datadog_span", None)
 
 
-def _is_enabled_early(early_config):
+def _is_enabled_early(early_config, args):
     """Checks if the ddtrace plugin is enabled before the config is fully populated.
 
     This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
@@ -222,15 +222,14 @@ def _is_enabled_early(early_config):
     if not _pytest_version_supports_itr():
         return False
 
-    if (
-        "--no-ddtrace" in early_config.invocation_params.args
-        or early_config.getini("no-ddtrace")
-        or "ddtrace" in early_config.inicfg
-        and early_config.getini("ddtrace") is False
-    ):
+    if _is_option_true("no-ddtrace", early_config, args):
         return False
 
-    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
+    return _is_option_true("ddtrace", early_config, args)
+
+
+def _is_option_true(option, early_config, args):
+    return early_config.getoption(option) or early_config.getini(option) or f"--{option}" in args
 
 
 class _TestOutcome(t.NamedTuple):

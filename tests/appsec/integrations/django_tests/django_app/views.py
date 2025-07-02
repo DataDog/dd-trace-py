@@ -14,13 +14,14 @@ from typing import Any
 import urllib
 from urllib.parse import quote
 
+from django import VERSION as DJANGO_VERSION
 from django.db import connection
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.shortcuts import redirect
 from django.shortcuts import render
-from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.safestring import mark_safe
+from django.views.decorators.csrf import csrf_exempt
 import requests
 from requests.exceptions import ConnectionError  # noqa: A004
 
@@ -32,10 +33,26 @@ from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
 
 
+if DJANGO_VERSION < (3, 2, 0):
+    from unittest.mock import MagicMock
+
+    url_has_allowed_host_and_scheme = MagicMock()
+else:
+    from django.utils.http import url_has_allowed_host_and_scheme
+
+
 def assert_origin(parameter: Any, origin_type: Any) -> None:
     assert is_pyobject_tainted(parameter)
     sources, _ = IastSpanReporter.taint_ranges_as_evidence_info(parameter)
     assert sources[0].origin == origin_type
+
+
+def _security_control_sanitizer(parameter):
+    return parameter
+
+
+def _security_control_validator(param1, param2, parameter_to_validate, param3):
+    return None
 
 
 def index(request):
@@ -352,6 +369,7 @@ def view_insecure_cookies_insecure_special_chars(request):
     return res
 
 
+@csrf_exempt
 def command_injection(request):
     value = request.body.decode()
     # label iast_command_injection
@@ -378,6 +396,15 @@ def command_injection_secure_mark(request):
     return HttpResponse("OK", status=200)
 
 
+def command_injection_security_control(request):
+    value = request.body.decode()
+    _security_control_validator(None, None, value, None)
+    # label iast_command_injection
+    os.system("dir -l " + _security_control_sanitizer(value))
+
+    return HttpResponse("OK", status=200)
+
+
 def xss_secure_mark(request):
     value = request.body.decode()
 
@@ -386,12 +413,29 @@ def xss_secure_mark(request):
     return render(request, "index.html", {"user_input": mark_safe(value_secure)})
 
 
+@csrf_exempt
 def header_injection(request):
     value = request.body.decode()
 
+    response = HttpResponse(f"OK:{value}", status=200)
+    if DJANGO_VERSION < (3, 2, 0):
+        # label iast_header_injection
+        response._headers["Header-Injection".lower()] = ("Header-Injection", value)
+
+    else:
+        # label iast_header_injection
+        response.headers._store["Header-Injection".lower()] = ("Header-Injection", value)
+    return response
+
+
+def header_injection_secure(request):
+    value = request.body.decode()
+
     response = HttpResponse("OK", status=200)
-    # label iast_header_injection
-    response.headers["Header-Injection"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        response["Header-Injection"] = value
+    else:
+        response.headers["Header-Injection"] = value
     return response
 
 
@@ -436,8 +480,10 @@ def unvalidated_redirect_path_multiple_sources(request):
 def unvalidated_redirect_url_header(request):
     value = request.GET.get("url")
     response = HttpResponse("OK", status=200)
-    # label unvalidated_redirect_url_header
-    response.headers["Location"] = value
+    if DJANGO_VERSION < (3, 2, 0):
+        response["Location"] = value
+    else:
+        response.headers["Location"] = value
     return response
 
 
@@ -531,6 +577,7 @@ def ssrf_requests(request):
             _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
         elif option == "safe_host":
             if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                # label ssrf_requests_safe_host
                 _ = requests.get(f"http://{value}:8080/", timeout=1)
             _ = requests.get(f"http://{value}:8080/", timeout=1)
         elif option == "safe_path":

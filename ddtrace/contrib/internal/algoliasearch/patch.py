@@ -1,3 +1,5 @@
+from typing import Dict
+
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -32,12 +34,16 @@ try:
     # Default configuration
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
-    algoliasearch_version = V0
+    algoliasearch_version = VERSION = V0
 
 
 def get_version():
     # type: () -> str
     return VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"algoliasearch": ">=2.5.0"}
 
 
 def patch():

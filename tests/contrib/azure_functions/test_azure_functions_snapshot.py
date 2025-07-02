@@ -17,6 +17,8 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
     "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": "False",
 }
 
+SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
+
 
 @pytest.fixture
 def azure_functions_client(request):
@@ -107,6 +109,13 @@ def test_http_get_function_name_no_decorator(azure_functions_client: Client) -> 
     assert azure_functions_client.get("/api/httpgetfunctionnamenodecorator", headers=DEFAULT_HEADERS).status_code == 200
 
 
+@pytest.mark.snapshot
+def test_http_get_function_name_decorator_order(azure_functions_client: Client) -> None:
+    assert (
+        azure_functions_client.get("/api/httpgetfunctionnamedecoratororder", headers=DEFAULT_HEADERS).status_code == 200
+    )
+
+
 @pytest.mark.parametrize(
     "azure_functions_client",
     [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
@@ -118,28 +127,15 @@ def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.get("/api/httpgetroot", headers=DEFAULT_HEADERS).status_code == 200
 
 
-@pytest.mark.snapshot
-def test_service_bus_queue(azure_functions_client: Client) -> None:
-    assert (
-        azure_functions_client.post(
-            "/admin/functions/servicebusqueue",
-            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
-            data=json.dumps({"input": '{"msg": "test message"}'}),
-        ).status_code
-        == 202
-    )
-
-
-@pytest.mark.snapshot
-def test_service_bus_topic(azure_functions_client: Client) -> None:
-    assert (
-        azure_functions_client.post(
-            "/admin/functions/servicebustopic",
-            headers={"User-Agent": "python-httpx/x.xx.x", "Content-Type": "application/json"},
-            data=json.dumps({"input": '{"msg": "test message"}'}),
-        ).status_code
-        == 202
-    )
+@pytest.mark.parametrize(
+    "azure_functions_client",
+    [{}, DISTRIBUTED_TRACING_DISABLED_PARAMS],
+    ids=["enabled", "disabled"],
+    indirect=True,
+)
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
+def test_service_bus_distributed_tracing(azure_functions_client: Client) -> None:
+    assert azure_functions_client.post("/api/httppostrootservicebus", headers=DEFAULT_HEADERS).status_code == 200
 
 
 @pytest.mark.snapshot

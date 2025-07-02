@@ -43,7 +43,7 @@ class TestApiSecurityManager:
         env.span.context.sampling_priority = None
         root_span.context.sampling_priority = None
         env.waf_addresses = {}
-
+        env.blocked = None
         return env
 
     def test_schema_callback_no_span(self, api_manager, tracer):
@@ -100,7 +100,7 @@ class TestApiSecurityManager:
         root_span.context.sampling_priority = sampling_priority
 
         mock_waf_result = MagicMock()
-        mock_waf_result.derivatives = {"_dd.appsec.s.req.body": {"type": "object"}}
+        mock_waf_result.api_security = {"_dd.appsec.s.req.body": {"type": "object"}}
         api_manager._asm_context.call_waf_callback.return_value = mock_waf_result
 
         mock_environment.waf_addresses = {
@@ -126,7 +126,7 @@ class TestApiSecurityManager:
         Expects _asm_manual_keep to be called only when should_collect_schema returns True.
         """
         mock_waf_result = MagicMock()
-        mock_waf_result.derivatives = {
+        mock_waf_result.api_security = {
             "_dd.appsec.s.req.body": {"type": "object", "properties": {"name": {"type": "string"}}},
             "_dd.appsec.s.req.headers": {"type": "object"},
             "_dd.appsec.s.req.cookies": {"type": "object"},
@@ -155,7 +155,7 @@ class TestApiSecurityManager:
         Expects schemas to be processed and added to span metadata, with correct metrics reporting.
         """
         mock_waf_result = MagicMock()
-        mock_waf_result.derivatives = {
+        mock_waf_result.api_security = {
             "_dd.appsec.s.req.body": {"type": "object", "properties": {"name": {"type": "string"}}},
             "_dd.appsec.s.req.headers": {"type": "object"},
             "_dd.appsec.s.req.cookies": {"type": "object"},
@@ -217,7 +217,7 @@ class TestApiSecurityManager:
         """
         mock_waf_result = MagicMock()
         large_schema = {"type": "object", "properties": {f"prop_{i}": {"type": "string"} for i in range(10000)}}
-        mock_waf_result.derivatives = {"_dd.appsec.s.req.body": large_schema}
+        mock_waf_result.api_security = {"_dd.appsec.s.req.body": large_schema}
         api_manager._asm_context.call_waf_callback.return_value = mock_waf_result
 
         with patch("gzip.compress") as mock_compress:

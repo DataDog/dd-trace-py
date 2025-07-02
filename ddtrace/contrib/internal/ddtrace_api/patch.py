@@ -84,6 +84,10 @@ def get_version() -> str:
     return getattr(ddtrace_api, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"ddtrace_api": "*"}
+
+
 def patch(tracer=None):
     if getattr(ddtrace_api, "__datadog_patch", False):
         return
@@ -91,6 +95,7 @@ def patch(tracer=None):
 
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.start_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.trace).wrap()
+    DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.set_tags).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.current_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.current_root_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Span.finish).wrap()
@@ -111,6 +116,7 @@ def unpatch():
 
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.start_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.trace).unwrap()
+    DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.set_tags).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.current_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.current_root_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Span.finish).unwrap()

@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
@@ -10,6 +11,10 @@ from ddtrace.trace import Pin
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"asyncio": "*"}
 
 
 def patch():

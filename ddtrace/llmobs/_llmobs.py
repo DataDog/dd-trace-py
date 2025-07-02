@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
@@ -107,6 +108,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",
@@ -442,6 +444,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: Optional[bool] = None,
+        instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -456,6 +459,7 @@ class LLMObs(Service):
         :param str ml_app: The name of your ml application.
         :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
+        :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
@@ -476,6 +480,7 @@ class LLMObs(Service):
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
 
         error = None
         start_ns = time.time_ns()
@@ -532,9 +537,17 @@ class LLMObs(Service):
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
-            log.debug("%s enabled", cls.__name__)
+            log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
+            telemetry.record_llmobs_enabled(
+                error,
+                config._llmobs_agentless_enabled,
+                config._dd_site,
+                start_ns,
+                _auto,
+                config._llmobs_instrumented_proxy_urls,
+                config._llmobs_ml_app,
+            )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
@@ -704,7 +717,7 @@ class LLMObs(Service):
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
         integrations_to_patch: Dict[str, Union[List[str], bool]] = {
-            integration: ["bedrock-runtime"] if integration == "botocore" else True
+            integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
             for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
         }
         for module, _ in integrations_to_patch.items():
@@ -736,7 +749,10 @@ class LLMObs(Service):
                 error = "invalid_span"
                 log.warning("Span must be an LLMObs-generated span.")
                 return None
-            return ExportedLLMObsSpan(span_id=str(span.span_id), trace_id=format_trace_id(span.trace_id))
+            return ExportedLLMObsSpan(
+                span_id=str(span.span_id),
+                trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID) or span.trace_id),
+            )
         except (TypeError, AttributeError):
             error = "invalid_span"
             log.warning("Failed to export span. Span must be a valid Span object.")
@@ -797,6 +813,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+
+        if not self.enabled:
+            return span
+
         span._set_ctx_item(SPAN_KIND, operation_kind)
         if model_name is not None:
             span._set_ctx_item(MODEL_NAME, model_name)
@@ -809,10 +829,12 @@ class LLMObs(Service):
         ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
             raise ValueError(
-                "ML app is required for sending LLM Observability data. "
-                "Ensure this configuration is set before running your application."
+                "ml_app is required for sending LLM Observability data. "
+                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
+                "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
         return span
 
     @classmethod
@@ -1553,7 +1575,7 @@ class LLMObs(Service):
             return "missing_context"
         _parent_id = context._meta.get(PROPAGATED_PARENT_ID_KEY)
         if _parent_id is None:
-            log.warning("Failed to extract LLMObs parent ID from request headers.")
+            log.debug("Failed to extract LLMObs parent ID from request headers.")
             return "missing_parent_id"
         try:
             parent_id = int(_parent_id)

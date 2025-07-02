@@ -28,6 +28,11 @@ from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
+from ddtrace.internal.packages import Distribution
+from ddtrace.internal.packages import _package_for_root_module_mapping
+from ddtrace.internal.packages import _third_party_packages
+from ddtrace.internal.packages import filename_to_package
+from ddtrace.internal.packages import is_third_party
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
@@ -121,6 +126,7 @@ def override_global_config(values):
         "_client_ip_header",
         "_retrieve_client_ip",
         "_report_hostname",
+        "_logs_injection",
         "_health_metrics_enabled",
         "_propagation_style_extract",
         "_propagation_style_inject",
@@ -160,6 +166,7 @@ def override_global_config(values):
         "_llmobs_sample_rate",
         "_llmobs_ml_app",
         "_llmobs_agentless_enabled",
+        "_llmobs_instrumented_proxy_urls",
         "_data_streams_enabled",
         "_inferred_proxy_services_enabled",
     ]
@@ -571,6 +578,9 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
         self._trace_flush_enabled = kwargs.pop("trace_flush_enabled", False) is True
 
+        # DEV: We don't want to do anything with the response callback
+        # so we set it to a no-op lambda function
+        kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
@@ -1416,3 +1426,40 @@ def remote_config_build_payload(product, data, path, sha_hash=None, id_based_on_
         f"Datadog/1/{product}/{path}",
         data,
     )
+
+
+@contextmanager
+def override_third_party_packages(packages: List[str]):
+    try:
+        original_callonce = _third_party_packages.__wrapped__.__callonce_result__
+    except AttributeError:
+        original_callonce = None
+
+    try:
+        original_mapping = _package_for_root_module_mapping.__wrapped__.__callonce_result__
+    except AttributeError:
+        original_mapping = None
+
+    _third_party_packages.__wrapped__.__callonce_result__ = (packages, None)
+    _package_for_root_module_mapping.__wrapped__.__callonce_result__ = (
+        {p: Distribution(p, "0.0.0") for p in packages},
+        None,
+    )
+    filename_to_package.cache_clear()
+    is_third_party.cache_clear()
+
+    try:
+        yield
+    finally:
+        if original_callonce is not None:
+            _third_party_packages.__wrapped__.__callonce_result__ = original_callonce
+        else:
+            del _third_party_packages.__wrapped__.__callonce_result__
+
+        if original_mapping is not None:
+            _package_for_root_module_mapping.__wrapped__.__callonce_result__ = original_mapping
+        else:
+            del _package_for_root_module_mapping.__wrapped__.__callonce_result__
+
+        filename_to_package.cache_clear()
+        is_third_party.cache_clear()

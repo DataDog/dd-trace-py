@@ -11,6 +11,7 @@ tracer.configure(trace_processors=[PingFilter()])
 ALLOWED_HOSTS = [
     "testserver",
     "localhost",
+    "0.0.0.0",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -68,7 +69,6 @@ MIDDLEWARE = [
 ]
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

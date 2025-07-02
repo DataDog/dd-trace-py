@@ -1,9 +1,6 @@
 from collections.abc import MutableMapping
 import functools
 
-from wrapt import when_imported
-from wrapt import wrap_function_wrapper as _w
-
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_endpoint
@@ -11,8 +8,7 @@ from ddtrace.appsec._iast._iast_request_context_base import set_iast_stacktrace_
 from ddtrace.appsec._iast._logs import iast_instrumentation_wrapt_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_listener_log_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_source
-from ddtrace.appsec._iast._patch import _iast_instrument_starlette_url
-from ddtrace.appsec._iast._patch import try_wrap_function_wrapper
+from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -62,19 +58,21 @@ def _on_flask_patch(flask_version):
     """
     if asm_config._iast_enabled:
         try:
-            try_wrap_function_wrapper(
+            iast_funcs = WrapFunctonsForIAST()
+
+            iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "Headers.items",
                 functools.partial(if_iast_taint_yield_tuple_for, (OriginType.HEADER_NAME, OriginType.HEADER)),
             )
 
-            try_wrap_function_wrapper(
+            iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
             )
             # Since werkzeug 3.1.0 get doesn't call to __getitem__
-            try_wrap_function_wrapper(
+            iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "EnvironHeaders.get",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
@@ -82,7 +80,7 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-            try_wrap_function_wrapper(
+            iast_funcs.wrap_function(
                 "werkzeug.datastructures",
                 "ImmutableMultiDict.__getitem__",
                 functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
@@ -91,17 +89,17 @@ def _on_flask_patch(flask_version):
 
             if flask_version >= (2, 0, 0):
                 # instance.query_string: raising an error on werkzeug/_internal.py "AttributeError: read only property"
-                try_wrap_function_wrapper("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
+                iast_funcs.wrap_function("werkzeug.wrappers.request", "Request.__init__", _on_request_init)
 
             _set_metric_iast_instrumented_source(OriginType.PATH)
             _set_metric_iast_instrumented_source(OriginType.QUERY)
 
-            try_wrap_function_wrapper(
+            iast_funcs.wrap_function(
                 "werkzeug.wrappers.request",
                 "Request.get_data",
                 functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
             )
-            try_wrap_function_wrapper(
+            iast_funcs.wrap_function(
                 "werkzeug.wrappers.request",
                 "Request.get_json",
                 functools.partial(taint_dictionary, OriginType.BODY, OriginType.BODY),
@@ -110,12 +108,14 @@ def _on_flask_patch(flask_version):
             _set_metric_iast_instrumented_source(OriginType.BODY)
 
             if flask_version < (2, 0, 0):
-                _w(
+                iast_funcs.wrap_function(
                     "werkzeug._internal",
                     "_DictAccessorProperty.__get__",
                     functools.partial(if_iast_taint_returned_object_for, OriginType.QUERY),
                 )
                 _set_metric_iast_instrumented_source(OriginType.QUERY)
+
+            iast_funcs.patch()
 
             # Instrumented on _ddtrace.appsec._asm_request_context._on_wrapped_view
             _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
@@ -156,14 +156,17 @@ def _on_django_patch():
     """Handle Django framework patch event."""
     if asm_config._iast_enabled:
         try:
-            when_imported("django.http.request")(
-                lambda m: try_wrap_function_wrapper(
-                    m,
-                    "QueryDict.__getitem__",
-                    functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-                )
+            iast_funcs = WrapFunctonsForIAST()
+
+            iast_funcs.wrap_function(
+                "django.http.request",
+                "QueryDict.__getitem__",
+                functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
             )
-            try_wrap_function_wrapper("django.utils.shlex", "quote", cmdi_sanitizer)
+            iast_funcs.wrap_function("django.utils.shlex", "quote", cmdi_sanitizer)
+
+            iast_funcs.patch()
+
             # we instrument those sources on _on_django_func_wrapped
             _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
             _set_metric_iast_instrumented_source(OriginType.HEADER)
@@ -204,8 +207,12 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
                 )
             except AttributeError:
                 log.debug("IAST can't set attribute http_req._body", exc_info=True)
+        # This condition is only for testing purposes.
+        # In real applications, http_req.body is typically a property that can be set.
+        # Here we check if it's not a property to handle test cases where body is directly assigned.
         elif (
             getattr(http_req, "body", None) is not None
+            and not isinstance(getattr(http_req, "body", None), property)
             and len(getattr(http_req, "body", None)) > 0
             and not is_pyobject_tainted(getattr(http_req, "body", None))
         ):
@@ -350,82 +357,88 @@ def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwar
 
 
 def _on_iast_fastapi_patch():
-    # Cookies sources
-    try_wrap_function_wrapper(
-        "starlette.requests",
-        "cookie_parser",
-        functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
-    )
-    _set_metric_iast_instrumented_source(OriginType.COOKIE)
-    _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
+    try:
+        iast_funcs = WrapFunctonsForIAST()
+        # Cookies sources
+        iast_funcs.wrap_function(
+            "starlette.requests",
+            "cookie_parser",
+            functools.partial(taint_dictionary, OriginType.COOKIE_NAME, OriginType.COOKIE),
+        )
+        _set_metric_iast_instrumented_source(OriginType.COOKIE)
+        _set_metric_iast_instrumented_source(OriginType.COOKIE_NAME)
 
-    # Parameter sources
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "QueryParams.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-    )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "QueryParams.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
-    )
-    _set_metric_iast_instrumented_source(OriginType.PARAMETER)
+        # Parameter sources
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "QueryParams.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "QueryParams.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.PARAMETER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER)
 
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "QueryParams.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
-    )
-    _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "QueryParams.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+        )
+        _set_metric_iast_instrumented_source(OriginType.PARAMETER_NAME)
 
-    # Header sources
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
-    )
-    _set_metric_iast_instrumented_source(OriginType.HEADER)
+        # Header sources
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "Headers.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "Headers.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.HEADER),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER)
 
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "Headers.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
-    )
-    _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "Headers.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.HEADER_NAME),
+        )
+        _set_metric_iast_instrumented_source(OriginType.HEADER_NAME)
 
-    # Path source
-    try_wrap_function_wrapper("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
-    _set_metric_iast_instrumented_source(OriginType.PATH)
+        # Path source
+        iast_funcs.wrap_function("starlette.datastructures", "URL.__init__", _iast_instrument_starlette_url)
+        _set_metric_iast_instrumented_source(OriginType.PATH)
 
-    # Body source
-    try_wrap_function_wrapper("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
-    try_wrap_function_wrapper("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "FormData.__getitem__",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-    )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "FormData.get",
-        functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
-    )
-    try_wrap_function_wrapper(
-        "starlette.datastructures",
-        "FormData.keys",
-        functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
-    )
+        # Body source
+        iast_funcs.wrap_function("starlette.requests", "Request.__init__", _iast_instrument_starlette_request)
+        iast_funcs.wrap_function("starlette.requests", "Request.body", _iast_instrument_starlette_request_body)
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "FormData.__getitem__",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+        )
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "FormData.get",
+            functools.partial(if_iast_taint_returned_object_for, OriginType.BODY),
+        )
+        iast_funcs.wrap_function(
+            "starlette.datastructures",
+            "FormData.keys",
+            functools.partial(if_iast_taint_starlette_datastructures, OriginType.PARAMETER_NAME),
+        )
 
-    _set_metric_iast_instrumented_source(OriginType.BODY)
+        iast_funcs.patch()
 
-    # Instrumented on _iast_starlette_scope_taint
-    _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+        _set_metric_iast_instrumented_source(OriginType.BODY)
+
+        # Instrumented on _iast_starlette_scope_taint
+        _set_metric_iast_instrumented_source(OriginType.PATH_PARAMETER)
+    except Exception:
+        iast_propagation_listener_log_log("Unexpected exception while tainting pyobject", exc_info=True)
 
 
 def _on_pre_tracedrequest_iast(ctx):
@@ -566,3 +579,16 @@ def _iast_instrument_starlette_scope(scope, route):
                     )
     except Exception:
         iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
+
+
+def _iast_instrument_starlette_url(wrapped, instance, args, kwargs):
+    def path(self) -> str:
+        return taint_pyobject(
+            self.components.path,
+            source_name=origin_to_str(OriginType.PATH),
+            source_value=self.components.path,
+            source_origin=OriginType.PATH,
+        )
+
+    instance.__class__.path = property(path)
+    wrapped(*args, **kwargs)

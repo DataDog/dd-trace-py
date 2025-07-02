@@ -14,6 +14,15 @@ DD_LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] 
 DEFAULT_FILE_SIZE_BYTES = 15 << 20  # 15 MB
 
 
+class LogInjectionState(object):
+    # Log injection is disabled
+    DISABLED = "false"
+    # Log injection is enabled, but not yet configured
+    ENABLED = "true"
+    # Log injection is enabled and configured for structured logging
+    STRUCTURED = "structured"
+
+
 def configure_ddtrace_logger():
     # type: () -> None
     """Configures ddtrace log levels and file paths.
@@ -90,3 +99,27 @@ def _add_file_handler(
         logger.addHandler(ddtrace_file_handler)
         logger.debug("ddtrace logs will be routed to %s", log_path)
     return ddtrace_file_handler
+
+
+def set_log_formatting():
+    # type: () -> None
+    """Sets the log format for the ddtrace logger."""
+    ddtrace_logger = logging.getLogger("ddtrace")
+    for handler in ddtrace_logger.handlers:
+        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
+
+
+def get_log_injection_state(raw_config: Optional[str]) -> str:
+    """Returns the current log injection state."""
+    if raw_config:
+        normalized = raw_config.lower().strip()
+        if normalized == LogInjectionState.STRUCTURED:
+            return LogInjectionState.STRUCTURED
+        elif normalized in ("true", "1"):
+            return LogInjectionState.ENABLED
+        elif normalized not in ("false", "0"):
+            logging.warning(
+                "Invalid log injection state '%s'. Expected 'true', 'false', or 'structured'. Defaulting to 'false'.",
+                normalized,
+            )
+    return LogInjectionState.DISABLED

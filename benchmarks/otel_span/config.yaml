@@ -6,6 +6,13 @@ start: &base
   nmetrics: 0
   finishspan: false
   telemetry: false
+  add_event: false
+  add_link: false
+  get_context: false
+  is_recording: false
+  record_exception: false
+  set_status: false
+  update_name: false
 add-tags:
   <<: *base
   ntags: 100
@@ -13,6 +20,28 @@ add-tags:
 add-metrics:
   <<: *base
   nmetrics: 100
+add-event:
+  <<: *base
+  add_event: true
+# Run add-link scenario when the API is implemented in the Datadog OTel Tracing API
+# add-link:
+#   <<: *base
+#   add_link: true
+get-context:
+  <<: *base
+  get_context: true
+is-recording:
+  <<: *base
+  is_recording: true
+record-exception:
+  <<: *base
+  record_exception: true
+set-status:
+  <<: *base
+  set_status: true
+update-name:
+  <<: *base
+  update_name: true
 start-finish:
   <<: *base
   finishspan: true
