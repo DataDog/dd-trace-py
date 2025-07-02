@@ -241,6 +241,25 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_iast_default",
+            command="pytest {cmdargs} tests/appsec/iast/",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "astunparse": latest,
+                "simplejson": latest,
+                "grpcio": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="tracer",
             command="pytest -v {cmdargs} tests/tracer/",
             pkgs={
@@ -3305,6 +3324,49 @@ venv = Venv(
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_integrations_langchain",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-asyncio": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
+                        "langchain-experimental": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
+                        "langchain-experimental": "~=0.3",
                     },
                 ),
             ],
