@@ -120,30 +120,30 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
         return message
 
     function_call = _get_attr(part, "function_call", None)
-    if function_call and callable(getattr(function_call, "model_dump", None)):
-        function_call_dict = function_call.model_dump()
+    if function_call:
         message["tool_calls"] = [
-            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+            {"name": _get_attr(function_call, "name", ""), "arguments": _get_attr(function_call, "args", {})}
         ]
         return message
 
     function_response = _get_attr(part, "function_response", None)
-    if function_response and callable(getattr(function_response, "model_dump", None)):
-        function_response_dict = function_response.model_dump()
-        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+    if function_response:
+        message["role"] = "tool"
+        message["content"] = _get_attr(function_response, "response", "")
+        message["tool_id"] = _get_attr(function_response, "id", None)
         return message
 
     executable_code = _get_attr(part, "executable_code", None)
     if executable_code:
         language = _get_attr(executable_code, "language", "UNKNOWN")
-        code = _get_attr(executable_code, "code", "")
+        code = str(_get_attr(executable_code, "code", ""))
         message["content"] = {"language": language, "code": code}
         return message
 
     code_execution_result = _get_attr(part, "code_execution_result", None)
     if code_execution_result:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
-        output = _get_attr(code_execution_result, "output", "")
+        output = str(_get_attr(code_execution_result, "output", ""))
         message["content"] = {"outcome": outcome, "output": output}
         return message
 

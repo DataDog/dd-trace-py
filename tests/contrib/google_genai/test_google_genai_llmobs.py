@@ -230,10 +230,15 @@ def expected_llmobs_tool_response_span_event(span):
             {"role": "model", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
             {
                 "role": "tool",
-                "content": (
-                    "[tool result: {'result': {'location': 'Boston', 'temperature': 72, "
-                    "'unit': 'fahrenheit', 'forecast': 'Sunny with light breeze'}}]"
-                ),
+                "content": {
+                    "result": {
+                        "location": "Boston",
+                        "temperature": 72,
+                        "unit": "fahrenheit",
+                        "forecast": "Sunny with light breeze",
+                    }
+                },
+                "tool_id": None,
             },
         ],
         output_messages=[
