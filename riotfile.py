@@ -2923,7 +2923,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.20.0", latest],
+                "azure.functions": ["~=1.10.1", latest],
                 "azure.servicebus": latest,
                 "requests": latest,
             },
@@ -3305,6 +3305,49 @@ venv = Venv(
                     pkgs={
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_integrations_langchain",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-asyncio": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
+                        "langchain-experimental": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
+                        "langchain-experimental": "~=0.3",
                     },
                 ),
             ],
