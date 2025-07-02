@@ -479,11 +479,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
         if reports_dict:
-            reports = []
-            for when in ["setup", "call", "teardown"]:
-                if report := reports_dict.get(when):
-                    reports.append(report)
-            test_outcome = _process_reports(item, reports)
+            test_outcome = _process_reports_dict(item, reports_dict)
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
@@ -533,6 +529,10 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
         return None
 
     if skip_pytest_runtest_protocol:
+        # Retry-based features such as Early Flake Detection, Auto Test Retries, and Attempt-to-Fix do not work properly
+        # with external retry plugins such as `flaky` and `pytest-rerunfailures`. If those plugins are in use, we let
+        # their `pytest_runtest_protocol` run and report their results to the backend, and do not run our advanced
+        # features.
         return None
 
     try:
@@ -548,9 +548,8 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
 def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
-    test_outcome = _process_reports(item, reports)
-
     reports_dict = {report.when: report for report in reports}
+    test_outcome = _process_reports_dict(item, reports_dict)
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
@@ -603,14 +602,20 @@ def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
 
-def _process_reports(item, reports) -> _TestOutcome:
+def _process_reports_dict(item, reports) -> _TestOutcome:
     final_outcome = None
-    for report in reports:
+
+    for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
+        report = reports.get(when)
+        if not report:
+            continue
+
         outcome = _process_result(item, report)
         if final_outcome is None or final_outcome.status is None:
             final_outcome = outcome
             if final_outcome.status is not None:
                 return final_outcome
+
     return final_outcome
 
 
