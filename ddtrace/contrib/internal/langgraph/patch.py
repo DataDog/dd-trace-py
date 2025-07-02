@@ -182,9 +182,7 @@ def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
                 break
             except Exception as e:
                 if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
-                    # LangGraph will throw this error to communicate that a Command operation has exited a child node
-                    # to navigate to the parent graph. This error is caught in the LangGraph framework, and we should
-                    # not mark it as a runtime error.
+                    # This error is caught in the LangGraph framework, we shouldn't mark it as a runtime error.
                     span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
                 span.finish()

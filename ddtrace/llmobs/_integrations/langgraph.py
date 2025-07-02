@@ -32,7 +32,7 @@ logger = get_logger(__name__)
 
 
 PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
-PREGEL_TASKS = "__pregel_tasks"  # represents the ephemeral channel name that pregel `Send` commands write to
+PREGEL_TASKS = "__pregel_tasks"  # name of ephemeral channel that pregel `Send` commands write to
 
 
 class LangGraphIntegration(BaseLLMIntegration):
@@ -102,9 +102,6 @@ class LangGraphIntegration(BaseLLMIntegration):
     ):
         """
         Compute incoming and outgoing span links between finished tasks and queued tasks in the graph.
-
-        In the case of finished and queued tasks, any finished tasks that aren't used as links to
-        queued tasks should be linked to the encompassing graph span's output.
         """
         try:
             if not self.llmobs_enabled:
@@ -209,9 +206,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         self, graph_span: Span, finished_tasks: Dict[str, Any], used_finished_tasks_ids: Set[str]
     ):
         """
-        Links any unused finished tasks (terminal tasks) to the outer graph span with output --> output span links.
-        It's possible some of the finished tasks aren't used as triggers to queued tasks, but the
-        current graph tick is not the last tick.
+        Default handler that links any finished tasks not used as triggers for queued tasks to the outer graph span.
         """
         standalone_terminal_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
         graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
