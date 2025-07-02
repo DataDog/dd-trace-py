@@ -282,15 +282,12 @@ def pytest_configure(config: pytest_Config) -> None:
 
             skip_pytest_runtest_protocol = False
 
-            if config.pluginmanager.hasplugin("flaky"):
-                log.warning("The pytest `flaky` plugin is in use; Test Optimization advanced features will be disabled")
-                skip_pytest_runtest_protocol = True
-
-            if config.pluginmanager.hasplugin("rerunfailures"):
-                log.warning(
-                    "The pytest `rerunfailures` plugin is in use; Test Optimization advanced features will be disabled"
-                )
-                skip_pytest_runtest_protocol = True
+            for plugin in ("flaky", "rerunfailures"):
+                if config.pluginmanager.hasplugin(plugin):
+                    log.warning(
+                        "The pytest `%s` plugin is in use; Test Optimization advanced features will be disabled", plugin
+                    )
+                    skip_pytest_runtest_protocol = True
 
             # pytest-bdd plugin support
             if config.pluginmanager.hasplugin("pytest-bdd"):
