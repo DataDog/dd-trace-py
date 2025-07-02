@@ -80,6 +80,37 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Flask version matrix for appsec_threats_flask
+FLASK_THREATS_VENVS = [
+    Venv(
+        pys=["3.8", "3.9"],
+        pkgs={
+            "flask": "~=1.1",
+            "MarkupSafe": "~=1.1",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.9"],
+        pkgs={
+            "flask": "==2.1.3",
+            "Werkzeug": "<3.0",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.10", "3.13"],
+        pkgs={
+            "flask": "~=2.3",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.11", "3.13"],
+        pkgs={
+            "flask": "~=3.0",
+        },
+    ),
+]
+
+
 venv = Venv(
     pkgs={
         "mock": latest,
@@ -3349,6 +3380,36 @@ venv = Venv(
                         "langchain-community": "~=0.3",
                         "langchain-experimental": "~=0.3",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_flask",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
+            pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+            },
+            venvs=[
+                Venv(
+                    name="appsec_threats_flask_no_iast",
+                    env={"DD_IAST_ENABLED": "false"},
+                    venvs=FLASK_THREATS_VENVS,
+                ),
+                Venv(
+                    name="appsec_threats_flask_iast",
+                    env={
+                        "DD_IAST_ENABLED": "true",
+                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    },
+                    venvs=FLASK_THREATS_VENVS,
                 ),
             ],
         ),
