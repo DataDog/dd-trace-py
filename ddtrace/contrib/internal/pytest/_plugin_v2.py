@@ -100,6 +100,7 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 
 skip_pytest_runtest_protocol = False
 
@@ -282,10 +283,14 @@ def pytest_configure(config: pytest_Config) -> None:
 
             skip_pytest_runtest_protocol = False
 
-            for plugin in ("flaky", "rerunfailures"):
+            for plugin in INCOMPATIBLE_PLUGINS:
                 if config.pluginmanager.hasplugin(plugin):
                     log.warning(
-                        "The pytest `%s` plugin is in use; Test Optimization advanced features will be disabled", plugin
+                        "The pytest `%s` plugin is in use; Test Optimization advanced features will be disabled. "
+                        "You can run `pytest` with `-p no:%s` to disable the plugin and enable Test Optimization "
+                        "features.",
+                        plugin,
+                        plugin,
                     )
                     skip_pytest_runtest_protocol = True
 
