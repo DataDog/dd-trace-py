@@ -67,20 +67,14 @@ def find_log_correlation_attributes(captured_logs, log_message: str) -> dict[str
     return lc_attributes
 
 
-def skipif(
-    exporter_installed: bool = False, exporter_not_installed: bool = False, unsupported_otel_version: bool = False
-):
+def skipif(exporter_installed: bool = False, exporter_not_installed: bool = False):
     """
     Returns a pytest skip marker based on OpenTelemetry version and exporter installation.
 
     Parameters:
     - exporter_installed: If True, skip tests that require OpenTelemetry exporters.
     - exporter_not_installed: If True, skip tests that do not require OpenTelemetry exporters.
-    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.16 or higher.
     """
-    if unsupported_otel_version and OTEL_VERSION < (1, 16):
-        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.16 or higher is required for these tests")
-
     has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
     if exporter_installed and has_exporter:
         return pytest.mark.skipif(True, reason="Tests not compatible with the opentelemetry exporters")
@@ -89,7 +83,7 @@ def skipif(
     return pytest.mark.skipif(False, reason="No skip condition met for OpenTelemetry logs exporter tests")
 
 
-@skipif(exporter_installed=True, unsupported_otel_version=True)
+@skipif(exporter_installed=True)
 def test_otel_sdk_not_installed_by_default():
     """
     Test that the OpenTelemetry logs exporter can be set up correctly.
@@ -104,7 +98,7 @@ def test_otel_sdk_not_installed_by_default():
         from opentelemetry.sdk.resources import Resource  # noqa: F401
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess()
 def test_otel_logs_exporter_installed():
     """
@@ -132,7 +126,7 @@ def test_otel_logs_exporter_installed():
         pytest.fail("OTLPLogExporter for HTTP/protobuf should be available")
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
 def test_otel_logs_enabled():
     """
@@ -146,7 +140,7 @@ def test_otel_logs_enabled():
     assert LOGS_PROVIDER_CONFIGURED, f"OpenTelemetry logs exporter should be configured automatically. {lp} configured."
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_OTEL_LOGS_ENABLED": [None, "false"]})
 def test_otel_logs_disabled_and_unset():
     """
@@ -162,7 +156,7 @@ def test_otel_logs_disabled_and_unset():
     ), f"OpenTelemetry logs exporter should not be configured automatically. {lp} configured."
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
@@ -239,7 +233,7 @@ def test_otel_logs_provider_auto_configured_http():
     ), f"Expected span_id to be '0000000000000000' but found: {lc_attributes['span_id']}"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={"DD_OTEL_LOGS_ENABLED": "true"},
@@ -286,7 +280,7 @@ def test_otel_logs_provider_auto_configured_grpc():
     ), "Expected log message not found in exported gRPC payload"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
@@ -360,7 +354,7 @@ def test_ddtrace_log_correlation():
     ), f"Expected span_id_hex to be set to {lc_attributes['span_id']} but found: {span.span_id}"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@skipif(exporter_not_installed=True)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
