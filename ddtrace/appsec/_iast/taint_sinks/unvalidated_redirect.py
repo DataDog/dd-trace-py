@@ -1,5 +1,6 @@
 from typing import Text
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
@@ -74,7 +75,7 @@ class UnvalidatedRedirect(VulnerabilityBase):
 
 
 def _iast_report_unvalidated_redirect(headers):
-    if headers:
+    if headers and isinstance(headers, IAST.TEXT_TYPES):
         try:
             is_tainted = UnvalidatedRedirect.is_tainted_pyobject(
                 headers, origins_to_exclude=UNVALIDATED_REDIRECT_ORIGIN_EXCLUSIONS

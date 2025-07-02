@@ -117,7 +117,7 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
             yield
 
         for record in caplog.get_records("call"):
-            if IAST_VALID_LOG.search(record.message):
+            if hasattr(record, "message") and IAST_VALID_LOG.search(record.message):
                 import traceback
 
                 formatted_trace = "".join(traceback.format_exception(*record.exc_info))

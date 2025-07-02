@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
@@ -10,7 +8,6 @@ from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
 
 

@@ -14,7 +14,7 @@ except ImportError:
 from tests.contrib.patch import PatchTestCase
 
 
-class TestAzure_FunctionsPatch(PatchTestCase.Base):
+class TestAzureFunctionsPatch(PatchTestCase.Base):
     __integration_name__ = "azure_functions"
     __module_name__ = "azure.functions"
     __patch_func__ = patch
@@ -22,10 +22,10 @@ class TestAzure_FunctionsPatch(PatchTestCase.Base):
     __get_version__ = get_version
 
     def assert_module_patched(self, azure_functions):
-        pass
+        self.assert_wrapped(azure_functions.FunctionApp.get_functions)
 
     def assert_not_module_patched(self, azure_functions):
-        pass
+        self.assert_not_wrapped(azure_functions.FunctionApp.get_functions)
 
     def assert_not_module_double_patched(self, azure_functions):
-        pass
+        self.assert_not_double_wrapped(azure_functions.FunctionApp.get_functions)
