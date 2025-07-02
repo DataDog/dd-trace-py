@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    pydantic_ai: Introduces tracing support for PydanticAI's ``Agent.iter`` and ``Tool.run`` methods.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#pydantic-ai>`
+      for more information.
