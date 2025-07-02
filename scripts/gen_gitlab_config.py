@@ -176,7 +176,7 @@ def gen_required_suites() -> None:
             clean_name = suite_config.pop("_clean_name", suite)
 
             # Create JobSpec with clean name and explicit stage
-            jobspec = JobSpec(clean_name, **suite_config, stage=stage)
+            jobspec = JobSpec(clean_name, stage=stage, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
