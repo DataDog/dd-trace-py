@@ -39,6 +39,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -460,7 +461,17 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
-        InternalTest.finish(test_id)
+        reports_dict = reports_by_item.get(item)
+        if reports_dict:
+            reports = []
+            for when in ["setup", "call", "teardown"]:
+                if report := reports_dict.get(when):
+                    reports.append(report)
+            test_outcome = _process_reports(item, reports)
+            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        else:
+            log.debug("Test %s has no entry in reports_by_item", test_id)
+            InternalTest.finish(test_id)
 
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
@@ -503,6 +514,11 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
 @pytest.hookimpl(specname="pytest_runtest_protocol")
 def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
+        return None
+
+    if any(
+        hook.plugin_name in ("rerunfailures", "flaky") for hook in item.ihook.pytest_runtest_protocol.get_hookimpls()
+    ):
         return None
 
     try:
@@ -681,6 +697,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     # DEV: Make excinfo available for later use, when we don't have the `call` object anymore.
     # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
     excinfo_by_report[outcome.get_result()] = call.excinfo
+    reports_by_item.setdefault(item, {})[call.when] = outcome.get_result()
 
     if not is_test_visibility_enabled():
         return
