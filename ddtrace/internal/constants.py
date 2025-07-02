@@ -74,9 +74,10 @@ ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
 EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
-MESSAGING_SYSTEM = "messaging.system"
 MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_MESSAGE_ID = "messaging.message_id"
 MESSAGING_OPERATION = "messaging.operation"
+MESSAGING_SYSTEM = "messaging.system"
 
 NETWORK_DESTINATION_NAME = "network.destination.name"
 
