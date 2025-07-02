@@ -116,7 +116,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if role == "model":
         role = DEFAULT_MODEL_ROLE
 
-    message = {"role": role}
+    message: Dict[str, Any] = {"role": role}
     if isinstance(part, str):
         message["content"] = part
         return message
