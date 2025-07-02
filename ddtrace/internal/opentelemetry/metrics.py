@@ -43,7 +43,7 @@ def set_otel_meter_provider():
 
         reader = PeriodicExportingMetricReader(exporter)
         set_meter_provider(MeterProvider(metric_readers=[reader]))
-    except ImportError:
+    except ImportError as e:
         log.warning(
             "The installed version of the OpenTelemetry SDK does not define required component: '%s'. "
             "A metrics provider (and exporter) will not be automatically configured. Open an issue at "
