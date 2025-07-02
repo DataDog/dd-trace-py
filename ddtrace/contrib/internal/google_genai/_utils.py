@@ -1,10 +1,13 @@
 import sys
-from typing import Any, Dict, List, Optional
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 import wrapt
 
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
+from ddtrace.llmobs._utils import _get_attr
 
 
 def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
