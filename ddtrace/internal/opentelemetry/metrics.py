@@ -50,4 +50,3 @@ def set_otel_meter_provider():
             "github.com/Datadog/dd-trace-py to report this bug.",
             str(e),
         )
-        pass
