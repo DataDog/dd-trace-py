@@ -4,6 +4,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
+from urllib.parse import quote
 
 
 # TypedDict was added to typing in python 3.8
@@ -35,6 +36,8 @@ from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -109,6 +112,7 @@ class BaseLLMObsWriter(PeriodicService):
         is_agentless: bool,
         _site: str = "",
         _api_key: str = "",
+        _app_key: str = "",
         _override_url: str = "",
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
@@ -118,6 +122,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
+        self._app_key: str = _app_key or config._dd_app_key
         self._override_url: str = _override_url
 
         self._agentless: bool = is_agentless
@@ -261,6 +266,71 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
     def _data(self, events: List[LLMObsEvaluationMetricEvent]) -> Dict[str, Any]:
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
+
+
+class LLMObsExperimentsClient(BaseLLMObsWriter):
+
+    def request(self, method: str, path: str, body: bytes = b"") -> Response:
+        headers = {
+            "Content-Type": "application/json",
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+        site = self._site
+        if site == "datad0g.com":
+            base = "https://dd.datad0g.com"
+        else:
+            base = f"https://api.{site}"
+
+        conn = get_connection(base)
+        try:
+            url = base + path
+            logger.debug("requesting %s", url)
+            conn.request(method, url, body, headers)
+            resp = conn.getresponse()
+            if resp.status >= 300:
+                raise ValueError(f"Failed to {method} {path}: {resp.status}")
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+    def dataset_pull(self, name: str) -> Dataset:
+
+        path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
+        resp = self.request("GET", path)
+
+        response_data = resp.get_json()
+        datasets = response_data.get("data", [])
+
+        if not datasets:
+            raise ValueError(f"Dataset '{name}' not found")
+
+        dataset_id = datasets[0]["id"]
+        url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        try:
+            resp = self.request("GET", url)
+            records_data = resp.get_json()
+        except ValueError as e:
+            if "404" in str(e):
+                raise ValueError(f"Dataset '{name}' not found") from e
+            raise
+
+        class_records: List[DatasetRecord] = []
+        for record in records_data.get("data", []):
+            attrs = record.get("attributes", {})
+            input_data = attrs.get("input")
+            expected_output = attrs.get("expected_output")
+
+            class_records.append(
+                {
+                    "record_id": record.get("id"),
+                    "input": input_data,
+                    "expected_output": expected_output,
+                    **attrs.get("metadata", {}),
+                }
+            )
+
+        return Dataset(name, dataset_id, class_records)
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

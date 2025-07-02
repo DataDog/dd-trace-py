@@ -99,7 +99,11 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
+    return {
+        "_dd_api_key": os.environ.get("DD_API_KEY", "<not-a-real-api_key>"),
+        "_llmobs_ml_app": "unnamed-ml-app",
+        "service": "tests.llmobs",
+    }
 
 
 @pytest.fixture
@@ -172,7 +176,7 @@ def tracer():
 @pytest.fixture
 def llmobs_env():
     return {
-        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
     }
 
