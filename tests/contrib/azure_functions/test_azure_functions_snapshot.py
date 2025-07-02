@@ -17,6 +17,8 @@ DISTRIBUTED_TRACING_DISABLED_PARAMS = {
     "DD_AZURE_FUNCTIONS_DISTRIBUTED_TRACING": "False",
 }
 
+SNAPSHOT_IGNORES = ["meta.messaging.message_id"]
+
 
 @pytest.fixture
 def azure_functions_client(request):
@@ -131,7 +133,7 @@ def test_http_get_distributed_tracing(azure_functions_client: Client) -> None:
     ids=["enabled", "disabled"],
     indirect=True,
 )
-@pytest.mark.snapshot
+@pytest.mark.snapshot(ignores=SNAPSHOT_IGNORES)
 def test_service_bus_distributed_tracing(azure_functions_client: Client) -> None:
     assert azure_functions_client.post("/api/httppostrootservicebus", headers=DEFAULT_HEADERS).status_code == 200
 
