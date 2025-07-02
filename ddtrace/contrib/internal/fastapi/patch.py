@@ -86,7 +86,6 @@ def patch():
         _w("fastapi.routing", "APIRoute.__init__", traced_route_init)
 
     if not isinstance(fastapi.routing.APIRoute.handle, ObjectProxy):
-        breakpoint()
         _w("fastapi.routing", "APIRoute.handle", traced_handler)
 
     if not isinstance(fastapi.routing.Mount.handle, ObjectProxy):

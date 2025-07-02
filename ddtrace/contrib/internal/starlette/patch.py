@@ -115,7 +115,6 @@ def unpatch():
 def traced_handler(wrapped, instance, args, kwargs):
     # Since handle can be called multiple times for one request, we take the path of each instance
     # Then combine them at the end to get the correct resource names
-    breakpoint()
     scope = get_argument_value(args, kwargs, 0, "scope")  # type: Optional[Dict[str, Any]]
     if not scope:
         return wrapped(*args, **kwargs)
@@ -144,13 +143,11 @@ def traced_handler(wrapped, instance, args, kwargs):
             # e.g. full path is /subapp/hello/{name}, first request span gets that as resource name
             # Second request span gets /hello/{name}
             path = "".join(resource_paths[index:])
-            breakpoint()
 
             if scope.get("method"):
                 span.resource = "{} {}".format(scope["method"], path)
             else:
                 span.resource = path
-            breakpoint()
             # route should only be in the root span
             if index == 0:
                 span.set_tag_str(http.ROUTE, path)
@@ -161,7 +158,6 @@ def traced_handler(wrapped, instance, args, kwargs):
             request_spans[0].resource = "{} {}".format(scope["method"], route)
         else:
             request_spans[0].resource = route
-        breakpoint()
         request_spans[0].set_tag_str(http.ROUTE, route)
     else:
         log.debug(
