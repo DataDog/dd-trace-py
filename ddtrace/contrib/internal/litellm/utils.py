@@ -145,9 +145,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks.values()
             ]
-        integration.llmobs_set_tags(
-            span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation
-        )
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
     return formatted_completions
