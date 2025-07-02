@@ -1,6 +1,12 @@
 from typing import Dict
+import sys
 
 from ddtrace import config
+from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
+from ddtrace.contrib.internal.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module
+from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -25,19 +31,32 @@ def _supported_versions() -> Dict[str, str]:
 @with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=False, model=getattr(instance, "model", None))
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
-    return TracedPydanticAsyncContextManager(result, span)
+    kwargs["instance"] = instance
+    return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
 
 
 @with_traced_module
 async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
-    with integration.trace(pin, "Pydantic Tool", submit_to_llmobs=False) as span:
+    resp = None
+    try:
+        span = integration.trace(pin, "Pydantic Tool", submit_to_llmobs=True, kind="tool")
         span.name = getattr(instance, "name", None) or "Pydantic Tool"
-        return await func(*args, **kwargs)
+        resp = await func(*args, **kwargs)
+        return resp
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        kwargs["instance"] = instance
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=resp
+        )
+        span.finish()
 
 
 def patch():
@@ -45,6 +64,7 @@ def patch():
 
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
+
 
     pydantic_ai._datadog_patch = True
 
