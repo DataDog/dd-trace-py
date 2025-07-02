@@ -143,6 +143,7 @@ class TraceMiddleware:
                 self.tracer, int_config=self.integration_config, request_headers=headers
             )
         resource = " ".join([method, scope["path"]])
+        breakpoint()
 
         # in the case of websockets we don't currently schematize the operation names
         operation_name = self.integration_config.get("request_span_name", "asgi.request")
@@ -248,6 +249,10 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
+                    breakpoint()
+                    if status_code == 404:
+                        span.resource = " ".join((method, "404"))
+
                     trace_utils.set_http_meta(
                         span,
                         self.integration_config,

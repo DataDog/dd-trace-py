@@ -189,6 +189,7 @@ class Span(object):
             return
         self.name = name
         self.service = service
+
         self._resource = [resource or name]
         self.span_type = span_type
         self._span_api = span_api
@@ -670,7 +671,7 @@ class Span(object):
         first_type = type(value[0])
         for val in value:
             if not isinstance(val, first_type) or not self._validate_scalar(key, val):
-                log.warning("record_exception: Attribute %s array must be homogenous: %s.", key, value)
+                log.warning("record_exception: Attribute %s array must be homogeneous: %s.", key, value)
                 return False
         return True
 

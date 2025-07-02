@@ -62,6 +62,7 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+
     assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -105,7 +106,7 @@ def test_read_item_nonexistent_item(client, tracer, test_spans):
     request_span = spans[0][0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /items/{item_id}"
+    assert request_span.resource == "GET 404"
     assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -263,7 +264,7 @@ def test_invalid_path(client, tracer, test_spans):
     request_span = spans[0][0]
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
-    assert request_span.resource == "GET /invalid_path"
+    assert request_span.resource == "GET 404"
     assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
