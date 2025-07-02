@@ -1,10 +1,13 @@
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
+# google genai has roles "model" and "user", but in order to stay consistent with other integrations,
+# we use "assistant" as the default role for model messages
+DEFAULT_MODEL_ROLE = "assistant"
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -105,6 +108,10 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 
     returns a dict representing a message with format {"role": role, "content": content}
     """
+    # substitute "model" with "assistant" to stay consistent with other integrations
+    if role == "model":
+        role = DEFAULT_MODEL_ROLE
+
     message = {"role": role}
     if isinstance(part, str):
         message["content"] = part

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 import wrapt
 
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
 
 
 def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
@@ -28,7 +29,7 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
                     continue
 
                 if role is None:
-                    role = _get_attr(content, "role", "model")
+                    role = _get_attr(content, "role", DEFAULT_MODEL_ROLE)
 
                 parts = _get_attr(content, "parts", [])
                 for part in parts:
@@ -43,7 +44,7 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
             parts.append({"text": "".join(text_chunks)})
         parts.extend(non_text_parts)
 
-        merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
+        merged_response = {"candidates": [{"content": {"role": role, "parts": parts}}] if parts else []}
 
         last_chunk = chunks[-1]
         merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})

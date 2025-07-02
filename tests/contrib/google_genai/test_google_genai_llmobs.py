@@ -174,7 +174,7 @@ def expected_llmobs_span_event(span):
             {"content": "You are a helpful assistant.", "role": "system"},
             {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
         ],
-        output_messages=[{"content": "The sky is blue due to rayleigh scattering", "role": "model"}],
+        output_messages=[{"content": "The sky is blue due to rayleigh scattering", "role": "assistant"}],
         metadata=get_expected_metadata(),
         token_metrics={"input_tokens": 8, "output_tokens": 9, "total_tokens": 17},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
@@ -190,7 +190,7 @@ def expected_llmobs_error_span_event(span):
             {"content": "You are a helpful assistant.", "role": "system"},
             {"content": "Why is the sky blue? Explain in 2-3 sentences.", "role": "user"},
         ],
-        output_messages=[{"content": "", "role": "model"}],
+        output_messages=[{"content": "", "role": "assistant"}],
         error="builtins.TypeError",
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
@@ -210,7 +210,7 @@ def expected_llmobs_tool_call_span_event(span):
             {"content": "What is the weather like in Boston?", "role": "user"},
         ],
         output_messages=[
-            {"role": "model", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
+            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
@@ -227,7 +227,7 @@ def expected_llmobs_tool_response_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "What is the weather like in Boston?", "role": "user"},
-            {"role": "model", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
+            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
             {
                 "role": "tool",
                 "content": {
@@ -247,7 +247,7 @@ def expected_llmobs_tool_response_span_event(span):
                     "The weather in Boston is sunny with a light breeze and the temperature is "
                     "72 degrees Fahrenheit."
                 ),
-                "role": "model",
+                "role": "assistant",
             }
         ],
         metadata=get_expected_tool_metadata(),
