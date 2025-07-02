@@ -4,6 +4,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
+import json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
@@ -648,6 +649,109 @@ class TestLLMObsOpenaiV1:
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
+    )
+    def test_chat_completion_tool_call_with_follow_up(
+        self, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        """Test a conversation flow where a tool call response is used in a follow-up message."""
+        model = "gpt-3.5-turbo"
+        messages = [{"role": "user", "content": chat_completion_input_description}]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_with_follow_up.yaml"):
+            first_resp = oai_with_test_agent_backend.chat.completions.create(
+                tools=chat_completion_custom_functions,
+                model=model,
+                messages=messages,
+                user="ddtrace-test",
+            )
+            tool_call_id = first_resp.choices[0].message.tool_calls[0].id
+            tool_name = first_resp.choices[0].message.tool_calls[0].function.name
+            tool_arguments_str = first_resp.choices[0].message.tool_calls[0].function.arguments
+
+            tool_result = {"status": "success", "gpa_verified": True}
+            messages += [
+                first_resp.choices[0].message,
+                {
+                    "role": "tool",
+                    "tool_call_id": first_resp.choices[0].message.tool_calls[0].id,
+                    "content": json.dumps(tool_result),
+                },
+                {"role": "user", "content": "Can you summarize the student's academic performance?"},
+            ]
+            second_resp = oai_with_test_agent_backend.chat.completions.create(
+                model=model,
+                messages=messages,
+                user="ddtrace-test",
+            )
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=first_resp.model,
+                        model_provider="openai",
+                        input_messages=[{"content": chat_completion_input_description, "role": "user"}],
+                        output_messages=[
+                            {
+                                "content": "",
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "name": tool_name,
+                                        "arguments": json.loads(tool_arguments_str),
+                                        "tool_id": tool_call_id,
+                                        "type": "function",
+                                    }
+                                ],
+                            }
+                        ],
+                        metadata={"user": "ddtrace-test"},
+                        token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=second_resp.model,
+                        model_provider="openai",
+                        input_messages=[
+                            {"content": chat_completion_input_description, "role": "user"},
+                            {
+                                "content": "None",
+                                "role": "assistant",
+                                "tool_calls": [
+                                    {
+                                        "name": tool_name,
+                                        "arguments": tool_arguments_str,
+                                        "tool_id": tool_call_id,
+                                        "type": "function",
+                                    }
+                                ],
+                            },
+                            {"content": json.dumps(tool_result), "role": "tool"},
+                            {"content": "Can you summarize the student's academic performance?", "role": "user"},
+                        ],
+                        output_messages=[
+                            {
+                                "content": "David Nguyen is a sophomore majoring in computer science at Stanford University with a GPA of 3.8. His academic performance is strong, as evidenced by his high GPA.",
+                                "role": "assistant",
+                            }
+                        ],
+                        metadata={"user": "ddtrace-test"},
+                        token_metrics={"input_tokens": 143, "output_tokens": 35, "total_tokens": 178},
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ]
         )
 
     @pytest.mark.skipif(
