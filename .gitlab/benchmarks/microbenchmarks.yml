@@ -160,7 +160,7 @@ microbenchmarks:
         - "errortracking_django_simple"
         # They take a long time to run and frequently time out
         # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
-        - "appsec_iast_django_startup"
+        # - "appsec_iast_django_startup"
         - "errortracking_flask_sqli"
         # Flaky. Timeout errors
         # - "encoder"
