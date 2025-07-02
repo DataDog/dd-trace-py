@@ -12,6 +12,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -261,6 +262,7 @@ def test_ip_update_rules_and_block(tracer):
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert py_ddwaf_builder_get_config_paths(tracer._appsec_processor._ddwaf._builder, "ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
