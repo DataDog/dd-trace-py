@@ -147,9 +147,7 @@ def gen_required_suites() -> None:
     for suite_name, suite_config in suites.items():
         # Extract stage from suite name prefix if present
         if "::" in suite_name:
-            stage = suite_name.split("::")[0]
-            # Remove prefix from suite name
-            clean_name = suite_name.split("::", 1)[1]
+            stage, _, clean_name = suite_name.partition("::")
         else:
             stage = "core"
             clean_name = suite_name
