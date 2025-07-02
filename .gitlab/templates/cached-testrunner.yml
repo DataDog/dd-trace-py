@@ -1,0 +1,40 @@
+.cached_testrunner:
+  extends: .testrunner
+  variables:
+    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
+    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
+    DD_CMAKE_INCREMENTAL_BUILD: '1'
+    DD_SETUP_CACHE_DOWNLOADS: '1'
+    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
+  before_script: |
+    ulimit -c unlimited
+    pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
+    export _CI_DD_AGENT_URL=http://${{HOST_IP}}:8126/
+    set -e -o pipefail
+    if [ ! -d $EXT_CACHE_VENV ]; then
+        python$PYTHON_VERSION -m venv $EXT_CACHE_VENV
+        source $EXT_CACHE_VENV/bin/activate
+        pip install cmake setuptools_rust Cython
+    else
+        source $EXT_CACHE_VENV/bin/activate
+    fi
+    python scripts/gen_ext_cache_scripts.py
+    deactivate
+    $SHELL scripts/restore-ext-cache.sh
+  after_script: |
+    set -e -o pipefail
+    source $EXT_CACHE_VENV/bin/activate
+    python scripts/gen_ext_cache_scripts.py
+    deactivate
+    $SHELL scripts/save-ext-cache.sh
+  cache:
+    # Share pip/sccache between jobs of the same Python version
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+      paths:
+        - .cache
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+      paths:
+        - .ext_cache
+    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+      paths:
+        - .download_cache
