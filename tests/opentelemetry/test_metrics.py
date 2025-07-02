@@ -15,10 +15,10 @@ def skipif(
     Parameters:
     - exporter_installed: If True, skip tests that require OpenTelemetry exporters.
     - exporter_not_installed: If True, skip tests that do not require OpenTelemetry exporters.
-    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.16 or higher.
+    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.0 or higher.
     """
-    if unsupported_otel_version and OTEL_VERSION < (1, 16):
-        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.16 or higher is required for these tests")
+    if unsupported_otel_version and OTEL_VERSION < (1, 0):
+        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.0 or higher is required for these tests")
 
     has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
     if exporter_installed and has_exporter:
