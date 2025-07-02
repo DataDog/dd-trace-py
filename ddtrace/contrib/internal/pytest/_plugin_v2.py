@@ -101,6 +101,8 @@ _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$"
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 
+skip_pytest_runtest_protocol = False
+
 
 class XdistHooks:
     @pytest.hookimpl
@@ -260,6 +262,8 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    global skip_pytest_runtest_protocol
+
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
@@ -275,6 +279,18 @@ def pytest_configure(config: pytest_Config) -> None:
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            skip_pytest_runtest_protocol = False
+
+            if config.pluginmanager.hasplugin("flaky"):
+                log.warning("The pytest `flaky` plugin is in use; Test Optimization advanced features will be disabled")
+                skip_pytest_runtest_protocol = True
+
+            if config.pluginmanager.hasplugin("rerunfailures"):
+                log.warning(
+                    "The pytest `rerunfailures` plugin is in use; Test Optimization advanced features will be disabled"
+                )
+                skip_pytest_runtest_protocol = True
 
             # pytest-bdd plugin support
             if config.pluginmanager.hasplugin("pytest-bdd"):
@@ -516,9 +532,7 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None
 
-    if any(
-        hook.plugin_name in ("rerunfailures", "flaky") for hook in item.ihook.pytest_runtest_protocol.get_hookimpls()
-    ):
+    if skip_pytest_runtest_protocol:
         return None
 
     try:
