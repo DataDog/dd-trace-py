@@ -74,7 +74,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _extract_input_message(self, args, kwargs, config):
+    def _extract_input_message(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
         messages = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
@@ -86,7 +86,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
         return messages
 
-    def _extract_messages_from_contents(self, contents, default_role):
+    def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
         messages = []
         for content in normalize_contents(contents):
             role = content.get("role") or default_role
@@ -94,7 +94,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(extract_message_from_part_google_genai(part, role))
         return messages
 
-    def _extract_output_messages(self, response):
+    def _extract_output_messages(self, response) -> List[Dict[str, Any]]:
         if not response:
             return [{"content": "", "role": "model"}]
         messages = []
@@ -110,7 +110,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         return messages
 
-    def _extract_metadata(self, config):
+    def _extract_metadata(self, config) -> Dict[str, Any]:
         if not config:
             return {}
         metadata = {}

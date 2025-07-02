@@ -1,3 +1,5 @@
+from typing import Any, Dict, List, Tuple
+
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
@@ -28,7 +30,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name(kwargs):
+def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
     model_path = kwargs.get("model", "")
     model_name = model_path.split("/")[-1]
     for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
@@ -38,7 +40,7 @@ def extract_provider_and_model_name(kwargs):
     return "custom", model_name if model_name else "custom"
 
 
-def normalize_contents(contents):
+def normalize_contents(contents) -> List[Dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -73,7 +75,7 @@ def normalize_contents(contents):
     return [extract_content(contents)]
 
 
-def extract_metrics_google_genai(response):
+def extract_metrics_google_genai(response) -> Dict[str, Any]:
     if not response:
         return {}
 
@@ -98,7 +100,7 @@ def extract_metrics_google_genai(response):
 
 
 # TODO(max): check for cases where more than one field is set per part
-def extract_message_from_part_google_genai(part, role):
+def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
     returns a dict representing a message with format {"role": role, "content": content}

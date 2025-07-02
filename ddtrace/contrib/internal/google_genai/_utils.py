@@ -1,11 +1,12 @@
 import sys
+from typing import Any, Dict, List, Optional
 
 import wrapt
 
 from ddtrace.llmobs._utils import _get_attr
 
 
-def _join_chunks(chunks):
+def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
     """
     Consolidates streamed response GenerateContentResponse chunks into a single dictionary representing the response.
 
