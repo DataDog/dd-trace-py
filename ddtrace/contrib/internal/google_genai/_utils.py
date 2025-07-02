@@ -18,35 +18,39 @@ def _join_chunks(chunks):
     non_text_parts = []
     role = None
 
-    for chunk in chunks:
-        candidates = _get_attr(chunk, "candidates", [])
-        for candidate in candidates:
-            content = _get_attr(candidate, "content", None)
-            if not content:
-                continue
+    try:
+        for chunk in chunks:
+            candidates = _get_attr(chunk, "candidates", [])
+            for candidate in candidates:
+                content = _get_attr(candidate, "content", None)
+                if not content:
+                    continue
 
-            if role is None:
-                role = _get_attr(content, "role", "model")
+                if role is None:
+                    role = _get_attr(content, "role", "model")
 
-            parts = _get_attr(content, "parts", [])
-            for part in parts:
-                text = _get_attr(part, "text", None)
-                if text:
-                    text_chunks.append(text)
-                else:
-                    non_text_parts.append(part)
+                parts = _get_attr(content, "parts", [])
+                for part in parts:
+                    text = _get_attr(part, "text", None)
+                    if text:
+                        text_chunks.append(text)
+                    else:
+                        non_text_parts.append(part)
 
-    parts = []
-    if text_chunks:
-        parts.append({"text": "".join(text_chunks)})
-    parts.extend(non_text_parts)
+        parts = []
+        if text_chunks:
+            parts.append({"text": "".join(text_chunks)})
+        parts.extend(non_text_parts)
 
-    merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
+        merged_response = {"candidates": [{"content": {"role": role or "model", "parts": parts}}] if parts else []}
 
-    last_chunk = chunks[-1]
-    merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
+        last_chunk = chunks[-1]
+        merged_response["usage_metadata"] = _get_attr(last_chunk, "usage_metadata", {})
 
-    return merged_response
+        return merged_response
+    except Exception:
+        # if error processing chunks, return None to avoid crashing the user app
+        return None
 
 
 class BaseTracedGoogleGenAIStreamResponse(wrapt.ObjectProxy):
