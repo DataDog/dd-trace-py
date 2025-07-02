@@ -9,6 +9,7 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
@@ -27,8 +28,11 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Span
 
 
-PREGEL_PUSH = "__pregel_push"
-PREGEL_TASKS = "__pregel_tasks"
+logger = get_logger(__name__)
+
+
+PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
+PREGEL_TASKS = "__pregel_tasks"  # represents the ephemeral channel name that pregel `Send` commands write to
 
 
 class LangGraphIntegration(BaseLLMIntegration):
@@ -102,19 +106,22 @@ class LangGraphIntegration(BaseLLMIntegration):
         In the case of finished and queued tasks, any finished tasks that aren't used as links to
         queued tasks should be linked to the encompassing graph span's output.
         """
-        if not self.llmobs_enabled:
-            return
-        graph_span = (
-            LLMObs._instance._current_span()
-        )  # we're running between nodes, so the current span should be the pregel graph
-        if graph_span is None:
-            return
+        try:
+            if not self.llmobs_enabled:
+                return
+            graph_span = (
+                LLMObs._instance._current_span()
+            )  # we're running between nodes, so the current span should be the pregel graph
+            if graph_span is None:
+                return
 
-        if not more_tasks:
-            self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
-            return
+            if not more_tasks:
+                self._handle_finished_graph(graph_span, finished_tasks, is_subgraph_node)
+                return
 
-        self._handle_intermediary_graph_tick(graph_span, next_tasks, finished_tasks)
+            self._handle_intermediary_graph_tick(graph_span, next_tasks, finished_tasks)
+        except Exception as e:
+            logger.debug("Error in LangGraph span linking operation", exc_info=e)
 
     def _handle_finished_graph(self, graph_span: Span, finished_tasks: dict[str, Any], is_subgraph_node: bool):
         """Create the span links for a finished pregel graph from all finished tasks as the graph span's outputs.
@@ -159,14 +166,14 @@ class LangGraphIntegration(BaseLLMIntegration):
             queued_node = self._graph_nodes_for_graph_by_task_id.setdefault(graph_span, {}).setdefault(task_id, {})
             queued_node["name"] = getattr(task, "name", "")
 
-            parent_ids = self._link_task_to_parents(
+            trigger_ids = self._link_task_to_triggers(
                 task, queued_node, graph_span, task_trigger_channels_to_finished_tasks
             )
-            used_finished_task_ids.update(parent_ids)
+            used_finished_task_ids.update(trigger_ids)
 
-        self._link_finished_tasks_without_children(graph_span, finished_tasks, used_finished_task_ids)
+        self._link_standalone_terminal_tasks(graph_span, finished_tasks, used_finished_task_ids)
 
-    def _link_task_to_parents(
+    def _link_task_to_triggers(
         self,
         task,
         queued_node,
@@ -178,9 +185,9 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         Returns the finished task ids used as parent tasks.
         """
-        parent_ids = _get_parent_ids_from_finished_tasks(task, task_trigger_channels_to_finished_tasks)
+        trigger_ids = _get_trigger_ids_from_finished_tasks(task, task_trigger_channels_to_finished_tasks)
 
-        for node_id in parent_ids:
+        for node_id in trigger_ids:
             if node_id is None:
                 continue
 
@@ -196,19 +203,19 @@ class LangGraphIntegration(BaseLLMIntegration):
             span_links: List[Dict[str, Any]] = queued_node.setdefault("span_links", [])
             span_links.append(span_link)
 
-        return parent_ids
+        return trigger_ids
 
-    def _link_finished_tasks_without_children(
+    def _link_standalone_terminal_tasks(
         self, graph_span: Span, finished_tasks: Dict[str, Any], used_finished_tasks_ids: Set[str]
     ):
         """
-        Links any unused finished tasks to the outer graph span with output --> output span links.
+        Links any unused finished tasks (terminal tasks) to the outer graph span with output --> output span links.
         It's possible some of the finished tasks aren't used as parents to queued tasks, but the
         current graph tick is not the last tick.
         """
-        unused_finished_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
+        standalone_terminal_task_ids = set(finished_tasks.keys()) - used_finished_tasks_ids
         graph_span_links = graph_span._get_ctx_item(SPAN_LINKS) or []
-        for finished_task_id in unused_finished_task_ids:
+        for finished_task_id in standalone_terminal_task_ids:
             node = self._graph_nodes_for_graph_by_task_id.get(graph_span, {}).get(finished_task_id)
             if node is None:
                 continue
@@ -227,7 +234,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
 
 
-def _get_parent_ids_from_finished_tasks(
+def _get_trigger_ids_from_finished_tasks(
     task,
     task_trigger_channels_to_finished_tasks: Dict[str, List[Union[str, Tuple[str, str]]]],
 ) -> List[str]:
@@ -235,7 +242,7 @@ def _get_parent_ids_from_finished_tasks(
     Get the set of task ids that are responsible for triggering the queued task (parents).
 
     Tasks are queued up by means of writes to ephemeral channels. A given finished task will "write"
-    to one of these channels, and the pregel look creates new tasks by consuming these writes and translating
+    to one of these channels, and the pregel loop creates new tasks by consuming these writes and translating
     them into triggers for the new tasks.
 
     Parentage for span linking is computed by looking at the writes from all of the finished tasks grouped by
@@ -249,12 +256,10 @@ def _get_parent_ids_from_finished_tasks(
     `__pregel_tasks` write that is for a node with the current task's name. Since each of these writes can only
     be used for one instance of a node queued by `Send`, we pop it from the list of `__pregel_tasks` writes.
     """
-    task_config = getattr(task, "config", {})
     task_triggers_from_task = getattr(task, "triggers", [])
-    task_triggers_from_task_config = task_config.get("metadata", {}).get("langgraph_triggers", [])
-    task_triggers = task_triggers_from_task or task_triggers_from_task_config or []
+    task_triggers = task_triggers_from_task or []
 
-    parent_ids: List[str] = []
+    trigger_ids: List[str] = []
 
     for trigger in task_triggers:
         if trigger == PREGEL_PUSH:
@@ -265,11 +270,11 @@ def _get_parent_ids_from_finished_tasks(
             pregel_push_index = _find_pregel_push_index(task, pregel_pushes)
             if pregel_push_index != -1:
                 _, trigger_id = pregel_pushes.pop(pregel_push_index)
-                parent_ids.append(trigger_id)
+                trigger_ids.append(trigger_id)
         else:
-            parent_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
+            trigger_ids.extend((cast(List[str], task_trigger_channels_to_finished_tasks.get(trigger)) or []))
 
-    return parent_ids
+    return trigger_ids
 
 
 def _find_pregel_push_index(task, pregel_pushes: List[Tuple[str, str]]) -> int:
@@ -289,7 +294,7 @@ def _map_channel_writes_to_finished_tasks_ids(
     """
     Maps channel writes for finished tasks to the list of finished tasks ids that wrote to that channel.
     For `__pregel_tasks` writes, we append both the node name for the `Send` object, and the finished task id
-    to be used in `_get_parent_ids_from_finished_tasks`.
+    to be used in `_get_trigger_ids_from_finished_tasks`.
     """
     channel_names_to_finished_tasks_ids: Dict[str, List[Union[str, Tuple[str, str]]]] = {}
     for finished_task_id, finished_task in finished_tasks.items():
