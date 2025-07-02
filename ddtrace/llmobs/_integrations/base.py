@@ -97,7 +97,7 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)
