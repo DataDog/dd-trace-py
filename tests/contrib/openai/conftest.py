@@ -55,7 +55,7 @@ def openai_organization():
 
 @pytest.fixture
 def oai_with_test_agent_backend(openai):
-    return openai.OpenAI(base_url=os.getenv("DD_AGENT_URL", "http://127.0.0.1:9126") + "/vcr/openai")
+    return openai.OpenAI(base_url=os.getenv("DD_AGENT_URL", "http://127.0.0.1:8126") + "/vcr/openai")
 
 
 @pytest.fixture
