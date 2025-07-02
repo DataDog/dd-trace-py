@@ -3415,6 +3415,7 @@ venv = Venv(
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
             },
             venvs=[
                 Venv(
