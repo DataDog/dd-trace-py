@@ -259,6 +259,9 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    global original_runner
+    original_runner = config.pluginmanager.getplugin("runner")
+
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
@@ -481,6 +484,9 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
             InternalTestModule.finish(module_id)
 
 
+original_runner = None
+
+
 @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
 def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     if not is_test_visibility_enabled():
@@ -492,7 +498,20 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     except Exception:  # noqa: E722
         log.debug("encountered error during pre-test", exc_info=True)
 
+    # To ensure our runtest protocol runs even in the presence of plugins such as `flaky` or `pytest-rerunfailures`,
+    # instead of defining `pytest_runtest_protocol` as a hook, we replace the builtin runner's `pytest_runtest_protocol`
+    # with our own.
+    if original_runner:
+        original_pytest_runtest_protocol = original_runner.pytest_runtest_protocol
+        original_runner.pytest_runtest_protocol = _pytest_runtest_protocol
+
     yield
+
+    # ...and then we undo it. We do this for each test instead of just once at the beginning of the session because Test
+    # Optimization can be disabled at any point during a test session in case we encounter an error, and in such a case
+    # we want the original pytest runner to continue working.
+    if original_runner:
+        original_runner.pytest_runtest_protocol = original_pytest_runtest_protocol
 
     try:
         _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
@@ -500,8 +519,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
         log.debug("encountered error during post-test", exc_info=True)
 
 
-@pytest.hookimpl(specname="pytest_runtest_protocol")
-def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
+def _pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None
 
