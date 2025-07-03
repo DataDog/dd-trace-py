@@ -5,7 +5,7 @@ dependencies = [
     "black==23.10.1",
     "click==8.1.7",
     "cython-lint==0.15.0",
-    "codespell==2.3.0",
+    "codespell==2.4.1",
     "bandit==1.7.5",
     "mypy==1.15.0",
     "coverage==7.3.0",
