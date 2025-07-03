@@ -109,12 +109,6 @@ ddup_config_sample_type(unsigned int _type) // cppcheck-suppress unusedFunction
 }
 
 void
-ddup_config_max_nframes(int max_nframes) // cppcheck-suppress unusedFunction
-{
-    Datadog::SampleManager::set_max_nframes(max_nframes);
-}
-
-void
 ddup_config_timeline(bool enabled) // cppcheck-suppress unusedFunction
 {
     Datadog::SampleManager::set_timeline(enabled);
