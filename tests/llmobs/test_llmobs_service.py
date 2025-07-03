@@ -1412,7 +1412,6 @@ assert LLMObs._instance._llmobs_span_writer._intake == "https://llmobs-intake.da
 """,
         env=env,
     )
-    print(err)
     assert status == 0
 
 
