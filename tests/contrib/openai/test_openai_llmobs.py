@@ -660,32 +660,31 @@ class TestLLMObsOpenaiV1:
         """Test a conversation flow where a tool call response is used in a follow-up message."""
         model = "gpt-3.5-turbo"
         messages = [{"role": "user", "content": chat_completion_input_description}]
-        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_with_follow_up.yaml"):
-            first_resp = oai_with_test_agent_backend.chat.completions.create(
-                tools=chat_completion_custom_functions,
-                model=model,
-                messages=messages,
-                user="ddtrace-test",
-            )
-            tool_call_id = first_resp.choices[0].message.tool_calls[0].id
-            tool_name = first_resp.choices[0].message.tool_calls[0].function.name
-            tool_arguments_str = first_resp.choices[0].message.tool_calls[0].function.arguments
+        first_resp = oai_with_test_agent_backend.chat.completions.create(
+            tools=chat_completion_custom_functions,
+            model=model,
+            messages=messages,
+            user="ddtrace-test",
+        )
+        tool_call_id = first_resp.choices[0].message.tool_calls[0].id
+        tool_name = first_resp.choices[0].message.tool_calls[0].function.name
+        tool_arguments_str = first_resp.choices[0].message.tool_calls[0].function.arguments
 
-            tool_result = {"status": "success", "gpa_verified": True}
-            messages += [
-                first_resp.choices[0].message,
-                {
-                    "role": "tool",
-                    "tool_call_id": first_resp.choices[0].message.tool_calls[0].id,
-                    "content": json.dumps(tool_result),
-                },
-                {"role": "user", "content": "Can you summarize the student's academic performance?"},
-            ]
-            second_resp = oai_with_test_agent_backend.chat.completions.create(
-                model=model,
-                messages=messages,
-                user="ddtrace-test",
-            )
+        tool_result = {"status": "success", "gpa_verified": True}
+        messages += [
+            first_resp.choices[0].message,
+            {
+                "role": "tool",
+                "tool_call_id": first_resp.choices[0].message.tool_calls[0].id,
+                "content": json.dumps(tool_result),
+            },
+            {"role": "user", "content": "Can you summarize the student's academic performance?"},
+        ]
+        second_resp = oai_with_test_agent_backend.chat.completions.create(
+            model=model,
+            messages=messages,
+            user="ddtrace-test",
+        )
 
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]

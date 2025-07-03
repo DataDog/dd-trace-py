@@ -341,7 +341,8 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
             processed_message["tool_id"] = tool_call_id
-        if _get_attr(m, "tool_calls", []):
+        tool_calls = _get_attr(m, "tool_calls", [])
+        if tool_calls:
             processed_message["tool_calls"] = [
                 {
                     "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
@@ -349,7 +350,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
                     "tool_id": _get_attr(tool_call, "id", ""),
                     "type": _get_attr(tool_call, "type", ""),
                 }
-                for tool_call in _get_attr(m, "tool_calls", [])
+                for tool_call in tool_calls
             ]
         input_messages.append(processed_message)
     parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
