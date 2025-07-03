@@ -52,6 +52,9 @@ class APPSEC(metaclass=Constant_Class):
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
+    ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -174,6 +177,9 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal[
+        "_dd.iast.telemetry.suppressed.vulnerabilities"
+    ] = "_dd.iast.telemetry.suppressed.vulnerabilities"
     TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
