@@ -655,17 +655,19 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 1), reason="Tool calls available after v1.1.0"
     )
     def test_chat_completion_tool_call_with_follow_up(
-        self, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         """Test a conversation flow where a tool call response is used in a follow-up message."""
         model = "gpt-3.5-turbo"
         messages = [{"role": "user", "content": chat_completion_input_description}]
-        first_resp = oai_with_test_agent_backend.chat.completions.create(
-            tools=chat_completion_custom_functions,
-            model=model,
-            messages=messages,
-            user="ddtrace-test",
-        )
+        client = openai.OpenAI()
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call.yaml"):
+            first_resp = client.chat.completions.create(
+                tools=chat_completion_custom_functions,
+                model=model,
+                messages=messages,
+                user="ddtrace-test",
+            )
         tool_call_id = first_resp.choices[0].message.tool_calls[0].id
         tool_name = first_resp.choices[0].message.tool_calls[0].function.name
         tool_arguments_str = first_resp.choices[0].message.tool_calls[0].function.arguments
@@ -680,11 +682,12 @@ class TestLLMObsOpenaiV1:
             },
             {"role": "user", "content": "Can you summarize the student's academic performance?"},
         ]
-        second_resp = oai_with_test_agent_backend.chat.completions.create(
-            model=model,
-            messages=messages,
-            user="ddtrace-test",
-        )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_tool_call_follow_up.yaml"):
+            second_resp = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                user="ddtrace-test",
+            )
 
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
@@ -713,7 +716,7 @@ class TestLLMObsOpenaiV1:
                             }
                         ],
                         metadata={"user": "ddtrace-test"},
-                        token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
+                        token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
@@ -741,12 +744,12 @@ class TestLLMObsOpenaiV1:
                         ],
                         output_messages=[
                             {
-                                "content": "David Nguyen is a sophomore majoring in computer science at Stanford University with a GPA of 3.8. His academic performance is strong, as evidenced by his high GPA.",
+                                "content": "David Nguyen is a sophomore majoring in computer science at Stanford University with a GPA of 3.8. His academic performance is impressive and he is excelling in his studies.",
                                 "role": "assistant",
                             }
                         ],
                         metadata={"user": "ddtrace-test"},
-                        token_metrics={"input_tokens": 143, "output_tokens": 35, "total_tokens": 178},
+                        token_metrics={"input_tokens": 143, "output_tokens": 36, "total_tokens": 179},
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
