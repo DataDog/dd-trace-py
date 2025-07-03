@@ -1,4 +1,5 @@
 import atexit
+import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -25,6 +26,7 @@ from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EXP_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -38,6 +40,7 @@ from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -269,58 +272,77 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsExperimentsClient(BaseLLMObsWriter):
+    AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
 
-    def request(self, method: str, path: str, body: bytes = b"") -> Response:
+    def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
         }
-        site = self._site
-        if site == "datad0g.com":
-            base = "https://dd.datad0g.com"
-        else:
-            base = f"https://api.{site}"
-
-        conn = get_connection(base)
+        body = json.dumps(body).encode("utf-8") if body else b""
+        conn = get_connection(self._intake)
         try:
-            url = base + path
+            url = self._intake + path
             logger.debug("requesting %s", url)
             conn.request(method, url, body, headers)
             resp = conn.getresponse()
-            if resp.status >= 300:
-                raise ValueError(f"Failed to {method} {path}: {resp.status}")
             return Response.from_http_response(resp)
         finally:
             conn.close()
 
-    def dataset_pull(self, name: str) -> Dataset:
+    def dataset_delete(self, dataset_id: str) -> None:
+        path = "/api/unstable/llm-obs/v1/datasets/delete"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "datasets",
+                    "attributes": {
+                        "type": "soft",
+                        "dataset_ids": [dataset_id],
+                    },
+                },
+            },
+        )
+        assert resp.status == 200, f"Failed to delete dataset {id}: {resp.get_json()}"
+        return None
 
+    def dataset_create(self, name: str, description: str) -> Dataset:
+        path = "/api/unstable/llm-obs/v1/datasets"
+        body = {
+            "data": {
+                "type": "datasets",
+                "attributes": {"name": name, "description": description},
+            }
+        }
+        resp = self.request("POST", path, body)
+        response_data = resp.get_json()
+        dataset_id = response_data["data"]["id"]
+        return Dataset(name, dataset_id, [])
+
+    def dataset_pull(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
 
         response_data = resp.get_json()
-        datasets = response_data.get("data", [])
-
-        if not datasets:
+        data = response_data["data"]
+        if not data:
             raise ValueError(f"Dataset '{name}' not found")
 
-        dataset_id = datasets[0]["id"]
+        dataset_id = data[0]["id"]
         url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        try:
-            resp = self.request("GET", url)
-            records_data = resp.get_json()
-        except ValueError as e:
-            if "404" in str(e):
-                raise ValueError(f"Dataset '{name}' not found") from e
-            raise
+        resp = self.request("GET", url)
+        if resp.status == 404:
+            raise ValueError(f"Dataset '{name}' not found")
+        records_data = resp.get_json()
 
         class_records: List[DatasetRecord] = []
         for record in records_data.get("data", []):
             attrs = record.get("attributes", {})
             input_data = attrs.get("input")
             expected_output = attrs.get("expected_output")
-
             class_records.append(
                 {
                     "record_id": record.get("id"),
@@ -329,7 +351,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     **attrs.get("metadata", {}),
                 }
             )
-
         return Dataset(name, dataset_id, class_records)
 
 

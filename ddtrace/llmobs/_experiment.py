@@ -18,25 +18,11 @@ class DatasetRecord(TypedDict):
 
 
 class Dataset:
-    _name: str
+    name: str
     _id: str
     _data: List[DatasetRecord]
 
-    def __init__(self, name: str, id: str, data: List[DatasetRecord]) -> None:
-        self._name = name
-        self._id = id
-        self._data = data
-
-    def __str__(self) -> str:
-        return f"Dataset(name={self._name}, id={self._id}, data={self._data})"
-
-
-class Experiment:
-    def __init__(self, name: str, dataset: Dataset, description: str = "") -> None:
+    def __init__(self, name: str, dataset_id: str, data: List[DatasetRecord]) -> None:
         self.name = name
-        self._dataset = dataset
-        self._experiment_id: Optional[str] = None
-        self._project_id: Optional[str] = None
-
-    def run(self):
-        pass
+        self._id = dataset_id
+        self._data = data

@@ -8,9 +8,8 @@ To start the service manually, invoke the ``enable`` method::
 
 from ._experiment import Dataset
 from ._experiment import DatasetRecord
-from ._experiment import Experiment
 from ._llmobs import LLMObs
 from ._llmobs import LLMObsSpan
 
 
-__all__ = ["LLMObs", "LLMObsSpan", "Experiment", "Dataset", "DatasetRecord"]
+__all__ = ["LLMObs", "LLMObsSpan", "Dataset", "DatasetRecord"]

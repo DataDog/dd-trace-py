@@ -14,7 +14,6 @@ from typing import Tuple
 from typing import TypedDict
 from typing import Union
 from typing import cast
-from urllib.parse import quote
 
 import ddtrace
 from ddtrace import config
@@ -75,7 +74,6 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -562,8 +560,13 @@ class LLMObs(Service):
     def pull_dataset(cls, name: str) -> Dataset:
         return cls._instance._dne_client.dataset_pull(name)
 
-    def experiment(self, name: str, dataset: Dataset) -> Experiment:
-        return Experiment(name, dataset)
+    @classmethod
+    def create_dataset(cls, name: str, description: str) -> Dataset:
+        return cls._instance._dne_client.dataset_create(name, description)
+
+    @classmethod
+    def _delete_dataset(cls, dataset_id: str) -> None:
+        return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:

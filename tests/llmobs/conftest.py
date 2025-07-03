@@ -273,7 +273,9 @@ def llmobs(
         llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
+        llmobs_service._instance._dne_client._intake = "http://localhost:9126/vcr/datadog"
         yield llmobs_service
+    tracer.shutdown()
     llmobs_service.disable()
 
 
