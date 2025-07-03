@@ -175,14 +175,17 @@ services:
         image: ghcr.io/datadog/dd-trace-py/testrunner:bca6869fffd715ea9a731f7b606807fa1b75cb71@sha256:9e3f53fa98ffc4b838b959d74d969aa2c384c4cbee7a3047a03d501be5f58760
         command: bash
         environment:
-            - TOX_SKIP_DIST=True
+          DD_SETUP_CACHE_DOWNLOADS: "1"
+          DD_CMAKE_INCREMENTAL_BUILD: "1"
+          DD_FAST_BUILD: "1"
+          CMAKE_BUILD_PARALLEL_LEVEL: "12"
+          CARGO_BUILD_JOBS: "12"
         network_mode: host
         userns_mode: host
         working_dir: /root/project/
         volumes:
           - ddagent:/tmp/ddagent
           - ./:/root/project
-          - ./.ddtox:/root/project/.tox
           - ./.riot:/root/project/.riot
 
     localstack:
