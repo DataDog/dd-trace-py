@@ -190,7 +190,7 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             return
 
         http_req = fn_args[0]
-        resolver_match = getattr(http_req, 'resolver_match', None)
+        resolver_match = getattr(http_req, "resolver_match", None)
         if resolver_match is not None:
             set_iast_request_endpoint(http_req.method, resolver_match.route)
 
