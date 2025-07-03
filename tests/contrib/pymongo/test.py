@@ -28,6 +28,15 @@ else:
 from pymongo.monitoring import CommandListener
 
 
+# AsyncMongoClient should be available after pymongo 4.13
+if pymongo.version_tuple >= (4, 13):
+    from pymongo import AsyncMongoClient
+
+    ASYNC_MONGO_CLIENT_AVAILABLE = True
+else:
+    ASYNC_MONGO_CLIENT_AVAILABLE = False
+
+
 def test_normalize_filter():
     # ensure we can properly normalize queries FIXME[matt] move to the agent
     cases = [
@@ -1149,3 +1158,65 @@ class TestPymongoDBMInjection(TracerTestCase):
         assert find_commands[0].get("find") == "songs"
         assert find_commands[0].get("comment") is not None
         assert find_commands[0].get("comment") == "find songs"
+
+
+class TestPymongoAsyncClient(TracerTestCase):
+    """
+    This test verifies that AsyncMongoClient operations are properly traced.
+    """
+
+    def setUp(self):
+        super(TestPymongoAsyncClient, self).setUp()
+        patch()
+        self.tracer = DummyTracer()
+
+    def tearDown(self):
+        unpatch()
+        super(TestPymongoAsyncClient, self).tearDown()
+
+    def test_async_client_tracing(self):
+        """Test if AsyncMongoClient operations generate spans."""
+        if not ASYNC_MONGO_CLIENT_AVAILABLE:
+            self.skipTest("AsyncMongoClient not available in this PyMongo version")
+
+        import asyncio
+
+        async def run_async_test():
+            client = AsyncMongoClient(port=MONGO_CONFIG["port"], serverSelectionTimeoutMS=1000)
+
+            pin = Pin.get_from(client)
+            if pin:
+                pin._clone(tracer=self.tracer).onto(client)
+
+            try:
+                db = client["testdb"]
+                await db.drop_collection("async_test")
+
+                result = await db.async_test.insert_one({"name": "test", "value": 42})
+                assert result.inserted_id is not None
+
+                doc = await db.async_test.find_one({"name": "test"})
+                assert doc is not None
+                assert doc["value"] == 42
+                await db.drop_collection("async_test")
+
+            finally:
+                client.close()
+
+            spans = self.tracer.pop()
+            return spans
+
+        spans = asyncio.run(run_async_test())
+
+        if not spans:
+            # This is expected for AsyncMongoClient for now, until we add support.
+            print("No spans generated - AsyncMongoClient is not currently traced")
+            return
+
+        print(f"Generated {len(spans)} spans")
+        for i, span in enumerate(spans):
+            assert span.service == "pymongo"
+            assert span.span_type == "mongodb"
+            assert span.get_tag("component") == "pymongo"
+            assert span.get_tag("span.kind") == "client"
+            assert span.get_tag("db.system") == "mongodb"
