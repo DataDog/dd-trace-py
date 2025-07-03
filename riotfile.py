@@ -182,7 +182,6 @@ venv = Venv(
                 "pylibmc": latest,
                 "bcrypt": "==4.2.1",
                 "pytest-django[testing]": "==3.10.0",
-                "pytest-randomly": latest,
             },
             env={
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
