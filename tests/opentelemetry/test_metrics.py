@@ -73,10 +73,10 @@ def test_otel_metrics_exporter_installed():
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_TRACE_OTEL_METRICS_ENABLED": "true"})
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_METRICS_OTEL_ENABLED": "true"})
 def test_otel_metrics_enabled():
     """
-    Test that the OpenTelemetry metrics exporter is automatically configured when DD_TRACE_OTEL_METRICS_ENABLED is set.
+    Test that the OpenTelemetry metrics exporter is automatically configured when DD_METRICS_OTEL_ENABLED is set.
     """
     from opentelemetry.metrics import get_meter_provider
 
@@ -85,10 +85,10 @@ def test_otel_metrics_enabled():
 
 
 @skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_TRACE_OTEL_METRICS_ENABLED": [None, "false"]})
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_METRICS_OTEL_ENABLED": [None, "false"]})
 def test_otel_metrics_disabled_and_unset():
     """
-    Test that the OpenTelemetry metrics exporter is NOT automatically configured when DD_TRACE_OTEL_METRICS_ENABLED is set.
+    Test that the OpenTelemetry metrics exporter is NOT automatically configured when DD_METRICS_OTEL_ENABLED is set.
     """
     from opentelemetry.metrics import get_meter_provider
 
