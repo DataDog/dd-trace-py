@@ -127,7 +127,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 
     text = _get_attr(part, "text", None)
     if text:
-        message["content"] = text
+        message["content"] = str(text)
         return message
 
     function_call = _get_attr(part, "function_call", None)
