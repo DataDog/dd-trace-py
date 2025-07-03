@@ -103,7 +103,7 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.20.0",
+        "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.23.0",
         "pinned": "true",
         "auto-instrumented": true
@@ -495,6 +495,14 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "pydantic-ai-slim",
+        "integration": "pydantic_ai",
+        "minimum_tracer_supported": "0.3.0",
+        "max_tracer_supported": "0.3.3",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "pylibmc",
         "integration": "pylibmc",
         "minimum_tracer_supported": "1.6.3",
@@ -512,7 +520,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.10.1",
+        "max_tracer_supported": "4.13.2",
         "auto-instrumented": true
     },
     {
