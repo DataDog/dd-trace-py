@@ -75,7 +75,7 @@ def find_log_correlation_attributes(captured_logs, log_message: str):
 @pytest.mark.skipif(
     EXPORTER_VERSION > (0, 0, 0), reason="Only run if OpenTelemetry exporter is not installed in riot venv"
 )
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_sdk_not_installed_by_default():
     """
     Test that the OpenTelemetry logs exporter can be set up correctly.
@@ -91,10 +91,10 @@ def test_otel_sdk_not_installed_by_default():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
 def test_otel_logs_support_enabled():
     """
-    Test that the OpenTelemetry logs exporter is automatically configured when DD_OTEL_LOGS_ENABLED is set.
+    Test that the OpenTelemetry logs exporter is automatically configured when DD_LOGS_OTEL_ENABLED is set.
     """
     from opentelemetry._logs import get_logger_provider
 
@@ -111,12 +111,12 @@ def test_otel_logs_support_enabled():
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
 @pytest.mark.subprocess(
-    env={"DD_OTEL_LOGS_ENABLED": "true"},
+    env={"DD_LOGS_OTEL_ENABLED": "true"},
     err=b"OpenTelemetry Logs exporter was already configured by ddtrace, skipping setup.\n",
 )
 def test_otel_logs_exporter_configured_twice():
     """
-    Test that the OpenTelemetry logs exporter is automatically configured when DD_OTEL_LOGS_ENABLED is set.
+    Test that the OpenTelemetry logs exporter is automatically configured when DD_LOGS_OTEL_ENABLED is set.
     """
     from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
 
@@ -137,10 +137,10 @@ def test_otel_logs_exporter_configured_twice():
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
-@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_OTEL_LOGS_ENABLED": [None, "false"]})
+@pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_LOGS_OTEL_ENABLED": [None, "false"]})
 def test_otel_logs_support_not_enabled():
     """
-    Test that the OpenTelemetry logs exporter is NOT automatically configured when DD_OTEL_LOGS_ENABLED is set.
+    Test that the OpenTelemetry logs exporter is NOT automatically configured when DD_LOGS_OTEL_ENABLED is set.
     """
     from opentelemetry._logs import get_logger_provider
 
@@ -159,7 +159,7 @@ def test_otel_logs_support_not_enabled():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
-        "DD_OTEL_LOGS_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
         "DD_SERVICE": "ddservice",
         "DD_VERSION": "ddv1",
         "DD_ENV": "ddenv",
@@ -169,7 +169,7 @@ def test_otel_logs_support_not_enabled():
 )
 def test_otel_logs_exporter_auto_configured_http():
     """
-    Test that the OpenTelemetry logs exporter is automatically configured for HTTP when DD_OTEL_LOGS_ENABLED is set.
+    Test that the OpenTelemetry logs exporter is automatically configured for HTTP when DD_LOGS_OTEL_ENABLED is set.
     """
     from logging import getLogger
     import time
@@ -239,7 +239,7 @@ def test_otel_logs_exporter_auto_configured_http():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
-        "DD_OTEL_LOGS_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
     },
     err=b"OpenTelemetry Logs exporter protocol 'http/json' is not supported. Use 'grpc' or 'http/protobuf'.\n",
@@ -254,7 +254,7 @@ def test_otel_logs_exporter_otlp_protocol_unsupported():
 )
 @pytest.mark.subprocess(
     ddtrace_run=True,
-    env={"DD_OTEL_LOGS_ENABLED": "true"},
+    env={"DD_LOGS_OTEL_ENABLED": "true"},
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", None]},
 )
 def test_otel_logs_exporter_auto_configured_grpc():
@@ -305,7 +305,7 @@ def test_otel_logs_exporter_auto_configured_grpc():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
-        "DD_OTEL_LOGS_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
         "DD_TRACE_OTEL_ENABLED": None,
         "DD_SERVICE": "test_service",
         "DD_VERSION": "1.0",
@@ -382,7 +382,7 @@ def test_ddtrace_log_correlation():
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
-        "DD_OTEL_LOGS_ENABLED": "true",
+        "DD_LOGS_OTEL_ENABLED": "true",
         "DD_TRACE_OTEL_ENABLED": "true",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=test_service,service.version=1.0,"
         "deployment.environment=test_env,host.name=test_host",
