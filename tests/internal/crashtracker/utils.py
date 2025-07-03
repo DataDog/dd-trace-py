@@ -3,9 +3,13 @@ import os
 import random
 import select
 import socket
+from typing import Optional
+from typing import Tuple
+
+import pytest
 
 
-def crashtracker_receiver_bind():
+def crashtracker_receiver_bind() -> Tuple[int, socket.socket]:
     """Bind to a random port in the range 10000-19999"""
     port = None
     sock = None
@@ -23,7 +27,7 @@ def crashtracker_receiver_bind():
     return port, sock
 
 
-def listen_get_conn(sock):
+def listen_get_conn(sock: socket.socket) -> Optional[socket.socket]:
     """Given a listening socket, wait for a connection and return it"""
     if not sock:
         return None
@@ -34,7 +38,7 @@ def listen_get_conn(sock):
     return conn
 
 
-def conn_to_bytes(conn):
+def conn_to_bytes(conn: socket.socket) -> bytes:
     """Read all data from a connection and return it"""
     # Don't assume nonblocking socket, so go back up to select for everything
     ret = b""
@@ -49,7 +53,7 @@ def conn_to_bytes(conn):
     return ret
 
 
-def start_crashtracker(port: int, stdout=None, stderr=None):
+def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None) -> bool:
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
@@ -139,3 +143,25 @@ class CrashtrackerWrapper:
 
     def logs(self):
         return read_files([self.stdout, self.stderr])
+
+
+def get_crash_report(sock: socket.socket) -> bytes:
+    """Wait for a crash report from the crashtracker listener socket."""
+    conn = listen_get_conn(sock)
+    assert conn
+
+    try:
+        for _ in range(5):
+            data = conn_to_bytes(conn)
+            assert data, "Expected data from crashreport listener, got empty response"
+
+            # Ignore any /info requests, which might occur before the crash report is sent
+            if data.startswith(b"GET /info"):
+                continue
+
+            return data
+
+        else:
+            pytest.fail("No crash report received after 5 attempts")
+    finally:
+        conn.close()
