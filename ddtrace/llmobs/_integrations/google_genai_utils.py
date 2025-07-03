@@ -154,8 +154,8 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     code_execution_result = _get_attr(part, "code_execution_result", None)
     if code_execution_result:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
-        output = str(_get_attr(code_execution_result, "output", ""))
-        message["content"] = {"outcome": outcome, "output": output}
+        output = _get_attr(code_execution_result, "output", "")
+        message["content"] = {"outcome": str(outcome), "output": str(output)}
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
