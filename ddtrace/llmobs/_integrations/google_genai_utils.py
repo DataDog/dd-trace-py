@@ -3,10 +3,10 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -107,7 +107,6 @@ def extract_metrics_google_genai(response) -> Dict[str, Any]:
     return usage
 
 
-# TODO(max): check for cases where more than one field is set per part
 def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
 
