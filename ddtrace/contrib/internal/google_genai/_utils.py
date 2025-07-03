@@ -78,13 +78,12 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._self_chunks.append(chunk)
             return chunk
         except StopIteration:
-            if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
-                self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span,
-                    args=self._self_args,
-                    kwargs=self._self_kwargs,
-                    response=_join_chunks(self._self_chunks),
-                )
+            self._self_dd_integration.llmobs_set_tags(
+                self._self_dd_span,
+                args=self._self_args,
+                kwargs=self._self_kwargs,
+                response=_join_chunks(self._self_chunks),
+            )
             self._self_dd_span.finish()
             raise
         except Exception:
@@ -103,13 +102,12 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
             self._self_chunks.append(chunk)
             return chunk
         except StopAsyncIteration:
-            if self._self_dd_integration.is_pc_sampled_llmobs(self._self_dd_span):
-                self._self_dd_integration.llmobs_set_tags(
-                    self._self_dd_span,
-                    args=self._self_args,
-                    kwargs=self._self_kwargs,
-                    response=_join_chunks(self._self_chunks),
-                )
+            self._self_dd_integration.llmobs_set_tags(
+                self._self_dd_span,
+                args=self._self_args,
+                kwargs=self._self_kwargs,
+                response=_join_chunks(self._self_chunks),
+            )
             self._self_dd_span.finish()
             raise
         except Exception:

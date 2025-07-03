@@ -40,8 +40,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module
@@ -60,8 +59,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
             resp = await func(*args, **kwargs)
             return resp
         finally:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module
@@ -80,8 +78,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         return TracedGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
         span.finish()
         raise
 
@@ -102,8 +99,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         return TracedAsyncGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
         span.finish()
         raise
 
