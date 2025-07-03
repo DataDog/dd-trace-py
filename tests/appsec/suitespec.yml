@@ -38,6 +38,7 @@ suites:
       - tests/appsec/iast/*
     retry: 2
     runner: riot
+    timeout: 30m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
