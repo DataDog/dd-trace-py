@@ -33,7 +33,13 @@ invalid_error = """appsec.waf.error::update::rules::bad cast, expected 'array', 
 
 def _assert_generate_metrics(metrics_result, is_rule_triggered=False, is_blocked_request=False, is_updated=0):
     metric_update = 0
-    generate_metrics = metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
+    # Since the appsec.enabled metric is emitted on each telemetry worker interval, it can cause random errors in
+    # this function and make the tests flaky. That's why we exclude the "enabled" metric from this assert
+    generate_metrics = [
+        m
+        for m in metrics_result[TELEMETRY_TYPE_GENERATE_METRICS][TELEMETRY_NAMESPACE.APPSEC.value]
+        if m["metric"] != "enabled"
+    ]
     assert (
         len(generate_metrics) == 3 + is_updated
     ), f"Expected {3 + is_updated} generate_metrics, got {[m['metric'] for m in generate_metrics]}"
