@@ -826,13 +826,14 @@ class TestLLMObsAnthropic:
         )
 
     def test_completion_prompt_caching(
-        self, anthropic_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
     ):
+        llm = anthropic.Anthropic()
         """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
         large_system_prompt = [
             {
                 "type": "text",
-                "text": "Software engineering best practices guide: " + "farewell " * 1024,
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
                 "cache_control": {"type": "ephemeral"},
             },
         ]
@@ -843,12 +844,13 @@ class TestLLMObsAnthropic:
             "temperature": 0.1,
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
         }
-        _, _ = anthropic_with_test_agent_backend.messages.create(
-            **inference_args,
-            messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
-        ), anthropic_with_test_agent_backend.messages.create(
-            **inference_args, messages=[{"role": "user", "content": "What is a system"}]
-        )
+        with request_vcr.use_cassette("anthropic_completion_cache_write.yaml"):
+            llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        with request_vcr.use_cassette("anthropic_completion_cache_read.yaml"):
+            llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
@@ -919,7 +921,7 @@ class TestLLMObsAnthropic:
         )
 
     def test_completion_stream_prompt_caching(
-        self, anthropic_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
     ):
         """Test that prompt caching metrics are properly captured for streamed completions."""
         large_system_prompt = [
@@ -937,17 +939,18 @@ class TestLLMObsAnthropic:
             "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
             "stream": True,
         }
-        stream1 = anthropic_with_test_agent_backend.messages.create(
-            **inference_args,
-            messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
-        )
-        for _ in stream1:
-            pass
-        stream2 = anthropic_with_test_agent_backend.messages.create(
-            **inference_args, messages=[{"role": "user", "content": "What is a system"}]
-        )
-        for _ in stream2:
-            pass
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_write.yaml"):
+            stream1 = llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+            for _ in stream1:
+                pass
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_read.yaml"):
+            stream2 = llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
+            for _ in stream2:
+                pass
 
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
