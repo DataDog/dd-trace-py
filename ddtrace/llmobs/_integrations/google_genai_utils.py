@@ -91,7 +91,14 @@ def extract_metrics_google_genai(response) -> Dict[str, Any]:
 
     usage = {}
     input_tokens = _get_attr(usage_metadata, "prompt_token_count", None)
-    output_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
+
+    candidates_tokens = _get_attr(usage_metadata, "candidates_token_count", None)
+    thought_tokens = _get_attr(usage_metadata, "thoughts_token_count", None)
+    if candidates_tokens is not None or thought_tokens is not None:
+        output_tokens = (candidates_tokens or 0) + (thought_tokens or 0)
+    else:
+        output_tokens = None
+
     cached_tokens = _get_attr(usage_metadata, "cached_content_token_count", None)
     total_tokens = _get_attr(usage_metadata, "total_token_count", None) or input_tokens + output_tokens
 
