@@ -50,7 +50,7 @@ def decode_logs_request(request_body: bytes):
     return export_request
 
 
-def find_log_correlation_attributes(captured_logs, log_message: str) -> dict[str, str]:
+def find_log_correlation_attributes(captured_logs, log_message: str):
     """Find and return the log correlation attributes from the received requests."""
     lc_attributes = {}
     for resource_logs in captured_logs.resource_logs:
