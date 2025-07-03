@@ -263,7 +263,6 @@ def _expected_llmobs_eval_metric_event(
     tags=None,
     metadata=None,
 ):
-    """Helper function to create an expected evaluation metric event."""
     eval_metric_event = {
         "join_on": {},
         "metric_type": metric_type,
