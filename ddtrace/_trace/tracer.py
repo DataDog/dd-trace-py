@@ -55,7 +55,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -224,11 +224,14 @@ class Tracer(object):
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     @property
-    def _agent_url(self):
-        return getattr(self._span_aggregator.writer, "intake_url", None)
+    def _agent_url(self) -> Optional[str]:
+        if isinstance(self._span_aggregator.writer, HTTPWriter):
+            # For AgentWriterInterface, we can return the intake_url directly
+            return self._span_aggregator.writer.intake_url
+        return None
 
     @_agent_url.setter
-    def _agent_url(self, value):
+    def _agent_url(self, value: str):
         if isinstance(self._span_aggregator.writer, HTTPWriter):
             self._span_aggregator.writer.intake_url = value
 
@@ -745,8 +748,8 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
-            return self._span_aggregator.writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            return self._span_aggregator.writer.intake_url
 
         return None
 

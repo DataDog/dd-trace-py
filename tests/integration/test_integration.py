@@ -601,7 +601,7 @@ def test_writer_flush_queue_generates_debug_log():
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, encoding),
+                "{}/{}/traces".format(writer.intake_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
