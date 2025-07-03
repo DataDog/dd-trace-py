@@ -466,7 +466,7 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
             "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
-            t._span_aggregator.writer.agent_url,
+            t._span_aggregator.writer.intake_url,
         )
     ]
     log.error.assert_has_calls(calls)

@@ -684,7 +684,7 @@ class TracerTestCases(TracerTestCase):
 def test_tracer_url_default():
     import ddtrace
 
-    assert ddtrace.trace.tracer._span_aggregator.writer.agent_url == "http://localhost:8126"
+    assert ddtrace.trace.tracer._span_aggregator.writer.intake_url == "http://localhost:8126"
 
 
 @pytest.mark.subprocess()
