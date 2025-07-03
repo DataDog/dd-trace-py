@@ -6,6 +6,7 @@ from typing import Tuple
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -99,7 +100,7 @@ def extract_metrics_google_genai(response) -> Dict[str, Any]:
     if output_tokens is not None:
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
     if cached_tokens is not None:
-        usage["cached_tokens"] = cached_tokens  # TODO(max): add constant for cached tokens when it is introduced
+        usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
 
