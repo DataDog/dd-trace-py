@@ -36,6 +36,7 @@ from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
@@ -272,18 +273,22 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsExperimentsClient(BaseLLMObsWriter):
+
+    EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
+    ENDPOINT = ""
 
     def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
+            EVP_SUBDOMAIN_HEADER_NAME: self.EVP_SUBDOMAIN_HEADER_VALUE,
         }
         body = json.dumps(body).encode("utf-8") if body else b""
         conn = get_connection(self._intake)
         try:
-            url = self._intake + path
+            url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
             conn.request(method, url, body, headers)
             resp = conn.getresponse()
@@ -318,6 +323,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             }
         }
         resp = self.request("POST", path, body)
+        assert resp.status == 200, f"Failed to create dataset {name}: {resp.status} {resp.get_json()}"
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
         return Dataset(name, dataset_id, [])
@@ -325,6 +331,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def dataset_pull(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
+        assert resp.status == 200, f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}"
 
         response_data = resp.get_json()
         data = response_data["data"]

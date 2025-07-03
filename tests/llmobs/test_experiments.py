@@ -11,7 +11,7 @@ def test_dataset(llmobs):
     if os.environ.get("RECORD_REQUESTS"):
         import time
 
-        time.sleep(1)
+        time.sleep(2)
 
     yield ds
 
