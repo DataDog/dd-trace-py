@@ -8,13 +8,14 @@ from typing import Union
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
+NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
 
 
 class DatasetRecord(TypedDict):
-    input: JSONType
+    input: NonNoneJSONType
     expected_output: JSONType
+    metadata: Dict[str, Any]
     record_id: NotRequired[Optional[str]]
-    metadata: NotRequired[Optional[Dict[str, Any]]]
 
 
 class Dataset:

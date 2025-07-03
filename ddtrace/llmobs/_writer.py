@@ -355,7 +355,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "record_id": record.get("id"),
                     "input": input_data,
                     "expected_output": expected_output,
-                    **attrs.get("metadata", {}),
+                    "metadata": attrs.get("metadata", {}),
                 }
             )
         return Dataset(name, dataset_id, class_records)
