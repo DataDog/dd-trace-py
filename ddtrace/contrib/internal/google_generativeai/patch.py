@@ -7,9 +7,7 @@ import google.generativeai as genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
-from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
 from ddtrace.contrib.internal.google_generativeai._utils import tag_request
-from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -53,12 +51,8 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     try:
         tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
-        api_key = _extract_api_key(instance)
-        if api_key:
-            span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
         if stream:
             return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -88,7 +82,6 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
