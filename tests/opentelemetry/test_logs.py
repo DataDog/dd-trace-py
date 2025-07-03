@@ -75,14 +75,12 @@ def find_log_correlation_attributes(captured_logs, log_message: str) -> dict[str
 @pytest.mark.skipif(
     EXPORTER_VERSION > (0, 0, 0), reason="Only run if OpenTelemetry exporter is not installed in riot venv"
 )
+@pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
 def test_otel_sdk_not_installed_by_default():
     """
     Test that the OpenTelemetry logs exporter can be set up correctly.
     """
-    from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
-
-    # This should not raise an ImportError
-    set_otel_logs_exporter()
+    import pytest
 
     # If the OpenTelemetry SDK is not installed
     with pytest.raises(ImportError):
@@ -169,7 +167,7 @@ def test_otel_logs_support_not_enabled():
     },
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf"]},
 )
-def test_otel_logs_provider_auto_configured_http():
+def test_otel_logs_exporter_auto_configured_http():
     """
     Test that the OpenTelemetry logs exporter is automatically configured for HTTP when DD_OTEL_LOGS_ENABLED is set.
     """
@@ -191,7 +189,7 @@ def test_otel_logs_provider_auto_configured_http():
         mock_response = Mock(status_code=200)
         mock_request.return_value = mock_response
 
-        log.error("test_otel_logs_provider_auto_configured_http")
+        log.error("test_otel_logs_exporter_auto_configured_http")
 
         lp = get_logger_provider()
         time.sleep(1)
@@ -210,7 +208,7 @@ def test_otel_logs_provider_auto_configured_http():
     captured_logs = decode_logs_request(request_body)
     assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
 
-    lc_attributes = find_log_correlation_attributes(captured_logs, "test_otel_logs_provider_auto_configured_http")
+    lc_attributes = find_log_correlation_attributes(captured_logs, "test_otel_logs_exporter_auto_configured_http")
     assert len(lc_attributes) == 6, f"Expected 6 log correlation attributes but found: {lc_attributes}"
     assert (
         lc_attributes["service"] == "ddservice"
@@ -236,6 +234,22 @@ def test_otel_logs_provider_auto_configured_http():
 
 @pytest.mark.skipif(
     EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to use the OTLP Logs exporters",
+)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_OTEL_LOGS_ENABLED": "true",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
+    },
+    err=b"OpenTelemetry Logs exporter protocol 'http/json' is not supported. Use 'grpc' or 'http/protobuf'.\n",
+)
+def test_otel_logs_exporter_otlp_protocol_unsupported():
+    import opentelemetry._logs  # noqa: F401
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
     reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
 )
 @pytest.mark.subprocess(
@@ -243,7 +257,7 @@ def test_otel_logs_provider_auto_configured_http():
     env={"DD_OTEL_LOGS_ENABLED": "true"},
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", None]},
 )
-def test_otel_logs_provider_auto_configured_grpc():
+def test_otel_logs_exporter_auto_configured_grpc():
     """
     Test that OpenTelemetry logs exporter sends data via gRPC to a mocked OTLP endpoint.
     """
@@ -258,7 +272,7 @@ def test_otel_logs_provider_auto_configured_grpc():
     try:
         server.start()
         logger = getLogger()
-        logger.error("test_otel_logs_provider_auto_configured_grpc")
+        logger.error("test_otel_logs_exporter_auto_configured_grpc")
 
         lp = get_logger_provider()
         time.sleep(1)
@@ -280,7 +294,7 @@ def test_otel_logs_provider_auto_configured_grpc():
     ]
 
     assert any(
-        b"test_otel_logs_provider_auto_configured_grpc" in log.body.string_value.encode() for log in all_logs
+        b"test_otel_logs_exporter_auto_configured_grpc" in log.body.string_value.encode() for log in all_logs
     ), "Expected log message not found in exported gRPC payload"
 
 

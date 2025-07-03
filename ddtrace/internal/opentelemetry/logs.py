@@ -14,7 +14,30 @@ MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 DD_LOGS_PROVIDER_CONFIGURED = False
 
 
-def should_configure_logs_exporter() -> bool:
+def set_otel_logs_exporter():
+    """Set up the OpenTelemetry Logs exporter if not already configured."""
+    if not _should_configure_logs_exporter():
+        return
+
+    resource = _build_resource()
+    if resource is None:
+        return
+
+    protocol = os.environ.get(
+        "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc").lower()
+    )
+    exporter_class = _import_exporter(protocol)
+    if exporter_class is None:
+        return
+
+    if not _initialize_logging(exporter_class, protocol, resource):
+        return
+
+    global DD_LOGS_PROVIDER_CONFIGURED
+    DD_LOGS_PROVIDER_CONFIGURED = True
+
+
+def _should_configure_logs_exporter() -> bool:
     """Check if the OpenTelemetry Logs exporter should be configured."""
     if DD_LOGS_PROVIDER_CONFIGURED:
         log.warning("OpenTelemetry Logs exporter was already configured by ddtrace, skipping setup.")
@@ -39,30 +62,8 @@ def should_configure_logs_exporter() -> bool:
     return True
 
 
-def set_otel_logs_exporter():
-    """Set up the OpenTelemetry Logs exporter if not already configured."""
-    if not should_configure_logs_exporter():
-        return
-
-    resource = _build_resource()
-    if resource is None:
-        return
-
-    protocol = os.environ.get(
-        "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc").lower()
-    )
-    exporter_class = _import_exporter(protocol)
-    if exporter_class is None:
-        return
-
-    if not _initialize_logging(exporter_class, protocol, resource):
-        return
-
-    global DD_LOGS_PROVIDER_CONFIGURED
-    DD_LOGS_PROVIDER_CONFIGURED = True
-
-
 def _build_resource():
+    """Build an OpenTelemetry Resource using DD_TAGS and OTEL_RESOURCE_ATTRIBUTES."""
     try:
         from opentelemetry.sdk.resources import Resource
 
@@ -87,6 +88,7 @@ def _build_resource():
 
 
 def _import_exporter(protocol):
+    """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
     try:
         if protocol == "grpc":
             from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
@@ -125,6 +127,7 @@ def _import_exporter(protocol):
 
 
 def _initialize_logging(exporter_class, protocol, resource):
+    """Configures and sets up the OpenTelemetry Logs exporter."""
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
