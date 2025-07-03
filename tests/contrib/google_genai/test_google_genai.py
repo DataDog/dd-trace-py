@@ -7,7 +7,7 @@ from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 
 
-def test_global_tags(mock_generate_content, genai, mock_tracer):
+def test_global_tags(mock_generate_content, genai_client, mock_tracer):
     """
     When the global config UST tags are set
         The service name should be used for all data
@@ -15,8 +15,7 @@ def test_global_tags(mock_generate_content, genai, mock_tracer):
         The version should be used for all data
     """
     with override_global_config(dict(service="test-svc", env="staging", version="1234")):
-        client = genai.Client()
-        client.models.generate_content(
+        genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
@@ -179,13 +178,11 @@ def test_extract_provider_and_model_name(model_name, expected_provider, expected
     assert model == expected_model
 
 
-def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai, snapshot_context):
+def test_google_genai_generate_content_with_tools(mock_generate_content_with_tools, genai_client, snapshot_context):
     with snapshot_context(
         token="tests.contrib.google_genai.test_google_genai.test_google_genai_generate_content_with_tools"
     ):
-        client = genai.Client()
-
-        response = client.models.generate_content(
+        response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents=[
                 types.Content(
@@ -203,7 +200,7 @@ def test_google_genai_generate_content_with_tools(mock_generate_content_with_too
 
         function_result = get_current_weather(**function_call_part.args)
 
-        final_response = client.models.generate_content(
+        final_response = genai_client.models.generate_content(
             model="gemini-2.0-flash-001",
             contents=[
                 types.Content(
