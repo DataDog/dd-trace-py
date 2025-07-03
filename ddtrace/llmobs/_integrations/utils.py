@@ -336,7 +336,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        processed_message = {"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))}
+        processed_message = {"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))} # type: dict[str, Union[str, list[dict[str, dict]]]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
