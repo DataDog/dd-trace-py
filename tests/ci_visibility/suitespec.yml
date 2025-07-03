@@ -13,7 +13,6 @@ components:
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
     - ddtrace/contrib/internal/pytest_benchmark/*
-    - ddtrace/contrib/internal/pytest_flaky/*
   selenium:
     - ddtrace/contrib/_selenium.py
     - ddtrace/contrib/internal/selenium/*
@@ -63,6 +62,7 @@ suites:
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/pytest_flaky/*
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
