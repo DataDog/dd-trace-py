@@ -1,11 +1,16 @@
 from concurrent import futures
-import os
 
-from opentelemetry import version
 import pytest
 
+from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
-OTEL_VERSION = tuple(int(x) for x in version.__version__.split(".")[:3])
+
+try:
+    from opentelemetry.exporter.otlp.version import __version__ as exporter_version
+
+    EXPORTER_VERSION = tuple(int(x) for x in exporter_version.split(".")[:3])
+except ImportError:
+    EXPORTER_VERSION = (0, 0, 0)
 
 
 def mock_grpc_exporter_connection():
@@ -67,29 +72,9 @@ def find_log_correlation_attributes(captured_logs, log_message: str) -> dict[str
     return lc_attributes
 
 
-def skipif(
-    exporter_installed: bool = False, exporter_not_installed: bool = False, unsupported_otel_version: bool = False
-):
-    """
-    Returns a pytest skip marker based on OpenTelemetry version and exporter installation.
-
-    Parameters:
-    - exporter_installed: If True, skip tests that require OpenTelemetry exporters.
-    - exporter_not_installed: If True, skip tests that do not require OpenTelemetry exporters.
-    - unsupported_otel_version: If True, skip tests that require OpenTelemetry version 1.16 or higher.
-    """
-    if unsupported_otel_version and OTEL_VERSION < (1, 16):
-        return pytest.mark.skipif(True, reason="OpenTelemetry version 1.16 or higher is required for these tests")
-
-    has_exporter = os.getenv("SDK_EXPORTER_INSTALLED", "").lower() in ("true", "1")
-    if exporter_installed and has_exporter:
-        return pytest.mark.skipif(True, reason="Tests not compatible with the opentelemetry exporters")
-    elif exporter_not_installed and not has_exporter:
-        return pytest.mark.skipif(True, reason="Tests only compatible with the opentelemetry exporters")
-    return pytest.mark.skipif(False, reason="No skip condition met for OpenTelemetry logs exporter tests")
-
-
-@skipif(exporter_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION > (0, 0, 0), reason="Only run if OpenTelemetry exporter is not installed in riot venv"
+)
 def test_otel_sdk_not_installed_by_default():
     """
     Test that the OpenTelemetry logs exporter can be set up correctly.
@@ -104,65 +89,75 @@ def test_otel_sdk_not_installed_by_default():
         from opentelemetry.sdk.resources import Resource  # noqa: F401
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
-@pytest.mark.subprocess()
-def test_otel_logs_exporter_installed():
-    """
-    Test that the OpenTelemetry logs exporter can be set up correctly.
-    """
-    from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
-
-    # This should not raise an ImportError
-    set_otel_logs_exporter()
-
-    # Check if the GRPC/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-
-        assert OTLPLogExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPLogExporter should be available")
-
-    # Check if HTTP/protobuf exporter is available
-    try:
-        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-
-        assert OTLPLogExporter() is not None
-    except ImportError:
-        pytest.fail("OTLPLogExporter for HTTP/protobuf should be available")
-
-
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(ddtrace_run=True, env={"DD_OTEL_LOGS_ENABLED": "true"})
-def test_otel_logs_enabled():
+def test_otel_logs_support_enabled():
     """
     Test that the OpenTelemetry logs exporter is automatically configured when DD_OTEL_LOGS_ENABLED is set.
     """
     from opentelemetry._logs import get_logger_provider
 
-    from ddtrace.internal.opentelemetry.logs import LOGS_PROVIDER_CONFIGURED
+    from ddtrace.internal.opentelemetry.logs import DD_LOGS_PROVIDER_CONFIGURED
 
     lp = get_logger_provider()
-    assert LOGS_PROVIDER_CONFIGURED, f"OpenTelemetry logs exporter should be configured automatically. {lp} configured."
+    assert (
+        DD_LOGS_PROVIDER_CONFIGURED
+    ), f"OpenTelemetry logs exporter should be configured automatically. {lp} configured."
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.subprocess(
+    env={"DD_OTEL_LOGS_ENABLED": "true"},
+    err=b"OpenTelemetry Logs exporter was already configured by ddtrace, skipping setup.\n",
+)
+def test_otel_logs_exporter_configured_twice():
+    """
+    Test that the OpenTelemetry logs exporter is automatically configured when DD_OTEL_LOGS_ENABLED is set.
+    """
+    from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
+
+    set_otel_logs_exporter()
+    set_otel_logs_exporter()
+
+    from opentelemetry._logs import get_logger_provider
+
+    from ddtrace.internal.opentelemetry.logs import DD_LOGS_PROVIDER_CONFIGURED
+
+    lp = get_logger_provider()
+    assert (
+        DD_LOGS_PROVIDER_CONFIGURED
+    ), f"OpenTelemetry logs exporter should be configured automatically. {lp} configured."
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(ddtrace_run=True, parametrize={"DD_OTEL_LOGS_ENABLED": [None, "false"]})
-def test_otel_logs_disabled_and_unset():
+def test_otel_logs_support_not_enabled():
     """
     Test that the OpenTelemetry logs exporter is NOT automatically configured when DD_OTEL_LOGS_ENABLED is set.
     """
     from opentelemetry._logs import get_logger_provider
 
-    from ddtrace.internal.opentelemetry.logs import LOGS_PROVIDER_CONFIGURED
+    from ddtrace.internal.opentelemetry.logs import DD_LOGS_PROVIDER_CONFIGURED
 
     lp = get_logger_provider()
     assert (
-        not LOGS_PROVIDER_CONFIGURED
+        not DD_LOGS_PROVIDER_CONFIGURED
     ), f"OpenTelemetry logs exporter should not be configured automatically. {lp} configured."
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to use the HTTP exporter",
+)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
@@ -239,7 +234,10 @@ def test_otel_logs_provider_auto_configured_http():
     ), f"Expected span_id to be '0000000000000000' but found: {lc_attributes['span_id']}"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={"DD_OTEL_LOGS_ENABLED": "true"},
@@ -286,7 +284,10 @@ def test_otel_logs_provider_auto_configured_grpc():
     ), "Expected log message not found in exported gRPC payload"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={
@@ -360,7 +361,10 @@ def test_ddtrace_log_correlation():
     ), f"Expected span_id_hex to be set to {lc_attributes['span_id']} but found: {span.span_id}"
 
 
-@skipif(exporter_not_installed=True, unsupported_otel_version=True)
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env={

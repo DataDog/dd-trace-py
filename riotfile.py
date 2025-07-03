@@ -2489,7 +2489,9 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    # v1.12.0 introduced support for metrics
+                    # v1.15.0 introduced support for logs
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.11.0", "~=1.12.0", "~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
             ],

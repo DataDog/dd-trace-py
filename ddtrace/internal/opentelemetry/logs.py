@@ -8,80 +8,132 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-LOGS_PROVIDER_CONFIGURED = False
+MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 
 
-def get_configured_logger_provider():
-    """
-    Returns the configured OpenTelemetry logger provider, or None if not available.
-    """
+DD_LOGS_PROVIDER_CONFIGURED = False
+
+
+def should_configure_logs_exporter() -> bool:
+    """Check if the OpenTelemetry Logs exporter should be configured."""
+    if DD_LOGS_PROVIDER_CONFIGURED:
+        log.warning("OpenTelemetry Logs exporter was already configured by ddtrace, skipping setup.")
+        return False
+
     try:
-        from opentelemetry._logs_internal import _LOGGER_PROVIDER as logger_provider
+        from opentelemetry._logs._internal import _LOGGER_PROVIDER as logger_provider
+
+        if logger_provider is not None:
+            log.warning(
+                "OpenTelemetry Logs provider was configured before ddtrace instrumentation was applied, skipping setup."
+            )
+            return False
     except ImportError as e:
         log.warning(
-            "OpenTelemetry Logs support is not available: %s. " "Please install opentelemetry-api>=1.15.0",
+            "OpenTelemetry Logs support is not available: %s.",
             str(e),
         )
-        return None
-    return logger_provider
+        return False
+
+    log.debug("OpenTelemetry Logs exporter is not configured, proceeding with ddtrace setup.")
+    return True
 
 
 def set_otel_logs_exporter():
-    global LOGS_PROVIDER_CONFIGURED
-    if LOGS_PROVIDER_CONFIGURED:
-        log.debug("OpenTelemetry Logs exporter is already configured, skipping setup.")
+    """Set up the OpenTelemetry Logs exporter if not already configured."""
+    if not should_configure_logs_exporter():
         return
 
-    try:
-        from opentelemetry.sdk.resources import Resource
-
-        resource_attributes = {
-            "host.name": get_hostname(),  # lowest precedence
-            **config.tags,  # medium precedence (contains ddtags and otel resource tags)
-            "service.name": config.service,  # highest precedence (reference global ddtrace USTs)
-            "service.version": config.version,
-            "deployment.environment": config.env,
-        }
-        for k in resource_attributes:
-            resource_attributes[k] = str(resource_attributes[k]) if resource_attributes[k] is not None else ""
-        resource = Resource.create(resource_attributes)
-    except ImportError:
-        log.warning(
-            "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
-            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry "
-            "Logs support (ex: via DD_OTEL_LOGS_ENABLED).",
-        )
+    resource = _build_resource()
+    if resource is None:
         return
 
     protocol = os.environ.get(
         "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc").lower()
     )
-    if "grpc" == protocol:
-        try:
-            from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
-        except ImportError:
-            return
-    elif "http/protobuf" == protocol:
-        from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
-    else:
-        log.warning(
-            "OpenTelemetry Logs exporter protocol '%s' is not supported. "
-            "Please use OTLP gRPC or HTTP/Protobuf exporter instead. "
-            "Set OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=grpc or OTEL_EXPORTER_OTLP_LOGS_PROTOCOL=http/protobuf",
-            protocol,
-        )
+    exporter_class = _import_exporter(protocol)
+    if exporter_class is None:
         return
 
+    if not _initialize_logging(exporter_class, protocol, resource):
+        return
+
+    global DD_LOGS_PROVIDER_CONFIGURED
+    DD_LOGS_PROVIDER_CONFIGURED = True
+
+
+def _build_resource():
+    try:
+        from opentelemetry.sdk.resources import Resource
+
+        resource_attributes = {
+            "host.name": get_hostname(),
+            **config.tags,
+            "service.name": config.service,
+            "service.version": config.version,
+            "deployment.environment": config.env,
+        }
+
+        # Convert all attributes to strings, use empty string for None
+        resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
+
+        return Resource.create(resource_attributes)
+    except ImportError:
+        log.warning(
+            "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
+            "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support."
+        )
+        return None
+
+
+def _import_exporter(protocol):
+    try:
+        if protocol == "grpc":
+            from opentelemetry.exporter.otlp.proto.grpc._log_exporter import OTLPLogExporter
+            from opentelemetry.exporter.otlp.proto.grpc.version import __version__ as exporter_version
+        elif protocol == "http/protobuf":
+            from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+            from opentelemetry.exporter.otlp.proto.http.version import __version__ as exporter_version
+        else:
+            log.warning(
+                "OpenTelemetry Logs exporter protocol '%s' is not supported. " "Use 'grpc' or 'http/protobuf'.",
+                protocol,
+            )
+            return None
+
+        if tuple(int(x) for x in exporter_version.split(".")[:3]) < MINIMUM_SUPPORTED_VERSION:
+            log.warning(
+                "OpenTelemetry Logs exporter for %s requires version %r or higher, but found version %r. "
+                "Please upgrade the appropriate opentelemetry-exporter package.",
+                protocol,
+                MINIMUM_SUPPORTED_VERSION,
+                exporter_version,
+            )
+            return None
+
+        return OTLPLogExporter
+
+    except ImportError as e:
+        log.warning(
+            "OpenTelemetry Logs exporter for %s is not available. "
+            "Please install a supported package (ex: opentelemetry-exporter-otlp-proto-%s): %s",
+            protocol,
+            "grpc" if protocol == "grpc" else "http",
+            str(e),
+        )
+        return None
+
+
+def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        _init_logging({protocol: OTLPLogExporter}, resource=resource)
+        _init_logging({protocol: exporter_class}, resource=resource)
+        return True
     except ImportError as e:
         log.warning(
-            "The installed version of the OpenTelemetry SDK does not define required component: '%s'. "
-            "An OpenTelemetry Exporter will not be automatically configured. Open an issue at "
-            "github.com/Datadog/dd-trace-py to report this bug.",
+            "The installed OpenTelemetry SDK is missing required components: %s. "
+            "Logging exporter not initialized. Please file an issue at github.com/Datadog/dd-trace-py.",
             str(e),
         )
-        return
-    LOGS_PROVIDER_CONFIGURED = True
+        return False
