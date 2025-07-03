@@ -21,7 +21,7 @@ def _set_span_tag_iast_executed_sink(span):
             if (
                 key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK)
                 or key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE)
-                or key.startswith(IAST_SPAN_TAGS.TELEMETRY_SUPPRESED_VULNERABILITY)
+                or key.startswith(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY)
             ):
                 span.set_tag(key, value)
 

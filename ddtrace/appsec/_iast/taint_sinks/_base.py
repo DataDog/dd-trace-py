@@ -225,5 +225,5 @@ class VulnerabilityBase:
             else:
                 return True
         else:
-            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESED_VULNERABILITY, cls.vulnerability_type)
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, cls.vulnerability_type)
         return False
