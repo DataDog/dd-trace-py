@@ -177,6 +177,9 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal[
+        "_dd.iast.telemetry.suppressed.vulnerabilities"
+    ] = "_dd.iast.telemetry.suppressed.vulnerabilities"
     TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
