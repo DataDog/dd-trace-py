@@ -147,8 +147,8 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     executable_code = _get_attr(part, "executable_code", None)
     if executable_code:
         language = _get_attr(executable_code, "language", "UNKNOWN")
-        code = str(_get_attr(executable_code, "code", ""))
-        message["content"] = {"language": language, "code": code}
+        code = _get_attr(executable_code, "code", "")
+        message["content"] = {"language": str(language), "code": str(code)}
         return message
 
     code_execution_result = _get_attr(part, "code_execution_result", None)
