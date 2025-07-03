@@ -744,20 +744,20 @@ class TestLLMObsOpenaiV1:
         )
 
     def test_chat_completion_prompt_caching(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
         client = openai.OpenAI()
         base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
-        with request_vcr.use_cassette("chat_completion_prompt_caching_cache_write.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_write.yaml"):
             resp1 = client.chat.completions.create(
                 model=model,
                 messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
                 max_tokens=100,
                 temperature=0.1,
             )
-        with request_vcr.use_cassette("chat_completion_prompt_caching_cache_read.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_read.yaml"):
             resp2 = client.chat.completions.create(
                 model=model,
                 messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
@@ -968,7 +968,7 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
     def test_chat_completion_stream_prompt_caching(
-        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
@@ -985,7 +985,7 @@ class TestLLMObsOpenaiV1:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
-        with request_vcr.use_cassette("chat_completion_stream_prompt_caching_cache_write.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_stream_prompt_caching_cache_write.yaml"):
             resp1 = client.chat.completions.create(
                 messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
                 **request_args,
@@ -993,7 +993,7 @@ class TestLLMObsOpenaiV1:
             for chunk in resp1:
                 if hasattr(chunk, "model"):
                     resp_model = chunk.model
-        with request_vcr.use_cassette("chat_completion_stream_prompt_caching_cache_read.yaml"):
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_stream_prompt_caching_cache_read.yaml"):
             resp2 = client.chat.completions.create(
                 messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
                 **request_args,
@@ -1020,7 +1020,6 @@ class TestLLMObsOpenaiV1:
                             "temperature": 0.1,
                             "stream": True,
                             "stream_options": {"include_usage": True},
-                            "user": "ddtrace-test",
                         },
                         token_metrics={
                             "input_tokens": 1421,
@@ -1044,7 +1043,6 @@ class TestLLMObsOpenaiV1:
                             "temperature": 0.1,
                             "stream": True,
                             "stream_options": {"include_usage": True},
-                            "user": "ddtrace-test",
                         },
                         token_metrics={
                             "input_tokens": 1420,
