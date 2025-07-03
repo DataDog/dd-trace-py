@@ -111,7 +111,7 @@ def test_debug_post_configure_uds():
     assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
-    assert re.match("^Agent not reachable.*No such file or directory", agent_error)
+    assert re.match("^Agent not reachable", agent_error)
 
 
 class TestGlobalConfig(SubprocessTestCase):
@@ -162,7 +162,7 @@ class TestGlobalConfig(SubprocessTestCase):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
-            ddtrace.config.version = AgentWriter(agent_url="foobar")
+            ddtrace.config.version = AgentWriter(intake_url="foobar")
             ddtrace.trace.tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 

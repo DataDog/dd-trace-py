@@ -55,7 +55,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -123,7 +123,7 @@ def _default_span_processors_factory(
 
         span_processors.append(AppSecIastSpanProcessor())
 
-    if config._trace_compute_stats:
+    if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
         from ddtrace.internal.processor.stats import SpanStatsProcessorV06
@@ -205,6 +205,7 @@ class Tracer(object):
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
+        forksafe.register_after_parent(self._parent_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -267,6 +268,8 @@ class Tracer(object):
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            self._span_aggregator.writer.before_fork()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -372,6 +375,13 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            if appsec_enabled:
+                self._span_aggregator.writer._api_version = "v0.4"
+
+        if trace_processors:
+            self._user_trace_processors = trace_processors
+
         if any(
             x is not None
             for x in [
@@ -413,6 +423,11 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
+
+    def _parent_after_fork(self):
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            pass
+            # self._writer.start_worker_thread()
 
     def _recreate(
         self,
@@ -745,8 +760,8 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
-            return self._span_aggregator.writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            return self._span_aggregator.writer.intake_url
 
         return None
 
@@ -941,4 +956,5 @@ class Tracer(object):
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
+                forksafe.unregister(self._parent_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]

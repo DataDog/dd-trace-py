@@ -12,6 +12,7 @@ import subprocess
 import sys
 import time
 from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 from urllib import parse
 import urllib.parse
 
@@ -38,6 +39,8 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -566,13 +569,13 @@ class DummyWriterMixin:
         return traces
 
 
-class DummyWriter(DummyWriterMixin, AgentWriter):
+class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self, *args, **kwargs):
         # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent_config.trace_agent_url
+        if len(args) == 0 and "intake_url" not in kwargs:
+            kwargs["intake_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -581,7 +584,11 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        AgentWriter.__init__(self, *args, **kwargs)
+        if dd_config._trace_writer_native:
+            self._inner_writer = NativeWriter(*args, **kwargs)
+        else:
+            self.inner_writer = AgentWriter(*args, **kwargs)
+
         DummyWriterMixin.__init__(self, *args, **kwargs)
         self.json_encoder = JSONEncoder()
         self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
@@ -592,7 +599,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             if self._trace_flush_enabled:
-                AgentWriter.write(self, spans=spans)
+                self.inner_writer.write(spans=spans)
             else:
                 self.msgpack_encoder.put(spans)
                 self.msgpack_encoder.encode()
@@ -605,6 +612,18 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def recreate(self):
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        return self.inner_writer.flush_queue(raise_exc)
+
+    def before_fork(self) -> None:
+        return self.inner_writer.before_fork()
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        return self.inner_writer.set_test_session_token(token)
+
+    def __getattr__(self, name: str):
+        return self.inner_writer.__getattribute__(name)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -638,7 +657,7 @@ class DummyTracer(Tracer):
     @property
     def agent_url(self):
         # type: () -> str
-        return self._span_aggregator.writer.agent_url
+        return self._span_aggregator.writer.intake_url
 
     @property
     def encoder(self):
@@ -1063,7 +1082,7 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
@@ -1075,7 +1094,10 @@ def snapshot_context(
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
+            if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                tracer._span_aggregator.writer.set_test_session_token(token)
+            else:
+                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1115,7 +1137,10 @@ def snapshot_context(
             # Force a flush so all traces are submitted.
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                    tracer._span_aggregator.writer.set_test_session_token(None)
+                else:
+                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1318,19 +1343,8 @@ def check_test_agent_status():
         return False
 
 
-def flush_test_tracer_spans(writer):
-    client = writer._clients[0]
-    n_traces = len(client.encoder)
-    try:
-        encoded_traces, _ = client.encoder.encode()
-        if encoded_traces is None:
-            return
-        headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
-    except Exception:
-        return
-
-    assert response.status == 200, response.body
+def flush_test_tracer_spans(writer: AgentWriter):
+    writer.flush_queue(raise_exc=True)
 
 
 def add_dd_env_variables_to_headers(headers):
