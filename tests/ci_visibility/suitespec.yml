@@ -13,6 +13,7 @@ components:
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
     - ddtrace/contrib/internal/pytest_benchmark/*
+    - ddtrace/contrib/internal/pytest_flaky/*
   selenium:
     - ddtrace/contrib/_selenium.py
     - ddtrace/contrib/internal/selenium/*
