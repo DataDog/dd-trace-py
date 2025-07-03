@@ -119,7 +119,6 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 
     returns a dict representing a message with format {"role": role, "content": content}
     """
-    # substitute "model" with "assistant" to stay consistent with other integrations
     if role == "model":
         role = DEFAULT_MODEL_ROLE
 
