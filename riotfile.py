@@ -1835,7 +1835,7 @@ venv = Venv(
             ],
         ),
         Venv(
-            name="pytest_flaky",
+            name="pytest:flaky",
             pys=select_pys(min_version="3.8", max_version="3.12"),
             command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
             pkgs={
