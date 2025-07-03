@@ -2,10 +2,12 @@ name: Testrunner
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - 'docker/**'
   push:
     branches:
       - 'main'
-      - 'mq-working-branch**'
     paths:
       - 'docker/**'
 
@@ -16,6 +18,7 @@ jobs:
       contents: read
       packages: write
     with:
+      push: ${{ github.ref == 'refs/heads/main' }}
       tags: 'ghcr.io/datadog/dd-trace-py/testrunner:${{ github.sha }},ghcr.io/datadog/dd-trace-py/testrunner:latest'
       platforms: 'linux/amd64,linux/arm64/v8'
       build-args: ''
