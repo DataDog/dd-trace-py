@@ -1,10 +1,11 @@
+import json
+
 import mock
 import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
-import json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
 from tests.contrib.openai.utils import get_openai_vcr
@@ -744,7 +745,11 @@ class TestLLMObsOpenaiV1:
                         ],
                         output_messages=[
                             {
-                                "content": "David Nguyen is a sophomore majoring in computer science at Stanford University with a GPA of 3.8. His academic performance is impressive and he is excelling in his studies.",
+                                "content": (
+                                    "David Nguyen is a sophomore majoring in computer science at Stanford "
+                                    "University with a GPA of 3.8. His academic performance is impressive "
+                                    "and he is excelling in his studies."
+                                ),
                                 "role": "assistant",
                             }
                         ],
