@@ -7,7 +7,6 @@ import google.generativeai as genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
-from ddtrace.contrib.internal.google_generativeai._utils import tag_request
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -49,7 +48,6 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
         if stream:
             return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
@@ -78,7 +76,6 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)

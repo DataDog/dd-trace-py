@@ -51,12 +51,3 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
                 response=self.__wrapped__,
             )
             self._dd_span.finish()
-
-
-def tag_request(span, integration, instance, args, kwargs):
-    """Tag the generation span with request details.
-    Includes capturing generation configuration, system prompt, and messages.
-    """
-    stream = kwargs.get("stream", None)
-    if stream:
-        span.set_tag("google_generativeai.request.stream", True)
