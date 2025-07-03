@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where using Test Optimization together with external retry plugins such as ``flaky`` or
+    ``pytest-rerunfailures`` would cause the test results not to be reported correctly to Datadog. With this change,
+    those plugins can be used with ddtrace, and test results will be reported to Datadog, but Test Optimization advanced
+    features such as Early Flake Detection and Auto Test Retries will not be available when such plugins are used.
