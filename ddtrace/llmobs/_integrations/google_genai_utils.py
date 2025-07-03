@@ -147,7 +147,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if function_response:
         message["role"] = "tool"
         message["content"] = str(_get_attr(function_response, "response", ""))
-        message["tool_id"] = _get_attr(function_response, "id", None)
+        message["tool_id"] = _get_attr(function_response, "id", "")
         return message
 
     executable_code = _get_attr(part, "executable_code", None)
