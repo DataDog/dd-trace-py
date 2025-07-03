@@ -16,9 +16,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
+from ..._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
+from .._span_metrics import increment_iast_span_metric
 from .._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
@@ -222,4 +224,6 @@ class VulnerabilityBase:
                 return not all(_range.source.origin in origins_to_exclude for _range in ranges)
             else:
                 return True
+        else:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, cls.vulnerability_type)
         return False

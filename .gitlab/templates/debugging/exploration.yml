@@ -1,0 +1,25 @@
+"exploration::boto3":
+  stage: debugging
+  extends: .cached_testrunner
+  timeout: 30m
+  variables:
+    DD_DEBUGGER_EXPL_INCLUDE: "boto3"
+    DD_DEBUGGER_EXPL_OUTPUT_FILE: "${{CI_PROJECT_DIR}}/debugger-expl.txt"
+    DD_DEBUGGER_EXPL_STATUS_MESSAGES: 1
+    PYTEST_PLUGINS: "exploration"
+    PYTHONPATH: "${{CI_PROJECT_DIR}}/tests/debugging/exploration/pytest"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        BOTO3_TAG: 1.38.44
+  script: |
+    python${{PYTHON_VERSION}} -m pip install -e .
+    git clone --depth 1 --branch ${{BOTO3_TAG}} https://github.com/boto/boto3.git
+    cd boto3
+    python${{PYTHON_VERSION}} scripts/ci/install
+    python${{PYTHON_VERSION}} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning"'
+    cat ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
+  needs: []
+  artifacts:
+    paths:
+      - ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
