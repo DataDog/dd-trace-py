@@ -12,6 +12,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -160,6 +161,7 @@ def test_headers_collection(tracer):
         "meta." + FINGERPRINTING.SESSION,
         "service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_cookies_no_collection_snapshot(tracer):
@@ -190,6 +192,7 @@ def test_appsec_cookies_no_collection_snapshot(tracer):
         "meta." + FINGERPRINTING.SESSION,
         "service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_body_no_collection_snapshot(tracer):
@@ -258,6 +261,8 @@ def test_ip_update_rules_and_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert py_ddwaf_builder_get_config_paths(tracer._appsec_processor._ddwaf._builder, "ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -290,6 +295,7 @@ def test_ip_update_rules_expired_no_block(tracer):
 
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span) is False
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
 
 
 @snapshot(
@@ -306,6 +312,7 @@ def test_ip_update_rules_expired_no_block(tracer):
         "service",
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_span_tags_snapshot(tracer):
@@ -327,6 +334,7 @@ def test_appsec_span_tags_snapshot(tracer):
         "service",
         "meta._dd.base_service",
         "meta._dd.rc.client_id",
+        "meta._dd.appsec.rc_products",
     ],
 )
 def test_appsec_span_tags_snapshot_with_errors(tracer):
@@ -658,7 +666,7 @@ def test_asm_context_registration(tracer):
 CUSTOM_RULE_METHOD = [
     (
         "ASM",
-        "Datadog/1/ASM/data",
+        "Datadog/3421/ASM/data",
         {
             "custom_rules": [
                 {
@@ -743,11 +751,11 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     from ddtrace.appsec._utils import _observator
     from ddtrace.trace import tracer
 
-    processor = AppSecSpanProcessor()
-    processor._update_rules([], CUSTOM_RULE_METHOD)
     mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
 
-    with asm_context(tracer=tracer, config=config_asm) as span:
+    with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
+        processor = tracer._appsec_processor
+        assert processor
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
         assert mock_run.call_args[0][1] == {WAF_DATA_NAMES[persistent]: {"key_1": "value_1"}}
@@ -758,3 +766,4 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
         assert mock_run.call_args[1]["ephemeral_data"] == {
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
+    assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"

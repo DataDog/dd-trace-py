@@ -2,6 +2,7 @@ import time
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Set
 
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -12,6 +13,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -61,13 +63,23 @@ def _base_tags(error: Optional[str]):
     return tags
 
 
-def record_llmobs_enabled(error: Optional[str], agentless_enabled: bool, site: str, start_ns: int, auto: bool):
+def record_llmobs_enabled(
+    error: Optional[str],
+    agentless_enabled: bool,
+    site: str,
+    start_ns: int,
+    auto: bool,
+    instrumented_proxy_urls: Optional[Set[str]],
+    ml_app: Optional[str],
+):
     tags = _base_tags(error)
     tags.extend(
         [
             ("agentless", str(int(agentless_enabled) if agentless_enabled is not None else "N/A")),
             ("site", site),
             ("auto", str(int(auto))),
+            ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
+            ("ml_app", ml_app or "N/A"),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -93,6 +105,7 @@ def record_span_created(span: Span):
     decorator = span._get_ctx_item(DECORATOR) is True
     span_kind = span._get_ctx_item(SPAN_KIND)
     model_provider = span._get_ctx_item("model_provider")
+    ml_app = _get_ml_app(span)
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -100,6 +113,7 @@ def record_span_created(span: Span):
         ("is_root_span", str(int(is_root_span))),
         ("span_kind", span_kind or "N/A"),
         ("integration", integration or "N/A"),
+        ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
     ]
     if not autoinstrumented:

@@ -4,8 +4,8 @@ from typing import Optional
 
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityParentItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
@@ -106,6 +106,10 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
     def add_coverage_data(self, *args, **kwargs):
         raise NotImplementedError("Coverage data cannot be added to session.")
+
+    def set_skipped_count(self, skipped_count: int):
+        self._itr_skipped_count = skipped_count
+        self._set_itr_tags(self._session_settings.itr_test_skipping_enabled)
 
     def set_covered_lines_pct(self, coverage_pct: float):
         self.set_tag(test.TEST_LINES_PCT, coverage_pct)

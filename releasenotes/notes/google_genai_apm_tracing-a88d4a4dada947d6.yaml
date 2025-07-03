@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    google_genai: Introduces tracing support for Google's Generative AI SDK for Python's ``generate_content`` and ``generate_content_stream`` methods.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#google-genai>`_
+      for more information.

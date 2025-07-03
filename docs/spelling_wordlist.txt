@@ -27,6 +27,8 @@ asyncio
 asyncpg
 attrs
 autodetected
+autoinstrumentation
+Autoinstrumentation
 autopatching
 autoreload
 autoreloading
@@ -48,6 +50,7 @@ boto
 botocore
 cassandra
 cattrs
+cetera
 CGroup
 cgroups
 cherrypy
@@ -76,11 +79,13 @@ datastores
 dbapi
 ddtrace
 deallocating
+decompiling
 deprecations
 DES
 deserializing
 django
 docstring
+docstrings
 doctest
 dogpile
 dogpile.cache
@@ -106,9 +111,11 @@ exec
 Fargate
 fastapi
 Firehose
+flamegraph
 fnmatch
 formatter
 freezegun
+genai
 generativeai
 gevent
 Gitlab
@@ -213,6 +220,7 @@ posix
 postgres
 pre
 preconfigured
+preload
 prepend
 prepended
 profiler
@@ -259,6 +267,8 @@ serializable
 serverless
 Serverless
 sha
+sitecustomize
+sitecustomizes
 sns
 SpanContext
 sql
@@ -278,6 +288,7 @@ subdirectory
 subdomains
 submodule
 submodules
+subpackages
 Subprocess
 substring
 suitespec
@@ -285,6 +296,7 @@ TensorBoard
 testagent
 TestCase
 testrunner
+timeseries
 Timeseries
 timestamp
 tokenizer
@@ -327,3 +339,4 @@ wsgi
 xfail
 yaaredis
 openai-agents
+validators

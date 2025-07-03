@@ -6,7 +6,9 @@
 # file. The function will be called automatically when this script is run.
 
 from dataclasses import dataclass
+import datetime
 import os
+import re
 import subprocess
 import typing as t
 
@@ -15,6 +17,7 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
+    stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
     services: t.Optional[t.List[str]] = None
@@ -35,6 +38,17 @@ class JobSpec:
 
         lines.append(f"{self.name}:")
         lines.append(f"  extends: {base}")
+
+        # Set stage
+        lines.append(f"  stage: {self.stage}")
+
+        # Set needs based on runner type
+        lines.append("  needs:")
+        lines.append("    - prechecks")
+        if self.runner == "riot":
+            # Riot jobs need build_base_venvs artifacts
+            lines.append("    - job: build_base_venvs")
+            lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -127,10 +141,42 @@ def gen_required_suites() -> None:
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
+
+    # Collect stages from suite configurations
+    stages = {"setup"}  # setup is always needed
+    for suite_name, suite_config in suites.items():
+        # Extract stage from suite name prefix if present
+        if "::" in suite_name:
+            stage, _, clean_name = suite_name.partition("::")
+        else:
+            stage = "core"
+            clean_name = suite_name
+
+        stages.add(stage)
+        # Store the stage in the suite config for later use
+        suite_config["_stage"] = stage
+        suite_config["_clean_name"] = clean_name
+
+    # Sort stages: setup first, then alphabetically
+    sorted_stages = ["setup"] + sorted(stages - {"setup"})
+
+    # Update the stages in the generated file
+    content = TESTS_GEN.read_text()
+
+    stages_yaml = "stages:\n" + "\n".join(f"  - {stage}" for stage in sorted_stages)
+    content = re.sub(r"stages:.*?(?=\n\w|\n\n|\Z)", stages_yaml, content, flags=re.DOTALL)
+    TESTS_GEN.write_text(content)
+
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            jobspec = JobSpec(suite, **suites[suite])
+            suite_config = suites[suite].copy()
+            # Extract stage and clean name from config
+            stage = suite_config.pop("_stage", "core")
+            clean_name = suite_config.pop("_clean_name", suite)
+
+            # Create JobSpec with clean name and explicit stage
+            jobspec = JobSpec(clean_name, stage=stage, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
@@ -148,8 +194,9 @@ def gen_build_docs() -> None:
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
-            print("  stage: hatch", file=f)
-            print("  needs: []", file=f)
+            print("  stage: core", file=f)
+            print("  needs:", file=f)
+            print("    - prechecks", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
@@ -244,82 +291,34 @@ prechecks:
     key: v1-precheck-pip-cache
     paths:
       - .cache
-        """
+"""
         )
+
+
+def gen_cached_testrunner() -> None:
+    """Generate the cached testrunner job."""
+    with TESTS_GEN.open("a") as f:
+        f.write(template("cached-testrunner", current_month=datetime.datetime.now().month))
 
 
 def gen_build_base_venvs() -> None:
-    """Generate the list of base jobs for building virtual environments."""
+    """Generate the list of base jobs for building virtual environments.
 
-    ci_commit_sha = os.getenv("CI_COMMIT_SHA", "default")
-    native_hash = os.getenv("DD_NATIVE_SOURCES_HASH", ci_commit_sha)
-
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
     with TESTS_GEN.open("a") as f:
-        f.write(
-            f"""
-build_base_venvs:
-  extends: .testrunner
-  stage: setup
-  needs: []
-  parallel:
-    matrix:
-      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-  variables:
-    CMAKE_BUILD_PARALLEL_LEVEL: '12'
-    PIP_VERBOSE: '0'
-    DD_PROFILING_NATIVE_TESTS: '1'
-    DD_USE_SCCACHE: '1'
-    PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_FAST_BUILD: '1'
-  rules:
-    - if: '$CI_COMMIT_REF_NAME == "main"'
-      variables:
-        DD_FAST_BUILD: '0'
-    - when: always
-  script: |
-    set -e -o pipefail
-    if [ ! -f cache_used.txt ];
-    then
-      echo "No cache found, building native extensions and base venv"
-      apt update && apt install -y sccache
-      pip install riot==0.20.1
-      riot -P -v generate --python=$PYTHON_VERSION
-      echo "Running smoke tests"
-      riot -v run -s --python=$PYTHON_VERSION smoke_test
-      touch cache_used.txt
-    else
-      echo "Skipping build, using compiled files/venv from cache"
-      echo "Fixing ddtrace versions"
-      pip install "setuptools_scm[toml]>=4"
-      ddtrace_version=$(python -m setuptools_scm --force-write-version-files)
-      find .riot/ -path '*/ddtrace*.dist-info/METADATA' | \
-        xargs sed -E -i "s/^Version:.*$/Version: ${{ddtrace_version}}/"
-      echo "Using version: ${{ddtrace_version}}"
-    fi
-  cache:
-    # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache
-      paths:
-        - .cache
-    # Reuse job artifacts between runs if no native source files have been changed
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-native-{native_hash}
-      paths:
-        - .riot/venv_*
-        - ddtrace/**/*.so*
-        - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-        - ddtrace/internal/datadog/profiling/test/test_*
-        - cache_used.txt
-  artifacts:
-    name: venv_$PYTHON_VERSION
-    paths:
-      - .riot/venv_*
-      - ddtrace/_version.py
-      - ddtrace/**/*.so*
-      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
-      - ddtrace/internal/datadog/profiling/test/test_*
-        """
-        )
+        f.write(template("build-base-venvs"))
+
+
+def gen_debugger_exploration() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
+    with TESTS_GEN.open("a") as f:
+        f.write(template("debugging/exploration"))
 
 
 # -----------------------------------------------------------------------------
@@ -353,6 +352,14 @@ TESTS_GEN = GITLAB / "tests-gen.yml"
 # Make the scripts and tests folders available for importing.
 sys.path.append(str(ROOT / "scripts"))
 sys.path.append(str(ROOT / "tests"))
+
+
+def template(name: str, **params):
+    """Render a template file with the given parameters."""
+    if not (template_path := (GITLAB / "templates" / name).with_suffix(".yml")).exists():
+        raise FileNotFoundError(f"Template file {template_path} does not exist")
+    return "\n" + template_path.read_text().format(**params).strip() + "\n"
+
 
 has_error = False
 

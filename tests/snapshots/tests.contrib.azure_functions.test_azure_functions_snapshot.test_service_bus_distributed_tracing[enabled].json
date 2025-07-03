@@ -1,0 +1,134 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/httppostrootservicebus",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "684c654000000000",
+      "aas.function.name": "http_post_root_servicebus",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/httppostrootservicebus",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httppostrootservicebus",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "3e1d1c4aeb5940e298b66654dc72a8ee",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 73382
+    },
+    "duration": 2035868084,
+    "start": 1749837120334504592
+  },
+     {
+       "name": "azure.servicebus.send",
+       "service": "azure_servicebus",
+       "resource": "queue.1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "queue.1",
+         "messaging.operation": "send",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 7453458,
+       "start": 1749837120839785551
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebusqueue",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "684c654000000000",
+            "aas.function.name": "servicebusqueue",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "messaging.destination.name": "queue.1",
+            "messaging.message_id": "68f07ff4-5e14-486c-aa81-535e7c3cf562",
+            "messaging.operation": "receive",
+            "messaging.system": "servicebus",
+            "runtime-id": "3e1d1c4aeb5940e298b66654dc72a8ee",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 73382
+          },
+          "duration": 68875,
+          "start": 1749837120991199551
+        },
+     {
+       "name": "azure.servicebus.send",
+       "service": "azure_servicebus",
+       "resource": "topic.1",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "_dd.p.tid": "684c654000000000",
+         "component": "azure_servicebus",
+         "messaging.destination.name": "topic.1",
+         "messaging.operation": "send",
+         "messaging.system": "servicebus",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 7572250,
+       "start": 1749837121832421301
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "ServiceBus servicebustopic",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 3,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.tid": "684c654000000000",
+            "aas.function.name": "servicebustopic",
+            "aas.function.trigger": "ServiceBus",
+            "component": "azure_functions",
+            "messaging.destination.name": "topic.1",
+            "messaging.message_id": "68f07ff4-5e14-486c-aa81-535e7c3cf562",
+            "messaging.operation": "receive",
+            "messaging.system": "servicebus",
+            "runtime-id": "3e1d1c4aeb5940e298b66654dc72a8ee",
+            "span.kind": "consumer"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "process_id": 73382
+          },
+          "duration": 40708,
+          "start": 1749837121868800843
+        }]]

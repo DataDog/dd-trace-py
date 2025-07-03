@@ -1,6 +1,6 @@
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
-from ddtrace.appsec._iast._patch_modules import patch_iast
+from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.langchain.patch import patch as langchain_patch
 from tests.utils import override_env
 from tests.utils import override_global_config

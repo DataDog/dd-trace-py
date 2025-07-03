@@ -1,16 +1,12 @@
+from typing import Dict
+
 import loguru
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
-
-from ..logging.constants import RECORD_ATTR_ENV
-from ..logging.constants import RECORD_ATTR_SERVICE
-from ..logging.constants import RECORD_ATTR_SPAN_ID
-from ..logging.constants import RECORD_ATTR_TRACE_ID
-from ..logging.constants import RECORD_ATTR_VALUE_EMPTY
-from ..logging.constants import RECORD_ATTR_VERSION
 
 
 config._add(
@@ -24,18 +20,15 @@ def get_version():
     return getattr(loguru, "__version__", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"loguru": ">=0.4.0"}
+
+
 def _tracer_injection(event_dict):
-    trace_details = ddtrace.tracer.get_log_correlation_context()
-
-    event_dd_attributes = {}
-    # add ids to loguru event dictionary
-    event_dd_attributes[RECORD_ATTR_TRACE_ID] = trace_details["trace_id"]
-    event_dd_attributes[RECORD_ATTR_SPAN_ID] = trace_details["span_id"]
-    # add the env, service, and version configured for the tracer
-    event_dd_attributes[RECORD_ATTR_ENV] = config.env or RECORD_ATTR_VALUE_EMPTY
-    event_dd_attributes[RECORD_ATTR_SERVICE] = config.service or RECORD_ATTR_VALUE_EMPTY
-    event_dd_attributes[RECORD_ATTR_VERSION] = config.version or RECORD_ATTR_VALUE_EMPTY
-
+    if config._logs_injection == LogInjectionState.DISABLED:
+        # log injection is opt-out for structured logging
+        return event_dict
+    event_dd_attributes = ddtrace.tracer.get_log_correlation_context()
     event_dict.update(event_dd_attributes)
 
     return event_dd_attributes

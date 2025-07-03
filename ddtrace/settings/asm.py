@@ -61,11 +61,13 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
         _asm_static_rule_file = None
     _asm_processed_span_types = {SpanTypes.WEB, SpanTypes.GRPC}
+    _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
@@ -139,6 +141,9 @@ class ASMConfig(DDConfig):
     )
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
+
+    _iast_is_testing = False
 
     # default will be set to True once the feature is GA. For now it's always False
     _ep_enabled = DDConfig.var(bool, EXPLOIT_PREVENTION.EP_ENABLED, default=True)
@@ -173,11 +178,14 @@ class ASMConfig(DDConfig):
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
         "_apm_tracing_enabled",
+        "_bypass_instrumentation_for_waf",
         "_iast_enabled",
         "_iast_request_sampling",
         "_iast_debug",
         "_iast_propagation_debug",
         "_iast_telemetry_report_lvl",
+        "_iast_security_controls",
+        "_iast_is_testing",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_auto_user_instrumentation_local_mode",
@@ -229,6 +237,7 @@ class ASMConfig(DDConfig):
 
         if in_aws_lambda():
             self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
+            self._asm_http_span_types.add(SpanTypes.SERVERLESS)
 
             # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
             tracer_config._remote_config_enabled = False
@@ -252,6 +261,12 @@ class ASMConfig(DDConfig):
         else:
             # Is one click available?
             self._eval_asm_can_be_enabled()
+
+    @property
+    def asm_enabled_origin(self):
+        if APPSEC_ENV in os.environ:
+            return APPSEC.ENABLED_ORIGIN_ENV
+        return self._asm_enabled_origin
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""

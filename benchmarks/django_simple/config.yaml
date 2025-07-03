@@ -4,6 +4,10 @@ baseline: &baseline
   appsec_enabled: false
   iast_enabled: false
   path: ""
+  django_instrument_middleware: true
+  django_instrument_caches: true
+  django_instrument_databases: true
+  django_instrument_templates: true
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
@@ -28,3 +32,15 @@ exception-replay-enabled:
   <<: *tracer
   exception_replay_enabled: true
   path: "exc/"
+tracer-no-middleware:
+  <<: *tracer
+  django_instrument_middleware: false
+tracer-no-caches:
+  <<: *tracer
+  django_instrument_caches: false
+tracer-no-databases:
+  <<: *tracer
+  django_instrument_databases: false
+tracer-no-templates:
+  <<: *tracer
+  django_instrument_templates: false
