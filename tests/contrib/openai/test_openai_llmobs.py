@@ -743,24 +743,25 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    def test_chat_completion_prompt_caching(
-        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
+    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Test that prompt caching metrics are properly captured"""
         model = "gpt-4o"
+        client = openai.OpenAI()
         base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
-        resp1 = oai_with_test_agent_backend.chat.completions.create(
-            model=model,
-            messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
-            max_tokens=100,
-            temperature=0.1,
-        )
-        resp2 = oai_with_test_agent_backend.chat.completions.create(
-            model=model,
-            messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
-            max_tokens=100,
-            temperature=0.1,
-        )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_write.yaml"):
+            resp1 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_read.yaml"):
+            resp2 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
@@ -965,8 +966,9 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
     def test_chat_completion_stream_prompt_caching(
-        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
+        client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed chat completions."""
         input_messages = [
             {
@@ -980,21 +982,28 @@ class TestLLMObsOpenaiV1:
             "temperature": 0.1,
             "stream": True,
             "stream_options": {"include_usage": True},
+            "user": "ddtrace-test",
         }
-        resp1 = oai_with_test_agent_backend.chat.completions.create(
-            messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
-            **request_args,
-        )
-        for chunk in resp1:
-            if hasattr(chunk, "model"):
-                resp_model = chunk.model
-        resp2 = oai_with_test_agent_backend.chat.completions.create(
-            messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
-            **request_args,
-        )
-        for chunk in resp2:
-            if hasattr(chunk, "model"):
-                resp_model = chunk.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette(
+            "chat_completion_stream_prompt_caching_cache_write.yaml"
+        ):
+            resp1 = client.chat.completions.create(
+                messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+                **request_args,
+            )
+            for chunk in resp1:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette(
+            "chat_completion_stream_prompt_caching_cache_read.yaml"
+        ):
+            resp2 = client.chat.completions.create(
+                messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+                **request_args,
+            )
+            for chunk in resp2:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
 
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
@@ -1014,6 +1023,7 @@ class TestLLMObsOpenaiV1:
                             "temperature": 0.1,
                             "stream": True,
                             "stream_options": {"include_usage": True},
+                            "user": "ddtrace-test",
                         },
                         token_metrics={
                             "input_tokens": 1421,
@@ -1037,6 +1047,7 @@ class TestLLMObsOpenaiV1:
                             "temperature": 0.1,
                             "stream": True,
                             "stream_options": {"include_usage": True},
+                            "user": "ddtrace-test",
                         },
                         token_metrics={
                             "input_tokens": 1420,
@@ -1344,26 +1355,27 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_prompt_caching(
-        self, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
+    def test_responses_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for responses API"""
         model = "gpt-4o"
         base_input = "hello " * 1500
-        resp1 = oai_with_test_agent_backend.responses.create(
-            model=model,
-            input=base_input + " count from 1 to 3",
-            max_output_tokens=100,
-            temperature=0.1,
-            user="ddtrace-test",
-        )
-        resp2 = oai_with_test_agent_backend.responses.create(
-            model=model,
-            input=base_input + " count from 2 to 4",
-            max_output_tokens=100,
-            temperature=0.1,
-            user="ddtrace-test",
-        )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_cache_write.yaml"):
+            resp1 = client.responses.create(
+                model=model,
+                input=base_input + " count from 1 to 3",
+                max_output_tokens=100,
+                temperature=0.1,
+                user="ddtrace-test",
+            )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_cache_read.yaml"):
+            resp2 = client.responses.create(
+                model=model,
+                input=base_input + " count from 2 to 4",
+                max_output_tokens=100,
+                temperature=0.1,
+                user="ddtrace-test",
+            )
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
         assert mock_llmobs_writer.enqueue.call_count == 2
@@ -1430,9 +1442,8 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
     )
-    def test_responses_stream_prompt_caching(
-        self, openai, oai_with_test_agent_backend, ddtrace_global_config, mock_llmobs_writer, mock_tracer
-    ):
+    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI()
         """Test that prompt caching metrics are properly captured for streamed responses API"""
         base_input = "hello " * 1500
         request_args = {
@@ -1441,20 +1452,22 @@ class TestLLMObsOpenaiV1:
             "temperature": 0.1,
             "stream": True,
         }
-        resp1 = oai_with_test_agent_backend.responses.create(
-            input=base_input + " count from 1 to 3",
-            **request_args,
-        )
-        for chunk in resp1:
-            if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
-                resp_model = chunk.response.model
-        resp2 = oai_with_test_agent_backend.responses.create(
-            input=base_input + " count from 2 to 4",
-            **request_args,
-        )
-        for chunk in resp2:
-            if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
-                resp_model = chunk.response.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_stream_prompt_caching_cache_write.yaml"):
+            resp1 = client.responses.create(
+                input=base_input + " count from 1 to 3",
+                **request_args,
+            )
+            for chunk in resp1:
+                if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                    resp_model = chunk.response.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_stream_prompt_caching_cache_read.yaml"):
+            resp2 = client.responses.create(
+                input=base_input + " count from 2 to 4",
+                **request_args,
+            )
+            for chunk in resp2:
+                if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                    resp_model = chunk.response.model
 
         spans = mock_tracer.pop_traces()
         span1, span2 = spans[0][0], spans[1][0]
@@ -1481,8 +1494,8 @@ class TestLLMObsOpenaiV1:
                         },
                         token_metrics={
                             "input_tokens": 1515,
-                            "output_tokens": 8,
-                            "total_tokens": 1523,
+                            "output_tokens": 14,
+                            "total_tokens": 1529,
                             "cache_read_input_tokens": 0,
                         },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
