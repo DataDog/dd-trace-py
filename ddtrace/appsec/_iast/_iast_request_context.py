@@ -1,3 +1,4 @@
+import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -19,7 +20,8 @@ from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
+from ddtrace.appsec._iast._taint_tracking import OriginType
 
 log = get_logger(__name__)
 
@@ -54,6 +56,9 @@ def _create_and_attach_iast_report_to_span(
     if report_data is not None:
         data = report_data.build_and_scrub_value_parts()
         if asm_config._use_metastruct_for_iast:
+            for source in data.get("sources", []):
+                if isinstance(source.get("origin"), OriginType):
+                    source["origin"] = origin_to_str(source["origin"])
             req_span.set_struct_tag(IAST.STRUCT, data)
         else:
             req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
