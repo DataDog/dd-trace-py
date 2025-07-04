@@ -3,6 +3,9 @@ This module contains utility functions for writing ddtrace integrations.
 """
 
 from collections import deque
+from ctypes import c_int
+from ctypes import py_object
+from ctypes import pythonapi
 import ipaddress
 import re
 from typing import TYPE_CHECKING  # noqa:F401
@@ -35,6 +38,7 @@ from ddtrace.internal.compat import ip_is_global
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 import ddtrace.internal.utils.wrappers
+from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -607,3 +611,17 @@ def _convert_to_string(attr):
         else:
             return ensure_text(attr)
     return attr
+
+
+_C_INT_1 = c_int(1)
+_PyFrame_LocalsToFast = pythonapi.PyFrame_LocalsToFast
+
+
+class PatchingWrappingContext(WrappingContext):
+    """A wrapping context for patching locals"""
+
+    def set_local(self, name: str, value: Any) -> None:
+        # Update the local variable in the frame
+        (frame := self.__frame__).f_locals[name] = value
+        # Persist the change
+        _PyFrame_LocalsToFast(py_object(frame), _C_INT_1)
