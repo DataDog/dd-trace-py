@@ -46,14 +46,16 @@ bedrock_converse_args_with_system_and_tool = {
 }
 
 
-def create_bedrock_converse_request(user_message=None, tools=None, system=None):
+def create_bedrock_converse_request(
+    user_message=None, tools=None, system=None, modelId="anthropic.claude-3-sonnet-20240229-v1:0"
+):
     request_params = {
-        "modelId": "anthropic.claude-3-sonnet-20240229-v1:0",
+        "modelId": modelId,
         "messages": [{"role": "user", "content": [{"text": user_message}]}],
         "inferenceConfig": {"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
     }
     if system:
-        request_params["system"] = [{"text": system}]
+        request_params["system"] = [{"text": system}] if isinstance(system, str) else system
     if tools:
         request_params["toolConfig"] = {"tools": tools}
     return request_params
