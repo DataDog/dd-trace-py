@@ -177,6 +177,11 @@ class NoopLogsIntakeUploader(LogsIntakeUploaderV1):
             cls._instance = None
 
 
+class LightProbeRegistry(_debugger.ProbeRegistry):
+    def set_emitting(self, probe: Probe) -> None:
+        pass
+
+
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
     __uploader__ = NoopLogsIntakeUploader
@@ -198,6 +203,8 @@ class ExplorationDebugger(Debugger):
         di_config.metrics = False
 
         super(ExplorationDebugger, cls).enable()
+
+        cls._instance._probe_registry = LightProbeRegistry(cls._instance._status_logger)
 
         cls._instance.__uploader__.get_collector().on_snapshot = cls.on_snapshot
 

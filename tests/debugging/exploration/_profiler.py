@@ -1,4 +1,5 @@
 from pathlib import Path
+from random import random
 import typing as t
 
 from _config import config as expl_config
@@ -31,6 +32,8 @@ class FunctionCollector(ModuleCollector):
             fcps = list(discovery._fullname_index.values())
 
         for fcp in fcps:
+            if random() >= config.profiler.instrumentation_rate:
+                continue
             try:
                 f = fcp.resolve()
             except ValueError:

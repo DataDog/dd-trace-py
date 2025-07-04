@@ -317,6 +317,19 @@ def gen_debugger_exploration() -> None:
     We need to generate this dynamically from a template because it depends
     on the cached testrunner job, which is also generated dynamically.
     """
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            ".gitlab/templates/debugging/exploration.yml",
+            "ddtrace/debugging/*",
+            "ddtrace/internal/bytecode_injection/__init__.py",
+            "ddtrace/internal/wrapping/context.py",
+            "tests/debugging/exploration/*",
+        }
+    ):
+        return
+
     with TESTS_GEN.open("a") as f:
         f.write(template("debugging/exploration"))
 
