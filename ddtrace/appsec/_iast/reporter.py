@@ -198,6 +198,19 @@ class IastSpanReporter(NotNoneDictable):
         self._merge(other)
         self.stacktrace_id = other.stacktrace_id
 
+    def _merge_dict(self, data: Dict[str, Any]) -> None:
+        """
+        Merges the current IAST span reporter with another IAST span reporter from a dictionary.
+
+        Args:
+        - data (dict[str, Any]): dictionary.
+        """
+        other = IastSpanReporter()
+        other.stacktrace_id = self.stacktrace_id
+        other._from_dict(data)
+        self._merge(other)
+        self.stacktrace_id = other.stacktrace_id
+
     def _merge(self, other: "IastSpanReporter") -> None:
         """
         Merges the current IAST span reporter with another IAST span reporter.
@@ -228,9 +241,13 @@ class IastSpanReporter(NotNoneDictable):
         Args:
         - json_str (str): JSON string.
         """
+        data = json.loads(json_str)
+        self._from_dict(data)
+
+    def _from_dict(self, data: Dict[str, Any]):
+        """Initializes the IAST span reporter from a dictionary."""
         from ._taint_tracking import str_to_origin
 
-        data = json.loads(json_str)
         self.sources = []
         for i in data["sources"]:
             source = Source(
