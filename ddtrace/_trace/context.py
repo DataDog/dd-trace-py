@@ -217,7 +217,7 @@ class Context(object):
             self._meta[_USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
 
     @property
-    def _trace_id_64bits(self):
+    def _trace_id_64bits(self) -> Optional[int]:
         """Return the trace ID as a 64-bit value."""
         if self.trace_id is None:
             return None
