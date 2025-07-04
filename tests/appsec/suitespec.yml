@@ -230,7 +230,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'
