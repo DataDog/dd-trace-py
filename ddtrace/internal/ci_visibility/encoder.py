@@ -113,7 +113,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         # Try to fit all spans first (optimistic case)
         payload = self._create_payload_from_spans(all_spans)
-        if len(payload) <= self._MAX_PAYLOAD_SIZE:
+        if len(payload) <= self._MAX_PAYLOAD_SIZE or total_traces <= 1:
             record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
             return payload, total_traces
 
