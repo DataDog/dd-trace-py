@@ -72,9 +72,6 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
 
-if _pytest_version_supports_retries():
-    from ddtrace.contrib.internal.pytest._retry_utils import get_retry_num
-
 if _pytest_version_supports_efd():
     from ddtrace.contrib.internal.pytest._efd_utils import efd_get_failed_reports
     from ddtrace.contrib.internal.pytest._efd_utils import efd_get_teststatus
@@ -552,6 +549,7 @@ def _pytest_run_one_test(item, nextitem):
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     reports_dict = {report.when: report for report in reports}
     test_outcome = _process_reports_dict(item, reports_dict)
+    _set_benchmark_data_from_item(item)
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
@@ -691,24 +689,6 @@ def _process_result(item, result) -> _TestOutcome:
     return _TestOutcome(status=TestStatus.FAIL, exc_info=exc_info)
 
 
-def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
-    # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
-        return
-
-    original_result = outcome.get_result()
-    test_outcome = _process_result(item, original_result)
-
-    # A None value for test_outcome.status implies the test has not finished yet
-    # Only continue to finishing the test if the test has finished, or if tearing down the test
-    if test_outcome.status is None and call.when != TestPhase.TEARDOWN:
-        return
-
-    # Support for pytest-benchmark plugin
-    if item.config.pluginmanager.hasplugin("benchmark"):
-        _set_benchmark_data_from_item(item)
-
-
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     """Store outcome for tracing."""
@@ -719,14 +699,6 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
     excinfo_by_report[outcome.get_result()] = call.excinfo
     reports_by_item.setdefault(item, {})[call.when] = outcome.get_result()
-
-    if not is_test_visibility_enabled():
-        return
-
-    try:
-        return _pytest_runtest_makereport(item, call, outcome)
-    except Exception:  # noqa: E722
-        log.debug("encountered error during makereport", exc_info=True)
 
 
 def _pytest_terminal_summary_pre_yield(terminalreporter) -> int:

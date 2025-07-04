@@ -11,11 +11,14 @@ from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal import core
+from ddtrace.contrib.internal.pytest._types import pytest_TestReport
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 
 
 class UserProperty:
     RETRY_REASON = "dd_retry_reason"
     RETRY_FINAL_OUTCOME = "dd_retry_final_outcome"
+    RETRY_NUMBER = "dd_retry_number"
 
 
 class RetryReason:
@@ -33,26 +36,15 @@ class RetryOutcomes:
     XPASS: str
 
 
-def get_retry_num(nodeid: str) -> t.Optional[int]:
-    with core.context_with_data(f"dd-pytest-retry-{nodeid}") as ctx:
-        return ctx.get_item("retry_num")
-
-
-@contextmanager
-def set_retry_num(nodeid: str, retry_num: int):
-    with core.context_with_data(f"dd-pytest-retry-{nodeid}") as ctx:
-        ctx.set_item("retry_num", retry_num)
-        yield
-
-
-def _get_retry_attempt_string(nodeid) -> str:
-    retry_number = get_retry_num(nodeid)
-    return "ATTEMPT {} ".format(retry_number) if retry_number is not None else "INITIAL ATTEMPT "
+def _get_retry_attempt_string(report: pytest_TestReport) -> str:
+    retry_number = get_user_property(report, UserProperty.RETRY_NUMBER)
+    return "ATTEMPT {} ".format(retry_number) if retry_number else "INITIAL ATTEMPT "
 
 
 def _get_outcome_from_retry(
     item: pytest.Item,
     outcomes: RetryOutcomes,
+    retry_number: int,
 ) -> _TestOutcome:
     _outcome_status: t.Optional[TestStatus] = None
     _outcome_skip_reason: t.Optional[str] = None
@@ -69,6 +61,7 @@ def _get_outcome_from_retry(
         _outcome_status = TestStatus.PASS
 
     for report in reports:
+        report.user_properties += [(UserProperty.RETRY_NUMBER, retry_number)]
         if report.failed:
             report.outcome = outcomes.FAILED
             report_excinfo = excinfo_by_report.get(report)
