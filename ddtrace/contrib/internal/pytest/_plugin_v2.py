@@ -692,16 +692,13 @@ def _process_result(item, result) -> _TestOutcome:
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
+    original_result = outcome.get_result()
+
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
+    if _pytest_version_supports_retries() and get_retry_num(original_result) is not None:
         return
 
-    original_result = outcome.get_result()
-    test_outcome = _process_result(item, original_result)
-
-    # A None value for test_outcome.status implies the test has not finished yet
-    # Only continue to finishing the test if the test has finished, or if tearing down the test
-    if test_outcome.status is None and call.when != TestPhase.TEARDOWN:
+    if call.when != TestPhase.TEARDOWN:
         return
 
     # Support for pytest-benchmark plugin

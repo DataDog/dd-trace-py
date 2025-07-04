@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
 from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
@@ -117,8 +116,7 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     while InternalTest.atr_should_retry(test_id):
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
 
-        with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _get_outcome_from_retry(item, outcomes)
+        retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
         InternalTest.atr_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
@@ -276,19 +274,19 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
             "r",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}PASSED", {"green": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED:
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
             "R",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}FAILED", {"yellow": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED:
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
             "s",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}SKIPPED", {"yellow": True}),
         )
     return None
 
@@ -298,19 +296,19 @@ def quarantine_atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
             "q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}PASSED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED:
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
             "Q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}FAILED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED:
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
             "q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}SKIPPED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
         return (
