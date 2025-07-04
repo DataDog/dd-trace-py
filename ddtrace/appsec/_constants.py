@@ -149,6 +149,7 @@ class IAST(metaclass=Constant_Class):
     ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
+    STRUCT: Literal["iast"] = "iast"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
     ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
