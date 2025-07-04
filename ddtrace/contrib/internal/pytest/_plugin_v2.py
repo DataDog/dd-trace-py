@@ -38,10 +38,10 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -98,6 +98,9 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
+
+skip_pytest_runtest_protocol = False
 
 
 class XdistHooks:
@@ -270,6 +273,8 @@ def _is_pytest_cov_enabled(config) -> bool:
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    global skip_pytest_runtest_protocol
+
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
@@ -280,11 +285,26 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
+        from ddtrace.contrib.internal.pytest.plugin import is_enabled
+
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
+
+            skip_pytest_runtest_protocol = False
+
+            for plugin in INCOMPATIBLE_PLUGINS:
+                if config.pluginmanager.hasplugin(plugin):
+                    log.warning(
+                        "The pytest `%s` plugin is in use; Test Optimization advanced features will be disabled. "
+                        "You can run `pytest` with `-p no:%s` to disable the plugin and enable Test Optimization "
+                        "features.",
+                        plugin,
+                        plugin,
+                    )
+                    skip_pytest_runtest_protocol = True
 
             # pytest-bdd plugin support
             if config.pluginmanager.hasplugin("pytest-bdd"):
@@ -471,7 +491,13 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
-        InternalTest.finish(test_id)
+        reports_dict = reports_by_item.get(item)
+        if reports_dict:
+            test_outcome = _process_reports_dict(item, reports_dict)
+            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        else:
+            log.debug("Test %s has no entry in reports_by_item", test_id)
+            InternalTest.finish(test_id)
 
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
@@ -516,6 +542,13 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None
 
+    if skip_pytest_runtest_protocol:
+        # Retry-based features such as Early Flake Detection, Auto Test Retries, and Attempt-to-Fix do not work properly
+        # with external retry plugins such as `flaky` and `pytest-rerunfailures`. If those plugins are in use, we let
+        # their `pytest_runtest_protocol` run and report their results to the backend, and do not run our advanced
+        # features.
+        return None
+
     try:
         _pytest_run_one_test(item, nextitem)
         return True  # Do not run pytest's internal `pytest_runtest_protocol`.
@@ -529,9 +562,8 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
 def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
-    test_outcome = _process_reports(item, reports)
-
     reports_dict = {report.when: report for report in reports}
+    test_outcome = _process_reports_dict(item, reports_dict)
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
@@ -584,14 +616,20 @@ def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
 
-def _process_reports(item, reports) -> _TestOutcome:
+def _process_reports_dict(item, reports) -> _TestOutcome:
     final_outcome = None
-    for report in reports:
+
+    for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
+        report = reports.get(when)
+        if not report:
+            continue
+
         outcome = _process_result(item, report)
         if final_outcome is None or final_outcome.status is None:
             final_outcome = outcome
             if final_outcome.status is not None:
                 return final_outcome
+
     return final_outcome
 
 
@@ -692,6 +730,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     # DEV: Make excinfo available for later use, when we don't have the `call` object anymore.
     # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
     excinfo_by_report[outcome.get_result()] = call.excinfo
+    reports_by_item.setdefault(item, {})[call.when] = outcome.get_result()
 
     if not is_test_visibility_enabled():
         return
