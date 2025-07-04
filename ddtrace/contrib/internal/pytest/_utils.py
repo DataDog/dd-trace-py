@@ -248,3 +248,4 @@ def get_user_property(report, key, default=None):
 
 
 excinfo_by_report = weakref.WeakKeyDictionary()
+reports_by_item = weakref.WeakKeyDictionary()

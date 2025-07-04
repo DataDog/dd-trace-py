@@ -66,6 +66,7 @@ tests/contrib/asynctest                               @DataDog/ci-app-libraries
 tests/contrib/pytest                                  @DataDog/ci-app-libraries
 tests/contrib/pytest_bdd                              @DataDog/ci-app-libraries
 tests/contrib/pytest_benchmark                        @DataDog/ci-app-libraries
+tests/contrib/pytest_flaky                            @DataDog/ci-app-libraries
 tests/contrib/unittest                                @DataDog/ci-app-libraries
 tests/integration/test_integration_civisibility.py    @DataDog/ci-app-libraries
 ddtrace/ext/ci.py                                     @DataDog/ci-app-libraries
