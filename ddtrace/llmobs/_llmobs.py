@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+import copy
 import json
 import os
 import time
@@ -128,7 +129,20 @@ class LLMObsSpan:
     Passed to the `span_processor` function in the `enable` or `register_processor` methods.
 
     Example::
-        def span_processor(span: LLMObsSpan) -> LLMObsSpan:
+        def span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
+            # Access full span context for decision making
+            ctx = span.get_span_context()
+            if ctx:
+                model_name = ctx._get_ctx_item("_ml_obs.meta.model_name")
+                metadata = ctx._get_ctx_item("_ml_obs.meta.metadata") or {}
+                
+                # Omit spans based on full context
+                if model_name == "sensitive-model" and metadata.get("contains_pii"):
+                    return None  # This span will be omitted
+            
+            # Modify input/output
+            if span.get_tag("omit_span") == "1":
+                return None
             if span.get_tag("no_input") == "1":
                 span.input = []
             return span
@@ -141,6 +155,7 @@ class LLMObsSpan:
     input: List[Message] = field(default_factory=list)
     output: List[Message] = field(default_factory=list)
     _tags: Dict[str, str] = field(default_factory=dict)
+    _span_context: Optional["Span"] = field(default=None, init=False)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -150,6 +165,17 @@ class LLMObsSpan:
         :rtype: Optional[str]
         """
         return self._tags.get(key)
+    
+    def get_span_context(self) -> Optional["Span"]:
+        """Get read-only access to the full span for context.
+        
+        This provides access to all span data including metadata, metrics,
+        model information, and any other span fields for decision making.
+        
+        :return: The full span object for reading context, or None if not available.
+        :rtype: Optional[Span]
+        """
+        return self._span_context
 
 
 class LLMObs(Service):
@@ -159,7 +185,7 @@ class LLMObs(Service):
     def __init__(
         self,
         tracer: Optional[Tracer] = None,
-        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
+        span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
     ) -> None:
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
@@ -205,6 +231,8 @@ class LLMObs(Service):
         span_event = None
         try:
             span_event = self._llmobs_span_event(span)
+            if span_event is None:
+                return
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -216,7 +244,7 @@ class LLMObs(Service):
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> LLMObsSpanEvent:
+    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
@@ -278,10 +306,15 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
-                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
+                span_clone = copy.copy(span)
+                llmobs_span._span_context = span_clone
+                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS) or {})
+                
                 user_llmobs_span = self._user_span_processor(llmobs_span)
+                if user_llmobs_span is None:
+                    return None
                 if not isinstance(user_llmobs_span, LLMObsSpan):
-                    raise TypeError("User span processor must return an LLMObsSpan, got %r" % type(user_llmobs_span))
+                    raise TypeError("User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span))
                 llmobs_span = user_llmobs_span
             except Exception as e:
                 log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
@@ -449,7 +482,7 @@ class LLMObs(Service):
         api_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
+        span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -464,8 +497,8 @@ class LLMObs(Service):
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
         :param str service: Your service name.
-        :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
-            LLMObsSpan.
+        :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and returns an
+            LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -550,14 +583,16 @@ class LLMObs(Service):
             )
 
     @classmethod
-    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
+    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
         """Register a processor to be called on each LLMObs span.
 
         This can be used to modify the span before it is sent to LLMObs. For example, you can modify the input/output.
+        You can also return None to omit the span entirely from being sent to LLMObs.
 
         To deregister the processor, call `register_processor(None)`.
 
-        :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan.
+        :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan or None.
+                         If None is returned, the span will be omitted and not sent to LLMObs.
         """
         cls._instance._user_span_processor = processor
 
