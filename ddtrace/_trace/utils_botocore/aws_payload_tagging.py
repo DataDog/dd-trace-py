@@ -121,13 +121,15 @@ class AWSPayloadTagging:
         # otherwise validate that we have valid JSONPaths
         for path in paths.split(","):
             if path:
+                # Require JSONPath to start with "$"
+                if not path.startswith("$"):
+                    return False
                 try:
                     parse(path)
                 except Exception:
                     return False
             else:
                 return False
-
         return True
 
     def _redact_json(self, data: Dict[str, Any], span: Span, paths: list) -> None:
