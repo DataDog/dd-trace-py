@@ -1,3 +1,4 @@
+from contextlib import contextmanager
 from dataclasses import dataclass
 import typing as t
 
@@ -34,8 +35,22 @@ class RetryOutcomes:
     XPASS: str
 
 
+def get_retry_num(report: pytest_TestReport) -> t.Optional[int]:
+    return get_user_property(report, UserProperty.RETRY_NUMBER)
+
+
+@contextmanager
+def set_retry_num(item: pytest.Item, retry_num: int):
+    original_user_properties = item.user_properties
+    try:
+        item.user_properties = original_user_properties + [(UserProperty.RETRY_NUMBER, retry_num)]
+        yield
+    finally:
+        item.user_properties = original_user_properties
+
+
 def _get_retry_attempt_string(report: pytest_TestReport) -> str:
-    retry_number = get_user_property(report, UserProperty.RETRY_NUMBER)
+    retry_number = get_retry_num(report)
     return "ATTEMPT {} ".format(retry_number) if retry_number else "INITIAL ATTEMPT "
 
 
@@ -49,7 +64,8 @@ def _get_outcome_from_retry(
     _outcome_exc_info: t.Optional[TestExcInfo] = None
 
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
-    reports = runtestprotocol(item, nextitem=None, log=False)
+    with set_retry_num(item, retry_number):
+        reports = runtestprotocol(item, nextitem=None, log=False)
 
     if any(report.failed for report in reports):
         _outcome_status = TestStatus.FAIL
@@ -59,7 +75,6 @@ def _get_outcome_from_retry(
         _outcome_status = TestStatus.PASS
 
     for report in reports:
-        report.user_properties += [(UserProperty.RETRY_NUMBER, retry_number)]
         if report.failed:
             report.outcome = outcomes.FAILED
             report_excinfo = excinfo_by_report.get(report)
