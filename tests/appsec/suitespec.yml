@@ -164,7 +164,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 30m
