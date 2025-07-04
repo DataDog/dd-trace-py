@@ -1,0 +1,3 @@
+fixes:
+  - |
+    CI Visibility: This PR fixes an issue where payloads exceeding 5MB could fail to be sent to the intake. Payloads are now automatically split if they exceed the size limit.
