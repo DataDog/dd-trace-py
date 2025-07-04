@@ -341,13 +341,10 @@ def get_triggers(span) -> Any:
             log.debug("Failed to parse triggers", exc_info=True)
     return None
 
-import sys
 
 def get_security(span) -> Any:
     if asm_config._use_metastruct_for_iast:
-        print(f"SPAN Metastruct: {span._meta_struct}", file=sys.stderr)
         return span.get_struct_tag(IAST.STRUCT)
-    print(f"SPAN Meta: {span._meta}", file=sys.stderr)
     json_payload = span.get_tag(IAST.JSON)
     if json_payload:
         try:

@@ -1,4 +1,3 @@
-import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -14,14 +13,15 @@ import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.appsec._iast._taint_tracking import origin_to_str
-from ddtrace.appsec._iast._taint_tracking import OriginType
+
 
 log = get_logger(__name__)
 
