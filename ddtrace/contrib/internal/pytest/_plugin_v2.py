@@ -17,7 +17,6 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
-from ddtrace.contrib.internal.pytest._retry_utils import get_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
@@ -72,6 +71,9 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 
+
+if _pytest_version_supports_retries():
+    from ddtrace.contrib.internal.pytest._retry_utils import get_retry_num
 
 if _pytest_version_supports_efd():
     from ddtrace.contrib.internal.pytest._efd_utils import efd_get_failed_reports
@@ -550,7 +552,6 @@ def _pytest_run_one_test(item, nextitem):
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
     reports_dict = {report.when: report for report in reports}
     test_outcome = _process_reports_dict(item, reports_dict)
-    _set_benchmark_data_from_item(item)
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
