@@ -9,8 +9,16 @@ then
     CMD=bash
 fi
 
+# Make UID and GID available to the testrunner container, to run with the same user as the host.
+# The entrypoint at scripts/ddtest-entrypoint.sh will drop privileges to the user with the given UID and GID.
+# This will ensure any file created on mounted volumes have the right ownership.
+export EFFECTIVE_UID=$(id -u)
+export EFFECTIVE_GID=$(id -g)
+
 docker compose run \
        -e DD_TRACE_AGENT_URL \
+       -e EFFECTIVE_UID \
+       -e EFFECTIVE_GID \
        --rm \
        -i \
        testrunner \
