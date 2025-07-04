@@ -36,7 +36,6 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
-from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item

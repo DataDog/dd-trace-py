@@ -1,18 +1,16 @@
-from contextlib import contextmanager
 from dataclasses import dataclass
 import typing as t
 
 from _pytest.runner import runtestprotocol
 import pytest
 
+from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import get_user_property
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
-from ddtrace.internal import core
-from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import get_user_property
 
 
 class UserProperty:
