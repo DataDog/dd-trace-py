@@ -93,8 +93,13 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def _build_payload(self, traces):
         # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
-        new_parent_session_span_id = self._get_parent_session(traces)
+        if not traces:
+            return None, 0
 
+        new_parent_session_span_id = self._get_parent_session(traces)
+        return self._send_all_or_half_spans(traces, new_parent_session_span_id)
+
+    def _send_all_or_half_spans(self, traces, new_parent_session_span_id):
         # Convert all traces to spans with filtering
         all_spans_with_trace_info = self._convert_traces_to_spans(traces, new_parent_session_span_id)
         total_traces = len(traces)
@@ -112,11 +117,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
             return payload, total_traces
 
-        # Payload is too big, use binary search to find the maximum number of traces that fit
-        best_traces_count, best_spans = self._find_max_traces_that_fit(traces, all_spans_with_trace_info)
-
-        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(best_spans))
-        return self._create_payload_from_spans(best_spans), best_traces_count
+        mid = (total_traces + 1) // 2
+        return self._send_all_or_half_spans(traces[:mid], new_parent_session_span_id)
 
     def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
         # type: (List[List[Span]], Optional[int]) -> List[Tuple[int, List[Dict[str, Any]]]]
@@ -142,44 +144,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
                 "events": spans,
             }
         )
-
-    def _find_max_traces_that_fit(self, traces, all_spans_with_trace_info):
-        # type: (List[List[Span]], List[Tuple[int, List[Dict[str, Any]]]]) -> Tuple[int, List[Dict[str, Any]]]
-        """Use binary search to find the maximum number of traces that fit within the payload size limit."""
-        left, right = 1, len(traces)
-        best_traces_count = 1  # At minimum, include 1 trace to avoid infinite loops
-        best_spans = []
-
-        while left <= right:
-            mid = (left + right) // 2
-            spans_subset = self._get_spans_for_traces(all_spans_with_trace_info, mid)
-
-            if not spans_subset:
-                # No spans in this subset, try with more traces
-                left = mid + 1
-                continue
-
-            test_payload = self._create_payload_from_spans(spans_subset)
-
-            if len(test_payload) <= self._MAX_PAYLOAD_SIZE:
-                # This fits, try with more traces
-                best_traces_count = mid
-                best_spans = spans_subset
-                left = mid + 1
-            else:
-                # This is too big, try with fewer traces
-                right = mid - 1
-
-        return best_traces_count, best_spans
-
-    def _get_spans_for_traces(self, all_spans_with_trace_info, num_traces):
-        # type: (List[Tuple[int, List[Dict[str, Any]]]], int) -> List[Dict[str, Any]]
-        """Get all spans for the first num_traces traces."""
-        spans_subset = []
-        for i in range(num_traces):
-            _, trace_spans = all_spans_with_trace_info[i]
-            spans_subset.extend(trace_spans)
-        return spans_subset
 
     @staticmethod
     def _pack_payload(payload):
