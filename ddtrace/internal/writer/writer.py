@@ -364,7 +364,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def flush_queue(self, raise_exc: bool = False):
         try:
             for client in self._clients:
-                self._flush_queue_with_client(client, raise_exc=raise_exc)
+                while len(client.encoder) > 0:
+                    self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
 
