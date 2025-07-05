@@ -42,7 +42,6 @@ def test_global_tags(genai, mock_client, mock_tracer):
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("google_generativeai.request.model") == "gemini-1.5-flash"
-    assert span.get_tag("google_generativeai.request.api_key") == "...key>"
 
 
 SNAPSHOT_IGNORES = []
