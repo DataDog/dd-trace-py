@@ -103,6 +103,42 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         span.finish()
         raise
 
+@with_traced_module
+def traced_embed_content(genai, pin, func, instance, args, kwargs):
+    integration = genai._datadog_integration
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=True,
+    ) as span:
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            return resp
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+
+@with_traced_module
+async def traced_async_embed_content(genai, pin, func, instance, args, kwargs):
+    integration = genai._datadog_integration
+    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    with integration.trace(
+        pin,
+        "%s.%s" % (instance.__class__.__name__, func.__name__),
+        provider=provider_name,
+        model=model_name,
+        submit_to_llmobs=True,
+    ) as span:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            return resp
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+
 
 def patch():
     if getattr(genai, "_datadog_patch", False):
@@ -117,6 +153,8 @@ def patch():
     wrap("google.genai", "models.Models.generate_content_stream", traced_generate_stream(genai))
     wrap("google.genai", "models.AsyncModels.generate_content", traced_async_generate(genai))
     wrap("google.genai", "models.AsyncModels.generate_content_stream", traced_async_generate_stream(genai))
+    wrap("google.genai", "models.Models.embed_content", traced_embed_content(genai))
+    wrap("google.genai", "models.AsyncModels.embed_content", traced_async_embed_content(genai))
 
 
 def unpatch():
@@ -129,5 +167,7 @@ def unpatch():
     unwrap(genai.models.Models, "generate_content_stream")
     unwrap(genai.models.AsyncModels, "generate_content")
     unwrap(genai.models.AsyncModels, "generate_content_stream")
+    unwrap(genai.models.Models, "embed_content")
+    unwrap(genai.models.AsyncModels, "embed_content")
 
     delattr(genai, "_datadog_integration")
