@@ -45,7 +45,7 @@ def ddtrace_injection_artifact():
     Session-scoped fixture to prepare the injection artifact:
     1. Copies injection source files (sitecustomize.py, etc.) into a temporary directory.
     2. Copies the host's ddtrace package source into the expected `ddtrace_pkgs/site-packages...` structure.
-    3. Installs build dependencies necesssary for setup.py to run.
+    3. Installs build dependencies necessary for setup.py to run.
     4. Generates package metadata (.egg-info) for entry point discovery using setup.py.
     5. Writes the host's ddtrace version to the `version` file.
     Yields: path_to_prepared_sources_dir
@@ -70,7 +70,7 @@ def ddtrace_injection_artifact():
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
-        # 4. Install build dependencies necesssary for setup.py to run.
+        # 4. Install build dependencies necessary for setup.py to run.
         with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
             pyproject = tomllib.load(f)
         build_requires = pyproject.get("build-system", {}).get("requires", [])

@@ -262,7 +262,7 @@ class LoggingTestCase(TracerTestCase):
                     ) == lines[0]
 
     def test_log_strformat_style_dollar_sign(self):
-        # FIXME: This test that verifies that the logging integration doesnt work with dollar sign style format strings.
+        # FIXME: This test that verifies that the logging integration doesn't work with dollar sign style format strings.
         def func():
             with self.tracer.trace("test.logging") as span:
                 logger.info("Hello!")
