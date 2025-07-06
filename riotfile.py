@@ -175,12 +175,89 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_fastapi",
+            command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
+            pkgs={
+                "requests": latest,
+                "python-multipart": latest,
+                "jinja2": latest,
+                "httpx": "<0.28.0",
+                "uvicorn": "==0.33.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.8"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.10"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.86.0", "anyio": "==3.7.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "==0.94.1"},
+                ),
+                Venv(
+                    pys=["3.13"],
+                    pkgs={"fastapi": "~=0.114.2"},
+                ),
+            ],
+        ),
+        Venv(
             name="profile-diff",
             command="python scripts/diff.py {cmdargs}",
             pys="3",
             pkgs={
                 "austin-python": "~=1.0",
                 "rich": latest,
+            },
+        ),
+        Venv(
+            name="appsec_iast_default",
+            command="pytest {cmdargs} tests/appsec/iast/",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "astunparse": latest,
+                "simplejson": latest,
+                "grpcio": latest,
+                "pytest-asyncio": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -514,6 +591,10 @@ venv = Venv(
                 "kombu": ">=4.2.0,<4.3.0",
                 "pytest-randomly": latest,
                 "requests": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
             },
         ),
         Venv(
@@ -1755,6 +1836,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest:flaky",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            pkgs={
+                "flaky": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="grpc",
             command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
@@ -2423,7 +2513,7 @@ venv = Venv(
             name="openai",
             command="pytest {cmdargs} tests/contrib/openai",
             pkgs={
-                "vcrpy": "==4.2.1",
+                "vcrpy": latest,
                 "urllib3": "~=1.26",
                 "pytest-asyncio": "==0.21.1",
                 "pytest-randomly": latest,
@@ -2440,7 +2530,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": latest,
+                        "openai": [latest, "~=1.76.2"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2694,10 +2784,7 @@ venv = Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "langgraph": "~=0.2.60",
-            },
+            pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
         ),
         Venv(
             name="litellm",
@@ -2754,6 +2841,15 @@ venv = Venv(
             },
         ),
         Venv(
+            name="google_genai",
+            command="pytest {cmdargs} tests/contrib/google_genai",
+            pys=select_pys(min_version="3.9", max_version="3.13"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "google-genai": latest,
+            },
+        ),
+        Venv(
             name="crewai",
             command="pytest {cmdargs} tests/contrib/crewai",
             pys=select_pys(min_version="3.10", max_version="3.12"),
@@ -2761,6 +2857,16 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "openai": latest,
                 "crewai": ["~=0.102.0", "~=0.121.0"],
+                "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
+            name="pydantic_ai",
+            command="pytest {cmdargs} tests/contrib/pydantic_ai",
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "pydantic-ai": ["==0.3.0", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -2843,8 +2949,18 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.20.0", latest],
+                "azure.functions": ["~=1.10.1", latest],
+                "azure.servicebus": latest,
                 "requests": latest,
+            },
+        ),
+        Venv(
+            name="azure_servicebus",
+            command="pytest {cmdargs} tests/contrib/azure_servicebus",
+            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pkgs={
+                "azure.servicebus": ["~=7.14.0", latest],
+                "pytest-asyncio": "==0.24.0",
             },
         ),
         Venv(
@@ -3158,6 +3274,106 @@ venv = Venv(
                     pys=["3.10", "3.12"],
                     pkgs={
                         "freezegun": ["~=1.3.0", "~=1.5.0"],
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_integrations_flask",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "gunicorn": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "~=1.1",
+                        "MarkupSafe": "~=1.1",
+                        "itsdangerous": "==2.0.1",
+                        "Werkzeug": "==2.0.3",
+                    },
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11"],
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "flask": "~=2.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                ),
+                Venv(
+                    # werkzeug 3.1 drops support for py3.8
+                    pys=["3.11", "3.12", "3.13"],
+                    pkgs={
+                        "flask": "~=3.1",
+                        "Werkzeug": "~=3.1",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_integrations_langchain",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-asyncio": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
+                        "langchain-experimental": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
+                        "langchain-experimental": "~=0.3",
                     },
                 ),
             ],

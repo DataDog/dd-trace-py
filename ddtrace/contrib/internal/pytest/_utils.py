@@ -211,7 +211,7 @@ def _extract_span(item):
     return getattr(item, "_datadog_span", None)
 
 
-def _is_enabled_early(early_config):
+def _is_enabled_early(early_config, args):
     """Checks if the ddtrace plugin is enabled before the config is fully populated.
 
     This is necessary because the module watchdog for coverage collection needs to be enabled as early as possible.
@@ -222,15 +222,14 @@ def _is_enabled_early(early_config):
     if not _pytest_version_supports_itr():
         return False
 
-    if (
-        "--no-ddtrace" in early_config.invocation_params.args
-        or early_config.getini("no-ddtrace")
-        or "ddtrace" in early_config.inicfg
-        and early_config.getini("ddtrace") is False
-    ):
+    if _is_option_true("no-ddtrace", early_config, args):
         return False
 
-    return "--ddtrace" in early_config.invocation_params.args or early_config.getini("ddtrace")
+    return _is_option_true("ddtrace", early_config, args)
+
+
+def _is_option_true(option, early_config, args):
+    return early_config.getoption(option) or early_config.getini(option) or f"--{option}" in args
 
 
 class _TestOutcome(t.NamedTuple):
@@ -249,3 +248,4 @@ def get_user_property(report, key, default=None):
 
 
 excinfo_by_report = weakref.WeakKeyDictionary()
+reports_by_item = weakref.WeakKeyDictionary()

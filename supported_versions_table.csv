@@ -13,7 +13,8 @@ asyncpg,asyncpg,0.22.0,0.30.0,True
 avro,avro,1.12.0,1.12.0,True
 datadog-lambda,aws_lambda,6.105.0,6.105.0,True
 datadog_lambda,aws_lambda,6.105.0,6.105.0,True
-azure-functions,azure_functions *,1.20.0,1.21.3,True
+azure-functions,azure_functions *,1.10.1,1.23.0,True
+azure-servicebus,azure_servicebus *,7.14.2,7.14.2,True
 boto3,botocore *,1.34.49,1.38.26,True
 botocore,botocore *,1.34.49,1.38.26,True
 bottle,bottle,0.12.25,0.13.2,True
@@ -42,6 +43,7 @@ flask-cache,flask_cache,0.13.1,0.13.1,False
 flask-caching,flask_cache,1.10.1,2.3.0,False
 freezegun,freezegun *,1.3.1,1.5.2,True
 gevent,gevent,20.12.1,24.11.1,True
+google-genai,google_genai,1.21.1,1.21.1,False
 google-generativeai,google_generativeai,0.7.2,0.8.3,True
 graphql-core,graphql,3.1.7,3.2.6,True
 grpcio,grpc,1.34.1,1.68.1,True
@@ -56,19 +58,20 @@ litellm,litellm *,1.65.4,1.65.4,True
 logbook,logbook,1.0.0,1.8.1,False
 loguru,loguru,0.4.1,0.7.2,False
 mako,mako,1.0.14,1.3.8,True
-mariadb,mariadb,1.0.11,1.1.11,True
+mariadb,mariadb,1.0.11,1.1.12,True
 molten,molten,1.0.2,1.0.2,True
 mongoengine,mongoengine,0.23.1,0.29.1,True
 mysql-connector-python,mysql,8.0.5,9.0.0,True
 mysqlclient,mysqldb,2.2.1,2.2.6,True
-openai,openai,1.0.0,1.60.0,True
+openai,openai,1.0.0,1.91.0,True
 openai-agents,openai_agents,0.0.8,0.0.16,True
 protobuf,protobuf,5.29.3,6.30.1,False
-psycopg,psycopg,3.0.18,3.2.1,True
+psycopg,psycopg,3.0.18,3.2.9,True
 psycopg2-binary,psycopg,2.8.6,2.9.10,True
+pydantic-ai-slim,pydantic_ai *,0.3.0,0.3.3,True
 pylibmc,pylibmc,1.6.3,1.6.3,True
 pymemcache,pymemcache,3.4.4,4.0.0,True
-pymongo,pymongo,3.8.0,4.10.1,True
+pymongo,pymongo,3.8.0,4.13.2,True
 pymysql,pymysql,0.10.1,1.1.1,True
 pynamodb,pynamodb *,5.0.3,5.5.1,True
 pyodbc,pyodbc,4.0.39,5.2.0,True

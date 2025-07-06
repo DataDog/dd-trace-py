@@ -103,8 +103,16 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.20.0",
-        "max_tracer_supported": "1.21.3",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.23.0",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-servicebus",
+        "integration": "azure_servicebus",
+        "minimum_tracer_supported": "7.14.2",
+        "max_tracer_supported": "7.14.2",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -309,6 +317,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-genai",
+        "integration": "google_genai",
+        "minimum_tracer_supported": "1.21.1",
+        "max_tracer_supported": "1.21.1",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
         "minimum_tracer_supported": "0.7.2",
@@ -413,7 +428,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.11",
+        "max_tracer_supported": "1.1.12",
         "auto-instrumented": true
     },
     {
@@ -448,7 +463,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.60.0",
+        "max_tracer_supported": "1.91.0",
         "auto-instrumented": true
     },
     {
@@ -469,7 +484,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.1",
+        "max_tracer_supported": "3.2.9",
         "auto-instrumented": true
     },
     {
@@ -477,6 +492,14 @@
         "integration": "psycopg",
         "minimum_tracer_supported": "2.8.6",
         "max_tracer_supported": "2.9.10",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "pydantic-ai-slim",
+        "integration": "pydantic_ai",
+        "minimum_tracer_supported": "0.3.0",
+        "max_tracer_supported": "0.3.3",
+        "pinned": "true",
         "auto-instrumented": true
     },
     {
@@ -497,7 +520,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.10.1",
+        "max_tracer_supported": "4.13.2",
         "auto-instrumented": true
     },
     {
