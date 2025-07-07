@@ -25,6 +25,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.ci import RUNTIME_VERSION
 from ddtrace.ext.ci import _get_runtime_and_os_metadata
+from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 from ddtrace.internal.ci_visibility.constants import EVENT_TYPE as _EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
@@ -99,6 +100,8 @@ def _set_tracer(tracer: ddtrace.tracer):
 
 
 def _is_test_coverage_enabled(test_object) -> bool:
+    if not is_coverage_available():
+        return False
     return _CIVisibility._instance._collect_coverage_enabled and not _is_skipped_test(test_object)
 
 
@@ -813,7 +816,7 @@ def _finish_test_session_span():
         _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
     )
     _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-    if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
+    if _CIVisibility._instance._collect_coverage_enabled and is_coverage_available() and _module_has_dd_coverage_enabled(unittest):
         _stop_coverage(unittest)
     if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
         run_coverage_report()
