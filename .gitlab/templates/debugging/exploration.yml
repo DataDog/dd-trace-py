@@ -1,4 +1,4 @@
-".debugging::exploration":
+".debugging/exploration":
   stage: debugging
   extends: .cached_testrunner
   timeout: 30m
@@ -18,8 +18,8 @@
     paths:
       - ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
 
-"debugging::exploration::boto3":
-  extends: ".debugging::exploration"
+"debugging/exploration/boto3":
+  extends: ".debugging/exploration"
   variables:
     DD_DEBUGGER_EXPL_INCLUDE: "boto3"
   parallel:
@@ -32,8 +32,8 @@
     python${{PYTHON_VERSION}} scripts/ci/install
     python${{PYTHON_VERSION}} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning"'
 
-"debugging::exploration::botocore":
-  extends: ".debugging::exploration"
+"debugging/exploration/botocore":
+  extends: ".debugging/exploration"
   timeout: 60m
   variables:
     DD_DEBUGGER_EXPL_INCLUDE: "botocore"

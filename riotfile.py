@@ -252,6 +252,7 @@ venv = Venv(
                 "astunparse": latest,
                 "simplejson": latest,
                 "grpcio": latest,
+                "pytest-asyncio": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
@@ -1833,6 +1834,15 @@ venv = Venv(
                     },
                 ),
             ],
+        ),
+        Venv(
+            name="pytest:flaky",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            pkgs={
+                "flaky": latest,
+                "pytest-randomly": latest,
+            },
         ),
         Venv(
             name="grpc",

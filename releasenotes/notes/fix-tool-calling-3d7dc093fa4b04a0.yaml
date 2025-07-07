@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where passing back tool call results to OpenAI Chat Completions caused an error with LLM Observability tracing enabled.
+  - |
+    LLM Observability: This fix resolves an issue where tool choice input messages for OpenAI Chat Completions were not being captured in LLM Observability tracing.
