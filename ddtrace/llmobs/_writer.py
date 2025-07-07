@@ -313,7 +313,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 },
             },
         )
-        assert resp.status == 200, f"Failed to delete dataset {id}: {resp.get_json()}"
+        if resp.status != 200:
+            raise ValueError(f"Failed to delete dataset {id}: {resp.get_json()}")
         return None
 
     def dataset_create(self, name: str, description: str) -> Dataset:
@@ -325,7 +326,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             }
         }
         resp = self.request("POST", path, body)
-        assert resp.status == 200, f"Failed to create dataset {name}: {resp.status} {resp.get_json()}"
+        if resp.status != 200:
+            raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
         return Dataset(name, dataset_id, [])
@@ -333,7 +335,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def dataset_pull(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
-        assert resp.status == 200, f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}"
+        if resp.status != 200:
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
 
         response_data = resp.get_json()
         data = response_data["data"]
