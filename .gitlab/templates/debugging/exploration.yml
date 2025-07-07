@@ -1,4 +1,4 @@
-"exploration::boto3":
+"debugging/exploration/boto3":
   stage: debugging
   extends: .cached_testrunner
   timeout: 30m
