@@ -51,7 +51,6 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
-from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -324,12 +323,12 @@ class CIVisibility(Service):
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
             return False
-        if not is_coverage_available():
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
-            return False
+        # if not is_coverage_available():
+        #     log.warning(
+        #         "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
+        #         "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+        #     )
+        #     return False
         return True
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
