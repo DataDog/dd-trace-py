@@ -274,7 +274,6 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsExperimentsClient(BaseLLMObsWriter):
-
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
