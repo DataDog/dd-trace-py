@@ -147,6 +147,18 @@ class CIVisibilityTracer(Tracer):
         # Allows for multiple instances of the civis tracer to be created without logging a warning
         super().__init__(*args, **kwargs)
 
+    def _recreate(self, *args, **kwargs) -> None:
+        # Tracer._recreate(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value. Removing
+        # this side-effect from Tracer._recreate is causing issues for CIVisibility.
+        # The root cause is unknown and beyond the scope of this PR.
+        #
+        # To avoid breaking CIVisibility, we keep resetting self.enabled here to match the global config. Although not
+        # ideal, this is the safest way to refactor the Tracer class without disrupting existing behavior.
+        #
+        # The CIVisibility team will investigate this further in a future PR.
+        self.enabled = ddconfig._tracing_enabled
+        return super()._recreate(*args, **kwargs)
+
 
 class CIVisibility(Service):
     _instance: Optional["CIVisibility"] = None
