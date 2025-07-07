@@ -798,6 +798,9 @@ if not IS_PYSTON:
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
+                dependencies=[
+                    DDUP_DIR.parent / "libdd_wrapper",
+                ]
             )
         )
 
