@@ -43,13 +43,21 @@ Ensure you have followed the prerequisite steps above.
     $ git checkout <branch>
     $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm --wrap=none | less
 
-5. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
+5. Include an estimated end-of-life block at the top of the new release notes:
+
+.. code-block::
+
+    Estimated end-of-life date, accurate to within three months: MM-YYYY
+
+Where the EOL month is calculated thus: <last major release date> + <two years> - <now> - <last major release date>
+
+6. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
    Make sure the “Set as latest release" box is CHECKED only if publishing a new minor release or a patch release for the latest minor version.
    Click “save draft”.
 
-6. Share the link to the GitHub draft release with someone who can confirm it's correct
+7. Share the link to the GitHub draft release with someone who can confirm it's correct
 
-7. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
+8. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
    based on the release you’re about to publish. Wait for build and publish to succeed.
    The GitHub release will trigger the GitLab workflow that builds wheels and publishes to PyPI.
 
