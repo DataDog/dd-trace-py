@@ -7,6 +7,8 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -184,6 +186,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             return
         input_tokens = _get_attr(usage, "input_tokens", None)
         output_tokens = _get_attr(usage, "output_tokens", None)
+        cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
         metrics = {}
         if input_tokens is not None:
@@ -192,6 +196,10 @@ class AnthropicIntegration(BaseLLMIntegration):
             metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
         if input_tokens is not None and output_tokens is not None:
             metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        if cache_write_tokens is not None:
+            metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+        if cache_read_tokens is not None:
+            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
         return metrics
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
