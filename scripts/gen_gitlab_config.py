@@ -36,7 +36,7 @@ class JobSpec:
         if self.snapshot:
             base += "_snapshot"
 
-        lines.append(f"{self.name}:")
+        lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
 
         # Set stage
