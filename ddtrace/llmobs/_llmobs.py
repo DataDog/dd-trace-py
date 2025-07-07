@@ -186,7 +186,7 @@ class LLMObs(Service):
         self._dne_client = LLMObsExperimentsClient(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
-            is_agentless=agentless_enabled,
+            is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
         forksafe.register(self._child_after_fork)

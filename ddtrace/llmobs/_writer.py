@@ -350,13 +350,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         class_records: List[DatasetRecord] = []
         for record in records_data.get("data", []):
             attrs = record.get("attributes", {})
-            input_data = attrs.get("input")
-            expected_output = attrs.get("expected_output")
             class_records.append(
                 {
-                    "record_id": record.get("id"),
-                    "input": input_data,
-                    "expected_output": expected_output,
+                    "record_id": record["id"],
+                    "input": attrs["input"],
+                    "expected_output": attrs["expected_output"],
                     "metadata": attrs.get("metadata", {}),
                 }
             )
