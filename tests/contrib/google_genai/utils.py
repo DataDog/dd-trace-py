@@ -1,6 +1,6 @@
 from google.genai import types
 
-from ddtrace.llmobs._integrations.google_genai import METADATA_PARAMS
+from ddtrace.llmobs._integrations.google_genai import GENERATE_METADATA_PARAMS
 
 
 FULL_GENERATE_CONTENT_CONFIG = types.GenerateContentConfig(
@@ -115,7 +115,7 @@ MOCK_TOOL_FINAL_RESPONSE = types.GenerateContentResponse(
 
 def get_expected_metadata():
     metadata = {}
-    for param in METADATA_PARAMS:
+    for param in GENERATE_METADATA_PARAMS:
         metadata[param] = getattr(FULL_GENERATE_CONTENT_CONFIG, param, None)
 
     return metadata
@@ -123,7 +123,7 @@ def get_expected_metadata():
 
 def get_expected_tool_metadata():
     metadata = {}
-    for param in METADATA_PARAMS:
+    for param in GENERATE_METADATA_PARAMS:
         metadata[param] = getattr(TOOL_GENERATE_CONTENT_CONFIG, param, None)
 
     return metadata

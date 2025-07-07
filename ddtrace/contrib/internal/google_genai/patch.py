@@ -40,7 +40,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="llm")
 
 
 @with_traced_module
@@ -59,7 +59,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
             resp = await func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="llm")
 
 
 @with_traced_module
@@ -78,7 +78,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
         return TracedGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="llm")
         span.finish()
         raise
 
@@ -99,9 +99,10 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
         return TracedAsyncGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="llm")
         span.finish()
         raise
+
 
 @with_traced_module
 def traced_embed_content(genai, pin, func, instance, args, kwargs):
@@ -119,7 +120,8 @@ def traced_embed_content(genai, pin, func, instance, args, kwargs):
             resp = func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="embedding")
+
 
 @with_traced_module
 async def traced_async_embed_content(genai, pin, func, instance, args, kwargs):
@@ -137,7 +139,7 @@ async def traced_async_embed_content(genai, pin, func, instance, args, kwargs):
             resp = await func(*args, **kwargs)
             return resp
         finally:
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation="embedding")
 
 
 def patch():

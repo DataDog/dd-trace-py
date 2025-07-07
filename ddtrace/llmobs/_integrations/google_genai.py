@@ -22,7 +22,7 @@ from ddtrace.llmobs._utils import _get_attr
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
-METADATA_PARAMS = [
+GENERATE_METADATA_PARAMS = [
     "temperature",
     "top_p",
     "top_k",
@@ -38,6 +38,14 @@ METADATA_PARAMS = [
     "safety_settings",
     "automatic_function_calling",
     "tools",
+]
+
+EMBED_METADATA_PARAMS = [
+    "task_type",
+    "title",
+    "output_dimensionality",
+    "mime_type",
+    "auto_truncate",
 ]
 
 
@@ -60,18 +68,40 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        config = get_argument_value(args, kwargs, -1, "config", optional=True)
         provider_name, model_name = extract_provider_and_model_name(kwargs)
-
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: operation,
                 MODEL_NAME: model_name,
                 MODEL_PROVIDER: provider_name,
-                METADATA: self._extract_metadata(config),
+            }
+        )
+        if operation == "embedding":
+            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, operation)
+        elif operation == "llm":
+            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, operation)
+        else:
+            raise ValueError(f"Invalid operation: {operation}")
+
+    def _llmobs_set_meta_tags_from_llm(self, span, args, kwargs, response, operation):
+        config = get_argument_value(args, kwargs, -1, "config", optional=True)
+        span._set_ctx_items(
+            {
+                METADATA: self._extract_metadata(config, GENERATE_METADATA_PARAMS),
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
                 METRICS: extract_metrics_google_genai(response),
+            }
+        )
+
+    def _llmobs_set_meta_tags_from_embedding(self, span, args, kwargs, response, operation):
+        config = get_argument_value(args, kwargs, -1, "config", optional=True)
+        span._set_ctx_items(
+            {
+                METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
+                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+                OUTPUT_MESSAGES: [],
+                # no other embedding integrations have metrics set
             }
         )
 
@@ -111,10 +141,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         return messages
 
-    def _extract_metadata(self, config) -> Dict[str, Any]:
+    def _extract_metadata(self, config, params) -> Dict[str, Any]:
         if not config:
             return {}
         metadata = {}
-        for param in METADATA_PARAMS:
+        for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata
