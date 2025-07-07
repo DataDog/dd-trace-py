@@ -21,9 +21,6 @@ from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
-from ...internal.utils.formats import parse_tags_str
-from ...internal.utils.http import Response
-from ...internal.utils.time import StopWatch
 from .. import compat
 from .. import periodic
 from .. import service
@@ -31,11 +28,18 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
+from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
+from ..serverless import has_aws_lambda_agent_extension
+from ..serverless import in_aws_lambda
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
 from ..sma import SimpleMovingAverage
+from ..utils.formats import parse_tags_str
+from ..utils.http import Response
+from ..utils.http import verify_url
+from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
@@ -80,8 +84,7 @@ def _human_size(nbytes):
 
 class TraceWriter(metaclass=abc.ABCMeta):
     @abc.abstractmethod
-    def recreate(self):
-        # type: () -> TraceWriter
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -106,8 +109,7 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(self):
-        # type: () -> LogWriter
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -541,7 +543,10 @@ class AgentWriter(HTTPWriter):
             report_metrics=report_metrics,
         )
 
-    def recreate(self) -> HTTPWriter:
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> HTTPWriter:
+        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+        api_version = "v0.4" if appsec_enabled else self._api_version
+
         new_instance = self.__class__(
             agent_url=self.agent_url,
             processing_interval=self._interval,
@@ -550,7 +555,7 @@ class AgentWriter(HTTPWriter):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=self._api_version,
+            api_version=api_version,
             headers=self._headers,
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
@@ -618,3 +623,61 @@ class AgentWriter(HTTPWriter):
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
+
+
+def _use_log_writer() -> bool:
+    """Returns whether the LogWriter should be used in the environment by
+    default.
+
+    The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
+    is not available in the Lambda.
+    """
+    if (
+        os.environ.get("DD_AGENT_HOST")
+        or os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+        or os.environ.get("DD_TRACE_AGENT_URL")
+    ):
+        # If one of these variables are set, we definitely have an agent
+        return False
+    elif in_aws_lambda() and has_aws_lambda_agent_extension():
+        # If the Agent Lambda extension is available then an AgentWriter is used.
+        return False
+    elif in_gcp_function() or in_azure_function():
+        return False
+    else:
+        return in_aws_lambda()
+
+
+def _use_sync_mode() -> bool:
+    """Returns, if an `AgentWriter` is to be used, whether it should be run
+     in synchronous mode by default.
+
+    There are only two cases in which this is desirable:
+
+    - AWS Lambdas can have the Datadog agent installed via an extension.
+      When it's available traces must be sent synchronously to ensure all
+      are received before the Lambda terminates.
+    - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
+      Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
+    """
+    return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
+
+
+def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+    if _use_log_writer():
+        return LogWriter()
+
+    verify_url(agent_config.trace_agent_url)
+
+    headers: Dict[str, str] = {}
+    if config._trace_compute_stats or asm_config._apm_opt_out:
+        headers["Datadog-Client-Computed-Stats"] = "yes"
+
+    return AgentWriter(
+        agent_url=agent_config.trace_agent_url,
+        dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+        sync_mode=_use_sync_mode(),
+        headers=headers,
+        report_metrics=not asm_config._apm_opt_out,
+        response_callback=response_callback,
+    )
