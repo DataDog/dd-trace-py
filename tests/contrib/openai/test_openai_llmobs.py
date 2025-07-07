@@ -754,7 +754,12 @@ class TestLLMObsOpenaiV1:
                             }
                         ],
                         metadata={"user": "ddtrace-test"},
-                        token_metrics={"input_tokens": 143, "output_tokens": 36, "total_tokens": 179},
+                        token_metrics={
+                            "input_tokens": 143,
+                            "output_tokens": 36,
+                            "total_tokens": 179,
+                            "cache_read_input_tokens": 0,
+                        },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
