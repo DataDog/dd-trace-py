@@ -7,6 +7,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -83,7 +84,7 @@ def normalize_contents(contents) -> List[Dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_metrics_google_genai(response) -> Dict[str, Any]:
+def extract_generate_metrics_google_genai(response) -> Dict[str, Any]:
     if not response:
         return {}
 
@@ -113,6 +114,25 @@ def extract_metrics_google_genai(response) -> Dict[str, Any]:
 
     return usage
 
+
+def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
+    if not response:
+        return {}
+    usage = {}
+    metadata = _get_attr(response, "metadata", {})
+    billable_character_count = _get_attr(metadata, "billable_character_count", None)
+    
+    input_tokens = 0
+    for embedding in _get_attr(response, "embeddings", []):
+        statistics = _get_attr(embedding, "statistics", {})
+        input_tokens += _get_attr(statistics, "token_count", 0)
+
+    if billable_character_count is not None:
+        usage[BILLABLE_CHARACTER_COUNT_METRIC_KEY] = billable_character_count
+    if input_tokens: # falsy value of 0 should not be set
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+
+    return usage
 
 def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
