@@ -12,7 +12,7 @@ def expected_run_agent_span_event(span, output, token_metrics, input_value="Hell
     )
 
 def get_usage(result):
-    usage = result.usage()
+    usage = result.usage() if hasattr(result, "usage") else result
     token_metrics = {
         "input_tokens": getattr(usage, "request_tokens", 0),
         "output_tokens": getattr(usage, "response_tokens", 0),
