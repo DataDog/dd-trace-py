@@ -126,7 +126,7 @@ services:
             - "127.0.0.1:9126:8126"
         volumes:
             - ./tests/snapshots:/snapshots
-            - ./tests/cassettes:/cassettes
+            - ./tests/llmobs/llmobs_cassettes:/cassettes
         environment:
             - LOG_LEVEL=WARNING
             - SNAPSHOT_DIR=/snapshots

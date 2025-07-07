@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
-      ["034c285b-bc5b-4681-bc57-06a04289a7a0"]}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-dataset-2",
+      "description": "A second test dataset"}}}'
     headers:
       Accept:
       - '*/*'
@@ -11,27 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '119'
+      - '112'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
   response:
     body:
-      string: '{"data":[{"id":"034c285b-bc5b-4681-bc57-06a04289a7a0","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-07T17:43:03.339516Z","current_version":0,"deleted_at":"2025-07-07T17:43:06.733898Z","description":"A
-        test dataset","name":"test-dataset","updated_at":"2025-07-07T17:43:03.339516Z"}}]}'
+      string: '{"data":{"id":"db977773-e6f8-4972-ae54-d26c260b561a","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-07T19:14:50.175017655Z","current_version":0,"description":"A
+        second test dataset","name":"test-dataset-2","updated_at":"2025-07-07T19:14:50.175017655Z"}}}'
     headers:
       content-length:
-      - '346'
+      - '316'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Mon, 07 Jul 2025 17:43:06 GMT
+      - Mon, 07 Jul 2025 19:14:50 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
