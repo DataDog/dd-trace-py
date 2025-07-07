@@ -8,12 +8,12 @@ import os
 from os import getpid
 from threading import RLock
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypeVar
 from typing import Union
 
 from ddtrace._hooks import Hooks
@@ -66,7 +66,7 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-AnyCallable = Callable[..., Any]
+AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 if TYPE_CHECKING:
     from ddtrace.appsec._processor import AppSecSpanProcessor
