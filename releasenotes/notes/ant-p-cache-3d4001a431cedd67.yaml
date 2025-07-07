@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability: This introduces capturing the number of input tokens read and written to the cache for Anthropic prompt caching use cases.
+
