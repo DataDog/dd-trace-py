@@ -94,7 +94,12 @@ class TracedCursor(wrapt.ObjectProxy):
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+            # integration name can have different names
+            integration_name = self._self_config.integration_name
+            if "django-" in integration_name:
+                integration_name = "django-database"
+
+            s.set_tag_str(COMPONENT, integration_name)
 
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
