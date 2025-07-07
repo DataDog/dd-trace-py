@@ -49,7 +49,7 @@ Ensure you have followed the prerequisite steps above.
 
     Estimated end-of-life date, accurate to within three months: MM-YYYY
 
-Where the EOL month is calculated thus: <last major release date> + <two years> - <now> - <last major release date>
+Where the EOL month is calculated thus: <last major release date> + <three years> - <now> - <last major release date>
 
 6. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
    Make sure the “Set as latest release" box is CHECKED only if publishing a new minor release or a patch release for the latest minor version.
