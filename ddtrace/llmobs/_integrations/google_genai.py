@@ -11,6 +11,7 @@ from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
@@ -100,8 +101,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             {
                 METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
                 INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
-                OUTPUT_MESSAGES: [],
-                # no other embedding integrations have metrics set
+                OUTPUT_VALUE: self._extract_embedding_output_value(response),
+                # no other embedding integrations have metrics set, should I set any?
             }
         )
 
@@ -140,6 +141,14 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 message = extract_message_from_part_google_genai(part, role)
                 messages.append(message)
         return messages
+
+    def _extract_embedding_output_value(self, response) -> str:
+        if not response:
+            return ""
+        embeddings = _get_attr(response, "embeddings", [])
+        if embeddings:
+            embedding_dim = len(embeddings[0])
+        return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
 
     def _extract_metadata(self, config, params) -> Dict[str, Any]:
         if not config:
