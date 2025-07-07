@@ -225,7 +225,7 @@ class Tracer(object):
 
     @property
     def _agent_url(self) -> Optional[str]:
-        if isinstance(self._span_aggregator.writer, HTTPWriter):
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             # For AgentWriterInterface, we can return the intake_url directly
             return self._span_aggregator.writer.intake_url
         return None
