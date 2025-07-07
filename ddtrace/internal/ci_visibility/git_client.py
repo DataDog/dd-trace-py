@@ -95,7 +95,7 @@ class CIVisibilityGitClient(object):
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             tracer_url = agent_config.trace_agent_url
             if tracer:
-                tracer_url = tracer._agent_url or agent_config.trace_agent_url
+                tracer_url = tracer._agent_url or tracer_url
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
