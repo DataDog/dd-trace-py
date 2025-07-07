@@ -802,7 +802,6 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
@@ -908,12 +907,12 @@ setup(
             py_limited_api="auto",
             binding=Binding.PyO3,
             features=["crashtracker"]
-                if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
-                and is_64_bit_python()
-                else [],
-                rustc_flags=["-C", "link-arg=-Wl,-dead_strip"]
-                if CURRENT_OS == "Darwin"
-                else ["-C", "link-dead-code=no", "-C", "link-arg=-Wl,--gc-sections"],
+            if (CURRENT_OS == "Linux" or (CURRENT_OS == "Darwin" and platform.machine() == "arm64"))
+            and is_64_bit_python()
+            else [],
+            rustc_flags=["-C", "link-arg=-Wl,-dead_strip"]
+            if CURRENT_OS == "Darwin"
+            else ["-C", "link-dead-code=no", "-C", "link-arg=-Wl,--gc-sections"],
             debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
         ),
     ],

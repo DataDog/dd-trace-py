@@ -76,9 +76,9 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
-    dd_crashtracker_receiver = shutil.which("dd_crashtracker_receiver")
+    dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
     if dd_crashtracker_receiver is None:
-        print("Failed to find dd_crashtracker_receiver")
+        print("Failed to find _dd_crashtracker_receiver")
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
