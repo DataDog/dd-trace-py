@@ -45,6 +45,9 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        if exc_type:
+            self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
+            self._dd_span.finish()
 
 
 class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):

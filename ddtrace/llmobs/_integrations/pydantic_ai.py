@@ -107,7 +107,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 if hasattr(part, "content"):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
-                    result += part.args_as_json_str
+                    result += part.args_as_json_str()
 
 
         span._set_ctx_items(

@@ -109,12 +109,24 @@ class TestLLMObsPydanticAI:
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions, output_type=Output
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for chunk in result.stream():
+                async for chunk in result.stream_structured():
                     output = chunk
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 2
-        assert llmobs_events[1] == expected_run_agent_span_event(span, safe_json(output, ensure_ascii=False), token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=Any)
+        assert llmobs_events[1] == expected_run_agent_span_event(span, safe_json(output[0].parts[0].args, ensure_ascii=False), token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=Any)
+    
+    async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events):
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            with pytest.raises(Exception, match="test error"):
+                async with agent.run_stream("Hello, world!") as result:
+                    stream = result.stream()
+                    async for _ in stream:
+                        raise Exception("test error")
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["status"] == "error"
+        assert llmobs_events[0]["meta"]["error.message"] == "test error"
     
     async def test_agent_iter(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         output = ""
