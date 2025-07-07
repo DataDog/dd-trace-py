@@ -287,12 +287,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if not self._agentless:
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
-        body = json.dumps(body).encode("utf-8") if body else b""
+        encoded_body = json.dumps(body).encode("utf-8") if body else b""
         conn = get_connection(self._intake)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
-            conn.request(method, url, body, headers)
+            conn.request(method, url, encoded_body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -318,7 +318,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
     def dataset_create(self, name: str, description: str) -> Dataset:
         path = "/api/unstable/llm-obs/v1/datasets"
-        body = {
+        body: JSONType = {
             "data": {
                 "type": "datasets",
                 "attributes": {"name": name, "description": description},

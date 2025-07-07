@@ -1,10 +1,11 @@
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import NotRequired
 from typing import Optional
 from typing import TypedDict
 from typing import Union
+
+from typing_extensions import NotRequired
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]

@@ -5,7 +5,9 @@ To run these tests, you need to set the following environment variables:
 - DD_APP_KEY=...  # your datadog application key
 - DD_API_KEY=...  # your datadog api key
 
-and must have the test agent (>=1.27.0) running locally.
+and must have the test agent (>=1.27.0) running locally and configured to use the vcr cassette directory
+
+eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 """
 
 import os
