@@ -147,18 +147,6 @@ class CIVisibilityTracer(Tracer):
         # Allows for multiple instances of the civis tracer to be created without logging a warning
         super().__init__(*args, **kwargs)
 
-    def _recreate(self, *args, **kwargs) -> None:
-        # Tracer._recreate(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value. Removing
-        # this side-effect from Tracer._recreate is causing issues for CIVisibility.
-        # The root cause is unknown and beyond the scope of this PR.
-        #
-        # To avoid breaking CIVisibility, we keep resetting self.enabled here to match the global config. Although not
-        # ideal, this is the safest way to refactor the Tracer class without disrupting existing behavior.
-        #
-        # The CIVisibility team will investigate this further in a future PR.
-        self.enabled = ddconfig._tracing_enabled
-        return super()._recreate(*args, **kwargs)
-
 
 class CIVisibility(Service):
     _instance: Optional["CIVisibility"] = None
@@ -649,6 +637,14 @@ class CIVisibility(Service):
         tracer_filters = self.tracer._span_aggregator.user_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
+            # Tracer.configure(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value
+            # (in Tracer._reset(...)). Removing this side-effect causes some CIVisibility tests to fail.
+            # This MIGHT be due to shutdown the global tracer in tests (calling tracer.shutdown()
+            # sets tracer.enabled to False and is meant to be an irreversible operation).
+            # To avoid breaking CIVisibility, we continue to reset self.enabled here
+            # to match the global config. Although not deal, this is the safest way to refactor the Tracer class
+            # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
+            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer.configure(trace_processors=tracer_filters)
 
         def _task_fetch_tests_to_skip():
