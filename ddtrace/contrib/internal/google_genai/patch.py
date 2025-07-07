@@ -5,11 +5,11 @@ from google import genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_genai._utils import TracedAsyncGoogleGenAIStreamResponse
 from ddtrace.contrib.internal.google_genai._utils import TracedGoogleGenAIStreamResponse
-from ddtrace.contrib.internal.google_genai._utils import extract_provider_and_model_name
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
+from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
 
@@ -33,9 +33,14 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
-    ):
-        return func(*args, **kwargs)
+        submit_to_llmobs=True,
+    ) as span:
+        resp = None
+        try:
+            resp = func(*args, **kwargs)
+            return resp
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module
@@ -47,55 +52,56 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
-    ):
-        return await func(*args, **kwargs)
+        submit_to_llmobs=True,
+    ) as span:
+        resp = None
+        try:
+            resp = await func(*args, **kwargs)
+            return resp
+        finally:
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
 
 
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    resp = None
     provider_name, model_name = extract_provider_and_model_name(kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         resp = func(*args, **kwargs)
-        return TracedGoogleGenAIStreamResponse(resp, span)
+        return TracedGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        span.finish()
         raise
-    finally:
-        if span.error:
-            span.finish()
 
 
 @with_traced_module
 async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    resp = None
     provider_name, model_name = extract_provider_and_model_name(kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
         provider=provider_name,
         model=model_name,
-        submit_to_llmobs=False,
+        submit_to_llmobs=True,
     )
     try:
         resp = await func(*args, **kwargs)
-        return TracedAsyncGoogleGenAIStreamResponse(resp, span)
+        return TracedAsyncGoogleGenAIStreamResponse(resp, integration, span, args, kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None)
+        span.finish()
         raise
-    finally:
-        if span.error:
-            span.finish()
 
 
 def patch():
