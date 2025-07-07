@@ -806,7 +806,7 @@ def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = span.get_tag(IAST.JSON)
+        loaded = load_iast_report(span)
         assert loaded is None
 
 
@@ -889,7 +889,7 @@ def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, 
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = span.get_tag(IAST.JSON)
+        loaded = load_iast_report(span)
         assert loaded is None
 
 
@@ -978,9 +978,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
             span = test_spans.pop_traces()[0][0]
             assert span.get_metric(IAST.ENABLED) == 1.0
 
-            assert span.get_tag(IAST.JSON) is None
-            iast_tag = span.get_tag(IAST.JSON)
-            assert iast_tag is None
+            assert load_iast_report(span) is None
     finally:
         _restore_request_validations(original_validate)
 
@@ -1016,7 +1014,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             span = test_spans.pop_traces()[0][0]
             assert span.get_metric(IAST.ENABLED) == 1.0
 
-            iast_tag = span.get_tag(IAST.JSON)
+            iast_tag = load_iast_report(span)
             assert iast_tag is None
     finally:
         _restore_request_validations(original_validate)

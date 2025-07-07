@@ -1,14 +1,12 @@
-import json
-
 import pytest
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.appsec_utils import uvicorn_server
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
-from tests.appsec.iast.iast_utils import load_iast_report
 
 
 def test_iast_header_injection_secure_attack():
