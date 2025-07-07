@@ -80,6 +80,22 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Common venv configurations for appsec threats testing
+_appsec_threats_iast_variants = [
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "false",
+        },
+    ),
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "true",
+            "DD_IAST_REQUEST_SAMPLING": "100",
+        },
+    ),
+]
+
+
 venv = Venv(
     pkgs={
         "mock": latest,
@@ -3375,6 +3391,50 @@ venv = Venv(
                         "langchain-community": "~=0.3",
                         "langchain-experimental": "~=0.3",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_django",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "django": "~=2.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10"],
+                    pkgs={
+                        "django": "~=3.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10"],
+                    pkgs={
+                        "django": "==4.0.10",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "django": "~=4.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "django": "~=5.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),
