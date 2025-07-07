@@ -242,7 +242,8 @@ check-slo-breaches:
     when: always
     paths:
       - artifacts/
+      - reports/
     expire_in: 3 months
   script:
-    - export ARTIFACTS_DIR="$(pwd)/artifacts/"
+    - export ARTIFACTS_DIR="$(pwd)/reports/"
     - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
