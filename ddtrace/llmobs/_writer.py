@@ -1,5 +1,6 @@
 import atexit
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -126,7 +127,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
-        self._app_key: str = _app_key or config._dd_app_key
+        self._app_key: str = _app_key or os.environ.get("DD_APP_KEY")
         self._override_url: str = _override_url
 
         self._agentless: bool = is_agentless
@@ -283,8 +284,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
-            EVP_SUBDOMAIN_HEADER_NAME: self.EVP_SUBDOMAIN_HEADER_VALUE,
         }
+        if not self._agentless:
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+
         body = json.dumps(body).encode("utf-8") if body else b""
         conn = get_connection(self._intake)
         try:

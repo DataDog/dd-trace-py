@@ -1,3 +1,13 @@
+"""
+To run these tests, you need to set the following environment variables:
+
+- RECORD_REQUESTS=1  # used to delay tests until data is ready from the backend
+- DD_APP_KEY=...  # your datadog application key
+- DD_API_KEY=...  # your datadog api key
+
+and must have the test agent (>=1.27.0) running locally.
+"""
+
 import os
 
 import pytest

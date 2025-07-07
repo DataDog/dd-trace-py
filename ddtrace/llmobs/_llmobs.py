@@ -157,6 +157,7 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
+    _app_key: str = os.environ.get("DD_APP_KEY", "")
 
     def __init__(
         self,
@@ -454,6 +455,7 @@ class LLMObs(Service):
         instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
+        app_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
@@ -469,6 +471,7 @@ class LLMObs(Service):
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
+        :param str app_key: Your datadog application key.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
@@ -484,6 +487,7 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
+        cls._app_key = app_key or cls._app_key
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
