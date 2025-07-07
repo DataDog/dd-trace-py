@@ -3962,7 +3962,7 @@ class BotocoreTest(TracerTestCase):
                 MessageAttributeNames=["_datadog"],
                 WaitTimeSeconds=2,
             )
-            
+
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
