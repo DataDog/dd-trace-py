@@ -323,12 +323,6 @@ class CIVisibility(Service):
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
             return False
-        # if not is_coverage_available():
-        #     log.warning(
-        #         "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-        #         "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-        #     )
-        #     return False
         return True
 
     def _check_enabled_features(self) -> TestVisibilityAPISettings:
