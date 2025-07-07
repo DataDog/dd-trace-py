@@ -6,6 +6,7 @@ from typing import Optional
 from ddtrace._trace.span import Span
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -20,7 +21,7 @@ from ddtrace.llmobs._integrations.google_genai_utils import extract_metrics_goog
 from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 from ddtrace.llmobs._utils import _get_attr
-
+from ddtrace.llmobs.utils import Document
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
 GENERATE_METADATA_PARAMS = [
@@ -78,35 +79,35 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
         if operation == "embedding":
-            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response, operation)
+            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response)
         elif operation == "llm":
-            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response, operation)
+            self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response)
         else:
             raise ValueError(f"Invalid operation: {operation}")
 
-    def _llmobs_set_meta_tags_from_llm(self, span, args, kwargs, response, operation):
+    def _llmobs_set_meta_tags_from_llm(self, span, args, kwargs, response):
         config = get_argument_value(args, kwargs, -1, "config", optional=True)
         span._set_ctx_items(
             {
                 METADATA: self._extract_metadata(config, GENERATE_METADATA_PARAMS),
-                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+                INPUT_MESSAGES: self._extract_input_messages(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
                 METRICS: extract_metrics_google_genai(response),
             }
         )
 
-    def _llmobs_set_meta_tags_from_embedding(self, span, args, kwargs, response, operation):
+    def _llmobs_set_meta_tags_from_embedding(self, span, args, kwargs, response):
         config = get_argument_value(args, kwargs, -1, "config", optional=True)
         span._set_ctx_items(
             {
                 METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
-                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+                INPUT_DOCUMENTS: self._extract_embedding_input_documents(args, kwargs, config),
                 OUTPUT_VALUE: self._extract_embedding_output_value(response),
-                # no other embedding integrations have metrics set, should I set any?
+                METRICS: extract_metrics_google_genai(response),
             }
         )
 
-    def _extract_input_message(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
         messages = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
@@ -149,6 +150,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if embeddings:
             embedding_dim = len(embeddings[0])
         return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
+    
+    def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Dict[str, Any]]:
+        contents = get_argument_value(args, kwargs, -1, "contents")
+        messages =  self._extract_messages_from_contents(contents, "user")
+        # reuse logic for messages from generate_content
+        documents = [Document(text=str(message["content"])) for message in messages]
+        return documents
 
     def _extract_metadata(self, config, params) -> Dict[str, Any]:
         if not config:
