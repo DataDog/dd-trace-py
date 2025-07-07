@@ -215,3 +215,22 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
         rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 1
+
+    def test_pytest_xdist_atr_retry_numbers_reported_correctly(self):
+        self.testdir.makepyfile(
+            test_fail="""
+            def test_func_fail():
+                assert False
+        """
+        )
+        result = self.subprocess_run("--ddtrace", "-v", "-n", "1")
+        lines = [line for line in result.outlines if line.startswith("[gw0] [100%]")]
+        assert lines == [
+            "[gw0] [100%] ATR RETRY INITIAL ATTEMPT FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 1 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 2 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 3 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 4 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 5 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] FAILED test_fail.py::test_func_fail ",
+        ]

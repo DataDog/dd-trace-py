@@ -1,5 +1,5 @@
-"debugging::exploration::boto3":
-  stage: exploration
+"debugging/exploration/boto3":
+  stage: debugging
   extends: .cached_testrunner
   timeout: 30m
   variables:
