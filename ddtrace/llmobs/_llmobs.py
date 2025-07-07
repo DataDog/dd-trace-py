@@ -186,6 +186,7 @@ class LLMObs(Service):
         self._dne_client = LLMObsExperimentsClient(
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            _app_key=self._app_key,
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
