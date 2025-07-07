@@ -17,7 +17,8 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_generate_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_embedding_metrics_google_genai
 from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 from ddtrace.llmobs._utils import _get_attr
@@ -92,7 +93,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 METADATA: self._extract_metadata(config, GENERATE_METADATA_PARAMS),
                 INPUT_MESSAGES: self._extract_input_messages(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
-                METRICS: extract_metrics_google_genai(response),
+                METRICS: extract_generate_metrics_google_genai(response),
             }
         )
 
@@ -103,7 +104,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
                 INPUT_DOCUMENTS: self._extract_embedding_input_documents(args, kwargs, config),
                 OUTPUT_VALUE: self._extract_embedding_output_value(response),
-                METRICS: extract_metrics_google_genai(response),
+                METRICS: extract_embedding_metrics_google_genai(response),
             }
         )
 
@@ -148,13 +149,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             return ""
         embeddings = _get_attr(response, "embeddings", [])
         if embeddings:
-            embedding_dim = len(embeddings[0])
+            embedding_dim = len(embeddings[0].values)
         return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
     
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Dict[str, Any]]:
         contents = get_argument_value(args, kwargs, -1, "contents")
         messages =  self._extract_messages_from_contents(contents, "user")
-        # reuse logic for messages from generate_content
+        # reuse logic for parsing messages from generate_content
         documents = [Document(text=str(message["content"])) for message in messages]
         return documents
 
