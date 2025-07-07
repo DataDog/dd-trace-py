@@ -3932,6 +3932,38 @@ class BotocoreTest(TracerTestCase):
             assert trace_in_message is False
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
+    @mock_sqs
+    def test_aws_payload_tagging_sqs_invalid_config(self):
+        with self.override_config(
+            "botocore",
+            dict(payload_tagging_request="non_json_path", payload_tagging_response="$..Attr ibutes.PlatformCredential"),
+        ):
+            pin = Pin(service=self.TEST_SERVICE)
+            pin._tracer = self.tracer
+            pin.onto(self.sqs_client)
+            message_attributes = {
+                "one": {"DataType": "String", "StringValue": "one"},
+                "two": {"DataType": "String", "StringValue": "two"},
+                "three": {"DataType": "String", "StringValue": "three"},
+                "four": {"DataType": "String", "StringValue": "four"},
+                "five": {"DataType": "String", "StringValue": "five"},
+                "six": {"DataType": "String", "StringValue": "six"},
+                "seven": {"DataType": "String", "StringValue": "seven"},
+                "eight": {"DataType": "String", "StringValue": "eight"},
+                "nine": {"DataType": "String", "StringValue": "nine"},
+                "ten": {"DataType": "String", "StringValue": "ten"},
+            }
+            self.sqs_client.send_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"], MessageBody="world", MessageAttributes=message_attributes
+            )
+
+            self.sqs_client.receive_message(
+                QueueUrl=self.sqs_test_queue["QueueUrl"],
+                MessageAttributeNames=["_datadog"],
+                WaitTimeSeconds=2,
+            )
+            
+    @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
     @mock_sqs
     def test_aws_payload_tagging_sns(self):
