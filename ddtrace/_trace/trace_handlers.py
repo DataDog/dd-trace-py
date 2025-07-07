@@ -33,6 +33,7 @@ from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
+from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
@@ -869,6 +870,17 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
+def _on_azure_functions_service_bus_trigger_span_modifier(
+    ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
+):
+    span = ctx.span
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+    span.set_tag_str(MESSAGING_OPERATION, "receive")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+
 def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
     span = ctx.span
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
@@ -933,6 +945,7 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers

@@ -333,6 +333,7 @@ class Tracer(object):
         context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
@@ -351,6 +352,8 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
+        if appsec_enabled_origin:
+            asm_config._asm_enabled_origin = appsec_enabled_origin  # type: ignore[assignment]
 
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
