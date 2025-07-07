@@ -21,6 +21,7 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr, _get_nearest_llmobs_ancestor
+from pydantic_ai.agent import AgentRun
 
 
 # in some cases, PydanticAI uses a different provider name than what we expect
@@ -34,6 +35,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
     _running_agents = {} # dictionary mapping agent span ID to tool span ID(s)
     _latest_agent = None # str representing the span ID of the latest agent that was started
+    _run_stream_active = False # bool indicating if the latest agent span was generated from run_stream
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
@@ -67,7 +69,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-        metrics = self.extract_usage_metrics(response)
+        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {SPAN_KIND: span._get_ctx_item(SPAN_KIND), SPAN_LINKS: span_links, MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "", MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "", METRICS: metrics}
         )
@@ -95,11 +97,23 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 }
             )
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
-        result = getattr(response, "result", "")
+        result = response
+        if isinstance(result, AgentRun) and hasattr(result, "result"):
+            result = getattr(result.result, "output", "")
+        elif isinstance(result, tuple) and len(result) == 2:
+            model_response, _ = result
+            result = ""
+            for part in getattr(model_response, "parts", []):
+                if hasattr(part, "content"):
+                    result += part.content
+                elif hasattr(part, "args_as_json_str"):
+                    result += part.args_as_json_str
+
+
         span._set_ctx_items(
             {
                 INPUT_VALUE: user_prompt,
-                OUTPUT_VALUE: getattr(result, "output", ""),
+                OUTPUT_VALUE: result,
             }
         )
             
@@ -123,7 +137,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
     
-    def extract_usage_metrics(self, response: Any) -> Dict[str, Any]:
+    def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        response = kwargs.get("streamed_run_result", None) or response
         usage = None
         try:
             usage = response.usage()

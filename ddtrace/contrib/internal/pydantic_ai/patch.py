@@ -8,11 +8,13 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.trace import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
+from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
 from ddtrace.trace import Pin
+from ddtrace.llmobs import LLMObs
 
 
 config._add("pydantic_ai", {})
@@ -29,8 +31,23 @@ def _supported_versions() -> Dict[str, str]:
 
 
 @with_traced_module
+def traced_agent_run_stream(pydantic_ai, pin, func, instance, args, kwargs):
+    integration = pydantic_ai._datadog_integration
+    integration._run_stream_active = True
+    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
+    span.name = getattr(instance, "name", None) or "Pydantic Agent"
+
+    result = func(*args, **kwargs)
+    kwargs["instance"] = instance
+    return TracedPydanticRunStream(result, span, integration, args, kwargs)
+
+@with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
+    # avoid double tracing if run_stream has already been called
+    if integration._run_stream_active:
+        integration._run_stream_active = False
+        return func(*args, **kwargs)
     span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
@@ -73,6 +90,7 @@ def patch():
 
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter(pydantic_ai))
     wrap(pydantic_ai, "tools.Tool.run", traced_tool_run(pydantic_ai))
+    wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream(pydantic_ai))
 
 
 def unpatch():
@@ -85,6 +103,7 @@ def unpatch():
 
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.tools.Tool, "run")
+    unwrap(pydantic_ai.agent.Agent, "run_stream")
 
     delattr(pydantic_ai, "_datadog_integration")
     Pin().remove_from(pydantic_ai)
