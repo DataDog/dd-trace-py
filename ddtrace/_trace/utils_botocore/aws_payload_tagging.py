@@ -130,7 +130,7 @@ class AWSPayloadTagging:
                     return False
             else:
                 return False
-            
+ 
         return True
 
     def _redact_json(self, data: Dict[str, Any], span: Span, paths: list) -> None:
