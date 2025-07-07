@@ -1,4 +1,4 @@
-setup/build_base_venvs:
+build_base_venvs:
   extends: .cached_testrunner
   stage: setup
   needs: []
