@@ -17,9 +17,9 @@ def post_preload():
 
 
 def _start():
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
-    SpanCodeOriginProcessor.enable()
+    SpanCodeOriginProcessorEntry.enable()
 
 
 def start():
@@ -42,9 +42,9 @@ def restart(join=False):
 
 
 def _stop():
-    from ddtrace.debugging._origin.span import SpanCodeOriginProcessor
+    from ddtrace.debugging._origin.span import SpanCodeOriginProcessorEntry
 
-    SpanCodeOriginProcessor.disable()
+    SpanCodeOriginProcessorEntry.disable()
 
 
 def stop(join=False):
