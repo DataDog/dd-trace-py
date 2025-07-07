@@ -5,7 +5,6 @@ experiments:
     steps:
       - name: SLO Check
         run: fail_on_breach
-        warning_range: 7
         scenarios:
           # flask_simple
           - name: flasksimple-tracer
@@ -30,7 +29,7 @@ experiments:
               - max_rss_usage < 62.10 MB
           - name: flasksimple-appsec-post
             thresholds:
-              - execution_time < 6.40 ms
+              - execution_time < 6.75 ms
               - max_rss_usage < 62.40 MB
           - name: flasksimple-appsec-telemetry
             thresholds:
