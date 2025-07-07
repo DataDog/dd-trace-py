@@ -1,15 +1,26 @@
+import concurrent.futures
+from copy import deepcopy
+import inspect
+import sys
+import time
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import TypedDict
 from typing import Union
+import wrapt
 
 from typing_extensions import NotRequired
+
+from ddtrace._trace import Span
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
+DEFAULT_CONCURRENT_JOBS = 10
 
 
 class DatasetRecord(TypedDict):
@@ -28,3 +39,65 @@ class Dataset:
         self.name = name
         self._id = dataset_id
         self._data = data
+
+    def __len__(self):
+        return len(self._data)
+
+    def __iter__(self):
+        for idx, record in enumerate(self._data):
+            yield idx, record
+
+
+class ExperimentTaskWrapper(wrapt.ObjectProxy):
+    def __init__(self, wrapped: Callable):
+        super().__init__(wrapped)
+        sig = inspect.signature(wrapped)
+        params = sig.parameters
+        if "input" not in params:
+            raise TypeError("Task function must have an 'input' parameter.")
+        self._self_accept_config = "config" in params
+
+    def __call__(self, input: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> Any:
+        if self._self_accept_config:
+            return self.func(input, config)
+        return self.func(input)
+
+
+class ExperimentEvaluatorWrapper(wrapt.ObjectProxy):
+    def __init__(self, wrapped: Callable):
+        super().__init__(wrapped)
+        sig = inspect.signature(wrapped)
+        params = sig.parameters
+        required_params = ("input", "output", "expected_output")
+        if not all(param in params for param in required_params):
+            raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+
+
+class Experiment:
+    def __init__(
+        self, name: str, task: ExperimentTaskWrapper, dataset: Dataset, evaluators: List[ExperimentEvaluatorWrapper], description: str = "", config: Optional[Dict[str, Any]] = None
+    ) -> None:
+        self.name = name
+        self._task = task
+        self._dataset = dataset
+        self._evaluators = evaluators
+        self._description = description
+        # TODO: What to do with these?
+        #  Summary metrics
+        #  Metadata/Tags
+        #  Project
+        #  Config
+        self._config: Dict[str, Any] = config or {}
+
+        self._experiment_id: Optional[str] = None
+        self._project_id: Optional[str] = None
+
+    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
+        self._run_task(jobs, raise_errors, sample_size)
+        self._run_evaluators()
+
+    def _run_task(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
+        pass
+
+    def _run_evaluators(self):
+        pass

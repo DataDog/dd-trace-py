@@ -47,6 +47,7 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_ID
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -74,6 +75,9 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentEvaluatorWrapper
+from ddtrace.llmobs._experiment import ExperimentTaskWrapper
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -574,6 +578,21 @@ class LLMObs(Service):
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
+    def experiment_task(cls, func: Callable) -> ExperimentTaskWrapper:
+        """Return a wrapper around a function to be used as an experiment task."""
+        return ExperimentTaskWrapper(func)
+
+    @classmethod
+    def experiment_evaluator(cls, func: Callable) -> ExperimentEvaluatorWrapper:
+        """Return a wrapper around a function to be used as an experiment evaluator."""
+        return ExperimentEvaluatorWrapper(func)
+
+    @classmethod
+    def experiment(cls, name: str, task: ExperimentTaskWrapper, dataset: Dataset, evaluators: List[ExperimentEvaluatorWrapper], description: str = "") -> Experiment:
+        """Initializes an Experiment to run a task on a Dataset and evaluators."""
+        return Experiment(name, task, dataset, evaluators, description)
+
+    @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
         """Register a processor to be called on each LLMObs span.
 
@@ -1055,6 +1074,34 @@ class LLMObs(Service):
         return cls._instance._start_span(
             "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
+
+    @classmethod
+    def _experiment(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Span:
+        """
+        Trace an experiment run.
+
+        :param str name: The name of the traced operation. If not provided, a default value of "experiment" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        span = cls._instance._start_span(
+            "experiment", name=name, session_id=session_id, ml_app=ml_app
+        )
+        if experiment_id:
+            span._set_ctx_item(EXPERIMENT_ID, experiment_id) # TODO: how does baggage work here?
+            span.context.set_baggage_item(EXPERIMENT_ID, experiment_id)
+        return span
 
     @classmethod
     def annotate(
