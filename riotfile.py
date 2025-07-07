@@ -3400,6 +3400,10 @@ venv = Venv(
             pkgs={
                 "requests": latest,
             },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+            },
             venvs=[
                 Venv(
                     pys=["3.8", "3.9"],
