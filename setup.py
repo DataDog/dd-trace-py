@@ -800,7 +800,7 @@ if not IS_PYSTON:
                 optional=False,
                 dependencies=[
                     DDUP_DIR.parent / "libdd_wrapper",
-                ]
+                ],
             )
         )
 
