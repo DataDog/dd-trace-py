@@ -1,7 +1,13 @@
+from unittest import mock
+
+import pytest
+
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.constants import VULN_SSRF
+from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
 from ddtrace.contrib.internal.httplib.patch import patch as httplib_patch
 from ddtrace.contrib.internal.httplib.patch import unpatch as httplib_unpatch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
@@ -12,11 +18,11 @@ from ddtrace.contrib.internal.urllib3.patch import patch as urllib3_patch
 from ddtrace.contrib.internal.urllib3.patch import unpatch as urllib3_unpatch
 from ddtrace.contrib.internal.webbrowser.patch import patch as webbrowser_patch
 from ddtrace.contrib.internal.webbrowser.patch import unpatch as webbrowser_unpatch
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _get_iast_data
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.appsec.iast.iast_utils import get_line_and_hash
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.appsec.iast.taint_sinks._taint_sinks_utils import NON_TEXT_TYPES_TEST_DATA
 from tests.utils import override_global_config
 
 
@@ -153,7 +159,7 @@ def test_urllib_request(tracer, iast_context_defaults):
 
 
 def _check_no_report_if_deduplicated(num_vuln_expected):
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     if num_vuln_expected == 0:
         assert span_report is None
     else:
@@ -268,3 +274,39 @@ def test_ssrf_urllib_deduplication(iast_context_deduplication_enabled):
             _end_iast_context_and_oce()
     finally:
         urllib_unpatch()
+
+
+@pytest.mark.parametrize("non_text_obj,obj_type", NON_TEXT_TYPES_TEST_DATA)
+def test_ssrf_non_text_types_no_vulnerability(non_text_obj, obj_type, iast_context_defaults):
+    """Test that non-text types don't trigger SSRF vulnerabilities."""
+    # Taint the non-text object
+    tainted_obj = taint_pyobject(
+        non_text_obj,
+        source_name="test_source",
+        source_value=str(non_text_obj),
+        source_origin=OriginType.PARAMETER,
+    )
+
+    # Mock a function that would be in the SSRF function mapping
+    def mock_request_func(url):
+        return f"Response for {url}"
+
+    # Mock get_argument_value to return our tainted non-text object
+    with mock.patch("ddtrace.appsec._iast.taint_sinks.ssrf.get_argument_value", return_value=tainted_obj):
+        # Add our mock function to the SSRF function mapping temporarily
+        from ddtrace.appsec._iast.taint_sinks.ssrf import _FUNC_TO_URL_ARGUMENT
+
+        original_mapping = _FUNC_TO_URL_ARGUMENT.copy()
+        _FUNC_TO_URL_ARGUMENT["tests.appsec.iast.taint_sinks.test_ssrf.mock_request_func"] = (0, "url")
+
+        try:
+            # Call the SSRF reporting function
+            _iast_report_ssrf(mock_request_func, tainted_obj)
+        finally:
+            # Restore original mapping
+            _FUNC_TO_URL_ARGUMENT.clear()
+            _FUNC_TO_URL_ARGUMENT.update(original_mapping)
+
+    # Assert no vulnerability was reported
+    span_report = get_iast_reporter()
+    assert span_report is None, f"Vulnerability reported for {obj_type}: {non_text_obj}"

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an incompatibility issue with code origin
+    that caused line probes on the entry point functions to fail to instrument.

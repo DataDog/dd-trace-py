@@ -16,7 +16,8 @@ Enabling
 Patch ``loguru``
 ~~~~~~~~~~~~~~~~~~~
 
-If using :ref:`ddtrace-run<ddtracerun>` then set the environment variable ``DD_LOGS_INJECTION=true``.
+Loguru support is auto-enabled when :ref:`ddtrace-run<ddtracerun>` and a structured logging format  (ex: JSON) is used.
+To disable this integration, set the environment variable ``DD_LOGS_INJECTION=false``.
 
 Or use :func:`patch()<ddtrace.patch>` to manually enable the integration::
 

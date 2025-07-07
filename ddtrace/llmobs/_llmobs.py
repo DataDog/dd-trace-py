@@ -9,6 +9,7 @@ from typing import Dict
 from typing import List
 from typing import Literal
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
@@ -107,6 +108,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
     "httpx": "httpx",
@@ -442,6 +444,7 @@ class LLMObs(Service):
         ml_app: Optional[str] = None,
         integrations_enabled: bool = True,
         agentless_enabled: Optional[bool] = None,
+        instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         env: Optional[str] = None,
@@ -456,6 +459,7 @@ class LLMObs(Service):
         :param str ml_app: The name of your ml application.
         :param bool integrations_enabled: Set to `true` to enable LLM integrations.
         :param bool agentless_enabled: Set to `true` to disable sending data that requires a Datadog Agent.
+        :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str env: Your environment name.
@@ -476,6 +480,7 @@ class LLMObs(Service):
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
+        config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
 
         error = None
         start_ns = time.time_ns()
@@ -532,9 +537,17 @@ class LLMObs(Service):
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
-            log.debug("%s enabled", cls.__name__)
+            log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
         finally:
-            telemetry.record_llmobs_enabled(error, config._llmobs_agentless_enabled, config._dd_site, start_ns, _auto)
+            telemetry.record_llmobs_enabled(
+                error,
+                config._llmobs_agentless_enabled,
+                config._dd_site,
+                start_ns,
+                _auto,
+                config._llmobs_instrumented_proxy_urls,
+                config._llmobs_ml_app,
+            )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
@@ -704,7 +717,7 @@ class LLMObs(Service):
         Patch LLM integrations. Ensure that we do not ignore DD_TRACE_<MODULE>_ENABLED or DD_PATCH_MODULES settings.
         """
         integrations_to_patch: Dict[str, Union[List[str], bool]] = {
-            integration: ["bedrock-runtime"] if integration == "botocore" else True
+            integration: ["bedrock-runtime", "bedrock-agent-runtime"] if integration == "botocore" else True
             for integration in SUPPORTED_LLMOBS_INTEGRATIONS.values()
         }
         for module, _ in integrations_to_patch.items():
@@ -800,6 +813,10 @@ class LLMObs(Service):
         if name is None:
             name = operation_kind
         span = self.tracer.trace(name, resource=operation_kind, span_type=SpanTypes.LLM)
+
+        if not self.enabled:
+            return span
+
         span._set_ctx_item(SPAN_KIND, operation_kind)
         if model_name is not None:
             span._set_ctx_item(MODEL_NAME, model_name)
@@ -812,10 +829,12 @@ class LLMObs(Service):
         ml_app = ml_app if ml_app is not None else _get_ml_app(span)
         if ml_app is None:
             raise ValueError(
-                "ML app is required for sending LLM Observability data. "
-                "Ensure this configuration is set before running your application."
+                "ml_app is required for sending LLM Observability data. "
+                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
+                "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
+        log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
         return span
 
     @classmethod
@@ -1213,7 +1232,7 @@ class LLMObs(Service):
         cls,
         label: str,
         metric_type: str,
-        value: Union[str, int, float],
+        value: Union[str, int, float, bool],
         span: Optional[dict] = None,
         span_with_tag_value: Optional[Dict[str, str]] = None,
         tags: Optional[Dict[str, str]] = None,
@@ -1225,9 +1244,9 @@ class LLMObs(Service):
         Submits a custom evaluation metric for a given span.
 
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), or float (score).
+                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param dict span: A dictionary of shape {'span_id': str, 'trace_id': str} uniquely identifying
                             the span associated with this evaluation.
         :param dict span_with_tag_value: A dictionary with the format {'tag_key': str, 'tag_value': str}
@@ -1296,9 +1315,9 @@ class LLMObs(Service):
                 raise ValueError("label must be the specified name of the evaluation metric.")
 
             metric_type = metric_type.lower()
-            if metric_type not in ("categorical", "score"):
+            if metric_type not in ("categorical", "score", "boolean"):
                 error = "invalid_metric_type"
-                raise ValueError("metric_type must be one of 'categorical' or 'score'.")
+                raise ValueError("metric_type must be one of 'categorical', 'score', or 'boolean'.")
 
             if metric_type == "categorical" and not isinstance(value, str):
                 error = "invalid_metric_value"
@@ -1306,6 +1325,9 @@ class LLMObs(Service):
             if metric_type == "score" and not isinstance(value, (int, float)):
                 error = "invalid_metric_value"
                 raise TypeError("value must be an integer or float for a score metric.")
+            if metric_type == "boolean" and not isinstance(value, bool):
+                error = "invalid_metric_value"
+                raise TypeError("value must be a boolean for a boolean metric.")
 
             if tags is not None and not isinstance(tags, dict):
                 log.warning("tags must be a dictionary of string key-value pairs.")
@@ -1362,7 +1384,7 @@ class LLMObs(Service):
         span_context: Dict[str, str],
         label: str,
         metric_type: str,
-        value: Union[str, int, float],
+        value: Union[str, int, float, bool],
         tags: Optional[Dict[str, str]] = None,
         ml_app: Optional[str] = None,
         timestamp_ms: Optional[int] = None,
@@ -1373,9 +1395,9 @@ class LLMObs(Service):
 
         :param span_context: A dictionary containing the span_id and trace_id of interest.
         :param str label: The name of the evaluation metric.
-        :param str metric_type: The type of the evaluation metric. One of "categorical", "score".
+        :param str metric_type: The type of the evaluation metric. One of "categorical", "score", "boolean".
         :param value: The value of the evaluation metric.
-                      Must be a string (categorical), integer (score), or float (score).
+                      Must be a string (categorical), integer (score), float (score), or boolean (boolean).
         :param tags: A dictionary of string key-value pairs to tag the evaluation metric with.
         :param str ml_app: The name of the ML application
         :param int timestamp_ms: The timestamp in milliseconds when the evaluation metric result was generated.
@@ -1426,9 +1448,9 @@ class LLMObs(Service):
                 log.warning("label must be the specified name of the evaluation metric.")
                 return
 
-            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score"):
+            if not metric_type or metric_type.lower() not in ("categorical", "numerical", "score", "boolean"):
                 error = "invalid_metric_type"
-                log.warning("metric_type must be one of 'categorical' or 'score'.")
+                log.warning("metric_type must be one of 'categorical', 'score', or 'boolean'.")
                 return
 
             metric_type = metric_type.lower()
@@ -1447,6 +1469,10 @@ class LLMObs(Service):
             if metric_type == "score" and not isinstance(value, (int, float)):
                 error = "invalid_metric_value"
                 log.warning("value must be an integer or float for a score metric.")
+                return
+            if metric_type == "boolean" and not isinstance(value, bool):
+                error = "invalid_metric_value"
+                log.warning("value must be a boolean for a boolean metric.")
                 return
             if tags is not None and not isinstance(tags, dict):
                 error = "invalid_tags"
