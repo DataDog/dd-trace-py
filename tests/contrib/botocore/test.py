@@ -4008,7 +4008,6 @@ class BotocoreTest(TracerTestCase):
 
             # clean up resources
             sns.delete_topic(TopicArn=topic_arn)
-            
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_sns
