@@ -1,0 +1,12 @@
+[run]
+omit = ddtrace/vendor/*
+parallel = true
+
+# Ignore warnings when we run as Python 2.7 and have a Python 3.x file
+disable_warnings = couldnt-parse
+
+[paths]
+source =
+    ./
+    /home/circleci/project/
+    /root/project/
