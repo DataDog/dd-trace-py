@@ -23,6 +23,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
     "veo": "google",
+    "text-embedding": "google",
     "jamba": "ai21",
     "claude": "anthropic",
     "llama": "meta",

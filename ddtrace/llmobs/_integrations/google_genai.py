@@ -153,7 +153,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             embedding_dim = len(embeddings[0].values)
         return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
 
-    def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Dict[str, Any]]:
+    def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = get_argument_value(args, kwargs, -1, "contents")
         messages = self._extract_messages_from_contents(contents, "user")
         # reuse logic for parsing messages from generate_content
