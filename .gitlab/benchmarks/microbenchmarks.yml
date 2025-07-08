@@ -1,6 +1,7 @@
 stages:
   - build
   - test
+  - gate
   - report
 
 variables:
@@ -229,3 +230,20 @@ check-big-regressions:
   variables:
     # Gitlab and BP specific env vars. Do not modify.
     KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+
+
+check-slo-breaches:
+  stage: gate
+  when: always
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - artifacts/
+      - reports/
+    expire_in: 3 months
+  script:
+    - export ARTIFACTS_DIR="$(pwd)/reports/"
+    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml
