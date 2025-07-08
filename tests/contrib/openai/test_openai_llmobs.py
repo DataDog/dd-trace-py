@@ -1341,7 +1341,7 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
