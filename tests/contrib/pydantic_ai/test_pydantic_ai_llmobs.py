@@ -41,27 +41,15 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_run_agent_span_event(span, output, token_metrics)
     
-    async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
-        """when delta is False (default), each chunk represents the entire output up to the current point"""
+    @pytest.mark.parametrize("delta", [False, True])
+    async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer, delta):
+        """delta determines whether each chunk represents the entire output up to the current point or just the delta from the previous chunk"""
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_text(debounce_by=None):
-                    output = chunk
-        token_metrics = get_usage(result)
-        span = mock_tracer.pop_traces()[0][0]
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0] == expected_run_agent_span_event(span, output, token_metrics)
-
-    async def test_agent_run_stream_text_delta(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
-        """when delta is True, each chunk is a delta from the previous chunk"""
-        output = ""
-        with request_vcr.use_cassette("agent_run_stream.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_text(delta=True, debounce_by=None):
-                    output += chunk
+                async for chunk in result.stream_text(debounce_by=None, delta=delta):
+                    output = output + chunk if delta else chunk
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
