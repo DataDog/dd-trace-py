@@ -40,6 +40,7 @@ config._add(
         request_span_name="starlette.request",
         distributed_tracing=True,
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 

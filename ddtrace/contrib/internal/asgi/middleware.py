@@ -34,6 +34,7 @@ config._add(
         request_span_name="asgi.request",
         distributed_tracing=True,
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        _obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 
@@ -248,7 +249,7 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
-                    if status_code == 404:
+                    if self.integration_config._obfuscate_404_resource and status_code == 404:
                         span.resource = " ".join((method, "404"))
 
                     trace_utils.set_http_meta(

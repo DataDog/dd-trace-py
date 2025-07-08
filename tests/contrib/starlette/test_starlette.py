@@ -182,7 +182,7 @@ def test_404(client, tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET 404"
+    assert request_span.resource == "GET /404"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
     assert request_span.get_tag("http.url") == "http://testserver/404"
@@ -311,7 +311,7 @@ def test_invalid_path_param(client, tracer, test_spans):
     request_span = next(test_spans.filter_spans(name="starlette.request"))
     assert request_span.service == "starlette"
     assert request_span.name == "starlette.request"
-    assert request_span.resource == "GET 404"
+    assert request_span.resource == "GET /users/test"
     assert request_span.get_tag("http.route") is None
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
