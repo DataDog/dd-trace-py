@@ -40,16 +40,22 @@ class TracedPydanticRunStream(wrapt.ObjectProxy):
         self._dd_integration = integration
         self._args = args
         self._kwargs = kwargs
+        self._streamed_run_result = None
     
     async def __aenter__(self):
         result = await self.__wrapped__.__aenter__()
-        return TracedPydanticStreamedRunResult(result, self._dd_span, self._dd_integration, self._args, self._kwargs)
+        self._streamed_run_result = TracedPydanticStreamedRunResult(result, self._dd_span, self._dd_integration, self._args, self._kwargs)
+        return self._streamed_run_result
     
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
         if exc_type:
             self._dd_span.set_exc_info(exc_type, exc_val, exc_tb)
-            self._dd_span.finish()
+            # in case of an error, we need to process the finished stream to set llmobs tags
+            if self._streamed_run_result and self._streamed_run_result._generator:
+                self._streamed_run_result._generator._process_finished_stream()
+            else:
+                self._dd_span.finish()
 
 
 class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
@@ -61,16 +67,20 @@ class TracedPydanticStreamedRunResult(wrapt.ObjectProxy):
         self._kwargs = kwargs
         # needed for extracting usage metrics from the streamed run result
         self._kwargs["streamed_run_result"] = self.__wrapped__
+        self._generator = None
 
     def stream(self, *args, **kwargs):
-        return TracedPydanticGenerator(self.__wrapped__.stream(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs)
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs)
+        return self._generator
     
     def stream_text(self, *args, **kwargs):
         delta = get_argument_value(args, kwargs, 0, "delta", True) or False
-        return TracedPydanticGenerator(self.__wrapped__.stream_text(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs, delta)
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_text(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs, delta)
+        return self._generator
     
     def stream_structured(self, *args, **kwargs):
-        return TracedPydanticGenerator(self.__wrapped__.stream_structured(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs)
+        self._generator = TracedPydanticGenerator(self.__wrapped__.stream_structured(*args, **kwargs), self._dd_span, self._dd_integration, self._args, self._kwargs)
+        return self._generator
     
     async def get_output(self):
         result = await self.__wrapped__.get_output()
@@ -89,7 +99,6 @@ class TracedPydanticGenerator(wrapt.ObjectProxy):
         self._self_kwargs = kwargs
         self._self_last_chunk = None
         self._self_delta = delta
-
 
     def _process_finished_stream(self):
         self._self_dd_integration.llmobs_set_tags(

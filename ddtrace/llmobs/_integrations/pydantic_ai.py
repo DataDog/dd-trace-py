@@ -147,9 +147,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if usage is None:
             return {}
 
-        prompt_tokens = _get_attr(usage, "request_tokens", 0)
-        completion_tokens = _get_attr(usage, "response_tokens", 0)
-        total_tokens = _get_attr(usage, "total_tokens", 0)
+        prompt_tokens = _get_attr(usage, "request_tokens", 0) or 0
+        completion_tokens = _get_attr(usage, "response_tokens", 0) or 0
+        total_tokens = _get_attr(usage, "total_tokens", 0) or 0
+        if not prompt_tokens and not completion_tokens and not total_tokens:
+            return {}
         return {
             INPUT_TOKENS_METRIC_KEY: prompt_tokens,
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,

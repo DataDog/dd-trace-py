@@ -1,4 +1,4 @@
-from typing import Any
+import mock
 from typing_extensions import TypedDict
 from ddtrace.llmobs._utils import safe_json
 import pytest
@@ -6,6 +6,7 @@ from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -123,17 +124,30 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_tool_span_event(tool_span, span_links=True)
         assert llmobs_events[1] == expected_run_agent_span_event(agent_span, safe_json(output[0].parts[0].args, ensure_ascii=False), token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=True)
     
-    async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events):
+    async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             with pytest.raises(Exception, match="test error"):
                 async with agent.run_stream("Hello, world!") as result:
-                    stream = result.stream()
-                    async for _ in stream:
+                    stream = result.stream(debounce_by=None)
+                    async for chunk in stream:
+                        output = chunk
                         raise Exception("test error")
+        
+        span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
-        assert llmobs_events[0]["status"] == "error"
-        assert llmobs_events[0]["meta"]["error.message"] == "test error"
+        assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+            span,
+            "agent",
+            input_value="Hello, world!",
+            output_value=output,
+            metadata={"instructions": None, "system_prompts": (), "tools": []},
+            tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+            error="builtins.Exception",
+            error_message="test error",
+            error_stack=mock.ANY,
+        )
     
     async def test_agent_iter(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         output = ""
