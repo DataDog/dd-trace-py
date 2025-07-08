@@ -62,6 +62,7 @@ suites:
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/pytest_flaky/*
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
@@ -97,7 +98,7 @@ suites:
       - '@selenium'
       - tests/contrib/selenium/*
       - tests/snapshots/test_selenium*
-    runner: hatch
+    runner: riot
     snapshot: true
   unittest:
     parallelism: 2

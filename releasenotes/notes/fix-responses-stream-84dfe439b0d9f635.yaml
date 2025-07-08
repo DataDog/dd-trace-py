@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where incomplete streamed responses returned from OpenAI responses API caused an index error with LLM Observability tracing.

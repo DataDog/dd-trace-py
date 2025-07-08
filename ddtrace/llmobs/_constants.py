@@ -6,6 +6,8 @@ ML_APP = "_ml_obs.meta.ml_app"
 PROPAGATED_PARENT_ID_KEY = "_dd.p.llmobs_parent_id"
 PROPAGATED_ML_APP_KEY = "_dd.p.llmobs_ml_app"
 PARENT_ID_KEY = "_ml_obs.llmobs_parent_id"
+PROPAGATED_LLMOBS_TRACE_ID_KEY = "_dd.p.llmobs_trace_id"
+LLMOBS_TRACE_ID = "_ml_obs.llmobs_trace_id"
 TAGS = "_ml_obs.tags"
 
 MODEL_NAME = "_ml_obs.meta.model_name"
@@ -36,6 +38,8 @@ CREWAI_APM_SPAN_NAME = "crewai.request"
 INPUT_TOKENS_METRIC_KEY = "input_tokens"
 OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"
+CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
+CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
 
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
@@ -85,3 +89,5 @@ DISPATCH_ON_TOOL_CALL = "on_tool_call"
 OAI_HANDOFF_TOOL_ARG = "{}"
 
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
+
+PROXY_REQUEST = "llmobs.proxy_request"

@@ -1,34 +1,38 @@
 import logging
+from typing import Dict
 
 from wrapt import wrap_function_wrapper as _w
 
 import ddtrace
 from ddtrace import config
+from ddtrace._logger import LogInjectionState
+from ddtrace._logger import set_log_formatting
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.utils import get_argument_value
 
-from .constants import RECORD_ATTR_ENV
-from .constants import RECORD_ATTR_SERVICE
-from .constants import RECORD_ATTR_SPAN_ID
-from .constants import RECORD_ATTR_TRACE_ID
-from .constants import RECORD_ATTR_VALUE_EMPTY
-from .constants import RECORD_ATTR_VALUE_ZERO
-from .constants import RECORD_ATTR_VERSION
-
-
-_LOG_SPAN_KEY = "__datadog_log_span"
 
 config._add(
     "logging",
     dict(
         tracer=None,
     ),
-)  # by default, override here for custom tracer
+)
 
 
 def get_version():
     # type: () -> str
     return getattr(logging, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"logging": "*"}
 
 
 class DDLogRecord:
@@ -47,65 +51,34 @@ class DDLogRecord:
         self.env = env
 
 
-def _get_tracer(tracer=None):
-    if not tracer:
-        # With the addition of a custom ddtrace logger in _logger.py, logs that happen on startup
-        # don't have access to `ddtrace.tracer`. Checking that this exists prevents an error
-        # if log injection is enabled.
-        if not getattr(ddtrace, "tracer", False):
-            return None
-
-        tracer = ddtrace.tracer
-
-    # We might be calling this during library initialization, in which case `ddtrace.tracer` might
-    # be the `tracer` module and not the global tracer instance.
-    if not getattr(tracer, "enabled", False):
-        return None
-
-    return tracer
-
-
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
-
-    setattr(record, RECORD_ATTR_VERSION, config.version or RECORD_ATTR_VALUE_EMPTY)
-    setattr(record, RECORD_ATTR_ENV, config.env or RECORD_ATTR_VALUE_EMPTY)
-    setattr(record, RECORD_ATTR_SERVICE, config.service or RECORD_ATTR_VALUE_EMPTY)
-
-    tracer = _get_tracer(tracer=config.logging.tracer)
-    trace_details = {}
-    span = None
-
-    # logs from internal logger may explicitly pass the current span to
-    # avoid deadlocks in getting the current span while already in locked code.
-    span_from_log = getattr(record, _LOG_SPAN_KEY, None)
-    if isinstance(span_from_log, ddtrace.trace.Span):
-        span = span_from_log
-
-    if tracer:
-        trace_details = tracer.get_log_correlation_context(active=span)
-
-    setattr(record, RECORD_ATTR_TRACE_ID, trace_details.get("trace_id", "0"))
-    setattr(record, RECORD_ATTR_SPAN_ID, trace_details.get("span_id", "0"))
-
+    if config._logs_injection != LogInjectionState.ENABLED:
+        # log injection is opt-in for non-structured logging
+        return record
+    record.__dict__.update(ddtrace.tracer.get_log_correlation_context())
     return record
 
 
 def _w_StrFormatStyle_format(func, instance, args, kwargs):
+    if config._logs_injection != LogInjectionState.ENABLED:
+        return func(*args, **kwargs)
     # The format string "dd.service={dd.service}" expects
     # the record to have a "dd" property which is an object that
     # has a "service" property
     # PercentStyle, and StringTemplateStyle both look for
     # a "dd.service" property on the record
     record = get_argument_value(args, kwargs, 0, "record")
-
+    # TODO(munir): The format string does not need to have a period in the property name.
+    # We can use "dd.service={dd_service}" instead and still produce the same log message.
+    # This is a breaking change, so we will not do it in this PR.
     record.dd = DDLogRecord(
-        trace_id=getattr(record, RECORD_ATTR_TRACE_ID, RECORD_ATTR_VALUE_ZERO),
-        span_id=getattr(record, RECORD_ATTR_SPAN_ID, RECORD_ATTR_VALUE_ZERO),
-        service=getattr(record, RECORD_ATTR_SERVICE, RECORD_ATTR_VALUE_EMPTY),
-        version=getattr(record, RECORD_ATTR_VERSION, RECORD_ATTR_VALUE_EMPTY),
-        env=getattr(record, RECORD_ATTR_ENV, RECORD_ATTR_VALUE_EMPTY),
+        trace_id=getattr(record, LOG_ATTR_TRACE_ID, LOG_ATTR_VALUE_ZERO),
+        span_id=getattr(record, LOG_ATTR_SPAN_ID, LOG_ATTR_VALUE_ZERO),
+        service=getattr(record, LOG_ATTR_SERVICE, LOG_ATTR_VALUE_EMPTY),
+        version=getattr(record, LOG_ATTR_VERSION, LOG_ATTR_VALUE_EMPTY),
+        env=getattr(record, LOG_ATTR_ENV, LOG_ATTR_VALUE_EMPTY),
     )
 
     try:
@@ -128,11 +101,14 @@ def patch():
     logging._datadog_patch = True
 
     _w(logging.Logger, "makeRecord", _w_makeRecord)
-    if hasattr(logging, "StrFormatStyle"):
-        if hasattr(logging.StrFormatStyle, "_format"):
-            _w(logging.StrFormatStyle, "_format", _w_StrFormatStyle_format)
-        else:
-            _w(logging.StrFormatStyle, "format", _w_StrFormatStyle_format)
+    _w(logging.StrFormatStyle, "_format", _w_StrFormatStyle_format)
+
+    if config._logs_injection == LogInjectionState.ENABLED:
+        # Only set the formatter is DD_LOGS_INJECTION is set to True. We do not want to modify
+        # unstructured logs if a user has not enabled logs injection.
+        # Also, the Datadog log format must be set after the logging module has been patched,
+        # otherwise the formatter will raise an exception.
+        set_log_formatting()
 
 
 def unpatch():
@@ -140,8 +116,4 @@ def unpatch():
         logging._datadog_patch = False
 
         _u(logging.Logger, "makeRecord")
-        if hasattr(logging, "StrFormatStyle"):
-            if hasattr(logging.StrFormatStyle, "_format"):
-                _u(logging.StrFormatStyle, "_format")
-            else:
-                _u(logging.StrFormatStyle, "format")
+        _u(logging.StrFormatStyle, "_format")

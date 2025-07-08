@@ -27,6 +27,9 @@ components:
   azure_functions:
     - ddtrace/contrib/_azure_functions.py
     - ddtrace/contrib/internal/azure_functions/*
+  azure_servicebus:
+    - ddtrace/contrib/_azure_servicebus.py
+    - ddtrace/contrib/internal/azure_servicebus/*
   botocore:
     - ddtrace/contrib/_botocore.py
     - ddtrace/contrib/internal/botocore/*
@@ -420,6 +423,23 @@ suites:
     snapshot: true
     services:
       - azurite
+      - azureservicebusemulator
+      - azuresqledge
+  azure_servicebus:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_servicebus'
+      - tests/contrib/azure_servicebus/*
+      - tests/snapshots/tests.contrib.azure_servicebus.*
+    runner: riot
+    snapshot: true
+    services:
+      - azureservicebusemulator
+      - azuresqledge
   botocore:
     parallelism: 11
     paths:
@@ -615,6 +635,7 @@ suites:
     runner: riot
     services:
       - redis
+      - rabbitmq
     snapshot: true
   elasticsearch:
     env:
@@ -692,7 +713,7 @@ suites:
         - '@tracing'
         - '@freezegun'
         - tests/contrib/freezegun/*
-    runner: hatch
+    runner: riot
     snapshot: true
   gevent:
     paths:

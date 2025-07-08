@@ -1,5 +1,6 @@
 from contextlib import contextmanager
 import functools
+import inspect
 from inspect import iscoroutinefunction
 from itertools import chain
 import logging
@@ -34,6 +35,13 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.core import dispatch
@@ -45,12 +53,10 @@ from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
-from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.writer import AgentWriter
 from ddtrace.internal.writer import HTTPWriter
-from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.peer_service import _ps_config
@@ -88,20 +94,9 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
 
 
 def _default_span_processors_factory(
-    trace_filters: List[TraceProcessor],
-    writer: Optional[TraceWriter],
-    partial_flush_enabled: bool,
-    partial_flush_min_spans: int,
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"], SpanAggregator]:
+) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"]]:
     """Construct the default list of span processors to use."""
-    trace_processors: List[TraceProcessor] = []
-    trace_processors += [
-        PeerServiceProcessor(_ps_config),
-        BaseServiceProcessor(),
-    ]
-    trace_processors += trace_filters
-
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
@@ -139,14 +134,7 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    # These need to run after all the other processors
-    span_aggregagtor = SpanAggregator(
-        partial_flush_enabled=partial_flush_enabled,
-        partial_flush_min_spans=partial_flush_min_spans,
-        trace_processors=trace_processors,
-        writer=writer,
-    )
-    return span_processors, appsec_processor, span_aggregagtor
+    return span_processors, appsec_processor
 
 
 class Tracer(object):
@@ -180,8 +168,6 @@ class Tracer(object):
                     "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
                 )
 
-        self._user_trace_processors: List[TraceProcessor] = []
-
         # globally set tags
         self._tags = config.tags.copy()
 
@@ -198,12 +184,13 @@ class Tracer(object):
             config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
-            self._user_trace_processors,
-            None,
-            config._partial_flush_enabled,
-            config._partial_flush_min_spans,
-            self._endpoint_call_counter_span_processor,
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
+            self._endpoint_call_counter_span_processor
+        )
+        self._span_aggregator = SpanAggregator(
+            partial_flush_enabled=config._partial_flush_enabled,
+            partial_flush_min_spans=config._partial_flush_min_spans,
+            dd_processors=[PeerServiceProcessor(_ps_config), BaseServiceProcessor()],
         )
         if config._data_streams_enabled:
             # Inline the import to avoid pulling in ddsketch or protobuf
@@ -328,23 +315,17 @@ class Tracer(object):
         if active is None and (self.enabled or asm_config._apm_opt_out):
             active = self.context_provider.active()
 
-        if isinstance(active, Span) and active.service:
-            service = active.service
-        else:
-            service = config.service
-
-        span_id = "0"
-        trace_id = "0"
+        span_id = trace_id = LOG_ATTR_VALUE_ZERO
         if active:
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
         return {
-            "trace_id": trace_id,
-            "span_id": span_id,
-            "service": service or "",
-            "version": config.version or "",
-            "env": config.env or "",
+            LOG_ATTR_TRACE_ID: trace_id,
+            LOG_ATTR_SPAN_ID: span_id,
+            LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
         }
 
     def configure(
@@ -352,6 +333,7 @@ class Tracer(object):
         context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
@@ -370,6 +352,8 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
+        if appsec_enabled_origin:
+            asm_config._asm_enabled_origin = appsec_enabled_origin  # type: ignore[assignment]
 
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
@@ -388,13 +372,6 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
-        if isinstance(self._span_aggregator.writer, AgentWriter):
-            if appsec_enabled:
-                self._span_aggregator.writer._api_version = "v0.4"
-
-        if trace_processors:
-            self._user_trace_processors = trace_processors
-
         if any(
             x is not None
             for x in [
@@ -404,7 +381,9 @@ class Tracer(object):
                 iast_enabled,
             ]
         ):
-            self._recreate()
+            self._recreate(
+                trace_processors, compute_stats_enabled, asm_config._apm_opt_out, appsec_enabled, reset_buffer=False
+            )
 
         if context_provider is not None:
             self.context_provider = context_provider
@@ -432,31 +411,31 @@ class Tracer(object):
 
     def _child_after_fork(self):
         self._pid = getpid()
-        self._recreate()
+        self._recreate(reset_buffer=True)
         self._new_process = True
 
-    def _recreate(self):
-        """Re-initialize the tracer's processors and trace writer. This method should only be used in tests."""
+    def _recreate(
+        self,
+        trace_processors: Optional[List[TraceProcessor]] = None,
+        compute_stats_enabled: Optional[bool] = None,
+        apm_opt_out: Optional[bool] = None,
+        appsec_enabled: Optional[bool] = None,
+        reset_buffer: bool = True,
+    ) -> None:
+        """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        try:
-            self._span_aggregator.writer.stop()
-        except ServiceStatusError:
-            # Some writers (ex: AgentWriter), start when the first trace chunk is encoded. Stopping
-            # the writer before that point will raise a ServiceStatusError.
-            pass
-        # Re-create the background writer thread
-        rules = self._span_aggregator.sampling_processor.sampler._by_service_samplers
-        self._span_aggregator.writer = self._span_aggregator.writer.recreate()
         self.enabled = config._tracing_enabled
-        self._span_processors, self._appsec_processor, self._span_aggregator = _default_span_processors_factory(
-            self._user_trace_processors,
-            self._span_aggregator.writer,
-            self._span_aggregator.partial_flush_enabled,
-            self._span_aggregator.partial_flush_min_spans,
+        self._span_aggregator.reset(
+            user_processors=trace_processors,
+            compute_stats=compute_stats_enabled,
+            apm_opt_out=apm_opt_out,
+            appsec_enabled=appsec_enabled,
+            reset_buffer=reset_buffer,
+        )
+        self._span_processors, self._appsec_processor = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
         )
-        self._span_aggregator.sampling_processor.sampler._by_service_samplers = rules.copy()
 
     def _start_span_after_shutdown(
         self,
@@ -775,6 +754,54 @@ class Tracer(object):
         """Flush the buffer of the trace writer. This does nothing if an unbuffered trace writer is used."""
         self._span_aggregator.writer.flush_queue()
 
+    def _wrap_generator(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        def func_wrapper(*args, **kwargs):
+            if getattr(self, "_wrap_executor", None):
+                return self._wrap_executor(
+                    self,
+                    f,
+                    args,
+                    kwargs,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                return_value = yield from f(*args, **kwargs)
+                return return_value
+
+        return func_wrapper
+
+    def _wrap_generator_async(
+        self,
+        f: AnyCallable,
+        span_name: str,
+        service: Optional[str] = None,
+        resource: Optional[str] = None,
+        span_type: Optional[str] = None,
+    ) -> AnyCallable:
+        """Wrap a generator function with tracing."""
+
+        @functools.wraps(f)
+        async def func_wrapper(*args, **kwargs):
+            with self.trace(span_name, service=service, resource=resource, span_type=span_type):
+                async for value in f(*args, **kwargs):
+                    yield value
+
+        return func_wrapper
+
     def wrap(
         self,
         name: Optional[str] = None,
@@ -812,6 +839,15 @@ class Tracer(object):
             def coroutine():
                 return 'executed'
 
+        >>> # or use it on generators
+            @tracer.wrap()
+            def gen():
+                yield 'executed'
+
+        >>> @tracer.wrap()
+            async def gen():
+                yield 'executed'
+
         You can access the current span using `tracer.current_span()` to set
         tags:
 
@@ -825,10 +861,26 @@ class Tracer(object):
             # FIXME[matt] include the class name for methods.
             span_name = name if name else "%s.%s" % (f.__module__, f.__name__)
 
-            # detect if the the given function is a coroutine to use the
-            # right decorator; this initial check ensures that the
+            # detect if the the given function is a coroutine and/or a generator
+            # to use the right decorator; this initial check ensures that the
             # evaluation is done only once for each @tracer.wrap
-            if iscoroutinefunction(f):
+            if inspect.isgeneratorfunction(f):
+                func_wrapper = self._wrap_generator(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif inspect.isasyncgenfunction(f):
+                func_wrapper = self._wrap_generator_async(
+                    f,
+                    span_name,
+                    service=service,
+                    resource=resource,
+                    span_type=span_type,
+                )
+            elif iscoroutinefunction(f):
                 # create an async wrapper that awaits the coroutine and traces it
                 @functools.wraps(f)
                 async def func_wrapper(*args, **kwargs):

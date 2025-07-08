@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    This fix resolves an issue where code coverage would not be enabled if ddtrace was enabled via the
+    ``PYTEST_ADDOPTS`` environment variable.

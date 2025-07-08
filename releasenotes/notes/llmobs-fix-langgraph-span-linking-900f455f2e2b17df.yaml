@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes an issue where LangGraph span links for execution flows were broken for ``langgraph>=0.3.22``.
