@@ -85,6 +85,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
