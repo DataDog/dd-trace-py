@@ -1,5 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
+from random import random
 from types import ModuleType
 import typing as t
 
@@ -35,6 +36,8 @@ class LineCollector(ModuleCollector):
         probes = []
         for line, fcps in discovery.items():
             for fcp in fcps:
+                if random() >= config.coverage.instrumentation_rate:
+                    continue
                 try:
                     fcp.resolve()
                 except ValueError:

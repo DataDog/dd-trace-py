@@ -288,6 +288,7 @@ def get_messages_from_converse_content(role: str, content: list):
     messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
     content_blocks = []
     tool_calls_info = []
+    unsupported_content_messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -302,7 +303,9 @@ def get_messages_from_converse_content(role: str, content: list):
             )
         else:
             content_type = ",".join(content_block.keys())
-            messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
+            unsupported_content_messages.append(
+                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
+            )
     message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
@@ -310,6 +313,8 @@ def get_messages_from_converse_content(role: str, content: list):
         message.update({"content": " ".join(content_blocks), "role": role})
     if message:
         messages.append(message)
+    if unsupported_content_messages:
+        messages.extend(unsupported_content_messages)
     return messages
 
 
@@ -336,10 +341,26 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        tool_call_id = m.get("tool_call_id")
+        processed_message = {
+            "content": str(_get_attr(m, "content", "")),
+            "role": str(_get_attr(m, "role", "")),
+        }  # type: dict[str, Union[str, list[dict[str, dict]]]]
+        tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-        input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
+            processed_message["tool_id"] = tool_call_id
+        tool_calls = _get_attr(m, "tool_calls", [])
+        if tool_calls:
+            processed_message["tool_calls"] = [
+                {
+                    "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                    "arguments": _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
+                    "tool_id": _get_attr(tool_call, "id", ""),
+                    "type": _get_attr(tool_call, "type", ""),
+                }
+                for tool_call in tool_calls
+            ]
+        input_messages.append(processed_message)
     parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
