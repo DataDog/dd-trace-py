@@ -156,4 +156,29 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["status"] == "error"
         assert llmobs_events[0]["meta"]["error.message"] == "test error"
-    
+
+
+class TestLLMObsPydanticAISpanLinks:
+    async def test_agent_calls_tool(self, pydantic_ai, request_vcr, llmobs_events):
+        instructions = "Use the provided tool to calculate the square of 2."
+        with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
+
+            def calculate_square_tool(x: int) -> int:
+                return x * x
+
+            agent = pydantic_ai.Agent(
+                model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
+            )
+            async with agent.run_stream("What is the square of 2?") as result:
+                async for _ in result.stream(debounce_by=None):
+                    pass
+        assert len(llmobs_events) == 2
+        # agent to tool span link should be present on the tool span
+        assert len(llmobs_events[0]["span_links"]) == 1
+        assert llmobs_events[0]["span_links"][0]["span_id"] == llmobs_events[1]["span_id"]
+        assert llmobs_events[0]["span_links"][0]["attributes"] == {"from": "input", "to": "input"}
+        # tool to agent span link should be present on the agent span
+        assert len(llmobs_events[1]["span_links"]) == 1
+        assert llmobs_events[1]["span_links"][0]["span_id"] == llmobs_events[0]["span_id"]
+        assert llmobs_events[1]["span_links"][0]["attributes"] == {"from": "output", "to": "output"}
+
