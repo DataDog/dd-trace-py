@@ -13,13 +13,16 @@ from tests.contrib.pydantic_ai.utils import calculate_square_tool
 )
 class TestLLMObsPydanticAI:
     async def test_agent_run(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        model_settings = {"max_tokens": 100, "temperature": 0.5}
+        instructions = "dummy instructions"
+        system_prompt = "dummy system prompt"
         with request_vcr.use_cassette("agent_iter.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
-            result = await agent.run("Hello, world!")        
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", instructions=instructions, system_prompt=system_prompt, tools=[calculate_square_tool], model_settings=model_settings)
+            result = await agent.run("Hello, world!")
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
-        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, token_metrics)
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, token_metrics, instructions=instructions, system_prompt=system_prompt, tools=["calculate_square_tool"], model_settings=model_settings)
 
 
     def test_agent_run_sync(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):

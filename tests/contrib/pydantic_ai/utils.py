@@ -1,12 +1,16 @@
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
-def expected_run_agent_span_event(span, output, token_metrics, input_value="Hello, world!", instructions=None, tools=None, span_links=None):
+def expected_run_agent_span_event(span, output, token_metrics, input_value="Hello, world!", instructions=None, system_prompt=None, tools=None, model_settings=None, span_links=None):
+    system_prompts = (system_prompt,) if system_prompt else ()
+    metadata = {"instructions": instructions, "system_prompts": system_prompts, "tools": tools or []}
+    if model_settings:
+        metadata.update({"max_tokens": model_settings.get("max_tokens", None), "temperature": model_settings.get("temperature", None)})
     return _expected_llmobs_non_llm_span_event(
         span,
         "agent",
         input_value=input_value,
         output_value=output,
-        metadata={"instructions": instructions, "system_prompts": (), "tools": tools or []},
+        metadata=metadata,
         token_metrics=token_metrics,
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
         span_links=span_links,
@@ -18,7 +22,7 @@ def expected_run_tool_span_event(span, input='{"x":2}', output="4", span_links=N
         "tool",
         input_value=input,
         output_value=output,
-        metadata={'description': ''},
+        metadata={'description': 'Calculates the square of a number'},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
         span_links=span_links,
     )
@@ -33,4 +37,5 @@ def get_usage(result):
     return token_metrics
 
 def calculate_square_tool(x: int) -> int:
+    """Calculates the square of a number"""
     return x * x

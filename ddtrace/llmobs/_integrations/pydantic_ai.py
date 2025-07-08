@@ -77,11 +77,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_agent(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]) -> None:
         agent_instance = kwargs.get("instance", None)
         if agent_instance:
-            agent_name = getattr(agent_instance, "name", "")
-            agent_instructions = getattr(agent_instance, "_instructions", "")
-            agent_system_prompts = getattr(agent_instance, "_system_prompts", "")
+            agent_name = getattr(agent_instance, "name", None)
+            agent_instructions = getattr(agent_instance, "_instructions", None)
+            agent_system_prompts = getattr(agent_instance, "_system_prompts", None)
             agent_tools = list(getattr(agent_instance, "_function_tools", {}).keys())
-            agent_model_settings = getattr(agent_instance, "model_settings", {})
+            agent_model_settings = getattr(agent_instance, "model_settings", None)
             metadata = {
                 "instructions": agent_instructions,
                 "system_prompts": agent_system_prompts,
