@@ -133,7 +133,7 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
 def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
-    
+
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["metrics"].get("input_tokens") is None
     assert llmobs_events[0]["metrics"].get("output_tokens") is None

@@ -362,7 +362,9 @@ def openai_chat_completion_no_usage(respx_mock):
 
     completion = _openai_chat_completion_object(n=2, include_usage=False)
 
-    respx_mock.post("/v1/chat/completions").mock(return_value=httpx.Response(200, json=completion.model_dump(mode="json")))
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
 
 
 @pytest.fixture
