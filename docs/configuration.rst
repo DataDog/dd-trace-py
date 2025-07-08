@@ -425,6 +425,22 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+Metrics
+------
+
+.. ddtrace-configuration-options::
+
+   DD_METRICS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
+        by the OpenTelemetry Metrics API. The application must also include its own OTLP metrics exporter.
+     
+     version_added:
+       v3.11.0:
+
 AppSec
 ------
 
