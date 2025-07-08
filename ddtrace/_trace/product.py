@@ -116,7 +116,8 @@ class APMCapabilities(enum.IntFlag):
 
 def apm_tracing_rc_subscribe(dd_config):
     dd_config._subscribe(
-        ["_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled"], _on_global_config_update
+        ["_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled", "_trace_http_header_tags"],
+        _on_global_config_update,
     )
 
 
@@ -210,17 +211,15 @@ def apm_tracing_rc(lib_config, dd_config):
         if tags:
             tags = dd_config._format_tags(lib_config["tracing_header_tags"])
         base_rc_config["_trace_http_header_tags"] = tags
+        dd_config._http = HttpConfig(header_tags=tags)
 
     if base_rc_config:
         # If new remote config values are set, we should update the global config
         merged_configs = {**{n: None for n in dd_config._config}, **base_rc_config}
         dd_config._set_config_items([(k, v, "remote_config") for k, v in merged_configs.items()])
-        log.debug("Remote config APM Tracing Received: %s,\nExisiting configs: %s,\nUpdated Configs: %s", lib_config, base_rc_config, merged_configs)
-
-    # unconditionally handle the case where header tags have been unset
-    header_tags_conf = dd_config._config["_trace_http_header_tags"]
-    env_headers = header_tags_conf._env_value or {}
-    code_headers = header_tags_conf._code_value or {}
-    non_rc_header_tags = {**code_headers, **env_headers}
-    selected_header_tags = base_rc_config.get("_trace_http_header_tags") or non_rc_header_tags
-    dd_config._http = HttpConfig(header_tags=selected_header_tags)
+        log.debug(
+            "Remote config APM Tracing Received: %s,\nExisiting configs: %s,\nUpdated Configs: %s",
+            lib_config,
+            base_rc_config,
+            merged_configs,
+        )
