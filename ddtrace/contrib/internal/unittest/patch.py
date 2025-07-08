@@ -37,16 +37,13 @@ from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
 from ddtrace.internal.ci_visibility.constants import SUITE_ID as _SUITE_ID
 from ddtrace.internal.ci_visibility.constants import SUITE_TYPE as _SUITE_TYPE
 from ddtrace.internal.ci_visibility.constants import TEST
-from ddtrace.internal.ci_visibility.coverage import _module_has_dd_coverage_enabled
 from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
-from ddtrace.internal.ci_visibility.coverage import _start_coverage
-from ddtrace.internal.ci_visibility.coverage import _stop_coverage
-from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
 from ddtrace.internal.ci_visibility.utils import get_relative_or_absolute_path_for_path
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.coverage.installer import install as install_coverage
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
@@ -560,8 +557,6 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
         with _start_test_span(instance, test_suite_span) as span:
             test_session_span = _CIVisibility._datadog_session_span
             root_directory = os.getcwd()
-            fqn_test = _generate_fully_qualified_test_name(test_module_path, test_suite_name, test_name)
-
             if _CIVisibility.test_skipping_enabled():
                 if ITR_CORRELATION_ID_TAG_NAME in _CIVisibility._instance._itr_meta:
                     span.set_tag_str(
@@ -596,9 +591,7 @@ def handle_test_wrapper(func, instance, args: tuple, kwargs: dict):
                 result.stopTest(test=instance)
             else:
                 if _is_test_coverage_enabled(instance):
-                    if not _module_has_dd_coverage_enabled(unittest, silent_mode=True):
-                        unittest._dd_coverage = _start_coverage(root_directory)
-                    _switch_coverage_context(unittest._dd_coverage, fqn_test)
+                    install_coverage(include_paths=[root_directory], collect_import_time_coverage=True)
                 result = func(*args, **kwargs)
             _update_status_item(test_suite_span, span.get_tag(test.STATUS))
             if _is_test_coverage_enabled(instance):
@@ -813,8 +806,6 @@ def _finish_test_session_span():
         _CIVisibility._unittest_data["suites"], _CIVisibility._unittest_data["modules"]
     )
     _update_test_skipping_count_span(_CIVisibility._datadog_session_span)
-    if _CIVisibility._instance._collect_coverage_enabled and _module_has_dd_coverage_enabled(unittest):
-        _stop_coverage(unittest)
     if _is_coverage_patched() and _is_coverage_invoked_by_coverage_run():
         run_coverage_report()
         _add_pct_covered_to_span(_coverage_data, _CIVisibility._datadog_session_span)
