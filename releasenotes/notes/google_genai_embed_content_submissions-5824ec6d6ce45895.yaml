@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Embed Content: Adds support for APM/LLM Observability tracing for Google GenAI's `embed_content` methods.
