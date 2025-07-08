@@ -15,6 +15,7 @@ from typing import Optional
 from typing import Tuple
 from typing import TypeVar
 from typing import Union
+from typing import cast
 
 from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
@@ -782,7 +783,7 @@ class Tracer(object):
                 return_value = yield from f(*args, **kwargs)
                 return return_value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def _wrap_generator_async(
         self,
@@ -800,7 +801,7 @@ class Tracer(object):
                 async for value in f(*args, **kwargs):
                     yield value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def wrap(
         self,
