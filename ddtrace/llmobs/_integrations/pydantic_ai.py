@@ -35,7 +35,7 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents: Dict[str, List[str]] = {}  # dictionary mapping agent span ID to tool span ID(s)
+    _running_agents: Dict[int, List[int]] = {}  # dictionary mapping agent span ID to tool span ID(s)
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
