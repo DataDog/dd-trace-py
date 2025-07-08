@@ -53,6 +53,7 @@ def get_waf_addresses(address: str) -> typing.Optional[typing.Any]:
 def asm_context(
     tracer=None,
     span_name: str = "",
+    span_type: str = SpanTypes.WEB,
     ip_addr: typing.Optional[str] = None,
     headers_case_sensitive: bool = False,
     headers: typing.Optional[typing.Dict[str, str]] = None,
@@ -80,7 +81,7 @@ def asm_context(
             headers=headers,
             block_request_callable=block_request_callable,
             service=service,
-        ), tracer.trace(span_name or "test", span_type=SpanTypes.WEB, service=service) as span:
+        ), tracer.trace(span_name or "test", span_type=span_type, service=service) as span:
             yield span
         unpatch_for_waf_addresses()
 

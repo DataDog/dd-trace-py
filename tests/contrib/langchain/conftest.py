@@ -250,6 +250,7 @@ def _openai_completion_object(
 def _openai_chat_completion_object(
     n: int = 1,
     tools: bool = False,
+    include_usage: bool = True,
 ):
     from datetime import datetime
 
@@ -274,11 +275,6 @@ def _openai_chat_completion_object(
         object="chat.completion",
         choices=choices,
         created=int(datetime.now().timestamp()),
-        usage=CompletionUsage(
-            prompt_tokens=5,
-            completion_tokens=5,
-            total_tokens=10,
-        ),
     )
 
     if tools:
@@ -296,6 +292,13 @@ def _openai_chat_completion_object(
 
         for choice in completion.choices:
             choice.message.tool_calls = [tool_call]
+
+    if include_usage:
+        completion.usage = CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        )
 
     return completion
 
@@ -346,6 +349,18 @@ def openai_chat_completion(respx_mock):
     import httpx
 
     completion = _openai_chat_completion_object()
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_no_usage(respx_mock):
+    import httpx
+
+    completion = _openai_chat_completion_object(n=2, include_usage=False)
 
     respx_mock.post("/v1/chat/completions").mock(
         return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
