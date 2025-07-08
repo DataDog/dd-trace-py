@@ -518,9 +518,6 @@ class TraceMiddleware:
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
-                blocked = get_blocked()
-                if blocked:
-                    raise BlockingException(blocked)
                 try:
                     # Finish the receive span after the send is complete
                     if (
@@ -548,8 +545,18 @@ class TraceMiddleware:
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
-                # Do not block right here. Wait for route to be resolved in starlette/patch.py
-                return await self.app(scope, wrapped_recv, wrapped_send)
+
+                if get_blocked():
+                    set_blocked(get_blocked())
+                    return await _blocked_asgi_app(scope, receive, wrapped_send, ctx, url)
+
+                result = await self.app(scope, wrapped_recv, wrapped_send)
+
+                if get_blocked():
+                    set_blocked(get_blocked())
+                    return await _blocked_asgi_app(scope, receive, wrapped_send, ctx, url)
+
+                return result
             except BlockingException as e:
                 set_blocked(e.args[0])
                 return await _blocked_asgi_app(scope, receive, wrapped_send)
