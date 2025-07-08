@@ -33,9 +33,9 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents = {} # dictionary mapping agent span ID to tool span ID(s)
-    _latest_agent = None # str representing the span ID of the latest agent that was started
-    _run_stream_active = False # bool indicating if the latest agent span was generated from run_stream
+    _running_agents = {}  # dictionary mapping agent span ID to tool span ID(s)
+    _latest_agent = None  # str representing the span ID of the latest agent that was started
+    _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
@@ -52,7 +52,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             if system:
                 system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
                 span.set_tag("pydantic_ai.request.provider", system)
-    
+
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -71,10 +71,18 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
-            {SPAN_KIND: span._get_ctx_item(SPAN_KIND), SPAN_LINKS: span_links, MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "", MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "", METRICS: metrics}
+            {
+                SPAN_KIND: span._get_ctx_item(SPAN_KIND),
+                SPAN_LINKS: span_links,
+                MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
+                MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
+                METRICS: metrics,
+            }
         )
-    
-    def _llmobs_set_tags_agent(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]) -> None:
+
+    def _llmobs_set_tags_agent(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
+    ) -> None:
         agent_instance = kwargs.get("instance", None)
         if agent_instance:
             agent_name = getattr(agent_instance, "name", None)
@@ -109,16 +117,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
 
-
         span._set_ctx_items(
             {
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: result,
             }
         )
-            
-    
-    def _llmobs_set_tags_tool(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None) -> None:
+
+    def _llmobs_set_tags_tool(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
+    ) -> None:
         tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "message")
         tool_name = "PydanticAI Tool"
@@ -136,7 +144,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
-    
+
     def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         response = kwargs.get("streamed_run_result", None) or response
         usage = None
@@ -162,21 +170,25 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span_links = []
         if span_kind == "agent":
             for tool_span_id in self._running_agents[span.span_id]:
-                span_links.append({
-                    "span_id": str(tool_span_id),
-                    "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "output", "to": "output"},
-                })
+                span_links.append(
+                    {
+                        "span_id": str(tool_span_id),
+                        "trace_id": format_trace_id(span.trace_id),
+                        "attributes": {"from": "output", "to": "output"},
+                    }
+                )
         elif span_kind == "tool":
             ancestor = _get_nearest_llmobs_ancestor(span)
             if ancestor:
-                span_links.append({
-                    "span_id": str(ancestor.span_id),
-                    "trace_id": format_trace_id(ancestor.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
-                })
+                span_links.append(
+                    {
+                        "span_id": str(ancestor.span_id),
+                        "trace_id": format_trace_id(ancestor.trace_id),
+                        "attributes": {"from": "input", "to": "input"},
+                    }
+                )
         return span_links
-    
+
     def _register_span(self, span: Span, kind: str) -> None:
         if kind == "agent":
             self._register_agent(span)

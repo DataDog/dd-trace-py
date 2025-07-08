@@ -2,6 +2,7 @@ import pytest
 
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 
+
 async def test_agent_run(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
         with request_vcr.use_cassette("agent_iter.yaml"):

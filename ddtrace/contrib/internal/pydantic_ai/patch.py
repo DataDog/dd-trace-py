@@ -34,12 +34,15 @@ def _supported_versions() -> Dict[str, str]:
 def traced_agent_run_stream(pydantic_ai, pin, func, instance, args, kwargs):
     integration = pydantic_ai._datadog_integration
     integration._run_stream_active = True
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
+    span = integration.trace(
+        pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+    )
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
     kwargs["instance"] = instance
     return TracedPydanticRunStream(result, span, integration, args, kwargs)
+
 
 @with_traced_module
 def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
@@ -48,7 +51,9 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     if integration._run_stream_active:
         integration._run_stream_active = False
         return func(*args, **kwargs)
-    span = integration.trace(pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent")
+    span = integration.trace(
+        pin, "Pydantic Agent", submit_to_llmobs=True, model=getattr(instance, "model", None), kind="agent"
+    )
     span.name = getattr(instance, "name", None) or "Pydantic Agent"
 
     result = func(*args, **kwargs)
@@ -70,9 +75,7 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs):
         raise
     finally:
         kwargs["instance"] = instance
-        integration.llmobs_set_tags(
-            span, args=args, kwargs=kwargs, response=resp
-        )
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
         span.finish()
 
 
@@ -81,7 +84,6 @@ def patch():
 
     if getattr(pydantic_ai, "_datadog_patch", False):
         return
-
 
     pydantic_ai._datadog_patch = True
 
