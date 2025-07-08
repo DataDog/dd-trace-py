@@ -1,11 +1,12 @@
 import mock
-from typing_extensions import TypedDict
-from ddtrace.llmobs._utils import safe_json
 import pytest
+from typing_extensions import TypedDict
+
+from ddtrace.llmobs._utils import safe_json
+from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
-from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
@@ -64,7 +65,10 @@ class TestLLMObsPydanticAI:
 
     @pytest.mark.parametrize("delta", [False, True])
     async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer, delta):
-        """delta determines whether each chunk represents the entire output up to the current point or just the delta from the previous chunk"""
+        """
+        delta determines whether each chunk represents the entire output up to the current point or just the
+        delta from the previous chunk
+        """
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")

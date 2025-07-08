@@ -33,11 +33,11 @@ def expected_run_agent_span_event(
     )
 
 
-def expected_run_tool_span_event(span, input='{"x":2}', output="4", span_links=None):
+def expected_run_tool_span_event(span, input_value='{"x":2}', output="4", span_links=None):
     return _expected_llmobs_non_llm_span_event(
         span,
         "tool",
-        input_value=input,
+        input_value=input_value,
         output_value=output,
         metadata={"description": "Calculates the square of a number"},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},

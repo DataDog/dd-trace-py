@@ -1,14 +1,15 @@
-import pytest
-import vcr
 import os
 
+import pytest
+import vcr
+
+from ddtrace.contrib.internal.pydantic_ai.patch import patch
+from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
-from ddtrace.contrib.internal.pydantic_ai.patch import patch
-from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 
 
 def default_global_config():

@@ -3,25 +3,27 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from pydantic_ai.agent import AgentRun
+
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import Pin
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.trace import Span
-from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import NAME
-from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import SPAN_LINKS
+from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
-from ddtrace.llmobs._constants import METRICS
-from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-from ddtrace.llmobs._utils import _get_attr, _get_nearest_llmobs_ancestor
-from pydantic_ai.agent import AgentRun
+from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.trace import Pin
+from ddtrace.trace import Span
 
 
 # in some cases, PydanticAI uses a different provider name than what we expect
@@ -72,7 +74,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
-                SPAN_KIND: span._get_ctx_item(SPAN_KIND),
+                SPAN_KIND: span_kind,
                 SPAN_LINKS: span_links,
                 MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",

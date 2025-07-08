@@ -1,4 +1,5 @@
 import sys
+
 import wrapt
 
 from ddtrace.internal.utils import get_argument_value
