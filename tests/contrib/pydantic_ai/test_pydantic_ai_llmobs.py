@@ -2,7 +2,9 @@ from typing import Any
 from typing_extensions import TypedDict
 from ddtrace.llmobs._utils import safe_json
 import pytest
-from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event, get_usage
+from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
+from tests.contrib.pydantic_ai.utils import get_usage
+from tests.contrib.pydantic_ai.utils import calculate_square_tool
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -82,10 +84,6 @@ class TestLLMObsPydanticAI:
     async def test_agent_run_stream_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
-
-            def calculate_square_tool(x: int) -> int:
-                return x * x
-
             agent = pydantic_ai.Agent(
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
             )
@@ -104,10 +102,6 @@ class TestLLMObsPydanticAI:
 
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_structured_with_tool.yaml"):
-
-            def calculate_square_tool(x: int) -> int:
-                return x * x
-
             agent = pydantic_ai.Agent(
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions, output_type=Output
             )
@@ -162,10 +156,6 @@ class TestLLMObsPydanticAISpanLinks:
     async def test_agent_calls_tool(self, pydantic_ai, request_vcr, llmobs_events):
         instructions = "Use the provided tool to calculate the square of 2."
         with request_vcr.use_cassette("agent_run_stream_with_tools.yaml"):
-
-            def calculate_square_tool(x: int) -> int:
-                return x * x
-
             agent = pydantic_ai.Agent(
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
             )

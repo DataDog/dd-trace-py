@@ -20,3 +20,6 @@ def get_usage(result):
         "total_tokens": getattr(usage, "total_tokens", 0),
     }
     return token_metrics
+
+def calculate_square_tool(x: int) -> int:
+    return x * x
