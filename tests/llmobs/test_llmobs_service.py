@@ -1438,15 +1438,20 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
     if "PYTHONPATH" in env:
         pypath.append(env["PYTHONPATH"])
-    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0", "_DD_LLMOBS_WRITER_INTERVAL": "0.001"})
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import mock
+import sys
+import time
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
 with LLMObs.agent("dummy"):
     pass
+time.sleep(0.01)
+sys.stdout.flush()
+sys.stderr.flush()
 """,
         env=env,
     )
