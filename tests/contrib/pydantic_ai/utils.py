@@ -12,6 +12,17 @@ def expected_run_agent_span_event(span, output, token_metrics, input_value="Hell
         span_links=span_links,
     )
 
+def expected_run_tool_span_event(span, input='{"x":2}', output="4", span_links=None):
+    return _expected_llmobs_non_llm_span_event(
+        span,
+        "tool",
+        input_value=input,
+        output_value=output,
+        metadata={'description': ''},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
+        span_links=span_links,
+    )
+
 def get_usage(result):
     usage = result.usage()
     token_metrics = {

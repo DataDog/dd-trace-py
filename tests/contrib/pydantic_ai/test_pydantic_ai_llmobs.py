@@ -3,6 +3,7 @@ from typing_extensions import TypedDict
 from ddtrace.llmobs._utils import safe_json
 import pytest
 from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
+from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 
@@ -91,9 +92,12 @@ class TestLLMObsPydanticAI:
                 async for chunk in result.stream():
                     output = chunk
         token_metrics = get_usage(result)
-        span = mock_tracer.pop_traces()[0][0]
+        trace = mock_tracer.pop_traces()[0]
+        agent_span = trace[0]
+        tool_span = trace[1]
         assert len(llmobs_events) == 2
-        assert llmobs_events[1] == expected_run_agent_span_event(span, output, token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=Any)     
+        assert llmobs_events[0] == expected_run_tool_span_event(tool_span, span_links=True)
+        assert llmobs_events[1] == expected_run_agent_span_event(agent_span, output, token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=True)     
 
     async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         class Output(TypedDict):
@@ -109,9 +113,12 @@ class TestLLMObsPydanticAI:
                 async for chunk in result.stream_structured(debounce_by=None):
                     output = chunk
         token_metrics = get_usage(result)
-        span = mock_tracer.pop_traces()[0][0]
+        trace = mock_tracer.pop_traces()[0]
+        agent_span = trace[0]
+        tool_span = trace[1]
         assert len(llmobs_events) == 2
-        assert llmobs_events[1] == expected_run_agent_span_event(span, safe_json(output[0].parts[0].args, ensure_ascii=False), token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=Any)
+        assert llmobs_events[0] == expected_run_tool_span_event(tool_span, span_links=True)
+        assert llmobs_events[1] == expected_run_agent_span_event(agent_span, safe_json(output[0].parts[0].args, ensure_ascii=False), token_metrics, input_value="What is the square of 2?", instructions=instructions, tools=["calculate_square_tool"], span_links=True)
     
     async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events):
         with request_vcr.use_cassette("agent_run_stream.yaml"):
