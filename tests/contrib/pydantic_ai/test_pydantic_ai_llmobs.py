@@ -34,7 +34,7 @@ class TestLLMObsPydanticAI:
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream():
+                async for chunk in result.stream(debounce_by=None):
                     output = chunk
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
@@ -42,12 +42,26 @@ class TestLLMObsPydanticAI:
         assert llmobs_events[0] == expected_run_agent_span_event(span, output, token_metrics)
     
     async def test_agent_run_stream_text(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        """when delta is False (default), each chunk represents the entire output up to the current point"""
         output = ""
         with request_vcr.use_cassette("agent_run_stream.yaml"):
             agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
             async with agent.run_stream("Hello, world!") as result:
-                async for chunk in result.stream_text():
+                async for chunk in result.stream_text(debounce_by=None):
                     output = chunk
+        token_metrics = get_usage(result)
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, output, token_metrics)
+
+    async def test_agent_run_stream_text_delta(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        """when delta is True, each chunk is a delta from the previous chunk"""
+        output = ""
+        with request_vcr.use_cassette("agent_run_stream.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent")
+            async with agent.run_stream("Hello, world!") as result:
+                async for chunk in result.stream_text(delta=True, debounce_by=None):
+                    output += chunk
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
@@ -97,6 +111,7 @@ class TestLLMObsPydanticAI:
 
     async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         class Output(TypedDict):
+            original_number: int
             square: int
 
         instructions = "Use the provided tool to calculate the square of 2."
@@ -109,7 +124,7 @@ class TestLLMObsPydanticAI:
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions, output_type=Output
             )
             async with agent.run_stream("What is the square of 2?") as result:
-                async for chunk in result.stream_structured():
+                async for chunk in result.stream_structured(debounce_by=None):
                     output = chunk
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
