@@ -314,7 +314,7 @@ all traces of incoming requests to a specific url::
     class FilterbyName(TraceFilter):
         def process_trace(self, trace):
             for span in trace:
-                if span.name == "some_name"
+                if span.name == "some_name":
                     # drop the full trace chunk
                     return None
             return trace
@@ -350,6 +350,7 @@ Logs Injection
 --------------
 
 .. automodule:: ddtrace.contrib._logging
+   :noindex:
 
 ..  _http-tagging:
 
@@ -458,134 +459,7 @@ Certain status codes can be excluded by providing a list of ranges. Valid option
 OpenTracing
 -----------
 
-
-The Datadog opentracer can be configured via the ``config`` dictionary
-parameter to the tracer which accepts the following described fields. See below
-for usage.
-
-+---------------------+----------------------------------------+---------------+
-|  Configuration Key  |              Description               | Default Value |
-+=====================+========================================+===============+
-| `enabled`           | enable or disable the tracer           | `True`        |
-+---------------------+----------------------------------------+---------------+
-| `debug`             | enable debug logging                   | `False`       |
-+---------------------+----------------------------------------+---------------+
-| `agent_hostname`    | hostname of the Datadog agent to use   | `localhost`   |
-+---------------------+----------------------------------------+---------------+
-| `agent_https`       | use https to connect to the agent      | `False`       |
-+---------------------+----------------------------------------+---------------+
-| `agent_port`        | port the Datadog agent is listening on | `8126`        |
-+---------------------+----------------------------------------+---------------+
-| `global_tags`       | tags that will be applied to each span | `{}`          |
-+---------------------+----------------------------------------+---------------+
-| `uds_path`          | unix socket of agent to connect to     | `None`        |
-+---------------------+----------------------------------------+---------------+
-| `settings`          | see `Advanced Usage`_                  | `{}`          |
-+---------------------+----------------------------------------+---------------+
-
-
-Usage
-^^^^^
-
-**Manual tracing**
-
-To explicitly trace::
-
-  import time
-  import opentracing
-  from ddtrace.opentracer import Tracer, set_global_tracer
-
-  def init_tracer(service_name):
-      config = {
-        'agent_hostname': 'localhost',
-        'agent_port': 8126,
-      }
-      tracer = Tracer(service_name, config=config)
-      set_global_tracer(tracer)
-      return tracer
-
-  def my_operation():
-    span = opentracing.tracer.start_span('my_operation_name')
-    span.set_tag('my_interesting_tag', 'my_interesting_value')
-    time.sleep(0.05)
-    span.finish()
-
-  init_tracer('my_service_name')
-  my_operation()
-
-**Context Manager Tracing**
-
-To trace a function using the span context manager::
-
-  import time
-  import opentracing
-  from ddtrace.opentracer import Tracer, set_global_tracer
-
-  def init_tracer(service_name):
-      config = {
-        'agent_hostname': 'localhost',
-        'agent_port': 8126,
-      }
-      tracer = Tracer(service_name, config=config)
-      set_global_tracer(tracer)
-      return tracer
-
-  def my_operation():
-    with opentracing.tracer.start_span('my_operation_name') as span:
-      span.set_tag('my_interesting_tag', 'my_interesting_value')
-      time.sleep(0.05)
-
-  init_tracer('my_service_name')
-  my_operation()
-
-See our tracing trace-examples_ repository for concrete, runnable examples of
-the Datadog opentracer.
-
-.. _trace-examples: https://github.com/DataDog/trace-examples/tree/master/python
-
-See also the `Python OpenTracing`_ repository for usage of the tracer.
-
-.. _Python OpenTracing: https://github.com/opentracing/opentracing-python
-
-
-**Alongside Datadog tracer**
-
-The Datadog OpenTracing tracer can be used alongside the Datadog tracer. This
-provides the advantage of providing tracing information collected by
-``ddtrace`` in addition to OpenTracing.  The simplest way to do this is to use
-the :ref:`ddtrace-run<ddtracerun>` command to invoke your OpenTraced
-application.
-
-
-Examples
-^^^^^^^^
-
-**Celery**
-
-Distributed Tracing across celery tasks with OpenTracing.
-
-1. Install Celery OpenTracing::
-
-    pip install Celery-OpenTracing
-
-2. Replace your Celery app with the version that comes with Celery-OpenTracing::
-
-    from celery_opentracing import CeleryTracing
-    from ddtrace.opentracer import set_global_tracer, Tracer
-
-    ddtracer = Tracer()
-    set_global_tracer(ddtracer)
-
-    app = CeleryTracing(app, tracer=ddtracer)
-
-
-Opentracer API
-^^^^^^^^^^^^^^
-
-.. autoclass:: ddtrace.opentracer.Tracer
-    :members:
-    :special-members: __init__
-
+The Datadog OpenTracing tracer is deprecated and will be removed in a future release. Please use the Datadog Tracer or the OpenTelemetry API instead.
 
 .. _ddtracerun:
 
@@ -644,15 +518,21 @@ uWSGI
 
 - Threads must be enabled with the `enable-threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#enable-threads>`__ or `threads <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#threads>`__ options.
 - Lazy apps must be enabled with the `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ option.
+- For `uWSGI<2.0.30`, skip atexit, `skip-atexit <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#skip-atexit>`__, must be enabled when `lazy-apps <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#lazy-apps>`__ is enabled. This is to avoid crashes from native extensions that could occur when child processes are terminated.
 - For automatic instrumentation (like ``ddtrace-run``) set the `import <https://uwsgi-docs.readthedocs.io/en/latest/Options.html#import>`__ option to ``ddtrace.bootstrap.sitecustomize``.
 - Gevent patching should NOT be enabled via `--gevent-patch <https://uwsgi-docs.readthedocs.io/en/latest/Gevent.html#monkey-patching>`__ option. Enabling gevent patching for the builtin threading library is NOT supported. Instead use ``import gevent; gevent.monkey.patch_all(thread=False)`` in your application.
 
-Example with CLI arguments:
+Example with CLI arguments for uWSGI>=2.0.30:
 
 .. code-block:: bash
 
   uwsgi --enable-threads --lazy-apps --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
 
+Example with CLI arguments for uWSGI<2.0.30:
+
+.. code-block:: bash
+
+  uwsgi --enable-threads --lazy-apps --skip-atexit --import=ddtrace.bootstrap.sitecustomize --master --processes=5 --http 127.0.0.1:8000 --module wsgi:app
 
 Example with uWSGI ini file:
 
@@ -669,6 +549,7 @@ Example with uWSGI ini file:
   ;; ddtrace required options
   enable-threads = 1
   lazy-apps = 1
+  skip-atexit = 1 ; For uwsgi<2.0.30
   import=ddtrace.bootstrap.sitecustomize
 
 

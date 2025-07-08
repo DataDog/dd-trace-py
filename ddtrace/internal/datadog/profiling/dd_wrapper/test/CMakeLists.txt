@@ -30,13 +30,10 @@ if(DO_VALGRIND)
     include(CTest)
 endif()
 
-FetchContent_Declare(json URL https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz)
-FetchContent_MakeAvailable(json)
-
 function(dd_wrapper_add_test name)
     add_executable(${name} ${ARGN})
     target_include_directories(${name} PRIVATE ../include)
-    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper nlohmann_json::nlohmann_json)
+    target_link_libraries(${name} PRIVATE gmock gtest_main dd_wrapper)
     add_ddup_config(${name})
 
     gtest_discover_tests(
@@ -57,4 +54,3 @@ dd_wrapper_add_test(test_initialization test_initialization.cpp)
 dd_wrapper_add_test(test_api test_api.cpp)
 dd_wrapper_add_test(test_threading test_threading.cpp)
 dd_wrapper_add_test(test_forking test_forking.cpp)
-dd_wrapper_add_test(test_code_provenance test_code_provenance.cpp)

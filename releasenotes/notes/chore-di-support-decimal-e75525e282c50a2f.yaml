@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    dynamic instrumentation: added support for the Decimal type from the
+    Python standard library.

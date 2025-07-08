@@ -1,3 +1,5 @@
+import unittest.mock
+
 from ddtrace import _monkey
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -17,12 +19,12 @@ class TestPatching(SubprocessTestCase):
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_sqlite_none(self):
         # Make sure sqlite is enabled by default.
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "sqlite3" in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
     def test_patch_all_env_override_sqlite_disabled(self):
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "sqlite3" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_SQLITE3_ENABLED="false"))
@@ -37,21 +39,18 @@ class TestPatching(SubprocessTestCase):
         with self.assertRaises(_monkey.ModuleNotFoundException) as me:
             _monkey.patch(module_dne=True)
 
-        assert (
-            "integration module ddtrace.contrib.internal.module_dne.patch does not exist, "
-            "automatic instrumentation is disabled for this library" in str(me.exception)
-        )
+        assert "module_dne does not have automatic instrumentation" in str(me.exception)
         assert "module_dne" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict())
     def test_patch_all_env_override_httplib_none(self):
         # Make sure httplib is disabled by default.
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "httplib" not in _monkey._PATCHED_MODULES
 
     @run_in_subprocess(env_overrides=dict(DD_TRACE_HTTPLIB_ENABLED="true"))
     def test_patch_all_env_override_httplib_enabled(self):
-        _monkey.patch_all()
+        _monkey._patch_all()
         assert "httplib" in _monkey._PATCHED_MODULES
 
     @run_in_subprocess()
@@ -72,3 +71,33 @@ class TestPatching(SubprocessTestCase):
         del sqlite3.connect
 
         _monkey.patch(raise_errors=False, sqlite3=True)
+
+    @run_in_subprocess(env_overrides=dict(DD_TRACE_SAFE_INSTRUMENTATION_ENABLED="true"))
+    def test_patch_guardrails_with_unsupported_integration_version(self):
+        # spy on fastapi get_version method and return a fake version we don't support
+        with unittest.mock.patch("ddtrace.contrib.internal.fastapi.patch.get_version", return_value="0.0.0"):
+            # Spy on the telemetry writer to ensure that the integration is reported as not patched.
+            with unittest.mock.patch(
+                "ddtrace.internal.telemetry.telemetry_writer.add_integration"
+            ) as mock_add_integration:
+                import ddtrace
+
+                _monkey._patch_all()
+
+                fastapi_supported_version = ddtrace.contrib.internal.fastapi.patch._supported_versions().get("fastapi")
+
+                mock_add_integration.assert_any_call(
+                    "fastapi",
+                    False,
+                    True,
+                    "Skipped patching 'fastapi' integration, installed version: 0.0.0 is not compatible "
+                    + "with integration support spec: %s." % fastapi_supported_version,
+                    version="0.0.0",
+                )
+                mock_add_integration.assert_any_call(
+                    "sqlite3",
+                    True,
+                    True,
+                    "",
+                    version="3.40.1",
+                )

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    pylibmc: fixes an issue where using ``Client(server=[url])`` would throw the error ``__init__() got multiple values for argument 'servers'``

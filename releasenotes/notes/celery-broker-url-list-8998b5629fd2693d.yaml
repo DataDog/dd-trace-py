@@ -1,0 +1,3 @@
+fixes:
+  - |
+    celery: When multiple broker URLs are provided as a list, use the first broker URL from a list to avoid parsing errors.

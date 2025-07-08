@@ -1,0 +1,191 @@
+[[
+  {
+    "name": "CrewAI Crew",
+    "service": "tests.contrib.crewai",
+    "resource": "Crew Kickoff",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67d8a4b400000000",
+      "language": "python",
+      "runtime-id": "bad43c1740734ba39e8647b64c509771"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 69849
+    },
+    "duration": 13962869000,
+    "start": 1742251188598484000
+  },
+     {
+       "name": "crewai.request",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 2285441000,
+       "start": 1742251188601806000
+     },
+        {
+          "name": "Task Execution Planner",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 2285043000,
+          "start": 1742251188601959000
+        },
+     {
+       "name": "Calculate participants' average ages",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 3487166000,
+       "start": 1742251190888891000
+     },
+        {
+          "name": "Crew Manager",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 6,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 3486291000,
+          "start": 1742251190889276000
+        },
+           {
+             "name": "Ask question to coworker",
+             "service": "tests.contrib.crewai",
+             "resource": "CrewAI Tool",
+             "trace_id": 0,
+             "span_id": 8,
+             "parent_id": 6,
+             "type": "",
+             "error": 0,
+             "metrics": {
+               "_dd.measured": 1
+             },
+             "duration": 1380707000,
+             "start": 1742251192328707000
+           },
+              {
+                "name": "Python Data Analyst",
+                "service": "tests.contrib.crewai",
+                "resource": "CrewAI Agent",
+                "trace_id": 0,
+                "span_id": 10,
+                "parent_id": 8,
+                "type": "",
+                "error": 0,
+                "metrics": {
+                  "_dd.measured": 1
+                },
+                "duration": 1379537000,
+                "start": 1742251192329684000
+              },
+                 {
+                   "name": "Average Calculator",
+                   "service": "tests.contrib.crewai",
+                   "resource": "CrewAI Tool",
+                   "trace_id": 0,
+                   "span_id": 12,
+                   "parent_id": 10,
+                   "type": "",
+                   "error": 0,
+                   "metrics": {
+                     "_dd.measured": 1
+                   },
+                   "duration": 206000,
+                   "start": 1742251193080850000
+                 },
+     {
+       "name": "Recommend fun activities",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 4,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 8172764000,
+       "start": 1742251194383037000
+     },
+        {
+          "name": "Crew Manager",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 7,
+          "parent_id": 4,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 8167029000,
+          "start": 1742251194384409000
+        },
+           {
+             "name": "Ask question to coworker",
+             "service": "tests.contrib.crewai",
+             "resource": "CrewAI Tool",
+             "trace_id": 0,
+             "span_id": 9,
+             "parent_id": 7,
+             "type": "",
+             "error": 0,
+             "metrics": {
+               "_dd.measured": 1
+             },
+             "duration": 3810877000,
+             "start": 1742251196017552000
+           },
+              {
+                "name": "Tour Guide",
+                "service": "tests.contrib.crewai",
+                "resource": "CrewAI Agent",
+                "trace_id": 0,
+                "span_id": 11,
+                "parent_id": 9,
+                "type": "",
+                "error": 0,
+                "metrics": {
+                  "_dd.measured": 1
+                },
+                "duration": 3809132000,
+                "start": 1742251196019220000
+              }]]

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Includes `dynamodb` in the default list of cloud services for payload tagging, i.e. `DD_TRACE_CLOUD_PAYLOAD_TAGGING_SERVICES`
+    Note that cloud services payload tagging feature is still gated by `DD_TRACE_CLOUD_REQUEST_PAYLOAD_TAGGING` and `DD_TRACE_CLOUD_RESPONSE_PAYLOAD_TAGGING`.

@@ -16,9 +16,9 @@ from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.snapshot import Snapshot
 from ddtrace.debugging._signal.snapshot import _capture_context
+from ddtrace.debugging._signal.utils import BUILTIN_MAPPING_TYPES
+from ddtrace.debugging._signal.utils import BUILTIN_SEQUENCE_TYPES
 from ddtrace.internal._encoding import BufferFull
-from ddtrace.internal.compat import BUILTIN_MAPPING_TYPES
-from ddtrace.internal.compat import BUILTIN_SEQUENCE_TYPES
 from tests.debugging.test_config import debugger_config
 from tests.debugging.test_safety import SideEffects
 from tests.debugging.utils import create_snapshot_line_probe

@@ -12,11 +12,11 @@ from tests.ci_visibility.api_client._util import _get_tests_api_response
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 
 
-class TestTestVisibilityAPIClientUniqueTestResponses(TestTestVisibilityAPIClientBase):
-    """Tests that unique tests responses from the API client are parsed properly"""
+class TestTestVisibilityAPIClientKnownTestResponses(TestTestVisibilityAPIClientBase):
+    """Tests that known tests responses from the API client are parsed properly"""
 
     @pytest.mark.parametrize(
-        "unique_test_response,expected_tests",
+        "known_test_response,expected_tests",
         [
             # Defaults
             (_get_tests_api_response({}), set()),
@@ -25,7 +25,7 @@ class TestTestVisibilityAPIClientUniqueTestResponses(TestTestVisibilityAPIClient
                 _get_tests_api_response({"module1": {"suite1.py": ["test1"]}}),
                 set(_make_fqdn_test_ids([("module1", "suite1.py", "test1")])),
             ),
-            # Multiple unique items
+            # Multiple known items
             (
                 _get_tests_api_response({"module1": {"suite1.py": ["test1"]}}),
                 set(_make_fqdn_test_ids([("module1", "suite1.py", "test1")])),
@@ -63,11 +63,11 @@ class TestTestVisibilityAPIClientUniqueTestResponses(TestTestVisibilityAPIClient
             ),
         ],
     )
-    def test_civisibility_api_client_unique_tests_parsed(self, unique_test_response, expected_tests):
-        """Tests that the client correctly returns unique tests from API response"""
+    def test_civisibility_api_client_known_tests_parsed(self, known_test_response, expected_tests):
+        """Tests that the client correctly returns known tests from API response"""
         client = self._get_test_client()
-        with mock.patch.object(client, "_do_request", return_value=unique_test_response):
-            assert client.fetch_unique_tests() == expected_tests
+        with mock.patch.object(client, "_do_request", return_value=known_test_response):
+            assert client.fetch_known_tests() == expected_tests
 
     @pytest.mark.parametrize(
         "do_request_side_effect",
@@ -98,9 +98,9 @@ class TestTestVisibilityAPIClientUniqueTestResponses(TestTestVisibilityAPIClient
             ),
         ],
     )
-    def test_civisibility_api_client_unique_tests_errors(self, do_request_side_effect):
-        """Tests that the client correctly handles errors in the unique test API response"""
+    def test_civisibility_api_client_known_tests_errors(self, do_request_side_effect):
+        """Tests that the client correctly handles errors in the known test API response"""
         client = self._get_test_client()
         with mock.patch.object(client, "_do_request", side_effect=[do_request_side_effect]):
-            settings = client.fetch_unique_tests()
+            settings = client.fetch_known_tests()
             assert settings is None

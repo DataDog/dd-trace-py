@@ -41,18 +41,17 @@ aiohttp
 ^^^^^^^
 .. automodule:: ddtrace.contrib.aiohttp
 
+.. _aiohttp_jinja2:
+
+aiohttp-jinja2
+^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._aiohttp_jinja2
+
 .. _aiomysql:
 
 aiomysql
 ^^^^^^^^
 .. automodule:: ddtrace.contrib._aiomysql
-
-
-.. _aiohttp_jinja2:
-
-aiohttp_jinja2
-^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._aiohttp_jinja2
 
 
 .. _anthropic:
@@ -74,6 +73,20 @@ asyncio
 asyncpg
 ^^^^^^^
 .. automodule:: ddtrace.contrib._asyncpg
+
+
+.. _avro:
+
+avro
+^^^^
+.. automodule:: ddtrace.contrib._avro
+
+
+.. _azure_functions:
+
+Azure Functions
+^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._azure_functions
 
 
 .. _botocore:
@@ -125,10 +138,24 @@ Consul
 .. automodule:: ddtrace.contrib._consul
 
 
+.. _coverage:
+
+Coverage
+^^^^^^^^
+.. automodule:: ddtrace.contrib._coverage
+
+
+.. _crewai:
+
+CrewAI
+^^^^^^
+.. automodule:: ddtrace.contrib._crewai
+
+
 .. _datadog_lambda:
 
-Datadog Lambda
-^^^^^^^^^^^^^^
+datadog_lambda
+==============
 .. automodule:: ddtrace.contrib._aws_lambda
 
 
@@ -145,6 +172,13 @@ Django
 dogpile.cache
 ^^^^^^^^^^^^^
 .. automodule:: ddtrace.contrib._dogpile_cache
+
+
+.. _dramatiq:
+
+Dramatiq
+^^^^^^^^
+.. automodule:: ddtrace.contrib._dramatiq
 
 
 .. _elasticsearch:
@@ -182,6 +216,13 @@ Flask Cache
 .. automodule:: ddtrace.contrib.flask_cache
 
 
+.. _freezegun:
+
+FreezeGun
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._freezegun
+
+
 .. _futures:
 
 futures
@@ -195,6 +236,12 @@ gevent
 ^^^^^^
 .. automodule:: ddtrace.contrib._gevent
 
+
+.. _google_genai:
+
+google-genai
+^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._google_genai
 
 .. _google_generativeai:
 
@@ -262,11 +309,29 @@ LangChain
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib._langchain
 
+.. _langgraph:
+
+LangGraph
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._langgraph
+
+.. _litellm:
+
+LiteLLM
+^^^^^^^
+.. automodule:: ddtrace.contrib._litellm
+
 .. _logbook:
 
 Logbook
 ^^^^^^^^^
 .. automodule:: ddtrace.contrib._logbook
+
+.. _logging:
+
+Logging
+^^^^^^^^^
+.. automodule:: ddtrace.contrib._logging
 
 .. _loguru:
 
@@ -323,6 +388,13 @@ mysqlclient
 OpenAI
 ^^^^^^
 .. automodule:: ddtrace.contrib._openai
+
+
+.. _openai-agents:
+
+OpenAI Agents
+^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._openai_agents
 
 
 .. _pylibmc:
@@ -387,6 +459,18 @@ pytest-bdd
 ^^^^^^^^^^
 .. automodule:: ddtrace.contrib._pytest_bdd
 
+.. _pytest_benchmark:
+
+pytest-benchmark
+^^^^^^^^^^^^^^^^
+.. automodule:: ddtrace.contrib._pytest_benchmark
+
+.. _protobuf:
+
+protobuf
+^^^^^^^^
+.. automodule:: ddtrace.contrib._protobuf
+
 .. _psycopg:
 
 psycopg
@@ -429,6 +513,13 @@ Sanic
 .. automodule:: ddtrace.contrib._sanic
 
 
+.. _selenium:
+
+Selenium
+^^^^^^^^
+.. automodule:: ddtrace.contrib._selenium
+
+
 .. _snowflake:
 
 Snowflake
@@ -464,6 +555,13 @@ SQLite
 .. automodule:: ddtrace.contrib._sqlite3
 
 
+.. _subprocess:
+
+Subprocess
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib._subprocess
+
+
 .. _tornado:
 
 Tornado
@@ -476,6 +574,13 @@ Tornado
 unittest
 ^^^^^^^^
 .. automodule:: ddtrace.contrib._unittest
+
+
+.. _urllib:
+
+urllib
+^^^^^^
+.. automodule:: ddtrace.contrib._urllib
 
 
 .. _urllib3:
@@ -505,8 +610,20 @@ Vertica
 ^^^^^^^
 .. automodule:: ddtrace.contrib._vertica
 
+.. _webbrowser:
+
+Webbrowser
+^^^^^^^^^^
+.. automodule:: ddtrace.contrib._webbrowser
+
 .. _wsgi:
 
 WSGI
 ^^^^
 .. automodule:: ddtrace.contrib.wsgi
+
+.. _yaaredis:
+
+yaaredis
+^^^^^^^^
+.. automodule:: ddtrace.contrib._yaaredis

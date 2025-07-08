@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    tracing: Ensures remote sampling rules no longer overwrite existing samplers, preserving service-based sample rates set by the Agent and ensuring tracer rate limits configured by ddtrace products (e.g., ASM) are always respected.
+other:
+  - |
+    tracing: Ensures a single DatadogSampler is initialized per Tracer instance, improving Tracer object initialization speed by approximately 7% and simplifying sampling logic.

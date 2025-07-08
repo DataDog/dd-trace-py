@@ -1,5 +1,5 @@
-import os
 import sys
+from typing import Dict
 
 import langgraph
 
@@ -8,6 +8,9 @@ from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
+from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
 from ddtrace.trace import Pin
 
@@ -18,6 +21,23 @@ def get_version():
     return getattr(version, "__version__", "")
 
 
+try:
+    from langgraph.pregel import Pregel as LangGraphPregel
+except ImportError:
+    LangGraphPregel = None
+
+try:
+    from langgraph.errors import ParentCommand as LangGraphParentCommandError
+except ImportError:
+    LangGraphParentCommandError = None
+
+LANGGRAPH_VERSION = parse_version(get_version())
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"langgraph": "*"}
+
+
 config._add("langgraph", {})
 
 
@@ -25,7 +45,25 @@ def _get_node_name(instance):
     """Gets the name of the first step in a RunnableSeq instance as the node name."""
     steps = getattr(instance, "steps", [])
     first_step = steps[0] if steps else None
-    return getattr(first_step, "name", None)
+    return getattr(first_step, "name", None), first_step
+
+
+def _should_trace_node(instance, args: tuple, kwargs: dict) -> tuple[bool, str]:
+    """
+    Determines if a node should be traced. If the first step is a writing or routing step, or
+    the node represents a subgraph, we should not trace it. If the node is a subgraph, mark it
+    as such in the config metadata for use in `traced_pregel_loop_tick`.
+
+    Returns a tuple of (should_trace, node_name)
+    """
+    node_name, first_step = _get_node_name(instance)
+    if node_name in ("_write", "_route"):
+        return False, node_name
+    if (LangGraphPregel and isinstance(first_step, LangGraphPregel)) or node_name == "LangGraph":
+        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
+        config.get("metadata", {})["_dd.subgraph"] = True
+        return False, node_name
+    return True, node_name
 
 
 @with_traced_module
@@ -42,13 +80,8 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     """
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    node_name = _get_node_name(instance)
-
-    if node_name in ("_write", "_route"):
-        return func(*args, **kwargs)
-    if node_name == "LangGraph":
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["_dd.subgraph"] = True
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
         return func(*args, **kwargs)
 
     span = integration.trace(
@@ -59,8 +92,9 @@ def traced_runnable_seq_invoke(langgraph, pin, func, instance, args, kwargs):
     result = None
     try:
         result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except Exception as e:
+        if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+            span.set_exc_info(*sys.exc_info())
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
@@ -73,13 +107,8 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
     """Async version of traced_runnable_seq_invoke."""
     integration: LangGraphIntegration = langgraph._datadog_integration
 
-    node_name = _get_node_name(instance)
-
-    if node_name in ("_write", "_route"):
-        return await func(*args, **kwargs)
-    if node_name == "LangGraph":
-        config = get_argument_value(args, kwargs, 1, "config", optional=True) or {}
-        config.get("metadata", {})["_dd.subgraph"] = True
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
         return await func(*args, **kwargs)
 
     span = integration.trace(
@@ -90,13 +119,98 @@ async def traced_runnable_seq_ainvoke(langgraph, pin, func, instance, args, kwar
     result = None
     try:
         result = await func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
+    except Exception as e:
+        if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+            span.set_exc_info(*sys.exc_info())
         raise
     finally:
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="node")
         span.finish()
     return result
+
+
+@with_traced_module
+def traced_runnable_seq_astream(langgraph, pin, func, instance, args, kwargs):
+    """
+    This function returns a generator wrapper that yields the results of RunnableSeq.astream(),
+    ending the span after the stream is consumed, otherwise following the logic of traced_runnable_seq_ainvoke().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+
+    should_trace, node_name = _should_trace_node(instance, args, kwargs)
+    if not should_trace:
+        return func(*args, **kwargs)
+
+    span = integration.trace(
+        pin,
+        "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, node_name),
+        submit_to_llmobs=True,
+    )
+
+    span._set_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM, True)
+
+    result = None
+
+    try:
+        result = func(*args, **kwargs)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+        span.finish()
+        raise
+
+    async def _astream():
+        item = None
+        response = None
+        add_supported = True
+        while True:
+            try:
+                item = await result.__anext__()
+                if add_supported:
+                    try:
+                        response = item if response is None else response + item
+                    except TypeError:
+                        response = item
+                        add_supported = False
+                else:
+                    # default to the last item if addition between items is not supported
+                    response = item
+                yield item
+            except StopAsyncIteration:
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=response, operation="node")
+                span.finish()
+                break
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    # This error is caught in the LangGraph framework, we shouldn't mark it as a runtime error.
+                    span.set_exc_info(*sys.exc_info())
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="node")
+                span.finish()
+                raise
+
+    return _astream()
+
+
+@with_traced_module
+async def traced_runnable_seq_consume_aiter(langgraph, pin: Pin, func, instance, args, kwargs):
+    """
+    Modifies the span tracing RunnableSeq.astream() to internally include its final output, as that iterator
+    does not yield the final output in versions >=0.3.29. Instead, the final output is aggregated
+    and returned as a single value by _consume_aiter().
+    """
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    output = await func(*args, **kwargs)
+
+    if integration.llmobs_enabled:
+        span = pin.tracer.current_span()
+        if not span:
+            return output
+
+        from_astream = span._get_ctx_item(LANGGRAPH_SPAN_TRACES_ASTREAM) or False
+        if from_astream:
+            span._set_ctx_item(LANGGRAPH_ASTREAM_OUTPUT, output)
+
+    return output
 
 
 @with_traced_module
@@ -138,8 +252,9 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
                     span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
                 )
@@ -181,8 +296,9 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 )
                 span.finish()
                 break
-            except Exception:
-                span.set_exc_info(*sys.exc_info())
+            except Exception as e:
+                if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
+                    span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
                     span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
                 )
@@ -208,8 +324,7 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
 
 
 def patch():
-    should_patch = os.getenv("_DD_TRACE_LANGGRAPH_ENABLED", "false").lower() in ("true", "1")
-    if not should_patch or getattr(langgraph, "_datadog_patch", False):
+    if getattr(langgraph, "_datadog_patch", False):
         return
 
     langgraph._datadog_patch = True
@@ -224,9 +339,15 @@ def patch():
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
+    # trace `astream` and `consume_aiter` since they are triggered by `astream_events` ->`Pregel.astream`
+    # The sync counter-parts are not used anywhere as of langgraph 0.4.7, so we don't trace them for now.
+    wrap(RunnableSeq, "astream", traced_runnable_seq_astream(langgraph))
     wrap(Pregel, "stream", traced_pregel_stream(langgraph))
     wrap(Pregel, "astream", traced_pregel_astream(langgraph))
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
+
+    if LANGGRAPH_VERSION >= (0, 3, 29):
+        wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
 
 
 def unpatch():
@@ -241,8 +362,12 @@ def unpatch():
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
+    unwrap(RunnableSeq, "astream")
     unwrap(Pregel, "stream")
     unwrap(Pregel, "astream")
     unwrap(PregelLoop, "tick")
+
+    if LANGGRAPH_VERSION >= (0, 3, 29):
+        unwrap(langgraph.utils.runnable, "_consume_aiter")
 
     delattr(langgraph, "_datadog_integration")

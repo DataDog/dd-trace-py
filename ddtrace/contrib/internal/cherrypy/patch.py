@@ -3,6 +3,7 @@ Datadog trace code for cherrypy.
 """
 import logging
 import os
+from typing import Dict
 
 import cherrypy
 from cherrypy.lib.httputil import valid_status
@@ -36,6 +37,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(cherrypy, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"cherrypy": ">=17.0.0"}
 
 
 SPAN_NAME = schematize_url_operation("cherrypy.request", protocol="http", direction=SpanDirection.INBOUND)
@@ -83,7 +88,8 @@ class TraceTool(cherrypy.Tool):
             tags={},
             tracer=self._tracer,
             distributed_headers=cherrypy.request.headers,
-            distributed_headers_config=config.cherrypy,
+            integration_config=config.cherrypy,
+            activate_distributed_headers=True,
             headers_case_sensitive=True,
         ) as ctx:
             req_span = ctx.span

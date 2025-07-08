@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import tornado
 from wrapt import wrap_function_wrapper as _w
@@ -28,6 +29,10 @@ def get_version():
     return getattr(tornado, "version", "")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"tornado": ">=6.0.0"}
+
+
 def patch():
     """
     Tracing function that patches the Tornado web application so that it will be
@@ -50,10 +55,8 @@ def patch():
     _w("tornado.template", "Template.generate", template.generate)
 
     # configure the global tracer
-    ddtrace.tracer._configure(
-        context_provider=context_provider,
-        wrap_executor=decorators.wrap_executor,
-    )
+    ddtrace.tracer.context_provider = context_provider
+    ddtrace.tracer._wrap_executor = decorators.wrap_executor
 
 
 def unpatch():

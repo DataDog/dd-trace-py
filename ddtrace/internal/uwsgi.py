@@ -25,6 +25,10 @@ def check_uwsgi(worker_callback: Optional[Callable] = None, atexit: Optional[Cal
     except ImportError:
         return
 
+    if not hasattr(uwsgi, "opt"):
+        msg = "Unable to access uwsgi options. Please make sure that the --import=ddtrace.auto option is set"
+        raise uWSGIConfigError(msg)
+
     if not (uwsgi.opt.get("enable-threads") or int(uwsgi.opt.get("threads") or 0)):
         msg = "enable-threads option must be set to true, or a positive number of threads must be set"
         raise uWSGIConfigError(msg)

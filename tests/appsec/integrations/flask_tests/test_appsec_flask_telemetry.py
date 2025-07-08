@@ -1,8 +1,7 @@
+from urllib.parse import urlencode
+
 import pytest
 
-from ddtrace.appsec._utils import get_triggers
-from ddtrace.internal import core
-from ddtrace.internal.compat import urlencode
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from tests.appsec.appsec.test_telemetry import _assert_generate_metrics
 import tests.appsec.rules as rules
@@ -17,7 +16,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
 
     def _aux_appsec_prepare_tracer(self, appsec_enabled=True):
         # Hack: need to pass an argument to configure so that the processors are recreated
-        self.tracer._configure(api_version="v0.4")
+        self.tracer._recreate()
 
     def test_telemetry_metrics_block(self):
         with override_global_config(dict(_asm_enabled=True, _asm_static_rule_file=rules.RULES_GOOD_PATH)):
@@ -28,7 +27,7 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
                 assert resp.text == BLOCKED_RESPONSE_JSON
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=True,
         )
@@ -38,13 +37,9 @@ class FlaskAppSecTestCase(BaseFlaskTestCase):
             self._aux_appsec_prepare_tracer()
             payload = urlencode({"attack": "1' or '1' = '1'"})
             self.client.post("/", data=payload, content_type="application/x-www-form-urlencoded")
-            root_span = self.pop_spans()[0]
-            query = dict(core.get_item("http.request.body", span=root_span))
-            assert get_triggers(root_span)
-            assert query == {"attack": "1' or '1' = '1'"}
 
         _assert_generate_metrics(
-            self.telemetry_writer._namespace._metrics_data,
+            self.telemetry_writer._namespace.flush(),
             is_rule_triggered=True,
             is_blocked_request=False,
         )

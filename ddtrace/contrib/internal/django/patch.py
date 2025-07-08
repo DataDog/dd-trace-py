@@ -7,12 +7,14 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
+from collections.abc import Iterable
 import functools
 from inspect import getmro
 from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+from typing import Dict
 
 import wrapt
 from wrapt.importer import when_imported
@@ -32,7 +34,6 @@ from ddtrace.ext import net
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.compat import Iterable
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.event_hub import ResultType
@@ -68,8 +69,6 @@ config._add(
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
-        analytics_enabled=None,  # None allows the value to be overridden by the global config
-        analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
@@ -102,6 +101,10 @@ def get_version():
     import django
 
     return django.__version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"django": ">=2.2.8"}
 
 
 def patch_conn(django, conn):
@@ -171,13 +174,11 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,  # global_config needed for analytics sample rate
+            config.django.global_config,
             "{}-{}".format("django", alias),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
             trace_fetch_methods=config.django.trace_fetch_methods,
-            analytics_enabled=config.django.analytics_enabled,
-            analytics_sample_rate=config.django.analytics_sample_rate,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
@@ -482,8 +483,9 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         service=trace_utils.int_service(pin, config.django),
         span_type=SpanTypes.WEB,
         tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
-        distributed_headers_config=config.django,
+        integration_config=config.django,
         distributed_headers=request_headers,
+        activate_distributed_headers=True,
         pin=pin,
     ) as ctx, ctx.span:
         core.dispatch(
@@ -860,10 +862,15 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                     request_user = request.user._wrapped
                 else:
                     request_user = request.user
+                if hasattr(request, "session") and hasattr(request.session, "session_key"):
+                    session_key = request.session.session_key
+                else:
+                    session_key = None
                 core.dispatch(
                     "django.process_request",
                     (
                         request_user,
+                        session_key,
                         mode,
                         kwargs,
                         pin,
@@ -873,6 +880,15 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                 )
         except Exception:
             log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+
+
+@trace_utils.with_traced_module
+def patch_create_user(django, pin, func, instance, args, kwargs):
+    user = func(*args, **kwargs)
+    core.dispatch(
+        "django.create_user", (config.django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
+    )
+    return user
 
 
 def unwrap_views(func, instance, args, kwargs):
@@ -967,6 +983,10 @@ def _patch(django):
         if channels_version >= parse_version("3.0"):
             # ASGI3 is only supported in channels v3.0+
             trace_utils.wrap(m, "URLRouter.__init__", unwrap_views)
+
+    when_imported("django.contrib.auth.models")(
+        lambda m: trace_utils.wrap(m, "UserManager.create_user", patch_create_user(django))
+    )
 
 
 def wrap_wsgi_environ(wrapped, _instance, args, kwargs):

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ASM: This fix resolves an issue where blocking mechanism could partially fail with a 500 error on fastapi with python>=3.11 with a custom middleware.
+

@@ -1,18 +1,18 @@
 import functools
+import http.client as httplib
 import os
 import sys
+from typing import Dict
+from urllib import parse
 
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -42,6 +42,10 @@ config._add(
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"http.client": "*"}
 
 
 def _wrap_init(func, instance, args, kwargs):
@@ -92,7 +96,7 @@ def _wrap_request(func, instance, args, kwargs):
     if should_skip_request(pin, instance):
         return func_to_call(*args, **kwargs)
 
-    cfg = config._get_from(instance)
+    cfg = Pin._get_config(instance)
 
     try:
         # Create a new span and attach to this instance (so we can retrieve/update/close later on the response)
@@ -167,8 +171,6 @@ def _wrap_putrequest(func, instance, args, kwargs):
             span, config.httplib, method=method, url=sanitized_url, target_host=instance.host, query=parsed.query
         )
 
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.httplib.get_analytics_sample_rate())
     except Exception:
         log.debug("error applying request tags", exc_info=True)
 

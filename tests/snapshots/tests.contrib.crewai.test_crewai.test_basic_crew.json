@@ -1,0 +1,86 @@
+[[
+  {
+    "name": "CrewAI Crew",
+    "service": "tests.contrib.crewai",
+    "resource": "Crew Kickoff",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67d4836c00000000",
+      "language": "python",
+      "runtime-id": "274f8024b18d47fbaa1bb86e4e4f2194"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 97124
+    },
+    "duration": 55736000,
+    "start": 1741980524340908000
+  },
+     {
+       "name": "crewai.request",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 45907000,
+       "start": 1741980524343290000
+     },
+        {
+          "name": "Senior Research Scientist",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 45533000,
+          "start": 1741980524343487000
+        },
+     {
+       "name": "crewai.request",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 5421000,
+       "start": 1741980524390361000
+     },
+        {
+          "name": "AI Reporting Analyst",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 4986000,
+          "start": 1741980524390729000
+        }]]

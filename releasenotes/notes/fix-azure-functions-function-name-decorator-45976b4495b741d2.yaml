@@ -1,0 +1,3 @@
+fixes:
+  - |
+    azure_functions: This fix resolves an issue where the function name set by the function_name decorator was ignored.

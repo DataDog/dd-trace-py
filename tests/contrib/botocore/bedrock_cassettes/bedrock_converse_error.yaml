@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": [{"text": "Explain the concept
+      of distributed tracing in a simple way"}]}], "inferenceConfig": {"temperature":
+      0.7, "topP": 0.9, "maxTokens": 50, "stopSequences": []}}'
+    headers:
+      Content-Length:
+      - '209'
+      Content-Type:
+      - !!binary |
+        YXBwbGljYXRpb24vanNvbg==
+      User-Agent:
+      - !!binary |
+        Qm90bzMvMS4zNy40IG1kL0JvdG9jb3JlIzEuMzcuNCB1YS8yLjEgb3MvbWFjb3MjMjMuNi4wIG1k
+        L2FyY2gjYXJtNjQgbGFuZy9weXRob24jMy4xMC4xMyBtZC9weWltcGwjQ1B5dGhvbiBjZmcvcmV0
+        cnktbW9kZSNsZWdhY3kgQm90b2NvcmUvMS4zNy40
+      X-Amz-Date:
+      - !!binary |
+        MjAyNTAzMDNUMDA1NzAzWg==
+      amz-sdk-invocation-id:
+      - !!binary |
+        YTNhZTkxNzYtNGNiZS00MzQzLTg2NzYtODkxZTA0OGNjYzQw
+      amz-sdk-request:
+      - !!binary |
+        YXR0ZW1wdD0x
+    method: POST
+    uri: https://bedrock-runtime.us-east-1.amazonaws.com/model/anthropic.claude-3-sonnet-20240229-v1%3A0/converse
+  response:
+    body:
+      string: '{"message":"The security token included in the request is expired"}'
+    headers:
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '67'
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 09 Jan 2024 18:33:34 GMT
+      x-amzn-ErrorType:
+      - ExpiredTokenException:http://internal.amazon.com/coral/com.amazon.coral.service/
+      x-amzn-RequestId:
+      - 402bd639-607f-433b-aa01-2852fc75287a
+    status:
+      code: 403
+      message: Forbidden
+version: 1

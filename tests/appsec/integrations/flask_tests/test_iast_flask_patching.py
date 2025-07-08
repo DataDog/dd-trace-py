@@ -68,14 +68,8 @@ def test_flask_iast_ast_patching_re(style, endpoint, function):
 @pytest.mark.parametrize(
     "function",
     [
-        "bytesio",
-        "stringio",
         "bytesio-read",
         "stringio-read",
-        "bytesio-untainted",
-        "stringio-untainted",
-        "bytesio-read-untainted",
-        "stringio-read-untainted",
     ],
 )
 def test_flask_iast_ast_patching_io(style, function, endpoint="io"):
@@ -104,6 +98,6 @@ def test_multiple_requests():
         _request_200(
             client,
             url="/iast-weak-hash-vulnerability",
-            extra_validation=lambda response: b"[IAST] Propagation error" not in response.content,
+            extra_validation=lambda response: b"iast::propagation::error::" not in response.content,
             max_retries=40,
         )

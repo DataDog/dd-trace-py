@@ -23,7 +23,7 @@ def ot_tracer_factory():
         # similar to how we test the ddtracer, use a dummy tracer
         dd_tracer = DummyTracer()
         if context_provider:
-            dd_tracer._configure(context_provider=context_provider)
+            dd_tracer.context_provider = context_provider
 
         # attach the dummy tracer to the opentracer
         tracer._dd_tracer = dd_tracer

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: fixes an issue where LLMObs could not be enabled in a forked process when setting ``agentless_enabled=True`` or ``DD_LLMOBS_AGENTLESS_ENABLED=true``.

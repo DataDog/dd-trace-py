@@ -64,6 +64,7 @@ License: Apache License 2.0
 Notes:
   - We only vendor the packaging.version sub-module as this is all we currently
     need.
+  - [06/2025] Added specifiers.py code to the already vendored packaging module
 
 
 ply
@@ -93,12 +94,15 @@ Notes:
     Changed "-" to "_" as was causing errors when importing.
 """
 
-# Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
-# DEV: This helps ensure if there are connection issues we do not spam their logs
-# DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
-#      not conflict with any non-vendored datadog.dogstatsd logger
-from ..internal.logger import get_logger
-from .dogstatsd import base
+from ddtrace.internal.module import ModuleWatchdog
 
 
-base.log = get_logger("ddtrace.vendor.dogstatsd")
+@ModuleWatchdog.after_module_imported("ddtrace.vendor.dogstatsd.base")
+def _(base):
+    # Initialize `ddtrace.vendor.datadog.base.log` logger with our custom rate limited logger
+    # DEV: This helps ensure if there are connection issues we do not spam their logs
+    # DEV: Overwrite `base.log` instead of `get_logger('datadog.dogstatsd')` so we do
+    #      not conflict with any non-vendored datadog.dogstatsd logger
+    from ddtrace.internal.logger import get_logger
+
+    base.log = get_logger("ddtrace.vendor.dogstatsd")

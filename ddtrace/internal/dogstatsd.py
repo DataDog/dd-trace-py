@@ -1,7 +1,7 @@
 from typing import List
 from typing import Optional
+from urllib import parse
 
-from ddtrace.internal.compat import parse
 from ddtrace.vendor.dogstatsd import DogStatsd
 from ddtrace.vendor.dogstatsd import base
 

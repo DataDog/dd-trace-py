@@ -1,0 +1,75 @@
+[[
+  {
+    "name": "redis.command",
+    "service": "mysvc",
+    "resource": "FLUSHALL",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "_dd.peer.service.source": "out.host",
+      "component": "yaaredis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "redis.command": "FLUSHALL",
+      "runtime-id": "1993bf3ea65c4b658bffdda053387eca",
+      "server.address": "localhost",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 14262,
+      "redis.args_length": 1
+    },
+    "duration": 7419000,
+    "start": 1685545839462874000
+  }],
+[
+  {
+    "name": "redis.command",
+    "service": "mysvc",
+    "resource": "GET",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "redis",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "654a694400000000",
+      "_dd.peer.service.source": "out.host",
+      "component": "yaaredis",
+      "db.system": "redis",
+      "language": "python",
+      "out.host": "localhost",
+      "peer.service": "localhost",
+      "redis.command": "GET cheese",
+      "runtime-id": "1993bf3ea65c4b658bffdda053387eca",
+      "server.address": "localhost",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": 0,
+      "network.destination.port": 6379,
+      "out.redis_db": 0,
+      "process_id": 14262,
+      "redis.args_length": 2
+    },
+    "duration": 326000,
+    "start": 1685545839502613000
+  }]]

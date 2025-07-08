@@ -106,7 +106,6 @@ class PsycopgCore(TracerTestCase):
         self.assertIsNone(root.get_tag("sql.query"))
         assert start <= root.start <= end
         assert root.duration <= end - start
-        # confirm analytics disabled by default
         self.reset()
 
         # run a query with an error and ensure all is well
@@ -247,9 +246,9 @@ class PsycopgCore(TracerTestCase):
 
     @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")
     def test_manual_wrap_extension_quote_ident(self):
-        from ddtrace import patch_all
+        from ddtrace._monkey import _patch_all
 
-        patch_all()
+        _patch_all()
         from psycopg2.extensions import quote_ident
 
         # NOTE: this will crash if it doesn't work.
@@ -497,9 +496,9 @@ class PsycopgCore(TracerTestCase):
 
 @skipIf(PSYCOPG2_VERSION < (2, 7), "quote_ident not available in psycopg2<2.7")
 def test_manual_wrap_extension_quote_ident_standalone():
-    from ddtrace import patch_all
+    from ddtrace._monkey import _patch_all
 
-    patch_all()
+    _patch_all()
     from psycopg2.extensions import quote_ident
 
     # NOTE: this will crash if it doesn't work.

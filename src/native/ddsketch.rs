@@ -32,6 +32,6 @@ impl DDSketchPy {
 
     fn to_proto<'p>(&self, py: Python<'p>) -> Bound<'p, PyBytes> {
         let res = self.ddsketch.clone().encode_to_vec();
-        PyBytes::new_bound(py, &res)
+        PyBytes::new(py, &res)
     }
 }

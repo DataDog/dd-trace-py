@@ -1,4 +1,5 @@
 import contextlib
+import http.client as httplib
 import http.server
 import os
 import socket
@@ -16,8 +17,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _KEEP_SPANS_RATE_KEY
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.uds import UDSHTTPConnection
@@ -532,7 +531,7 @@ def _make_uds_server(path, request_handler):
         conn = UDSHTTPConnection(server.server_address, _HOST, 2019)
         try:
             conn.request("PUT", "/")
-            resp = get_connection_response(conn).status
+            resp = conn.getresponse().status
         finally:
             conn.close()
         time.sleep(0.01)
@@ -727,9 +726,8 @@ def test_bad_encoding(monkeypatch, writer_class):
         ("v0.5", "v0.5", "v0.5/traces", MSGPACK_ENCODERS["v0.5"]),
     ],
 )
-@pytest.mark.parametrize("writer_class", (AgentWriter,))
-def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls, writer_class):
-    writer = writer_class("http://dne:1234", api_version=init_api_version)
+def test_writer_recreate_api_version(init_api_version, api_version, endpoint, encoder_cls):
+    writer = AgentWriter("http://dne:1234", api_version=init_api_version)
     assert writer._api_version == api_version
     assert writer._endpoint == endpoint
     assert isinstance(writer._encoder, encoder_cls)
@@ -748,6 +746,17 @@ def test_writer_recreate_keeps_headers():
     writer = writer.recreate()
     assert "Datadog-Client-Computed-Stats" in writer._headers
     assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+
+def test_writer_recreate_keeps_response_callback():
+    def response_callback(response):
+        pass
+
+    writer = AgentWriter("http://dne:1234", response_callback=response_callback)
+    assert writer._response_cb is response_callback
+    writer = writer.recreate()
+    assert isinstance(writer, AgentWriter)
+    assert writer._response_cb is response_callback
 
 
 @pytest.mark.parametrize(

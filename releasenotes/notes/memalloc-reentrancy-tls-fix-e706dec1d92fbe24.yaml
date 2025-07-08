@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    profiling: The memory profiler has a guard to avoid re-entering its code if
+    there are allocations during sampling. This guard was meant to be
+    thread-local, but was not correctly declared as such. This doesn't
+    immediately cause problems because the profiler uses try-locks to protect
+    access to its data structures, and re-entering the code will fail to acquire
+    the locks.  But this bug could be a source of deadlocks or data corruption
+    if the code changes substantially in the future. This fix makes the guard
+    thread-local as originally intended.

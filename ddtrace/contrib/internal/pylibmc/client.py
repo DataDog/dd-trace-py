@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from contextlib import contextmanager
 import random
 
@@ -7,7 +8,6 @@ from wrapt import ObjectProxy
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
@@ -16,7 +16,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import memcached
 from ddtrace.ext import net
-from ddtrace.internal.compat import Iterable
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
@@ -41,7 +40,7 @@ class TracedClient(ObjectProxy):
         if not isinstance(client, _Client):
             # We are in the patched situation, just pass down all arguments to the pylibmc.Client
             # Note that, in that case, client isn't a real client (just the first argument)
-            client = _Client(client, *args, **kwargs)
+            client = _Client(kwargs.get("servers", client), **{k: v for k, v in kwargs.items() if k != "servers"})
         else:
             log.warning(
                 "TracedClient instantiation is deprecated and will be remove "
@@ -189,6 +188,3 @@ class TracedClient(ObjectProxy):
             span.set_tag_str(net.TARGET_HOST, host)
             span.set_tag(net.TARGET_PORT, port)
             span.set_tag_str(net.SERVER_ADDRESS, host)
-
-        # set analytics sample rate
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pylibmc.get_analytics_sample_rate())

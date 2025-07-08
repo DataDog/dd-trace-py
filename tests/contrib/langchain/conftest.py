@@ -1,74 +1,77 @@
 import os
 
-import mock
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
+from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-from tests.utils import override_config
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 @pytest.fixture
-def ddtrace_config_langchain():
-    return {}
+def llmobs_env():
+    return {
+        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+    }
 
 
 @pytest.fixture
-def snapshot_tracer(langchain, mock_logs, mock_metrics):
+def llmobs_span_writer():
+    yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
+
+
+@pytest.fixture
+def tracer(langchain):
+    tracer = DummyTracer()
     pin = Pin.get_from(langchain)
-    yield pin.tracer
-    mock_logs.reset_mock()
-    mock_metrics.reset_mock()
+    pin._override(langchain, tracer=tracer)
+    yield tracer
 
 
 @pytest.fixture
-def mock_tracer(langchain):
-    pin = Pin.get_from(langchain)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(langchain, tracer=mock_tracer)
-    pin.tracer._configure()
-    yield mock_tracer
+def llmobs(
+    tracer,
+    llmobs_span_writer,
+):
+    with override_global_config(
+        dict(_dd_api_key="<not-a-real-key>", _llmobs_instrumented_proxy_urls="http://localhost:4000")
+    ):
+        llmobs_service.enable(_tracer=tracer, ml_app="langchain_test", integrations_enabled=False)
+        llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
+        yield llmobs_service
+        llmobs_service.disable()
 
 
 @pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
+def llmobs_events(llmobs, llmobs_span_writer):
+    yield llmobs_span_writer.events
 
 
 @pytest.fixture
-def langchain(ddtrace_config_langchain):
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>")):
-        with override_config("langchain", ddtrace_config_langchain):
-            with override_env(
-                dict(
-                    OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-                    COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-                    ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-                    HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-                    AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
-                )
-            ):
-                patch()
-                import langchain
+def langchain():
+    with override_env(
+        dict(
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+            AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+        )
+    ):
+        patch()
+        import langchain
 
-                yield langchain
-                unpatch()
+        yield langchain
+        unpatch()
 
 
 @pytest.fixture
-def langchain_community(ddtrace_config_langchain, langchain):
+def langchain_community(langchain):
     try:
         import langchain_community
 
@@ -78,7 +81,7 @@ def langchain_community(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_core(ddtrace_config_langchain, langchain):
+def langchain_core(langchain):
     import langchain_core
     import langchain_core.prompts  # noqa: F401
 
@@ -86,7 +89,7 @@ def langchain_core(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_openai(ddtrace_config_langchain, langchain):
+def langchain_openai(langchain):
     try:
         import langchain_openai
 
@@ -96,7 +99,7 @@ def langchain_openai(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_cohere(ddtrace_config_langchain, langchain):
+def langchain_cohere(langchain):
     try:
         import langchain_cohere
 
@@ -106,7 +109,7 @@ def langchain_cohere(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_anthropic(ddtrace_config_langchain, langchain):
+def langchain_anthropic(langchain):
     try:
         import langchain_anthropic
 
@@ -116,7 +119,7 @@ def langchain_anthropic(ddtrace_config_langchain, langchain):
 
 
 @pytest.fixture
-def langchain_pinecone(ddtrace_config_langchain, langchain):
+def langchain_pinecone(langchain):
     with override_env(
         dict(
             PINECONE_API_KEY=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
@@ -208,3 +211,196 @@ def async_streamed_response_responder():
 
     except ImportError:
         yield
+
+
+def _openai_completion_object(
+    n: int = 1,
+):
+    from datetime import datetime
+
+    from openai.types.completion import Completion
+    from openai.types.completion_choice import CompletionChoice
+    from openai.types.completion_usage import CompletionUsage
+
+    choice = CompletionChoice(
+        text="I am a helpful assistant.",
+        index=0,
+        logprobs=None,
+        finish_reason="length",
+    )
+
+    choices = [choice for _ in range(n)]
+
+    completion = Completion(
+        id="foo",
+        model="gpt-3.5-turbo-instruct",
+        object="text_completion",
+        choices=choices,
+        created=int(datetime.now().timestamp()),
+        usage=CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        ),
+    )
+
+    return completion
+
+
+def _openai_chat_completion_object(
+    n: int = 1,
+    tools: bool = False,
+    include_usage: bool = True,
+):
+    from datetime import datetime
+
+    from openai.types.chat import ChatCompletionMessage
+    from openai.types.chat.chat_completion import ChatCompletion
+    from openai.types.chat.chat_completion import Choice
+    from openai.types.completion_usage import CompletionUsage
+
+    choice = Choice(
+        finish_reason="stop",
+        index=0,
+        message=ChatCompletionMessage(
+            content="Hello world!",
+            role="assistant",
+        ),
+    )
+    choices = [choice for _ in range(n)]
+
+    completion = ChatCompletion(
+        id="foo",
+        model="gpt-4",
+        object="chat.completion",
+        choices=choices,
+        created=int(datetime.now().timestamp()),
+    )
+
+    if tools:
+        from openai.types.chat.chat_completion_message_tool_call import ChatCompletionMessageToolCall
+        from openai.types.chat.chat_completion_message_tool_call import Function
+
+        tool_call = ChatCompletionMessageToolCall(
+            function=Function(
+                arguments='{"a":1,"b":2}',
+                name="add",
+            ),
+            id="bar",
+            type="function",
+        )
+
+        for choice in completion.choices:
+            choice.message.tool_calls = [tool_call]
+
+    if include_usage:
+        completion.usage = CompletionUsage(
+            prompt_tokens=5,
+            completion_tokens=5,
+            total_tokens=10,
+        )
+
+    return completion
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion(respx_mock):
+    completion = _openai_completion_object()
+
+    import httpx
+
+    respx_mock.post("/v1/completions").mock(return_value=httpx.Response(200, json=completion.model_dump(mode="json")))
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion_multiple(respx_mock):
+    import httpx
+
+    completion = _openai_completion_object(n=2)
+
+    respx_mock.post("/v1/completions").mock(return_value=httpx.Response(200, json=completion.model_dump(mode="json")))
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_completion_error(respx_mock):
+    import httpx
+
+    respx_mock.post("/v1/completions").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "message": "Invalid token in prompt: 123. Minimum value is 0, maximum value is 100257 (inclusive).",
+                    "type": "invalid_request_error",
+                    "param": None,
+                    "code": None,
+                }
+            },
+        )
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion(respx_mock):
+    import httpx
+
+    completion = _openai_chat_completion_object()
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_no_usage(respx_mock):
+    import httpx
+
+    completion = _openai_chat_completion_object(n=2, include_usage=False)
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_multiple(respx_mock):
+    import httpx
+
+    completion = _openai_chat_completion_object(n=2)
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_chat_completion_tools(respx_mock):
+    import httpx
+
+    completion = _openai_chat_completion_object(tools=True)
+
+    respx_mock.post("/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json=completion.model_dump(mode="json"))
+    )
+
+
+@pytest.fixture
+@pytest.mark.respx()
+def openai_embedding(respx_mock):
+    import httpx
+    from openai.types.embedding import Embedding
+
+    embedding = Embedding(
+        embedding=[0.1, 0.2, 0.3],
+        index=0,
+        object="embedding",
+    )
+
+    respx_mock.post("/v1/embeddings").mock(return_value=httpx.Response(200, json=embedding.model_dump(mode="json")))

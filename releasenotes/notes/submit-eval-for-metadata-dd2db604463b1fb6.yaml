@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    LLM Observability: This introduces `metadata` argument to `LLMObs.submit_evaluation_for`, which enables users to
+                            attach arbitrary structured metadata to custom evaluations.
+ 

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where ddtrace's own sys.monitoring coverage tool in Python 3.12+ would
+    block other sys.monitoring tools such as pytest-cov from being used.

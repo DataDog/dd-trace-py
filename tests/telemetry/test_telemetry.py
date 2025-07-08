@@ -154,7 +154,7 @@ class FailingFilture(TraceFilter):
     def process_trace(self, trace):
        raise Exception("Exception raised in trace filter")
 
-tracer._configure(trace_processors=[FailingFilture()])
+tracer.configure(trace_processors=[FailingFilture()])
 
 # generate and encode span to trigger sampling failure
 tracer.trace("hello").finish()
@@ -176,12 +176,10 @@ telemetry_writer._app_started()
     assert app_started_events[0]["payload"]["error"]["code"] == 1
     assert (
         "error applying processor <__main__.FailingFilture object at"
-        in app_started_events[0]["payload"]["error"]["message"]
+        not in app_started_events[0]["payload"]["error"]["message"]
     )
-    pattern = re.compile(
-        ".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: "
-        "error applying processor <__main__.FailingFilture object at 0x[0-9a-f]+>"
-    )
+    assert "error applying processor %r" in app_started_events[0]["payload"]["error"]["message"]
+    pattern = re.compile(".*ddtrace/_trace/processor/__init__.py/__init__.py:[0-9]+: " "error applying processor %r")
     assert pattern.match(app_started_events[0]["payload"]["error"]["message"]), app_started_events[0]["payload"][
         "error"
     ]["message"]

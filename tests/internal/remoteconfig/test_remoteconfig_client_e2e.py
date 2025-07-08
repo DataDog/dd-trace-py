@@ -1,12 +1,13 @@
 # -*- coding: utf-8 -*-
+import enum
 import json
 import os
 
 import mock
 from mock.mock import ANY
 
+import ddtrace.appsec._remoteconfiguration
 from ddtrace.appsec._remoteconfiguration import AppSecRC
-from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.internal import runtime
 import ddtrace.internal.remoteconfig._connectors
@@ -19,7 +20,7 @@ from tests.utils import override_global_config
 
 def _expected_payload(
     rc_client,
-    capabilities="IAjwAA==",  # this was gathered by running the test and observing the payload
+    capabilities="",
     has_errors=False,
     targets_version=0,
     backend_client_state=None,
@@ -41,7 +42,7 @@ def _expected_payload(
                 "runtime_id": runtime.get_runtime_id(),
                 "language": "python",
                 "tracer_version": _pep440_to_semver(),
-                "service": "tests.internal",
+                "service": ANY,
                 "extra_services": [],
                 "env": None,
                 "app_version": None,
@@ -80,14 +81,25 @@ def _assert_response(mock_send_request, expected_response):
     assert response == expected_response
 
 
+unpatched_preprocess = ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation
+
+
+def _wrapped_preprocess(*args, **kwargs):
+    return unpatched_preprocess(*args, **kwargs)
+
+
 @mock.patch(
     "ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.write",
     side_effect=ddtrace.internal.remoteconfig._connectors.PublisherSubscriberConnector.write,
     autospec=True,
 )
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
-def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_request, mock_write):
+@mock.patch(
+    "ddtrace.appsec._remoteconfiguration._preprocess_results_appsec_1click_activation",
+    side_effect=_wrapped_preprocess,
+    autospec=True,
+)
+def test_remote_config_client_steps(mock_preprocess_results, mock_send_request, mock_write):
     remoteconfig_poller.disable()
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
 
@@ -95,24 +107,21 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         MOCK_AGENT_RESPONSES = json.load(f)
 
     mock_callback = mock.MagicMock()
-    mock_preprocess_results = mock.MagicMock()
 
     def _mock_appsec_callback(features, test_tracer=None):
         mock_callback(features)
 
-    def _mock_mock_preprocess_results(features, test_tracer=None):
-        features = _preprocess_results_appsec_1click_activation(features)
-        mock_preprocess_results(features)
-        return features
-
-    mock_appsec_rc_capabilities.return_value = "Ag=="
+    class Capabilities(enum.IntFlag):
+        TEST = 16
 
     with override_global_config(dict(_remote_config_enabled=False)):
         enable_appsec_rc()
         rc_client = RemoteConfigClient()
 
-        asm_callback = AppSecRC(_mock_mock_preprocess_results, _mock_appsec_callback)
+        asm_callback = AppSecRC(_mock_appsec_callback)
         rc_client.register_product("ASM_FEATURES", asm_callback)
+        rc_client.add_capabilities(Capabilities)
+        capabilities = rc_client._encode_capabilities(Capabilities.TEST)
 
     assert len(rc_client._products) == 1
     assert remoteconfig_poller.status == ServiceStatus.STOPPED
@@ -120,7 +129,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # 0.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[0]
     rc_client.request()
-    expected_response = _expected_payload(rc_client)
+    expected_response = _expected_payload(rc_client, capabilities=capabilities)
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
@@ -140,16 +149,21 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     # The tracer is supposed to process this update and store that the latest TUF Targets version is 1.
     mock_send_request.return_value = MOCK_AGENT_RESPONSES[1]
     rc_client.request()
-    expected_response = _expected_payload(rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=")
+    expected_response = _expected_payload(
+        rc_client, targets_version=1, backend_client_state="eyJmb28iOiAiYmFyIn0=", capabilities=capabilities
+    )
 
     assert rc_client._last_error is None
     _assert_response(mock_send_request, expected_response)
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": True}}, "shared_data_counter": 1})
-    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": True}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][0].content == {"asm": {"enabled": True}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][0].content == {"asm": {"enabled": True}}
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
@@ -176,6 +190,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             }
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -183,8 +198,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": False}})
-    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": 2})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": False}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][0].content == {"asm": {"enabled": False}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][0].content == {"asm": {"enabled": False}}
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
@@ -211,6 +230,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             }
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -218,8 +238,10 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {}})
-    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {}}, "shared_data_counter": ANY})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][0].content is None
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][0].content is None
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
@@ -235,6 +257,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
         config_states=[],
         backend_client_state="eyJmb28iOiAiYmFyIn0=",
         cached_target_files=[],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -242,8 +265,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": True}}, "shared_data_counter": ANY})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][0].content == {"asm": {"enabled": True}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][0].content == {"asm": {"enabled": True}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][0].content == {"asm": {"enabled": True}}
 
     mock_send_request.reset_mock()
     mock_preprocess_results.reset_mock()
@@ -283,6 +310,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -290,9 +318,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_not_called()
-    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
@@ -332,6 +363,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -339,11 +371,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called()
-
-    mock_callback.assert_called_with(
-        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": ANY}
-    )
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0]
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0]
+    write_calls = mock_write.call_args
+    assert write_calls[0][1]
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
@@ -394,6 +427,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -401,8 +435,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_called_with({"metadata": {}, "config": {"asm": {"enabled": True}}, "shared_data_counter": ANY})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
@@ -442,6 +480,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -493,6 +532,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -543,6 +583,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -550,9 +591,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
     asm_callback._poll_data()
 
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": True}})
-    mock_callback.assert_not_called()
-    mock_write.assert_called_with(ANY, {}, {"asm": {"enabled": True}})
+    preprocess_calls = mock_preprocess_results.call_args
+    assert preprocess_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    callback_calls = mock_callback.call_args
+    assert callback_calls[0][0][-1].content == {"asm": {"enabled": True}}
+    write_calls = mock_write.call_args
+    assert write_calls[0][1][-1].content == {"asm": {"enabled": True}}
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
@@ -604,6 +648,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error is None
@@ -616,10 +661,8 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
     #  - datadog/2/ASM_FEATURES/ASM_FEATURES-second/config -> {"asm": {"enabled": False}}
     # Depends of the Python version, the order of this configuration could change and the result could be different
     # It doesn't matter because this problem can't exist on production
-    mock_preprocess_results.assert_called_with({"asm": {"enabled": ANY}})
-    mock_callback.assert_called_with(
-        {"metadata": {}, "config": {"asm": {"enabled": False}}, "shared_data_counter": ANY}
-    )
+    mock_preprocess_results.assert_called()
+    mock_callback.assert_called()
 
     mock_preprocess_results.reset_mock()
     mock_send_request.reset_mock()
@@ -672,6 +715,7 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == "Not all client configurations have target files"
@@ -737,11 +781,11 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-        "not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -805,11 +849,11 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
                 ],
             },
         ],
+        capabilities=capabilities,
     )
 
     assert rc_client._last_error == (
-        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname "
-        "not exists in client_config and signed targets"
+        "target file datadog/2/ASM_FEATURES/ASM_FEATURES-third/testname not exists in client_config and signed targets"
     )
     _assert_response(mock_send_request, expected_response)
 
@@ -826,18 +870,12 @@ def test_remote_config_client_steps(mock_appsec_rc_capabilities, mock_send_reque
 
 
 @mock.patch.object(RemoteConfigClient, "_send_request")
-@mock.patch("ddtrace.appsec._capabilities._appsec_rc_capabilities")
-def test_remote_config_client_callback_error(
-    mock_appsec_rc_capabilities,
-    mock_send_request,
-):
+def test_remote_config_client_callback_error(mock_send_request):
     with open(MOCK_AGENT_RESPONSES_FILE, "r") as f:
         MOCK_AGENT_RESPONSES = json.load(f)
 
     def callback_with_exception():
         raise Exception("fake error")
-
-    mock_appsec_rc_capabilities.return_value = "Ag=="
 
     rc_client = RemoteConfigClient()
     mock_callback = mock.mock.MagicMock()

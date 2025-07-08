@@ -10,20 +10,21 @@ import typing as t
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_API_VALUE
 from ddtrace.internal.ci_visibility.constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.internal.ci_visibility.constants import KNOWN_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.constants import SETTING_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SKIPPABLE_ENDPOINT
 from ddtrace.internal.ci_visibility.constants import SUITE
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_MANAGEMENT_TESTS_ENDPOINT
-from ddtrace.internal.ci_visibility.constants import UNIQUE_TESTS_ENDPOINT
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.git_data import GitData
 from ddtrace.internal.ci_visibility.telemetry.api_request import APIRequestMetricNames
@@ -40,7 +41,6 @@ from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGE
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
@@ -60,14 +60,15 @@ log = get_logger(__name__)
 
 DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
+DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
 _BASE_HEADERS: t.Dict[str, str] = {
     "Content-Type": "application/json",
 }
 
-_SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
+_SKIPPABLE_ITEM_ID_TYPE = t.Union[TestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
-_UNIQUE_TESTS_TYPE = t.Set[InternalTestId]
+_KNOWN_TESTS_TYPE = t.Set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -95,6 +96,7 @@ class EarlyFlakeDetectionSettings:
 @dataclasses.dataclass(frozen=True)
 class TestManagementSettings:
     enabled: bool = False
+    attempt_to_fix_retries: int = DEFAULT_ATTEMPT_TO_FIX_RETRIES
 
     __test__ = False
 
@@ -116,6 +118,7 @@ class TestVisibilityAPISettings:
     require_git: bool = False
     itr_enabled: bool = False
     flaky_test_retries_enabled: bool = False
+    known_tests_enabled: bool = False
     early_flake_detection: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     test_management: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
 
@@ -124,7 +127,7 @@ class TestVisibilityAPISettings:
 class ITRData:
     correlation_id: t.Optional[str] = None
     covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
-    skippable_items: t.Set[t.Union[InternalTestId, TestSuiteId]] = dataclasses.field(default_factory=set)
+    skippable_items: t.Set[t.Union[TestId, TestSuiteId]] = dataclasses.field(default_factory=set)
 
 
 class _SkippableResponseMeta(TypedDict):
@@ -149,9 +152,7 @@ class _SkippableResponse(TypedDict):
     meta: _SkippableResponseMeta
 
 
-def _get_test_id_from_skippable_test(
-    skippable_test: _SkippableResponseDataItem, ignore_parameters: bool
-) -> InternalTestId:
+def _get_test_id_from_skippable_test(skippable_test: _SkippableResponseDataItem, ignore_parameters: bool) -> TestId:
     test_type = skippable_test["type"]
     if test_type != TEST:
         raise ValueError(f"Test type {test_type} is not expected test type {TEST}")
@@ -159,7 +160,7 @@ def _get_test_id_from_skippable_test(
     suite_id = TestSuiteId(module_id, skippable_test["attributes"]["suite"])
     test_name = skippable_test["attributes"]["name"]
     test_parameters = None if ignore_parameters else skippable_test["attributes"].get("parameters")
-    return InternalTestId(suite_id, test_name, test_parameters)
+    return TestId(suite_id, test_name, test_parameters)
 
 
 def _get_suite_id_from_skippable_suite(skippable_suite: _SkippableResponseDataItem) -> TestSuiteId:
@@ -384,6 +385,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             flaky_test_retries_enabled = attributes["flaky_test_retries_enabled"] or asbool(
                 os.getenv("_DD_TEST_FORCE_ENABLE_ATR")
             )
+            known_tests_enabled = attributes["known_tests_enabled"]
 
             if attributes["early_flake_detection"]["enabled"]:
                 early_flake_detection = EarlyFlakeDetectionSettings(
@@ -397,9 +399,21 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             else:
                 early_flake_detection = EarlyFlakeDetectionSettings()
 
+            test_management_attributes = attributes.get("test_management", {})
+            test_management_enabled = test_management_attributes.get("enabled", False)
+            attempt_to_fix_retries_env = os.getenv("DD_TEST_MANAGEMENT_ATTEMPT_TO_FIX_RETRIES")
+            if attempt_to_fix_retries_env and attempt_to_fix_retries_env.isdigit():
+                attempt_to_fix_retries = int(attempt_to_fix_retries_env)
+                log.debug("Number of Attempt to Fix retries obtained from environment: %d", attempt_to_fix_retries)
+            else:
+                attempt_to_fix_retries = test_management_attributes.get(
+                    "attempt_to_fix_retries", DEFAULT_ATTEMPT_TO_FIX_RETRIES
+                )
+                log.debug("Number of Attempt to Fix retries obtained from API: %d", attempt_to_fix_retries)
+
             test_management = TestManagementSettings(
-                enabled=attributes.get("test_management", {}).get("enabled", False)
-                or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                enabled=test_management_enabled or asbool(os.getenv("_DD_TEST_FORCE_ENABLE_TEST_MANAGEMENT")),
+                attempt_to_fix_retries=attempt_to_fix_retries,
             )
 
         except KeyError:
@@ -412,6 +426,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=require_git,
             itr_enabled=itr_enabled,
             flaky_test_retries_enabled=flaky_test_retries_enabled,
+            known_tests_enabled=known_tests_enabled,
             early_flake_detection=early_flake_detection,
             test_management=test_management,
         )
@@ -422,6 +437,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             require_git=api_settings.require_git,
             itr_enabled=api_settings.itr_enabled,
             flaky_test_retries_enabled=api_settings.flaky_test_retries_enabled,
+            known_tests_enabled=api_settings.known_tests_enabled,
             early_flake_detection_enabled=api_settings.early_flake_detection.enabled,
             test_management_enabled=api_settings.test_management.enabled,
         )
@@ -501,7 +517,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_unique_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+    def fetch_known_tests(self) -> t.Optional[t.Set[TestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -509,7 +525,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        unique_test_ids: t.Set[InternalTestId] = set()
+        known_test_ids: t.Set[TestId] = set()
 
         payload = {
             "data": {
@@ -526,7 +542,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         try:
             parsed_response = self._do_request_with_telemetry(
-                "POST", UNIQUE_TESTS_ENDPOINT, json.dumps(payload), metric_names
+                "POST", KNOWN_TESTS_ENDPOINT, json.dumps(payload), metric_names
             )
         except Exception:  # noqa: E722
             return None
@@ -548,17 +564,17 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 for suite, tests in suites.items():
                     suite_id = TestSuiteId(module_id, suite)
                     for test in tests:
-                        unique_test_ids.add(InternalTestId(suite_id, test))
+                        known_test_ids.add(TestId(suite_id, test))
         except Exception:  # noqa: E722
             log.debug("Failed to parse unique tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
             return None
 
-        record_early_flake_detection_tests_count(len(unique_test_ids))
+        record_early_flake_detection_tests_count(len(known_test_ids))
 
-        return unique_test_ids
+        return known_test_ids
 
-    def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
+    def fetch_test_management_tests(self) -> t.Optional[t.Dict[TestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
             count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
             duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
@@ -566,13 +582,15 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=TEST_MANAGEMENT_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        test_properties: t.Dict[InternalTestId, TestProperties] = {}
+        test_properties: t.Dict[TestId, TestProperties] = {}
         payload = {
             "data": {
                 "id": str(uuid4()),
                 "type": "ci_app_libraries_tests_request",
                 "attributes": {
                     "repository_url": self._git_data.repository_url,
+                    "commit_message": self._git_data.commit_message,
+                    "sha": self._git_data.commit_sha,
                 },
             }
         }
@@ -603,7 +621,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     suite_id = TestSuiteId(module_id, suite_name)
                     tests = suite_data["tests"]
                     for test_name, test_data in tests.items():
-                        test_id = InternalTestId(suite_id, test_name)
+                        test_id = TestId(suite_id, test_name)
                         properties = test_data.get("properties", {})
                         test_properties[test_id] = TestProperties(
                             quarantined=properties.get("quarantined", False),
@@ -667,8 +685,9 @@ class EVPProxyTestVisibilityAPIClient(_TestVisibilityAPIClientBase):
         dd_service: t.Optional[str] = None,
         dd_env: t.Optional[str] = None,
         timeout: float = DEFAULT_TIMEOUT,
+        evp_proxy_base_url: str = EVP_PROXY_AGENT_BASE_PATH,
     ):
-        base_url = combine_url_path(agent_url, EVP_PROXY_AGENT_BASE_PATH)
+        base_url = combine_url_path(agent_url, evp_proxy_base_url)
         super().__init__(base_url, itr_skipping_level, git_data, configurations, dd_service, dd_env, timeout)
 
     def _get_headers(self):

@@ -29,37 +29,23 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
-We assume you have `docker <https://www.docker.com/products/docker>`_ installed.
+Install and run `docker <https://www.docker.com/products/docker>`_ .
 
-In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ and `hatch <https://hatch.pypa.io/latest/>`_.
+This repo includes a Docker container definition that provides a prebuilt test environment.
+You can access it by running
 
 .. code-block:: bash
 
-    $ pip install riot==0.20.1
+    $ scripts/ddtest
 
-Refer `hatch install <https://hatch.pypa.io/latest/install/>`_ for installation instructions
+Some of our test suites are managed with Riot, others with Hatch.
 
-Some of our test environments are managed with Riot, others with Hatch.
-
-For riot environments, you can run:
+You can run riot and hatch commands in the test runner container with commands like these:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
-
-This command runs the entire test suite, which is probably not what you want to do.
-
-For hatch environments, you can run:
-
-.. code-block:: bash
-
-    $ hatch run lint:style
-
-If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
-
-.. code-block:: bash
-
-    $ hatch env remove <ENV> # or hatch env prune
+    $ scripts/ddtest hatch run lint:style
 
 
 How do I run only the tests I care about?
@@ -130,31 +116,43 @@ It is necessary to create a new ``Venv`` instance in ``riotfile.py`` if it does 
 .. code-block:: python
 
     Venv(
-        name="asyncio",
-        command="pytest {cmdargs} tests/contrib/asyncio",
-        pys=select_pys(),
+        name="yaaredis",
+        command="pytest {cmdargs} tests/contrib/yaaredis",
         pkgs={
-            "pytest-asyncio": latest,
+            "pytest-asyncio": "==0.21.1",
+            "pytest-randomly": latest,
         },
-        env={
-            "DD_ENV_VARIABLE": "1",  # if needed
-        },
-    )
+        venvs=[
+            Venv(
+                pys=select_pys(min_version="3.8", max_version="3.9"),
+                pkgs={"yaaredis": ["~=2.0.0", latest]},
+            ),
+        ],
+    ),
 
 Once a ``Venv`` instance has been created, you will be able to run it as explained in the section below.
-Next, we will need to add a new CircleCI job to run the newly added test suite at ``.circleci/config.templ.yml`` just like:
+Next, we will need to add a new CI job to run the newly added test suite. This change can be made in the
+``tests/contrib/suitespec.yml`` file:
 
-.. code-block:: python
+.. code-block:: yaml
 
-    asyncio:
-    <<: *contrib_job
-    steps:
-      - run_test:
-          pattern: 'asyncio'
+    yaaredis:
+      parallelism: 1
+      paths:
+        - '@core'
+        - '@bootstrap'
+        - '@contrib'
+        - '@tracing'
+        - '@redis'
+        - tests/contrib/yaaredis/*
+        - tests/snapshots/tests.contrib.yaaredis.*
+      pattern: yaaredis$
+      runner: riot
+      services:
+        - redis
+      snapshot: true
 
-
-After this, check out ``tests/README.md`` for instructions on how to add new
-jobs to run the new tests in CI.
+See ``tests/README.md`` for more detail on adding new CI jobs.
 
 How do I update a Riot environment to use the latest version of a package?
 --------------------------------------------------------------------------
@@ -175,6 +173,16 @@ environment object.
 3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
    ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
 4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+
+Why isn't my hatch config change taking effect?
+-----------------------------------------------
+
+If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
+
+.. code-block:: bash
+
+    $ scripts/ddtest hatch env remove <ENV> # or hatch env prune
+
 
 What do I do when my pull request has failing tests unrelated to my changes?
 ----------------------------------------------------------------------------

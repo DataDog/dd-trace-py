@@ -7,7 +7,7 @@ import os
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import TagMappingMode  # noqa: F401
-from tests.appsec.iast.aspects.conftest import _iast_patched_module
+from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
 def generate_callers_from_callees(callers_file=""):

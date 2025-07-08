@@ -30,9 +30,8 @@ class TracedGenerateContentResponse(BaseTracedGenerateContentResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
@@ -51,9 +50,8 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
-        else:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
         finally:
+            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,

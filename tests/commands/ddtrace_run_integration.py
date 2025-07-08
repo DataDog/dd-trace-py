@@ -7,6 +7,7 @@ import redis
 
 from ddtrace.trace import Pin
 from tests.contrib.config import REDIS_CONFIG
+from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 
 
@@ -15,8 +16,9 @@ if __name__ == "__main__":
     pin = Pin.get_from(r)
     assert pin
 
-    writer = DummyWriter()
-    pin.tracer._configure(writer=writer)
+    pin._tracer = DummyTracer()
+    assert isinstance(pin.tracer._span_aggregator.writer, DummyWriter)
+    writer = pin.tracer._span_aggregator.writer
     r.flushall()
     spans = writer.pop()
 

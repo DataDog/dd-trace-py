@@ -1,4 +1,5 @@
 import asyncio
+from typing import Dict
 
 import sanic
 import wrapt
@@ -26,6 +27,10 @@ SANIC_VERSION = (0, 0, 0)
 def get_version():
     # type: () -> str
     return getattr(sanic, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"sanic": ">=20.12.0"}
 
 
 def _get_current_span(request):
@@ -208,9 +213,9 @@ def _create_sanic_request_span(request):
         tags={},
         pin=pin,
         distributed_headers=headers,
-        distributed_headers_config=config.sanic,
+        integration_config=config.sanic,
+        activate_distributed_headers=True,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.sanic.get_analytics_sample_rate(use_global_config=True),
     ) as ctx:
         req_span = ctx.span
 

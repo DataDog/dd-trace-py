@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Error Tracking: Introduces automatic reporting of handled exceptions. Enabling the feature will report handled exceptions
+    to Error Tracking from the user code, the third party packages code, some specified modules or everything based on configuration.
+    This feature can be controlled using two environment variables:
+      - `DD_ERROR_TRACKING_HANDLED_ERRORS`=`all|user|third_party`
+      - `DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE`=`module1, module2, module3.submodule`

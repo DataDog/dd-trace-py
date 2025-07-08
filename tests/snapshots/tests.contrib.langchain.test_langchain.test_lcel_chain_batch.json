@@ -10,28 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4600000000",
+      "_dd.p.tid": "67ab85a200000000",
       "langchain.request.inputs.0": "chickens",
-      "langchain.request.inputs.1": "pigs",
       "langchain.request.type": "chain",
-      "langchain.response.outputs.0": "Why did the pig go to the casino?\\n\\nTo play the slop machine!",
-      "langchain.response.outputs.1": "Why did the chicken join a band? Because it had the drumsticks!",
+      "langchain.response.outputs.0": "Hello world!",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "fa1423fbe1dc49e48a25d131ee2db67f"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 31,
-      "langchain.tokens.prompt_tokens": 28,
-      "langchain.tokens.total_cost": 0.00010400000000000001,
-      "langchain.tokens.total_tokens": 59,
-      "process_id": 82010
+      "process_id": 53037
     },
-    "duration": 12476000,
-    "start": 1738263110292401000
+    "duration": 6387000,
+    "start": 1739294114595558000
   },
      {
        "name": "langchain.request",
@@ -54,48 +48,15 @@
          "langchain.request.openai.parameters.temperature": "0.7",
          "langchain.request.provider": "openai",
          "langchain.request.type": "chat_model",
-         "langchain.response.completions.0.0.content": "Why did the pig go to the casino?\\n\\nTo play the slop machine!",
+         "langchain.response.completions.0.0.content": "Hello world!",
          "langchain.response.completions.0.0.message_type": "AIMessage"
        },
        "metrics": {
          "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 16,
-         "langchain.tokens.prompt_tokens": 14,
-         "langchain.tokens.total_tokens": 30
+         "langchain.tokens.completion_tokens": 5,
+         "langchain.tokens.prompt_tokens": 5,
+         "langchain.tokens.total_tokens": 10
        },
-       "duration": 6742000,
-       "start": 1738263110297341000
-     },
-     {
-       "name": "langchain.request",
-       "service": "tests.contrib.langchain",
-       "resource": "langchain_openai.chat_models.base.ChatOpenAI",
-       "trace_id": 0,
-       "span_id": 3,
-       "parent_id": 1,
-       "type": "",
-       "error": 0,
-       "meta": {
-         "langchain.request.api_key": "...key>",
-         "langchain.request.messages.0.0.content": "Tell me a short joke about pigs",
-         "langchain.request.messages.0.0.message_type": "HumanMessage",
-         "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.n": "1",
-         "langchain.request.openai.parameters.stream": "False",
-         "langchain.request.openai.parameters.temperature": "0.7",
-         "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model",
-         "langchain.response.completions.0.0.content": "Why did the chicken join a band? Because it had the drumsticks!",
-         "langchain.response.completions.0.0.message_type": "AIMessage"
-       },
-       "metrics": {
-         "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 15,
-         "langchain.tokens.prompt_tokens": 14,
-         "langchain.tokens.total_tokens": 29
-       },
-       "duration": 3314000,
-       "start": 1738263110300645000
+       "duration": 3352000,
+       "start": 1739294114598349000
      }]]

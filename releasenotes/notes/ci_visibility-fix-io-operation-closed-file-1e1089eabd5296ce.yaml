@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where an ``I/O operation on closed file`` error was raised while printing
+    ``ddtrace`` logs during a pytest session, due to a conflict with pytest's log capture.

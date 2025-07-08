@@ -8,7 +8,6 @@ from ddtrace.internal.runtime.metric_collectors import GCRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import PSUtilRuntimeMetricCollector
 from ddtrace.internal.runtime.metric_collectors import RuntimeMetricCollector
 from tests.utils import BaseTestCase
-from tests.utils import flaky
 
 
 class TestRuntimeMetricCollector(BaseTestCase):
@@ -29,10 +28,10 @@ class TestRuntimeMetricCollector(BaseTestCase):
 class TestPSUtilRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = PSUtilRuntimeMetricCollector()
-        for _, value in collector.collect(PSUTIL_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(PSUTIL_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
-    @flaky(1717343326)
     def test_static_metrics(self):
         import os
         import threading
@@ -129,8 +128,9 @@ class TestPSUtilRuntimeMetricCollector(BaseTestCase):
 class TestGCRuntimeMetricCollector(BaseTestCase):
     def test_metrics(self):
         collector = GCRuntimeMetricCollector()
-        for _, value in collector.collect(GC_RUNTIME_METRICS):
+        for metric_name, value in collector.collect(GC_RUNTIME_METRICS):
             self.assertIsNotNone(value)
+            self.assertRegex(metric_name, r"^runtime.python\..*")
 
     def test_gen1_changes(self):
         # disable gc

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    library: Updates the exception raised when ``ddtrace.patch(...)`` is called with an invalid argument.

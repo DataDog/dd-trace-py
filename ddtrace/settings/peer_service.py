@@ -1,10 +1,8 @@
-import os
-
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import SCHEMA_VERSION
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._core import report_telemetry as _report_telemetry
 
 
 class PeerServiceConfig(object):
@@ -23,7 +21,7 @@ class PeerServiceConfig(object):
     @property
     def set_defaults_enabled(self):
         if self._set_defaults_enabled is None:
-            env_enabled = asbool(os.getenv("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", default=False))
+            env_enabled = _get_config("DD_TRACE_PEER_SERVICE_DEFAULTS_ENABLED", False, asbool)
             self._set_defaults_enabled = SCHEMA_VERSION == "v1" or (SCHEMA_VERSION == "v0" and env_enabled)
 
         return self._set_defaults_enabled
@@ -31,11 +29,10 @@ class PeerServiceConfig(object):
     @property
     def peer_service_mapping(self):
         if self._peer_service_mapping is None:
-            self._unparsed_peer_service_mapping = os.getenv("DD_TRACE_PEER_SERVICE_MAPPING", default="")
+            self._unparsed_peer_service_mapping = _get_config("DD_TRACE_PEER_SERVICE_MAPPING", "")
             self._peer_service_mapping = parse_tags_str(self._unparsed_peer_service_mapping)
 
         return self._peer_service_mapping
 
 
 _ps_config = PeerServiceConfig()
-_report_telemetry(_ps_config)

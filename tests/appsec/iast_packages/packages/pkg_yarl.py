@@ -3,6 +3,7 @@ yarl==1.9.4
 
 https://pypi.org/project/yarl/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -24,11 +25,7 @@ def pkg_yarl_view():
         try:
             url = URL(url_param)
             result_output = (
-                f"Original URL: {url}\n"
-                f"Scheme: {url.scheme}\n"
-                f"Host: {url.host}\n"
-                f"Path: {url.path}\n"
-                f"Query: {url.query}\n"
+                f"Original URL: {url}\nScheme: {url.scheme}\nHost: {url.host}\nPath: {url.path}\nQuery: {url.query}\n"
             )
         except Exception as e:
             result_output = f"Error: {str(e)}"
@@ -44,7 +41,7 @@ def pkg_yarl_view():
 def pkg_yarl_propagation_view():
     from yarl import URL
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

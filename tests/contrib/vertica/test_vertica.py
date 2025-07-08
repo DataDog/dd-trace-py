@@ -16,7 +16,6 @@ from tests.opentracer.utils import init_tracer
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
-from tests.utils import flaky
 
 
 TEST_TABLE = "test_table"
@@ -59,25 +58,6 @@ class TestVerticaPatching(TracerTestCase):
         super(TestVerticaPatching, self).tearDown()
         unpatch()
 
-    @flaky(1735812000)
-    def test_patch_after_import(self):
-        """Patching _after_ the import will not work because we hook into
-        the module import system.
-
-        Vertica uses a local reference to `Cursor` which won't get patched
-        if we call `patch` after the module has already been imported.
-        """
-        import vertica_python
-
-        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
-        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
-
-        patch()
-
-        conn = vertica_python.connect(**VERTICA_CONFIG)
-        cursor = conn.cursor()
-        assert not isinstance(cursor, wrapt.ObjectProxy)
-
     def test_patch_before_import(self):
         patch()
         import vertica_python
@@ -85,6 +65,33 @@ class TestVerticaPatching(TracerTestCase):
         # use a patched method from each class as indicators
         assert isinstance(vertica_python.Connection.cursor, wrapt.ObjectProxy)
         assert isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+
+    def test_patch_after_import(self):
+        """Patching _after_ the import will not work because we hook into
+        the module import system.
+
+        Vertica uses a local reference to `Cursor` which won't get patched
+        if we call `patch` after the module has already been imported.
+        """
+        from unittest.mock import MagicMock
+        from unittest.mock import patch as mock_patch
+
+        import vertica_python
+
+        assert not isinstance(vertica_python.vertica.connection.Connection.cursor, wrapt.ObjectProxy)
+        assert not isinstance(vertica_python.vertica.cursor.Cursor.execute, wrapt.ObjectProxy)
+
+        patch()
+
+        # Mock vertica_python.connect to avoid real DB connection
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+
+        with mock_patch("vertica_python.connect", return_value=mock_conn):
+            conn = vertica_python.connect()
+            cursor = conn.cursor()
+            assert not isinstance(cursor, wrapt.ObjectProxy)
 
     def test_idempotent_patch(self):
         patch()

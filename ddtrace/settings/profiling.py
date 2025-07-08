@@ -3,27 +3,20 @@ import math
 import os
 import typing as t
 
-from envier import En
-
-from ddtrace import config as core_config
 from ddtrace.ext.git import COMMIT_SHA
 from ddtrace.ext.git import MAIN_PACKAGE
 from ddtrace.ext.git import REPOSITORY_URL
 from ddtrace.internal import compat
 from ddtrace.internal import gitmetadata
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import report_configuration
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.settings._core import report_telemetry as _report_telemetry
+from ddtrace.settings._core import DDConfig
 
 
 logger = get_logger(__name__)
-
-
-# Stash the reason why a transitive dependency failed to load; since we try to load things safely in order to guide
-# configuration, these errors won't bubble up naturally.  All of these components should use the same pattern
-# in order to guarantee uniformity.
-ddup_failure_msg = ""
-stack_v2_failure_msg = ""
 
 
 def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
@@ -54,91 +47,38 @@ def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 
 
 
 def _check_for_ddup_available():
-    global ddup_failure_msg
-    ddup_is_available = False
-    try:
-        from ddtrace.internal.datadog.profiling import ddup
+    # NB: importing ddup module results in importing _ddup.so file which could
+    # raise an Exception within the ddup module, but we catch it there and
+    # we don't propagate up to here. And regardless of whether ddup is available,
+    # failure_msg and is_available are set to appropriate values.
+    from ddtrace.internal.datadog.profiling import ddup
 
-        ddup_is_available = ddup.is_available
-        ddup_failure_msg = ddup.failure_msg
-    except Exception:
-        pass  # nosec
-    return ddup_is_available
+    return (ddup.failure_msg, ddup.is_available)
 
 
 def _check_for_stack_v2_available():
-    global stack_v2_failure_msg
-    stack_v2_is_available = False
+    # NB: ditto for stack_v2 module as ddup.
+    from ddtrace.internal.datadog.profiling import stack_v2
 
-    # stack_v2 will use libdd; in order to prevent two separate collectors from running, it then needs to force
-    # libdd to be enabled as well; that means it depends on the libdd interface (ddup)
-    if not _check_for_ddup_available():
-        return False
-
-    try:
-        from ddtrace.internal.datadog.profiling import stack_v2
-
-        stack_v2_is_available = stack_v2.is_available
-        stack_v2_failure_msg = stack_v2.failure_msg
-    except Exception:
-        pass  # nosec
-    return stack_v2_is_available
-
-
-def _is_libdd_required(config):
-    # This function consolidates the logic for force-enabling the libdd uploader.  Otherwise this will get enabled in
-    # a bunch of separate places and it'll be tough to manage.
-    # v2 requires libdd because it communicates over a pure-native channel
-    # libdd... requires libdd
-    # injected environments _cannot_ deploy protobuf, so they must use libdd
-    # timeline requires libdd
-    return (
-        config.stack.v2_enabled
-        or config.export._libdd_enabled
-        or config._injected
-        or config.timeline_enabled
-        or config.pytorch.enabled
-    )
-
-
-# This value indicates whether or not profiling is _loaded_ in an injected environment. It does not by itself
-# indicate whether profiling was enabled.
-_profiling_injected = False
+    return (stack_v2.failure_msg, stack_v2.is_available)
 
 
 def _parse_profiling_enabled(raw: str) -> bool:
-    global _profiling_injected
-
-    # Before we do anything else, check the tracer configuration
-    _profiling_injected = core_config._lib_was_injected
-
-    # Try to derive two bits of information
-    # - Are we injected (DD_INJECTION_ENABLED set) (almost certainly already populated correctly by core_config)
+    # Try to derive whether we're enabled via DD_INJECTION_ENABLED
+    # - Are we injected (DD_INJECTION_ENABLED set)
     # - Is profiling enabled ("profiler" in the list)
     if os.environ.get("DD_INJECTION_ENABLED") is not None:
-        _profiling_injected = True
         for tok in os.environ.get("DD_INJECTION_ENABLED", "").split(","):
             if tok.strip().lower() == "profiler":
                 return True
 
     # This is the normal check
     raw_lc = raw.lower()
-    if raw_lc in ("1", "true", "yes", "on"):
-        return True
-
-    # In addition to everything else, we have to check for the `auto` value of `DD_PROFILING_ENABLED`.
-    # This value simultaneously enables the profiler and indicates the environment is injected.
-    if raw_lc == "auto":
-        _profiling_injected = True
+    if raw_lc in ("1", "true", "yes", "on", "auto"):
         return True
 
     # If it wasn't enabled, then disable it
     return False
-
-
-def _check_for_injected():
-    global _profiling_injected
-    return _profiling_injected
 
 
 def _update_git_metadata_tags(tags):
@@ -169,12 +109,12 @@ def _enrich_tags(tags) -> t.Dict[str, str]:
     return tags
 
 
-class ProfilingConfig(En):
+class ProfilingConfig(DDConfig):
     __prefix__ = "dd.profiling"
 
     # Note that the parser here has a side-effect, since SSI has changed the once-truthy value of the envvar to
     # truthy + "auto", which has a special meaning.
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         parser=_parse_profiling_enabled,
@@ -183,7 +123,7 @@ class ProfilingConfig(En):
         help="Enable Datadog profiling when using ``ddtrace-run``",
     )
 
-    agentless = En.v(
+    agentless = DDConfig.v(
         bool,
         "agentless",
         default=False,
@@ -191,7 +131,7 @@ class ProfilingConfig(En):
         help="",
     )
 
-    code_provenance = En.v(
+    code_provenance = DDConfig.v(
         bool,
         "enable_code_provenance",
         default=True,
@@ -199,7 +139,7 @@ class ProfilingConfig(En):
         help="Whether to enable code provenance",
     )
 
-    endpoint_collection = En.v(
+    endpoint_collection = DDConfig.v(
         bool,
         "endpoint_collection_enabled",
         default=True,
@@ -207,7 +147,7 @@ class ProfilingConfig(En):
         help="Whether to enable the endpoint data collection in profiles",
     )
 
-    output_pprof = En.v(
+    output_pprof = DDConfig.v(
         t.Optional[str],
         "output_pprof",
         default=None,
@@ -215,7 +155,7 @@ class ProfilingConfig(En):
         help="",
     )
 
-    max_events = En.v(
+    max_events = DDConfig.v(
         int,
         "max_events",
         default=16384,
@@ -223,7 +163,7 @@ class ProfilingConfig(En):
         help="",
     )
 
-    upload_interval = En.v(
+    upload_interval = DDConfig.v(
         float,
         "upload_interval",
         default=60.0,
@@ -231,7 +171,7 @@ class ProfilingConfig(En):
         help="The interval in seconds to wait before flushing out recorded events",
     )
 
-    capture_pct = En.v(
+    capture_pct = DDConfig.v(
         float,
         "capture_pct",
         default=1.0,
@@ -241,7 +181,7 @@ class ProfilingConfig(En):
         "greater than 0 lesser or equal to 100",
     )
 
-    max_frames = En.v(
+    max_frames = DDConfig.v(
         int,
         "max_frames",
         default=64,
@@ -249,7 +189,7 @@ class ProfilingConfig(En):
         help="The maximum number of frames to capture in stack execution tracing",
     )
 
-    ignore_profiler = En.v(
+    ignore_profiler = DDConfig.v(
         bool,
         "ignore_profiler",
         default=False,
@@ -257,7 +197,7 @@ class ProfilingConfig(En):
         help="**Deprecated**: whether to ignore the profiler in the generated data",
     )
 
-    max_time_usage_pct = En.v(
+    max_time_usage_pct = DDConfig.v(
         float,
         "max_time_usage_pct",
         default=1.0,
@@ -266,7 +206,7 @@ class ProfilingConfig(En):
         "statistics. Must be greater than 0 and lesser or equal to 100",
     )
 
-    api_timeout = En.v(
+    api_timeout = DDConfig.v(
         float,
         "api_timeout",
         default=10.0,
@@ -274,7 +214,7 @@ class ProfilingConfig(En):
         help="The timeout in seconds before dropping events if the HTTP API does not reply",
     )
 
-    timeline_enabled = En.v(
+    timeline_enabled = DDConfig.v(
         bool,
         "timeline_enabled",
         default=False,
@@ -283,7 +223,7 @@ class ProfilingConfig(En):
         "overhead to the profiler, but enables the use of the Timeline view in the UI.",
     )
 
-    tags = En.v(
+    tags = DDConfig.v(
         dict,
         "tags",
         parser=parse_tags_str,
@@ -292,7 +232,7 @@ class ProfilingConfig(En):
         help="The tags to apply to uploaded profile. Must be a list in the ``key1:value,key2:value2`` format",
     )
 
-    enable_asserts = En.v(
+    enable_asserts = DDConfig.v(
         bool,
         "enable_asserts",
         default=False,
@@ -300,7 +240,7 @@ class ProfilingConfig(En):
         help="Whether to enable debug assertions in the profiler code",
     )
 
-    _force_legacy_exporter = En.v(
+    _force_legacy_exporter = DDConfig.v(
         bool,
         "_force_legacy_exporter",
         default=False,
@@ -309,7 +249,7 @@ class ProfilingConfig(En):
         "not for general use and will be removed in the near future.",
     )
 
-    sample_pool_capacity = En.v(
+    sample_pool_capacity = DDConfig.v(
         int,
         "sample_pool_capacity",
         default=4,
@@ -320,10 +260,10 @@ class ProfilingConfig(En):
     )
 
 
-class ProfilingConfigStack(En):
+class ProfilingConfigStack(DDConfig):
     __item__ = __prefix__ = "stack"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
@@ -331,7 +271,7 @@ class ProfilingConfigStack(En):
         help="Whether to enable the stack profiler",
     )
 
-    _v2_enabled = En.v(
+    _v2_enabled = DDConfig.v(
         bool,
         "v2_enabled",
         default=True,
@@ -340,13 +280,21 @@ class ProfilingConfigStack(En):
     )
 
     # V2 can't be enabled if stack collection is disabled or if pre-requisites are not met
-    v2_enabled = En.d(bool, lambda c: _check_for_stack_v2_available() and c._v2_enabled and c.enabled)
+    v2_enabled = DDConfig.d(bool, lambda c: c._v2_enabled and c.enabled)
+
+    v2_adaptive_sampling = DDConfig.v(
+        bool,
+        "v2.adaptive_sampling.enabled",
+        default=True,
+        help_type="Boolean",
+        private=True,
+    )
 
 
-class ProfilingConfigLock(En):
+class ProfilingConfigLock(DDConfig):
     __item__ = __prefix__ = "lock"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
@@ -354,7 +302,7 @@ class ProfilingConfigLock(En):
         help="Whether to enable the lock profiler",
     )
 
-    name_inspect_dir = En.v(
+    name_inspect_dir = DDConfig.v(
         bool,
         "name_inspect_dir",
         default=True,
@@ -364,10 +312,10 @@ class ProfilingConfigLock(En):
     )
 
 
-class ProfilingConfigMemory(En):
+class ProfilingConfigMemory(DDConfig):
     __item__ = __prefix__ = "memory"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
@@ -375,7 +323,7 @@ class ProfilingConfigMemory(En):
         help="Whether to enable the memory profiler",
     )
 
-    events_buffer = En.v(
+    events_buffer = DDConfig.v(
         int,
         "events_buffer",
         default=16,
@@ -384,10 +332,10 @@ class ProfilingConfigMemory(En):
     )
 
 
-class ProfilingConfigHeap(En):
+class ProfilingConfigHeap(DDConfig):
     __item__ = __prefix__ = "heap"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=True,
@@ -395,20 +343,20 @@ class ProfilingConfigHeap(En):
         help="Whether to enable the heap memory profiler",
     )
 
-    _sample_size = En.v(
+    _sample_size = DDConfig.v(
         t.Optional[int],
         "sample_size",
         default=None,
         help_type="Integer",
         help="",
     )
-    sample_size = En.d(int, _derive_default_heap_sample_size)
+    sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 
 
-class ProfilingConfigPytorch(En):
+class ProfilingConfigPytorch(DDConfig):
     __item__ = __prefix__ = "pytorch"
 
-    enabled = En.v(
+    enabled = DDConfig.v(
         bool,
         "enabled",
         default=False,
@@ -416,24 +364,12 @@ class ProfilingConfigPytorch(En):
         help="Whether to enable the PyTorch profiler",
     )
 
-    events_limit = En.v(
+    events_limit = DDConfig.v(
         int,
         "events_limit",
         default=1_000_000,
         help_type="Integer",
         help="How many events the PyTorch profiler records each collection",
-    )
-
-
-class ProfilingConfigExport(En):
-    __item__ = __prefix__ = "export"
-
-    _libdd_enabled = En.v(
-        bool,
-        "libdd_enabled",
-        default=False,
-        help_type="Boolean",
-        help="Enables collection and export using a native exporter.  Can fallback to the pure-Python exporter.",
     )
 
 
@@ -443,37 +379,32 @@ ProfilingConfig.include(ProfilingConfigLock, namespace="lock")
 ProfilingConfig.include(ProfilingConfigMemory, namespace="memory")
 ProfilingConfig.include(ProfilingConfigHeap, namespace="heap")
 ProfilingConfig.include(ProfilingConfigPytorch, namespace="pytorch")
-ProfilingConfig.include(ProfilingConfigExport, namespace="export")
 
 config = ProfilingConfig()
-_report_telemetry(config)
+report_configuration(config)
 
-# If during processing we discover that the configuration was injected, we need to do a few things
-# - Mark it as such
-# - Force libdd to be enabled, disabling the profiler otherwise the service might crash
-#   (this is done in the _is_libdd_required function)
-config._injected = _check_for_injected()
+ddup_failure_msg, ddup_is_available = _check_for_ddup_available()
 
-# Force the enablement of libdd if the user requested a feature which requires it; otherwise the user has to manage
-# configuration too intentionally and we'll need to change the API too much over time.
-config.export.libdd_enabled = _is_libdd_required(config)
-
-# AFTER checking for libdd enablement, we process the override (_force_legacy_exporter), which will disable libdd.
-# This is done because we currently test in an injected posture, but the new exporter doesn't have the same
-# introspection capabilities as the legacy one.
-if config._force_legacy_exporter:
-    config.export.libdd_enabled = False
-
-# Certain features depend on libdd being available.  If it isn't for some reason, those features cannot be enabled.
-if config.stack.v2_enabled and not config.export.libdd_enabled:
+# We need to check if ddup is available, and turn off profiling if it is not.
+if not ddup_is_available:
     msg = ddup_failure_msg or "libdd not available"
-    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
-    config.stack.v2_enabled = False
+    logger.warning("Failed to load ddup module (%s), disabling profiling", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        "Failed to load ddup module (%s), disabling profiling" % ddup_failure_msg,
+    )
+    config.enabled = False
 
-# Loading stack_v2 can fail for similar reasons
-if config.stack.v2_enabled and not _check_for_stack_v2_available():
+# We also need to check if stack_v2 module is available, and turn if off
+# if it s not.
+stack_v2_failure_msg, stack_v2_is_available = _check_for_stack_v2_available()
+if config.stack.v2_enabled and not stack_v2_is_available:
     msg = stack_v2_failure_msg or "stack_v2 not available"
-    logger.warning("The v2 stack profiler cannot be used (%s)", msg)
+    logger.warning("Failed to load stack_v2 module (%s), falling back to v1 stack sampler", msg)
+    telemetry_writer.add_log(
+        TELEMETRY_LOG_LEVEL.ERROR,
+        "Failed to load stack_v2 module (%s), falling back to v1 stack sampler" % msg,
+    )
     config.stack.v2_enabled = False
 
 # Enrich tags with git metadata and DD_TAGS
@@ -495,10 +426,7 @@ def config_str(config):
         configured_features.append("heap")
     if config.pytorch.enabled:
         configured_features.append("pytorch")
-    if config.export.libdd_enabled:
-        configured_features.append("exp_dd")
-    else:
-        configured_features.append("exp_py")
+    configured_features.append("exp_dd")
     configured_features.append("CAP" + str(config.capture_pct))
     configured_features.append("MAXF" + str(config.max_frames))
     return "_".join(configured_features)

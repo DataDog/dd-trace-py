@@ -1,0 +1,106 @@
+[[
+  {
+    "name": "CrewAI Crew",
+    "service": "tests.contrib.crewai",
+    "resource": "Crew Kickoff",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "67d8778200000000",
+      "language": "python",
+      "runtime-id": "6f72f0178b434bf0b82186dc3ffdf753"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 18510
+    },
+    "duration": 58788000,
+    "start": 1742239618298254000
+  },
+     {
+       "name": "Calculate participants' average ages",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "runtime-id": "6f72f0178b434bf0b82186dc3ffdf753"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 18510
+       },
+       "duration": 49506000,
+       "start": 1742239618300750000
+     },
+        {
+          "name": "Python Data Analyst",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 49198000,
+          "start": 1742239618300978000
+        },
+           {
+             "name": "Average Calculator",
+             "service": "tests.contrib.crewai",
+             "resource": "CrewAI Tool",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 4,
+             "type": "",
+             "error": 0,
+             "metrics": {
+               "_dd.measured": 1
+             },
+             "duration": 59000,
+             "start": 1742239618344852000
+           },
+     {
+       "name": "Recommend fun activities",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Task",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 4611000,
+       "start": 1742239618351625000
+     },
+        {
+          "name": "Tour Guide",
+          "service": "tests.contrib.crewai",
+          "resource": "CrewAI Agent",
+          "trace_id": 0,
+          "span_id": 5,
+          "parent_id": 3,
+          "type": "",
+          "error": 0,
+          "metrics": {
+            "_dd.measured": 1
+          },
+          "duration": 4300000,
+          "start": 1742239618351877000
+        }]]

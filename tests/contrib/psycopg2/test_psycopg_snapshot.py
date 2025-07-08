@@ -49,12 +49,14 @@ def test_connect_traced_via_env(run_python_code_in_subprocess):
     """When explicitly enabled, we trace psycopg2.connect method"""
 
     code = """
+import ddtrace.auto
+
 import psycopg2
 
 import ddtrace
 from tests.contrib.config import POSTGRES_CONFIG
 
-ddtrace.patch_all()
+ddtrace._monkey._patch_all()
 
 conn = psycopg2.connect(**POSTGRES_CONFIG)
 assert conn

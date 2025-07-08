@@ -14,8 +14,6 @@ def test_get_version_from_version_file():
 def test_get_version_from_importlib_metadata():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
         version_str = "importlib.metadata.version"
-        if sys.version_info < (3, 8):
-            version_str = "importlib_metadata.version"
         with mock.patch(version_str, return_value="my_test_version_from_import_lib") as mock_get_version:
             assert get_version() == "my_test_version_from_import_lib"
             mock_get_version.assert_called_with("ddtrace")
@@ -24,8 +22,6 @@ def test_get_version_from_importlib_metadata():
 def test_get_version_dev_fallback():
     with mock.patch.dict(sys.modules, {"ddtrace._version": None}):
         version_str = "importlib.metadata.version"
-        if sys.version_info < (3, 8):
-            version_str = "importlib_metadata.version"
         with mock.patch(version_str, side_effect=ModuleNotFoundError):
             assert get_version() == "dev"
 

@@ -31,26 +31,25 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.5
+      - 3.10.13
     method: POST
     uri: https://api.openai.com/v1/chat/completions
   response:
-    content: "{\n  \"id\": \"chatcmpl-9liZR0tCzCCXOrksGL1CAb7StG7E3\",\n  \"object\":
-      \"chat.completion\",\n  \"created\": 1721159773,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
-      \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-      \"assistant\",\n        \"content\": \"'Who' is used as a subject pronoun, while
-      'whom' is used as an object pronoun. \\n\\nYou use 'who' when referring to the
-      subject of a sentence or clause. For example, \\\"Who is coming to the party?\\\"
-      \\n\\nYou use 'whom' when referring to the object of a verb or preposition.
-      For example, \\\"To whom did you give the gift?\\\"\"\n      },\n      \"logprobs\":
-      null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-      20,\n    \"completion_tokens\": 83,\n    \"total_tokens\": 103\n  },\n  \"system_fingerprint\":
-      null\n}\n"
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFRNi9swEL37Vwy65JKExMnSkstCodtCC6WQEtpmMYo0ttXYGqGPZNNl
+        /3uR8mGn6UIvPujNe29Gb+TnDIApyRbARM29aE0zevdp9SBwVr3P8ffy4xzFtx9ft9vlhy+fa+XZ
+        MDJo8wuFP7PGglrToFekj7CwyD1G1emb+TyfTfJZnoCWJDaRVhk/mo3vRj7YDY0m0/zuxKxJCXRs
+        AT8zAIDn9I09aolPbAGT4fmkRed4hWxxKQJglpp4wrhzynmuj/2eQEHao05tD1Y1DUA5CA4lcAcc
+        XEhDgbGkKegh7GvVIAz2NbXXpRroqnQMa73W3ynEkkQYwL5GDRZLtFbpCjyBr/HiQWU0xNiOQCAL
+        ouHB4RgeyAI+8XidQ1izVU3RWVDbEzHc+sP9mt24tq/ZUs91h3YTHY1FQ07F0G5slwRRDqSScKAA
+        ldphEqpU6e/XrH+pFsvgeAxVh6bpAVxr8jzqpzgfT8jLJcCGKmNp4/6islJp5erCInekY1jOk2EJ
+        fckAHtOihKvsmbHUGl942mKyy097wrrV7MC38xPoyfOmO59OzsCVXCHRc9W43qYxwUWNsqN2a8mD
+        VNQDst7Qt938S/s4uNLV/8h3gBBoPMrCWJRKXE/clVmMq/Ba2eWSU8PMod0pgYVXaGMQEksemtM/
+        wB2cx7Yola7QGqvSw4pBZi/ZHwAAAP//AwDMe2HgVwQAAA==
     headers:
-      CF-Cache-Status:
-      - DYNAMIC
       CF-RAY:
-      - 8a448de4aa9cab54-YYZ
+      - 92dcb989ecd6d6ec-IAD
       Connection:
       - keep-alive
       Content-Encoding:
@@ -58,43 +57,48 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 16 Jul 2024 19:56:14 GMT
+      - Wed, 09 Apr 2025 20:23:53 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=KwG37V1UcSbRB1gIll6K5Vu3DnB7EsqgsAamQg2._yE-1721159774-1.0.1.1-zpk9YeXPkU5qHbvXJaKY1ksowWIgJE.YA.GHOQNQaVrQuJ8c7RuvqIL4ledekuvpErsDn6Us4UwrXGTGqspf1g;
-        path=/; expires=Tue, 16-Jul-24 20:26:14 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=XCOuYTVTmXEuvppgvlWUsEQweqCy_4IjUAcyAdZZPCk-1744230233-1.0.1.1-P2pkYdLlMnbly2rPoM9JGGz8cPZ.25MGXLyWf9D6WWY0okhHgoJsIoiIjVbx5.gdFWGDbi_V.PV2ryNt85pZ_D7pKXjWkeBbZBkInrtaOzg;
+        path=/; expires=Wed, 09-Apr-25 20:53:53 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=anG5qzibBbtbQZgK8gz5qdRuCKkFaoLhuZtKPaHO8XY-1721159774071-0.0.1.1-604800000;
+      - _cfuvid=QftTPR0i.MwhzK3kui6mCILXApfnZ8c7ovIzJjq_ceg-1744230233568-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
       X-Content-Type-Options:
       - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
       openai-organization:
-      - datadog-4
+      - datadog-staging
       openai-processing-ms:
-      - '931'
+      - '863'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15552000; includeSubDomains; preload
+      - max-age=31536000; includeSubDomains; preload
       x-ratelimit-limit-requests:
-      - '15000'
+      - '10000'
       x-ratelimit-limit-tokens:
-      - '2000000'
+      - '50000000'
       x-ratelimit-remaining-requests:
-      - '14999'
+      - '9999'
       x-ratelimit-remaining-tokens:
-      - '1999732'
+      - '49999987'
       x-ratelimit-reset-requests:
-      - 4ms
+      - 6ms
       x-ratelimit-reset-tokens:
-      - 8ms
+      - 0s
       x-request-id:
-      - req_c128e51c8d628a58e747535a80c6560c
-    http_version: HTTP/1.1
-    status_code: 200
+      - req_cff6abc28f737a04a2d1fa6843c3d6b2
+    status:
+      code: 200
+      message: OK
 version: 1

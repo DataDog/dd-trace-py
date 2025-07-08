@@ -10,8 +10,12 @@ except ImportError:
 
 import ddtrace
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.trace import Span
 
 
@@ -47,6 +51,8 @@ def _expected_llmobs_tags(span, error=None, tags=None, session_id=None):
         expected_tags.append("error:0")
     if session_id:
         expected_tags.append("session_id:{}".format(session_id))
+    if span._get_ctx_item(INTEGRATION):
+        expected_tags.append("integration:{}".format(span._get_ctx_item(INTEGRATION)))
     if tags:
         expected_tags.extend(
             "{}:{}".format(k, v) for k, v in tags.items() if k not in ("version", "env", "service", "ml_app")
@@ -71,6 +77,7 @@ def _expected_llmobs_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -86,13 +93,32 @@ def _expected_llmobs_llm_span_event(
     error: error type
     error_message: error message
     error_stack: error stack
+    span_links: whether there are span links present on this span.
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+    )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
+            input_messages = (
+                [
+                    input_message if input_message.get("role") is not None else {**input_message, "role": ""}
+                    for input_message in input_messages
+                ]
+                if isinstance(input_messages, list)
+                else input_messages
+            )
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
+            output_messages = (
+                [
+                    output_message if output_message.get("role") is not None else {**output_message, "role": ""}
+                    for output_message in output_messages
+                ]
+                if isinstance(output_messages, list)
+                else output_messages
+            )
             meta_dict["output"].update({"messages": output_messages})
         if prompt is not None:
             meta_dict["input"].update({"prompt": prompt})
@@ -129,6 +155,7 @@ def _expected_llmobs_non_llm_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     """
     Helper function to create an expected span event of type (workflow, task, tool, retrieval).
@@ -142,8 +169,11 @@ def _expected_llmobs_non_llm_span_event(
     error: error type
     error_message: error message
     error_stack: error stack
+    span_links: whether there are span links present on this span.
     """
-    span_event = _llmobs_base_span_event(span, span_kind, tags, session_id, error, error_message, error_stack)
+    span_event = _llmobs_base_span_event(
+        span, span_kind, tags, session_id, error, error_message, error_stack, span_links
+    )
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "retrieval":
         if input_value is not None:
@@ -175,9 +205,10 @@ def _llmobs_base_span_event(
     error=None,
     error_message=None,
     error_stack=None,
+    span_links=False,
 ):
     span_event = {
-        "trace_id": "{:x}".format(span.trace_id),
+        "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": _get_span_name(span),
@@ -187,7 +218,11 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
-        "_dd": {"span_id": str(span.span_id), "trace_id": "{:x}".format(span.trace_id)},
+        "_dd": {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        },
     }
     if session_id:
         span_event["session_id"] = session_id
@@ -195,10 +230,14 @@ def _llmobs_base_span_event(
         span_event["meta"]["error.type"] = error
         span_event["meta"]["error.message"] = error_message
         span_event["meta"]["error.stack"] = error_stack
+    if span_links:
+        span_event["span_links"] = mock.ANY
     return span_event
 
 
 def _get_llmobs_parent_id(span: Span):
+    if span._get_ctx_item(PARENT_ID_KEY):
+        return span._get_ctx_item(PARENT_ID_KEY)
     if not span._parent:
         return "undefined"
     parent = span._parent
@@ -220,6 +259,7 @@ def _expected_llmobs_eval_metric_event(
     categorical_value=None,
     score_value=None,
     numerical_value=None,
+    boolean_value=None,
     tags=None,
     metadata=None,
 ):
@@ -242,6 +282,8 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if boolean_value is not None:
+        eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
     if timestamp_ms is not None:
@@ -267,7 +309,7 @@ def _completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223236,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "ada",
@@ -298,7 +340,7 @@ def _chat_completion_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -336,7 +378,7 @@ def _chat_completion_event_with_unserializable_field():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -375,7 +417,7 @@ def _large_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -413,7 +455,7 @@ def _oversized_llm_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "llm",
             "model_name": "gpt-3.5-turbo",
@@ -451,7 +493,7 @@ def _oversized_workflow_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "workflow",
             "input": {"value": "A" * 700_000},
@@ -471,7 +513,7 @@ def _oversized_retrieval_event():
         "tags": ["version:", "env:", "service:tests.llmobs", "source:integration"],
         "start_ns": 1707763310981223936,
         "duration": 12345678900,
-        "error": 0,
+        "status": "ok",
         "meta": {
             "span.kind": "retrieval",
             "input": {"documents": {"content": "A" * 700_000}},
@@ -575,7 +617,8 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -593,7 +636,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -621,7 +664,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -639,7 +682,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -657,7 +700,8 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -670,7 +714,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -688,7 +732,8 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -701,7 +746,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -718,7 +763,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -743,7 +788,8 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
+            "span_links": mock.ANY,
         },
         {
             "trace_id": mock.ANY,
@@ -761,7 +807,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -779,7 +825,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -790,3 +836,29 @@ def _expected_span_link(span_event, link_from, link_to):
         "span_id": span_event["span_id"],
         "attributes": {"from": link_from, "to": link_to},
     }
+
+
+class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    __test__ = False
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.events = []
+
+    def enqueue(self, event):
+        self.events.append(event)
+        super().enqueue(event)
+
+
+def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
+    """
+    Assert that a span link exists between two span events, specifically the correct span ID and from/to specification.
+    """
+    found = False
+    expected_to_span_id = "undefined" if not from_span_event else from_span_event["span_id"]
+    for span_link in to_span_event["span_links"]:
+        if span_link["span_id"] == expected_to_span_id:
+            assert span_link["attributes"] == {"from": from_io, "to": to_io}
+            found = True
+            break
+    assert found

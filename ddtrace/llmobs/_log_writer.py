@@ -9,9 +9,9 @@ try:
 except ImportError:
     from typing_extensions import TypedDict
 
+import http.client as httplib
+
 from ddtrace.internal import forksafe
-from ddtrace.internal.compat import get_connection_response
-from ddtrace.internal.compat import httplib
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
 
@@ -103,7 +103,7 @@ class V2LogWriter(PeriodicService):
         conn = httplib.HTTPSConnection(self._intake, 443, timeout=self._timeout)
         try:
             conn.request("POST", self._endpoint, enc_logs, self._headers)
-            resp = get_connection_response(conn)
+            resp = conn.getresponse()
             if resp.status >= 300:
                 logger.error(
                     "failed to send %d logs to %r, got response code %r, status: %r",

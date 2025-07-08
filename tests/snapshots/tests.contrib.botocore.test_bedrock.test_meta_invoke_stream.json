@@ -22,8 +22,6 @@
       "bedrock.response.choices.0.text": "\\n\\nThe phrase \"lorem ipsum\" is a commonly used dummy text in the graphic design and publishing industries. The text is derived ...",
       "bedrock.response.duration": "1686",
       "bedrock.response.id": "4dcc90b7-81b8-4983-b2d3-9989798b0db1",
-      "bedrock.usage.completion_tokens": "60",
-      "bedrock.usage.prompt_tokens": "10",
       "language": "python",
       "runtime-id": "60ce339e546c4812962fb496314b8dab"
     },
@@ -31,6 +29,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+      "bedrock.response.usage.completion_tokens": 60,
+      "bedrock.response.usage.prompt_tokens": 10,
       "process_id": 2664
     },
     "duration": 3795000,

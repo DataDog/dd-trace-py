@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 from typing import Callable
+from typing import Dict
 from typing import Iterable
 
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -7,11 +8,10 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 
 if TYPE_CHECKING:  # pragma: no cover
     from typing import Any  # noqa:F401
-    from typing import Dict  # noqa:F401
     from typing import Mapping  # noqa:F401
     from typing import Optional  # noqa:F401
 
-    from ddtrace.settings import Config  # noqa:F401
+    from ddtrace.settings._config import Config  # noqa:F401
     from ddtrace.trace import Pin  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
@@ -53,6 +53,10 @@ config._add(
 def get_version():
     # type: () -> str
     return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"wsgi": "*"}
 
 
 class _DDWSGIMiddlewareBase(object):
@@ -104,11 +108,12 @@ class _DDWSGIMiddlewareBase(object):
             span_type=SpanTypes.WEB,
             span_name=(self._request_call_name if hasattr(self, "_request_call_name") else self._request_span_name),
             middleware_config=self._config,
-            distributed_headers_config=self._config,
+            integration_config=self._config,
             distributed_headers=environ,
             environ=environ,
             middleware=self,
             span_key="req_span",
+            activate_distributed_headers=True,
         ) as ctx:
             ctx.set_item("wsgi.construct_url", construct_url)
 

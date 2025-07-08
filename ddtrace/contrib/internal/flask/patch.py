@@ -1,4 +1,5 @@
 from inspect import unwrap
+from typing import Dict
 
 import flask
 import werkzeug
@@ -77,6 +78,15 @@ def get_version():
     return get_version_for_package("flask")
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"flask": ">=1.1.4"}
+
+
+def get_werkzeug_version():
+    # type: () -> str
+    return get_version_for_package("werkzeug")
+
+
 if _HAS_JSON_MIXIN:
 
     class RequestWithJson(werkzeug.Request, JSONMixin):
@@ -100,6 +110,9 @@ else:
 #      (0, 8, 5) <= (0, 9)
 flask_version_str = get_version()
 flask_version = parse_version(flask_version_str)
+
+werkzeug_version_str = get_werkzeug_version()
+werkzeug_version = parse_version(werkzeug_version_str)
 
 
 class _FlaskWSGIMiddleware(_DDWSGIMiddlewareBase):
@@ -224,10 +237,16 @@ def patch():
     _w("flask.templating", "_render", patched_render)
     _w("flask", "render_template", _build_render_template_wrapper("render_template"))
     _w("flask", "render_template_string", _build_render_template_wrapper("render_template_string"))
-    try:
-        _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
-    except AttributeError:
-        log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
+    if werkzeug_version >= (2, 1, 0):
+        try:
+            _w("werkzeug.debug.tbtools", "DebugTraceback.render_debugger_html", patched_render_debugger_html)
+        except AttributeError:
+            log.debug("Failed to patch DebugTraceback.render_debugger_html, not supported by this werkzeug version")
+    else:
+        try:
+            _w("werkzeug.debug.tbtools", "Traceback.render_summary", patched_render_debugger_html)
+        except AttributeError:
+            log.debug("Failed to patch Traceback.render_summary, not supported by this werkzeug version")
 
     bp_hooks = [
         "after_app_request",

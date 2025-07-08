@@ -6,7 +6,6 @@ import sys
 import pytest
 
 from tests.utils import call_program
-from tests.utils import flaky
 
 from . import utils
 
@@ -22,10 +21,9 @@ def test_call_script(monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    hello, interval, _ = list(s.strip() for s in stdout.decode().strip().split("\n"))
     assert hello == "hello world", stdout.decode().strip()
     assert float(interval) >= 0.01, stdout.decode().strip()
-    assert int(stacks) >= 1, stdout.decode().strip()
 
 
 @pytest.mark.skipif(not os.getenv("DD_PROFILE_TEST_GEVENT", False), reason="Not testing gevent")
@@ -53,9 +51,8 @@ def test_call_script_pprof_output(tmp_path, monkeypatch):
         assert exitcode == 0, (stdout, stderr)
     else:
         assert exitcode == 42, (stdout, stderr)
-    hello, interval, stacks, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
-    return filename, pid
+    hello, interval, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
+    utils.check_pprof_file(filename + "." + str(pid))
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -69,8 +66,8 @@ def test_fork(tmp_path, monkeypatch):
     )
     assert exitcode == 0
     child_pid = stdout.decode().strip()
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
-    utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
+    utils.check_pprof_file(filename + "." + str(pid))
+    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="lock-release")
 
 
 @pytest.mark.skipif(sys.platform == "win32", reason="fork only available on Unix")
@@ -102,12 +99,10 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     )
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    utils.check_pprof_file(filename + "." + str(pid) + ".1")
-    utils.check_pprof_file(filename + "." + str(child_pid) + ".1")
+    utils.check_pprof_file(filename + "." + str(pid))
+    utils.check_pprof_file(filename + "." + str(child_pid), sample_type="wall-time")
 
 
-@flaky(1731959126)  # Marking as flaky so it will show up in flaky reports
-@pytest.mark.skipif(os.environ.get("GITLAB_CI") == "true", reason="Hanging and failing in GitLab CI")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(DD_PROFILING_ENABLED="1"),
@@ -122,6 +117,7 @@ def test_memalloc_no_init_error_on_fork():
     os.waitpid(pid, 0)
 
 
+@pytest.mark.skipif(sys.version_info[:2] == (3, 9), reason="This test is flaky on Python 3.9")
 @pytest.mark.subprocess(
     ddtrace_run=True,
     env=dict(

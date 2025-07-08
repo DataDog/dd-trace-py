@@ -10,11 +10,11 @@ import pytest
     err=None,
 )
 def test_lock_acquire_events():
+    import asyncio
     import os
     import threading
 
     from ddtrace.profiling import profiler
-    from tests.profiling.collector import _asyncio_compat
     from tests.profiling.collector import pprof_utils
     from tests.profiling.collector.lock_utils import get_lock_linenos
     from tests.profiling.collector.lock_utils import init_linenos
@@ -31,7 +31,7 @@ def test_lock_acquire_events():
     def asyncio_run():
         lock = threading.Lock()  # !CREATE! test_lock_acquire_events_2
         lock.acquire()  # !ACQUIRE! test_lock_acquire_events_2
-        _asyncio_compat.run(_lock())
+        asyncio.run(_lock())
         lock.release()  # !RELEASE! test_lock_acquire_events_2
 
     # start a complete profiler so asyncio policy is setup

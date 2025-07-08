@@ -1,14 +1,17 @@
 import os
+from pathlib import Path
+from pathlib import PosixPath
 
 from ddtrace.trace import tracer
 from tests.webclient import PingFilter
 
 
-tracer._configure(trace_processors=[PingFilter()])
+tracer.configure(trace_processors=[PingFilter()])
 
 ALLOWED_HOSTS = [
     "testserver",
     "localhost",
+    "0.0.0.0",
 ]
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -34,6 +37,7 @@ SECRET_KEY = "not_very_secret_in_tests"
 USE_I18N = True
 USE_L10N = True
 STATIC_URL = "/static/"
+MEDIA_ROOT = os.path.join(Path("nobody/expects/the"), PosixPath("spanish/inquisition"))
 ROOT_URLCONF = "tests.appsec.integrations.django_tests.django_app.urls"
 
 TEMPLATES = [
@@ -65,7 +69,6 @@ MIDDLEWARE = [
 ]
 
 INSTALLED_APPS = [
-    "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

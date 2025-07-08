@@ -6,7 +6,6 @@ from hypothesis import settings
 import hypothesis.strategies as st
 import pytest
 
-from ddtrace.internal.compat import get_connection_response
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.compat import to_unicode
@@ -68,7 +67,7 @@ class TestCompat(object):
                 assert "buffering" not in kwargs
 
         mock = MockConn()
-        get_connection_response(mock)
+        mock.getresponse()
 
 
 class TestPy3Compat(object):

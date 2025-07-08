@@ -1,0 +1,3 @@
+fixes:
+  - |
+    datastreams: This fix resolves an issue where failure to decode the data streams context caused infinite loops in data streams checkpoints.

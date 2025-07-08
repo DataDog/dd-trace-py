@@ -17,6 +17,10 @@ RETRIES_REMAIN = "http.retries_remain"
 VERSION = "http.version"
 CLIENT_IP = "http.client_ip"
 ROUTE = "http.route"
+REFERRER_HOSTNAME = "http.referrer_hostname"
+
+# HTTP headers
+REFERER_HEADER = "referer"
 
 # template render span type
 TEMPLATE = "template"

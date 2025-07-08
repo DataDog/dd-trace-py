@@ -1,7 +1,10 @@
 import os
+import typing as t
 
 from ddtrace.internal.forksafe import has_forked
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.products import manager as product_manager
+from ddtrace.internal.remoteconfig import Payload
 from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisher
 from ddtrace.internal.remoteconfig._pubsub import PubSub
@@ -11,10 +14,12 @@ from ddtrace.internal.runtime import get_ancestor_runtime_id
 from ddtrace.internal.symbol_db.symbols import SymbolDatabaseUploader
 
 
+DI_PRODUCT_KEY = "dynamic-instrumentation"
+
 log = get_logger(__name__)
 
 
-def _rc_callback(data, test_tracer=None):
+def _rc_callback(data: t.List[Payload], test_tracer=None):
     if get_ancestor_runtime_id() is not None and has_forked():
         log.debug("[PID %d] SymDB: Disabling Symbol DB in forked process", os.getpid())
         # We assume that forking is being used for spawning child worker
@@ -28,10 +33,11 @@ def _rc_callback(data, test_tracer=None):
 
         return
 
-    for metadata, config in zip(data["metadata"], data["config"]):
-        if metadata is None:
+    for payload in data:
+        if payload.metadata is None:
             continue
 
+        config = payload.content
         if not isinstance(config, dict):
             continue
 
@@ -43,7 +49,7 @@ def _rc_callback(data, test_tracer=None):
             log.debug("[PID %d] SymDB: Symbol DB RCM enablement signal received", os.getpid())
             if not SymbolDatabaseUploader.is_installed():
                 try:
-                    SymbolDatabaseUploader.install()
+                    SymbolDatabaseUploader.install(shallow=not product_manager.is_enabled(DI_PRODUCT_KEY))
                     log.debug("[PID %d] SymDB: Symbol DB uploader installed", os.getpid())
                 except Exception:
                     log.error("[PID %d] SymDB: Failed to install Symbol DB uploader", os.getpid(), exc_info=True)

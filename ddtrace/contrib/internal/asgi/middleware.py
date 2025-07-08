@@ -7,7 +7,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -164,8 +163,9 @@ class TraceMiddleware:
             resource=resource,
             span_type=SpanTypes.WEB,
             service=trace_utils.int_service(None, self.integration_config),
-            distributed_headers_config=config.asgi,
             distributed_headers=headers,
+            integration_config=config.asgi,
+            activate_distributed_headers=True,
             pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -181,10 +181,6 @@ class TraceMiddleware:
 
             if self.span_modifier:
                 self.span_modifier(span, scope)
-
-            sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
-            if sample_rate is not None:
-                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
 
             host_header = None
             for key, value in _extract_headers(scope).items():
@@ -315,6 +311,14 @@ class TraceMiddleware:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
                 self.handle_exception_span(exc, span)
+                raise
+            except BaseException as exception:
+                # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
+                if exception.__class__.__name__ == "BaseExceptionGroup":
+                    for exc in exception.exceptions:
+                        if isinstance(exc, BlockingException):
+                            set_blocked(exc.args[0])
+                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))

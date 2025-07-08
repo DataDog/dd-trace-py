@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Captures the execution of async functions traced via DD_TRACE_METHODS, not just coroutine creation.
+    This change increases span durations, which may affect latency-based metrics.

@@ -2,8 +2,8 @@ from contextlib import contextmanager
 
 import pytest
 
-from ddtrace.internal.agent import get_trace_url
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.dynamic_instrumentation import DynamicInstrumentationConfig
 from ddtrace.version import get_version
 from tests.utils import override_env
@@ -12,7 +12,7 @@ from tests.utils import override_env
 @contextmanager
 def debugger_config(**kwargs):
     with override_env(kwargs, replace_os_env=True):
-        from ddtrace.settings import Config
+        from ddtrace.settings._config import Config
         import ddtrace.settings.dynamic_instrumentation
 
         old_config = ddtrace.settings.dynamic_instrumentation.ddconfig
@@ -44,7 +44,7 @@ def test_tags():
 
 
 def test_snapshot_intake_url():
-    assert DynamicInstrumentationConfig()._intake_url == get_trace_url()
+    assert DynamicInstrumentationConfig()._intake_url == agent_config.trace_agent_url
 
 
 def test_service_name():
@@ -74,3 +74,8 @@ def test_redacted_types_matching():
     with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="Secret*") as config:
         assert config.redacted_types_re.search("Secret")
         assert not config.redacted_types_re.search("NotSecret")
+
+
+def test_redaction_excluded_identifiers():
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS="foo , bar") as config:
+        assert config.redaction_excluded_identifiers == frozenset(["foo", "bar"])

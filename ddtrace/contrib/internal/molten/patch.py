@@ -1,4 +1,6 @@
 import os
+from typing import Dict
+from urllib.parse import urlencode
 
 import molten
 import wrapt
@@ -9,7 +11,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import urlencode
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -40,6 +41,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(molten, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"molten": ">=1.0"}
 
 
 def patch():
@@ -94,9 +99,9 @@ def patch_app_call(wrapped, instance, args, kwargs):
         tags={},
         tracer=pin.tracer,
         distributed_headers=dict(request.headers),  # request.headers is type Iterable[Tuple[str, str]]
-        distributed_headers_config=config.molten,
+        integration_config=config.molten,
+        activate_distributed_headers=True,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))

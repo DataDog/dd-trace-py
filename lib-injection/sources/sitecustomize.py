@@ -25,7 +25,14 @@ def parse_version(version):
         constraint_idx = constraint_match.start()
         numeric = version[constraint_idx:]
         constraint = version[:constraint_idx]
-        parsed_version = tuple(int(re.sub("[^0-9]", "", p)) for p in numeric.split("."))
+
+        version_parts = []
+        for part in numeric.split("."):
+            match = re.match(r"(\d+)", part)
+            if match:
+                version_parts.append(int(match.group(1)))
+
+        parsed_version = tuple(version_parts)
         return Version(parsed_version, constraint)
     except Exception:
         return Version((0, 0), "")
@@ -48,13 +55,18 @@ INSTALLED_PACKAGES = {}
 DDTRACE_VERSION = "unknown"
 PYTHON_VERSION = "unknown"
 PYTHON_RUNTIME = "unknown"
-PKGS_ALLOW_LIST = {}
+DDTRACE_REQUIREMENTS = {}
+RESULT = "unknown"
+RESULT_REASON = "unknown"
+RESULT_CLASS = "unknown"
 EXECUTABLES_DENY_LIST = set()
-VERSION_COMPAT_FILE_LOCATIONS = (
-    os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/min_compatible_versions.csv")),
-    os.path.abspath(os.path.join(SCRIPT_DIR, "min_compatible_versions.csv")),
+REQUIREMENTS_FILE_LOCATIONS = (
+    os.path.abspath(os.path.join(SCRIPT_DIR, "../datadog-lib/requirements.csv")),
+    os.path.abspath(os.path.join(SCRIPT_DIR, "requirements.csv")),
 )
 EXECUTABLE_DENY_LOCATION = os.path.abspath(os.path.join(SCRIPT_DIR, "denied_executables.txt"))
+SITE_PKGS_MARKER = "site-packages-ddtrace-py"
+BOOTSTRAP_MARKER = "bootstrap"
 
 
 def get_oci_ddtrace_version():
@@ -69,43 +81,53 @@ def get_oci_ddtrace_version():
 
 def build_installed_pkgs():
     installed_packages = {}
-    if sys.version_info >= (3, 8):
-        try:
-            from importlib import metadata as importlib_metadata
+    try:
+        from importlib import metadata as importlib_metadata
 
-            installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-        except Exception as e:
-            _log("Failed to build installed packages list: %s" % e, level="debug")
-    else:
-        try:
-            import pkg_resources
-
-            installed_packages = {pkg.key: pkg.version for pkg in pkg_resources.working_set}
-        except Exception:
-            try:
-                import importlib_metadata
-
-                installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
-            except Exception as e:
-                _log("Failed to build installed packages list: %s" % e, level="debug")
+        installed_packages = {pkg.metadata["Name"]: pkg.version for pkg in importlib_metadata.distributions()}
+    except Exception as e:
+        _log("Failed to build installed packages list: %s" % e, level="debug")
     return {key.lower(): value for key, value in installed_packages.items()}
 
 
-def build_min_pkgs():
-    min_pkgs = dict()
+def python_version_is_compatible(marker_str, current_python_version_str):
+    if not marker_str:
+        return True
+    # e.g. python_version>='3.13.0'
+    m = re.match(r"python_version\\s*([<>=!~]+)\\s*'([^']*)'", marker_str)
+    if not m:
+        # Unsupported marker, assume it's compatible
+        return True
+
+    op, ver_str = m.groups()
+    required_spec = Version(version=parse_version(ver_str).version, constraint=op)
+    return requirement_is_compatible(required_spec, current_python_version_str)
+
+
+def requirement_is_compatible(required_spec, installed_version_str):
+    installed_version = parse_version(installed_version_str)
+    constraint = required_spec.constraint
+    if constraint in ("<", "<="):
+        return True  # minimum "less than" means there is no minimum
+    return installed_version.version >= required_spec.version
+
+
+def build_requirements(current_python_version_str):
+    requirements = dict()
     try:
-        for location in VERSION_COMPAT_FILE_LOCATIONS:
+        for location in REQUIREMENTS_FILE_LOCATIONS:
             if os.path.exists(location):
                 with open(location, "r") as csvfile:
                     csv_reader = csv.reader(csvfile, delimiter=",")
-                    for idx, row in enumerate(csv_reader):
-                        if idx < 2:
-                            continue
-                        min_pkgs[row[0].lower()] = parse_version(row[1])
+                    next(csv_reader)  # Skip header
+                    for row in csv_reader:
+                        dep, version_spec, python_version_marker = row
+                        if python_version_is_compatible(python_version_marker, current_python_version_str):
+                            requirements[dep.lower()] = parse_version(version_spec)
                 break
     except Exception as e:
-        _log("Failed to build min-pkgs list: %s" % e, level="debug")
-    return min_pkgs
+        _log("Failed to build requirements list: %s" % e, level="debug")
+    return requirements
 
 
 def build_denied_executables():
@@ -143,12 +165,15 @@ def gen_telemetry_payload(telemetry_events, ddtrace_version):
             "runtime_version": PYTHON_VERSION,
             "tracer_version": ddtrace_version,
             "pid": os.getpid(),
+            "result": RESULT,
+            "result_reason": RESULT_REASON,
+            "result_class": RESULT_CLASS,
         },
         "points": telemetry_events,
     }
 
 
-def send_telemetry(event):
+def _send_telemetry(event):
     event_json = json.dumps(event)
     _log("maybe sending telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
     if not FORWARDER_EXECUTABLE or not TELEMETRY_ENABLED:
@@ -161,15 +186,38 @@ def send_telemetry(event):
         stderr=subprocess.PIPE,
         universal_newlines=True,
     )
-    if p.stdin:
-        p.stdin.write(event_json)
-        p.stdin.close()
-        _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
-    else:
-        _log(
-            "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
-            level="error",
-        )
+    # Mimic Popen.__exit__ which was added in Python 3.3
+    try:
+        if p.stdin:
+            p.stdin.write(event_json)
+            _log("wrote telemetry to %s" % FORWARDER_EXECUTABLE, level="debug")
+        else:
+            _log(
+                "failed to write telemetry to %s, could not write to telemetry writer stdin" % FORWARDER_EXECUTABLE,
+                level="error",
+            )
+    finally:
+        if p.stdin:
+            p.stdin.close()
+        if p.stderr:
+            p.stderr.close()
+        if p.stdout:
+            p.stdout.close()
+
+        # backwards compatible `p.wait(1)`
+        start = time.time()
+        while p.poll() is None:
+            if time.time() - start > 1:
+                p.kill()
+                break
+            time.sleep(0.05)
+
+
+def send_telemetry(event):
+    try:
+        _send_telemetry(event)
+    except Exception as e:
+        _log("Failed to send telemetry: %s" % e, level="error")
 
 
 def _get_clib():
@@ -208,14 +256,6 @@ def runtime_version_is_supported(python_runtime, python_version):
     )
 
 
-def package_is_compatible(package_name, package_version):
-    installed_version = parse_version(package_version)
-    supported_version_spec = PKGS_ALLOW_LIST.get(package_name.lower(), Version((0,), ""))
-    if supported_version_spec.constraint in ("<", "<="):
-        return True  # minimum "less than" means there is no minimum
-    return installed_version.version >= supported_version_spec.version
-
-
 def get_first_incompatible_sysarg():
     # bug: sys.argv is not always available in all python versions
     # https://bugs.python.org/issue32573
@@ -238,19 +278,21 @@ def _inject():
     global INSTALLED_PACKAGES
     global PYTHON_VERSION
     global PYTHON_RUNTIME
-    global PKGS_ALLOW_LIST
+    global DDTRACE_REQUIREMENTS
     global EXECUTABLES_DENY_LIST
     global TELEMETRY_DATA
+    global RESULT
+    global RESULT_REASON
+    global RESULT_CLASS
     # Try to get the version of the Python runtime first so we have it for telemetry
     PYTHON_VERSION = platform.python_version()
     PYTHON_RUNTIME = platform.python_implementation().lower()
     DDTRACE_VERSION = get_oci_ddtrace_version()
     INSTALLED_PACKAGES = build_installed_pkgs()
-    PKGS_ALLOW_LIST = build_min_pkgs()
+    DDTRACE_REQUIREMENTS = build_requirements(PYTHON_VERSION)
     EXECUTABLES_DENY_LIST = build_denied_executables()
     integration_incomp = False
     runtime_incomp = False
-    os.environ["_DD_INJECT_WAS_ATTEMPTED"] = "true"
     spec = None
     try:
         # `find_spec` is only available in Python 3.4+
@@ -264,6 +306,9 @@ def _inject():
         if not spec:
             raise ModuleNotFoundError("ddtrace")
     except Exception:
+        # enable safe instrumentation for ddtrace which won't patch incompatible integrations
+        os.environ["DD_TRACE_SAFE_INSTRUMENTATION_ENABLED"] = "true"
+
         _log("user-installed ddtrace not found, configuring application to use injection site-packages")
 
         current_platform = "manylinux2014" if _get_clib() == "gnu" else "musllinux_1_2"
@@ -285,6 +330,9 @@ def _inject():
                         "library_entrypoint.abort.integration",
                     )
                 )
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible executable: %s." % incompatible_sysarg
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported executables and continuing.",
@@ -294,30 +342,33 @@ def _inject():
         # check installed packages against allow list
         incompatible_packages = {}
         for package_name, package_version in INSTALLED_PACKAGES.items():
-            if not package_is_compatible(package_name, package_version):
+            supported_version_spec = DDTRACE_REQUIREMENTS.get(package_name.lower(), Version((0,), ""))
+            if not requirement_is_compatible(supported_version_spec, package_version):
                 incompatible_packages[package_name] = package_version
 
         if incompatible_packages:
-            _log("Found incompatible packages: %s." % incompatible_packages, level="debug")
-            integration_incomp = True
+            _log("Found incompatible ddtrace dependencies: %s." % incompatible_packages, level="debug")
             if not FORCE_INJECT:
-                _log("Aborting dd-trace-py instrumentation.", level="debug")
+                _log("Aborting dd-trace-py installation.", level="debug")
                 abort = True
 
                 for key, value in incompatible_packages.items():
                     TELEMETRY_DATA.append(
                         create_count_metric(
-                            "library_entrypoint.abort.integration",
+                            "library_entrypoint.abort",
                             [
-                                "integration:" + key,
-                                "integration_version:" + value,
+                                "dependency:" + key,
+                                "reason:" + value,
                             ],
                         )
                     )
 
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible packages: %s." % incompatible_packages
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
-                    "DD_INJECT_FORCE set to True, allowing unsupported integrations and continuing.",
+                    "DD_INJECT_FORCE set to True, allowing unsupported dependencies and continuing.",
                     level="debug",
                 )
         if not runtime_version_is_supported(PYTHON_RUNTIME, PYTHON_VERSION):
@@ -332,6 +383,13 @@ def _inject():
                 abort = True
 
                 TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
+                RESULT = "abort"
+                RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (
+                    PYTHON_RUNTIME,
+                    PYTHON_VERSION,
+                    RUNTIMES_ALLOW_LIST,
+                )
+                RESULT_CLASS = "incompatible_runtime"
             else:
                 _log(
                     "DD_INJECT_FORCE set to True, allowing unsupported runtimes and continuing.",
@@ -349,7 +407,7 @@ def _inject():
             return
 
         site_pkgs_path = os.path.join(
-            pkgs_path, "site-packages-ddtrace-py%s-%s" % (".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
+            pkgs_path, "%s%s-%s" % (SITE_PKGS_MARKER, ".".join(PYTHON_VERSION.split(".")[:2]), current_platform)
         )
         _log("site-packages path is %r" % site_pkgs_path, level="debug")
         if not os.path.exists(site_pkgs_path):
@@ -357,22 +415,30 @@ def _inject():
             TELEMETRY_DATA.append(
                 create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
             )
+            RESULT = "error"
+            RESULT_REASON = "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
+            RESULT_CLASS = "incorrect_installation"
             return
 
         # Add the custom site-packages directory to the Python path to load the ddtrace package.
         sys.path.insert(-1, site_pkgs_path)
         _log("sys.path %s" % sys.path, level="debug")
+        # Used to track whether the ddtrace package was successfully injected. Must be set before importing ddtrace
+        os.environ["_DD_PY_SSI_INJECT"] = "1"
         try:
             import ddtrace  # noqa: F401
 
         except BaseException as e:
+            os.environ["_DD_PY_SSI_INJECT"] = "0"
             _log("failed to load ddtrace module: %s" % e, level="error")
             TELEMETRY_DATA.append(
                 create_count_metric(
                     "library_entrypoint.error", ["error_type:import_ddtrace_" + type(e).__name__.lower()]
                 ),
             )
-
+            RESULT = "error"
+            RESULT_REASON = "Failed to load ddtrace module: %s" % e
+            RESULT_CLASS = "internal_error"
             return
         else:
             try:
@@ -381,20 +447,29 @@ def _inject():
                 # sitecustomize is preserved.
                 if SCRIPT_DIR in sys.path:
                     sys.path.remove(SCRIPT_DIR)
-                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), "bootstrap")
+                bootstrap_dir = os.path.join(os.path.abspath(os.path.dirname(ddtrace.__file__)), BOOTSTRAP_MARKER)
                 if bootstrap_dir not in sys.path:
                     sys.path.insert(0, bootstrap_dir)
 
                 import ddtrace.bootstrap.sitecustomize
 
+                path_segments_indicating_removal = [
+                    SCRIPT_DIR,
+                    SITE_PKGS_MARKER,
+                    os.path.join("ddtrace", BOOTSTRAP_MARKER),
+                ]
+
                 # Modify the PYTHONPATH for any subprocesses that might be spawned:
+                #   - Remove any preexisting entries related to ddtrace to ensure initial state is clean
                 #   - Remove the PYTHONPATH entry used to bootstrap this installation as it's no longer necessary
                 #     now that the package is installed.
                 #   - Add the custom site-packages directory to PYTHONPATH to ensure the ddtrace package can be loaded
                 #   - Add the ddtrace bootstrap dir to the PYTHONPATH to achieve the same effect as ddtrace-run.
-                python_path = os.getenv("PYTHONPATH", "").split(os.pathsep)
-                if SCRIPT_DIR in python_path:
-                    python_path.remove(SCRIPT_DIR)
+                python_path = [
+                    entry
+                    for entry in os.getenv("PYTHONPATH", "").split(os.pathsep)
+                    if not any(path in entry for path in path_segments_indicating_removal)
+                ]
                 python_path.insert(-1, site_pkgs_path)
                 python_path.insert(0, bootstrap_dir)
                 python_path = os.pathsep.join(python_path)
@@ -409,12 +484,18 @@ def _inject():
                         ],
                     ),
                 )
+                RESULT = "success"
+                RESULT_REASON = "Successfully configured ddtrace package"
+                RESULT_CLASS = "success" if not (runtime_incomp or integration_incomp) else "success_forced"
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
                         "library_entrypoint.error", ["error_type:init_ddtrace_" + type(e).__name__.lower()]
                     ),
                 )
+                RESULT = "error"
+                RESULT_REASON = "Failed to load ddtrace.bootstrap.sitecustomize: %s" % e
+                RESULT_CLASS = "internal_error"
                 _log("failed to load ddtrace.bootstrap.sitecustomize: %s" % e, level="error")
                 return
     else:
@@ -428,6 +509,9 @@ def _inject():
                 ],
             )
         )
+        RESULT = "abort"
+        RESULT_REASON = "User-installed ddtrace found: %s, aborting site-packages injection" % module_origin
+        RESULT_CLASS = "already_instrumented"
 
 
 try:

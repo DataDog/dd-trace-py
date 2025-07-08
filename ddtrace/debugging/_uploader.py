@@ -9,7 +9,6 @@ from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
-from ddtrace.internal import compat
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
@@ -46,7 +45,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     RETRY_ATTEMPTS = 3
 
     def __init__(self, interval: Optional[float] = None) -> None:
-        super().__init__(interval if interval is not None else di_config.upload_flush_interval)
+        super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
         self._queue = self.__queue__(encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full)
         self._collector = self.__collector__(self._queue)
@@ -81,7 +80,7 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
                     payload,
                     headers=self._headers,
                 )
-                resp = compat.get_connection_response(conn)
+                resp = conn.getresponse()
                 if not (200 <= resp.status < 300):
                     log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})

@@ -1,10 +1,10 @@
-from envier import En
+from ddtrace.settings._core import DDConfig
 
 
-class CodeOriginConfig(En):
+class CodeOriginConfig(DDConfig):
     __prefix__ = "dd.code_origin"
 
-    max_user_frames = En.v(
+    max_user_frames = DDConfig.v(
         int,
         "max_user_frames",
         default=8,
@@ -13,11 +13,11 @@ class CodeOriginConfig(En):
         private=True,
     )
 
-    class SpanCodeOriginConfig(En):
+    class SpanCodeOriginConfig(DDConfig):
         __prefix__ = "for_spans"
         __item__ = "span"
 
-        enabled = En.v(
+        enabled = DDConfig.v(
             bool,
             "enabled",
             default=False,

@@ -52,6 +52,10 @@ def get_version():
 _STARLETTE_VERSION = parse_version(get_version())
 
 
+def _supported_versions() -> Dict[str, str]:
+    return {"starlette": ">=0.14.0"}
+
+
 def traced_init(wrapped, instance, args, kwargs):
     mw = kwargs.pop("middleware", [])
     mw.insert(0, Middleware(TraceMiddleware, integration_config=config.starlette))
@@ -169,9 +173,9 @@ def traced_handler(wrapped, instance, args, kwargs):
 
     if request_spans:
         if asm_config._iast_enabled:
-            from ddtrace.appsec._iast._patch import _iast_instrument_starlette_scope
+            from ddtrace.appsec._iast._handlers import _iast_instrument_starlette_scope
 
-            _iast_instrument_starlette_scope(scope)
+            _iast_instrument_starlette_scope(scope, request_spans[0].get_tag(http.ROUTE))
 
         trace_utils.set_http_meta(
             request_spans[0],

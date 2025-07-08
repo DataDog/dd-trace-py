@@ -1,0 +1,4 @@
+---
+upgrade:
+  - |
+    profiling: This upgrades echion which includes performance improvements.

@@ -178,7 +178,7 @@ def test_poller_remove_probe():
         }
 
         adapter.append_and_publish(
-            False,
+            None,
             "",
             config_metadata("probe1"),
         )
@@ -252,7 +252,7 @@ def test_poller_remove_multiple_probe():
         }
 
         adapter.append_and_publish(
-            False,
+            None,
             "",
             config_metadata("probe2"),
         )
@@ -330,11 +330,13 @@ def test_poller_events(remote_config_worker, mock_config):
                 ),
             ]
         )
+        metadata.sha256_hash = "hash3"
         adapter.append_and_publish({"test": 3}, "", metadata)
         remoteconfig_poller._poll_data()
 
         adapter._subscriber._send_status_update()
 
+        metadata.sha256_hash = "hash4"
         adapter.append_and_publish({"test": 4}, "", metadata)
         remoteconfig_poller._poll_data()
 
@@ -589,11 +591,13 @@ def test_modified_probe_events(remote_config_worker, mock_config):
                 )
             ]
         )
+        metadata.sha256_hash = "hash6"
         adapter.append_and_publish({"test": 6}, "", metadata)
         remoteconfig_poller._poll_data()
 
         adapter._subscriber._send_status_update()
 
+        metadata.sha256_hash = "hash7"
         adapter.append_and_publish({"test": 7}, "", metadata)
         remoteconfig_poller._poll_data()
 

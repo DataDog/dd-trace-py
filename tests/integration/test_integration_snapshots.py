@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import multiprocessing
 import os
 
 import mock
@@ -7,8 +6,6 @@ import pytest
 
 from ddtrace.trace import tracer
 from tests.integration.utils import AGENT_VERSION
-from tests.integration.utils import mark_snapshot
-from tests.integration.utils import parametrize_with_all_encodings
 from tests.utils import override_global_config
 from tests.utils import snapshot
 
@@ -54,29 +51,13 @@ def test_multiple_traces(tracer):
 
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess(
-    parametrize={"DD_WRITER_MODE": ["default", "sync"]},
     token="tests.integration.test_integration_snapshots.test_filters",
 )
 def test_filters():
-    import os
-
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.trace import TraceFilter
     from ddtrace.trace import tracer
 
-    writer = os.environ.get("DD_WRITER_MODE", "default")
-
-    if writer == "sync":
-        writer = AgentWriter(
-            tracer.agent_trace_url,
-            sync_mode=True,
-        )
-        # Need to copy the headers which contain the test token to associate
-        # traces with this test case.
-        writer._headers = tracer._writer._headers
-    else:
-        writer = tracer._writer
-
-    class FilterMutate(object):
+    class FilterMutate(TraceFilter):
         def __init__(self, key, value):
             self.key = key
             self.value = value
@@ -86,7 +67,7 @@ def test_filters():
                 s.set_tag(self.key, self.value)
             return trace
 
-    tracer._configure(trace_processors=[FilterMutate("boop", "beep")], writer=writer)
+    tracer.configure(trace_processors=[FilterMutate("boop", "beep")])
 
     with tracer.trace("root"):
         with tracer.trace("child"):
@@ -103,8 +84,9 @@ def test_synchronous_writer():
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer
 
-    writer = AgentWriter(tracer._writer.agent_url, sync_mode=True)
-    tracer._configure(writer=writer)
+    writer = AgentWriter(tracer._span_aggregator.writer.agent_url, sync_mode=True)
+    tracer._span_aggregator.writer = writer
+    tracer._recreate()
     with tracer.trace("operation1", service="my-svc"):
         with tracer.trace("child1"):
             pass
@@ -115,15 +97,19 @@ def test_synchronous_writer():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_popen():
     """
     When a trace is started in a parent process and a child process is spawned
-        The trace should be continued in the child process. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child process.
     """
+    import multiprocessing
+
+    from ddtrace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         with tracer.trace("child"):
             pass
         tracer.flush()
@@ -137,16 +123,22 @@ def test_tracer_trace_across_popen():
 
 
 @snapshot(async_mode=False)
+@pytest.mark.subprocess(ddtrace_run=True)
 def test_tracer_trace_across_multiple_popens():
     """
     When a trace is started and crosses multiple process boundaries
-        The trace should be continued in the child processes. The fact that
-        the child span has does not have '_dd.p.dm' shows that sampling was run
-        before fork automatically.
+        The trace should be continued in the child processes.
     """
+    import multiprocessing
+
+    from ddtrace.trace import tracer
 
     def task(tracer):
+        import ddtrace.auto  # noqa
+
         def task2(tracer):
+            import ddtrace.auto  # noqa
+
             with tracer.trace("child2"):
                 pass
             tracer.flush()
@@ -259,6 +251,8 @@ def test_env_vars(use_ddtracerun, ddtrace_run_python_code_in_subprocess, run_pyt
 
     fn(
         """
+import ddtrace.auto
+
 from ddtrace.trace import tracer
 tracer.trace("test-op").finish()
 """,
@@ -273,14 +267,50 @@ def test_snapshot_skip():
         pass
 
 
-@parametrize_with_all_encodings
-@mark_snapshot
-def test_setting_span_tags_and_metrics_generates_no_error_logs():
-    import ddtrace
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_setting_span_tags_and_metrics_generates_no_error_logs(encoding):
+    from ddtrace import tracer
 
-    s = ddtrace.tracer.trace("operation", service="my-svc")
-    s.set_tag("env", "my-env")
-    s.set_metric("number1", 123)
-    s.set_metric("number2", 12.0)
-    s.set_metric("number3", "1")
-    s.finish()
+    with override_global_config(dict(_trace_api=encoding)):
+        s = tracer.trace("operation", service="my-svc")
+        s.set_tag("env", "my-env")
+        s.set_metric("number1", 123)
+        s.set_metric("number2", 12.0)
+        s.set_metric("number3", "1")
+        s.finish()
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_string_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="a" * 25000, resource="b" * 25001) as span:
+            span.set_tag(key="c" * 25001, value="d" * 2000)
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_bytes_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        name = b"a" * 25000
+        resource = b"b" * 25001
+        key = b"c" * 25001
+        value = b"d" * 2000
+
+        with tracer.trace(name=name, resource=resource) as span:
+            span.set_tag(key=key, value=value)
+
+
+@pytest.mark.parametrize("encoding", ["v0.4", "v0.5"])
+@pytest.mark.snapshot()
+def test_encode_span_with_large_unicode_string_attributes(encoding):
+    from ddtrace import tracer
+
+    with override_global_config(dict(_trace_api=encoding)):
+        with tracer.trace(name="á" * 25000, resource="â" * 25001) as span:
+            span.set_tag(key="å" * 25001, value="ä" * 2000)

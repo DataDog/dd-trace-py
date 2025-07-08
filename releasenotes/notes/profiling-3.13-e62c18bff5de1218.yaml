@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    profiling: Stack v2 supports CPython 3.13.
+

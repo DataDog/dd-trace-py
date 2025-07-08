@@ -1,0 +1,36 @@
+[[
+  {
+    "name": "trace1",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "trace1",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "language": "python",
+      "runtime-id": "d5f3e666fe79454c90ec7063f44787b5"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 19794
+    },
+    "duration": 86588,
+    "start": 1691163616713154842
+  },
+     {
+       "name": "child",
+       "service": "ddtrace_subprocess_dir",
+       "resource": "child",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 10853,
+       "start": 1691163616713219858
+     }]]

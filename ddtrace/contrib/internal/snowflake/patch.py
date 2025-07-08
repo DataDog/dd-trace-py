@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import wrapt
 
@@ -37,6 +38,10 @@ def get_version():
 
         c = sys.modules.get("snowflake.connector")
     return str(c.__version__)
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"snowflake": ">=2.3.0"}
 
 
 class _SFTracedCursor(TracedCursor):

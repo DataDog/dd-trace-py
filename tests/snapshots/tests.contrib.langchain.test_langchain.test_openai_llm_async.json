@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4500000000",
+      "_dd.p.tid": "67ab7d7c00000000",
       "langchain.request.api_key": "...key>",
       "langchain.request.model": "gpt-3.5-turbo-instruct",
       "langchain.request.openai.parameters.frequency_penalty": "0",
@@ -23,22 +23,22 @@
       "langchain.request.prompts.0": "Which team won the 2019 NBA finals?",
       "langchain.request.provider": "openai",
       "langchain.request.type": "llm",
-      "langchain.response.completions.0.finish_reason": "stop",
+      "langchain.response.completions.0.finish_reason": "length",
       "langchain.response.completions.0.logprobs": "None",
-      "langchain.response.completions.0.text": "\\n\\nThe Toronto Raptors won the 2019 NBA Finals.",
+      "langchain.response.completions.0.text": "I am a helpful assistant.",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "d9e83d73ceb446099ab4e686d5a73290"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 12,
-      "langchain.tokens.prompt_tokens": 10,
-      "langchain.tokens.total_tokens": 22,
-      "process_id": 82010
+      "langchain.tokens.completion_tokens": 5,
+      "langchain.tokens.prompt_tokens": 5,
+      "langchain.tokens.total_tokens": 10,
+      "process_id": 42486
     },
-    "duration": 3471000,
-    "start": 1738263109367504000
+    "duration": 3658000,
+    "start": 1739292028277942000
   }]]

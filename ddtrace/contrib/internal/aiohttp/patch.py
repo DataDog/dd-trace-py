@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import aiohttp
 import wrapt
@@ -19,10 +20,10 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.settings._core import get_config as _get_config
 from ddtrace.trace import Pin
 
 
@@ -53,6 +54,10 @@ config._add(
 def get_version():
     # type: () -> str
     return aiohttp.__version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aiohttp": ">=3.7"}
 
 
 class _WrappedConnectorClass(wrapt.ObjectProxy):

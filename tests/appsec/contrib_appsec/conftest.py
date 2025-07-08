@@ -12,6 +12,12 @@ from tests.utils import TracerSpanContainer  # noqa: E402
 from tests.utils import _build_tree  # noqa: E402
 
 
+@pytest.fixture(scope="function", autouse=True)
+def _dj_autoclear_mailbox() -> None:
+    # Override the `_dj_autoclear_mailbox` test fixture in `pytest_django`.
+    pass
+
+
 @pytest.fixture
 def test_spans(interface, check_waf_timeout):
     container = TracerSpanContainer(interface.tracer)

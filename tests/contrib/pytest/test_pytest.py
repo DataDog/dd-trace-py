@@ -218,6 +218,41 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
 
+    def test_pytest_addopts_env_var(self):
+        """Test enabling ddtrace via the PYTEST_ADDOPTS environment variable."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_trace(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name, extra_env={"PYTEST_ADDOPTS": "--ddtrace"})
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
+    def test_pytest_addopts_ini(self):
+        """Test enabling ddtrace via the `addopts` option in the ini file."""
+        self.testdir.makefile(".ini", pytest="[pytest]\naddopts = --ddtrace\n")
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_ini(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
     def test_pytest_command(self):
         """Test that the pytest run command is stored on a test span."""
         py_file = self.testdir.makepyfile(
@@ -952,6 +987,25 @@ class PytestTestCase(PytestTestCaseBase):
         test_spans = [span for span in spans if span.get_tag("type") == "test"]
         assert json.loads(test_spans[0].get_tag(test.CODEOWNERS)) == ["@default-team"], test_spans[0]
         assert json.loads(test_spans[1].get_tag(test.CODEOWNERS)) == ["@team-b", "@backup-b"], test_spans[1]
+
+    def test_pytest_will_report_codeowners_when_called_from_subdirectory(self):
+        self.testdir.mkdir(".github")
+        self.testdir.makefile("", **{".github/CODEOWNERS": "* @default-team"})
+
+        subdir = self.testdir.mkdir("subdir")
+        test_file_content = """
+        import pytest
+
+        def test_foo():
+            assert 1 == 1
+        """
+        self.testdir.makepyfile(**{"subdir/test_foo": test_file_content})
+
+        subdir.chdir()
+        self.inline_run("--ddtrace", "test_foo.py")
+        spans = self.pop_spans()
+        [test_span] = [span for span in spans if span.get_tag("type") == "test"]
+        assert json.loads(test_span.get_tag(test.CODEOWNERS)) == ["@default-team"]
 
     def test_pytest_session(self):
         """Test that running pytest will generate a test session span."""
@@ -4107,3 +4161,22 @@ class PytestTestCase(PytestTestCaseBase):
             assert test_module_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_suite_span.get_metric("test.code_coverage.lines_pct") is None
             assert test_span.get_metric("test.code_coverage.lines_pct") is None
+
+    def test_pytest_disables_telemetry_dependency_collection(self):
+        """Test that telemetry dependency collection is disabled during pytest sessions."""
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+
+            def test_dependency_collection_disabled():
+                # Check that the config is set to disable telemetry dependency collection
+                # The pytest plugin should have done this earlier in the process
+                from ddtrace.settings._telemetry import config as telemetry_config
+                assert telemetry_config.DEPENDENCY_COLLECTION is False, "Dependency collection should be disabled"
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+        assert result.ret == 0

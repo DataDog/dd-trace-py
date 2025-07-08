@@ -1,7 +1,7 @@
 import logging
 import os
 
-from ddtrace.internal import agent
+from ddtrace.settings._agent import config as agent_config
 
 
 LOG = logging.getLogger(__name__)
@@ -16,7 +16,7 @@ def _get_endpoint(tracer, agentless=False) -> str:
         endpoint = "https://intake.profile.{}".format(os.environ.get("DD_SITE", "datadoghq.com"))
     else:
         tracer_agent_url = tracer.agent_trace_url
-        endpoint = tracer_agent_url if tracer_agent_url else agent.get_trace_url()
+        endpoint = tracer_agent_url if tracer_agent_url else agent_config.trace_agent_url
     return endpoint
 
 

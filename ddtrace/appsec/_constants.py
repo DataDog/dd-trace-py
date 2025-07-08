@@ -1,20 +1,12 @@
 # this module must not load any other unsafe appsec module directly
 
-import os
-from re import Match
-import sys
-
 from _io import BytesIO
 from _io import StringIO
-
-
-if sys.version_info >= (3, 8):
-    from typing import Literal  # noqa:F401
-else:
-    from typing_extensions import Literal  # noqa:F401
-
+import os
+from re import Match
 from typing import Any
 from typing import Iterator
+from typing import Literal  # noqa:F401
 from typing import Tuple
 
 from ddtrace.internal.constants import HTTP_REQUEST_BLOCKED
@@ -57,9 +49,12 @@ class APPSEC(metaclass=Constant_Class):
     """Specific constants for AppSec"""
 
     ENV: Literal["DD_APPSEC_ENABLED"] = "DD_APPSEC_ENABLED"
-    STANDALONE_ENV: Literal["DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"] = "DD_EXPERIMENTAL_APPSEC_STANDALONE_ENABLED"
+    APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
+    ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -73,6 +68,11 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION: Literal["_dd.appsec.rasp.duration"] = "_dd.appsec.rasp.duration"
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
+    RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
+    RC_PRODUCTS: Literal["_dd.appsec.rc_products"] = "_dd.appsec.rc_products"
+    TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
+    TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
+    TRUNCATION_CONTAINER_DEPTH: Literal["_dd.appsec.truncated.container_depth"] = "_dd.appsec.truncated.container_depth"
     ORIGIN_VALUE: Literal["appsec"] = "appsec"
     CUSTOM_EVENT_PREFIX: Literal["appsec.events"] = "appsec.events"
     USER_LOGIN_EVENT_PREFIX: Literal["_dd.appsec.events.users.login"] = "_dd.appsec.events.users.login"
@@ -86,6 +86,11 @@ class APPSEC(metaclass=Constant_Class):
         "appsec.events.users.login.failure.track"
     ] = "appsec.events.users.login.failure.track"
     USER_SIGNUP_EVENT: Literal["appsec.events.users.signup.track"] = "appsec.events.users.signup.track"
+    USER_SIGNUP_EVENT_USERNAME: Literal["appsec.events.users.signup.usr.login"] = "appsec.events.users.signup.usr.login"
+    USER_SIGNUP_EVENT_USERID: Literal["appsec.events.users.signup.usr.id"] = "appsec.events.users.signup.usr.id"
+    USER_SIGNUP_EVENT_MODE: Literal[
+        "_dd.appsec.events.users.signup.auto.mode"
+    ] = "_dd.appsec.events.users.signup.auto.mode"
     AUTO_LOGIN_EVENTS_SUCCESS_MODE: Literal[
         "_dd.appsec.events.users.login.success.auto.mode"
     ] = "_dd.appsec.events.users.login.success.auto.mode"
@@ -104,13 +109,19 @@ class APPSEC(metaclass=Constant_Class):
     USER_MODEL_LOGIN_FIELD: Literal["DD_USER_MODEL_LOGIN_FIELD"] = "DD_USER_MODEL_LOGIN_FIELD"
     USER_MODEL_EMAIL_FIELD: Literal["DD_USER_MODEL_EMAIL_FIELD"] = "DD_USER_MODEL_EMAIL_FIELD"
     USER_MODEL_NAME_FIELD: Literal["DD_USER_MODEL_NAME_FIELD"] = "DD_USER_MODEL_NAME_FIELD"
-    PROPAGATION_HEADER: Literal["_dd.p.appsec"] = "_dd.p.appsec"
+    PROPAGATION_HEADER: Literal["_dd.p.ts"] = "_dd.p.ts"
     OBFUSCATION_PARAMETER_KEY_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP"
     OBFUSCATION_PARAMETER_VALUE_REGEXP: Literal[
         "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
     ] = "DD_APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP"
+    RC_CLIENT_ID: Literal["_dd.rc.client_id"] = "_dd.rc.client_id"
+    WAF_ERROR: Literal["_dd.appsec.waf.error"] = "_dd.appsec.waf.error"
+    RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
+    ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
+    ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
+    UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -167,6 +178,9 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal[
+        "_dd.iast.telemetry.suppressed.vulnerabilities"
+    ] = "_dd.iast.telemetry.suppressed.vulnerabilities"
     TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
@@ -184,6 +198,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
     REQUEST_HTTP_IP: Literal["http.client_ip"] = "http.client_ip"
     REQUEST_USER_ID: Literal["usr.id"] = "usr.id"
     REQUEST_USERNAME: Literal["usr.login"] = "usr.login"
+    REQUEST_SESSION_ID: Literal["usr.session_id"] = "usr.session_id"
     RESPONSE_STATUS: Literal["server.response.status"] = "server.response.status"
     RESPONSE_HEADERS_NO_COOKIES: Literal["server.response.headers.no_cookies"] = "server.response.headers.no_cookies"
     RESPONSE_BODY: Literal["server.response.body"] = "server.response.body"
@@ -199,6 +214,7 @@ class WAF_DATA_NAMES(metaclass=Constant_Class):
             REQUEST_HTTP_IP,
             REQUEST_USER_ID,
             REQUEST_USERNAME,
+            REQUEST_SESSION_ID,
             RESPONSE_STATUS,
             RESPONSE_HEADERS_NO_COOKIES,
             RESPONSE_BODY,
@@ -327,9 +343,9 @@ class DEFAULT(metaclass=Constant_Class):
         r"(?i)(?:p(?:ass)?w(?:or)?d|pass(?:[_-]?phrase)?|secret(?:[_-]?key)?|(?:(?:api|private|public|access)[_-]?)"
         r"key(?:[_-]?id)?|(?:(?:auth|access|id|refresh)[_-]?)?token|consumer[_-]?(?:id|key|secret)|sign(?:ed|ature)?"
         r"|auth(?:entication|orization)?|jsessionid|phpsessid|asp\.net(?:[_-]|-)sessionid|sid|jwt)"
-        r'(?:\s*=[^;]|"\s*:\s*"[^"]+")|bearer\s+[a-z0-9\._\-]+|token:[a-z0-9]{13}|gh[opsu]_[0-9a-zA-Z]{36}'
-        r"|ey[I-L][\w=-]+\.ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}[^\-]+[\-]"
-        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*[a-z0-9\/\.+]{100,}"
+        r'(?:\s*=([^;&]+)|"\s*:\s*("[^"]+"|\d+))|bearer\s+([a-z0-9\._\-]+)|token\s*:\s*([a-z0-9]{13})|gh[opsu]_([0-9a-zA-Z]{36})'
+        r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
+        r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )
 
 

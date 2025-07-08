@@ -89,7 +89,8 @@ def test_span_creation_and_finished_metrics_datadog(test_agent_session, ddtrace_
     code = """
 from ddtrace.trace import tracer
 for _ in range(10):
-    with tracer.trace('span1'):
+    with tracer.trace('span1') as span:
+        span.set_tag("component", "custom")
         pass
 """
     env = os.environ.copy()
@@ -97,6 +98,7 @@ for _ in range(10):
     _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
     metrics_sc = test_agent_session.get_metrics("spans_created")
+
     assert len(metrics_sc) == 1
     assert metrics_sc[0]["metric"] == "spans_created"
     assert metrics_sc[0]["tags"] == ["integration_name:datadog"]
@@ -105,7 +107,7 @@ for _ in range(10):
     metrics_sf = test_agent_session.get_metrics("spans_finished")
     assert len(metrics_sf) == 1
     assert metrics_sf[0]["metric"] == "spans_finished"
-    assert metrics_sf[0]["tags"] == ["integration_name:datadog"]
+    assert metrics_sf[0]["tags"] == ["integration_name:custom"]
     assert metrics_sf[0]["points"][0][1] == 10
 
 

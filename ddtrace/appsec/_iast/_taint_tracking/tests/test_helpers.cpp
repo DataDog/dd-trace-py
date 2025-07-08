@@ -1,6 +1,6 @@
-#include <Aspects/Helpers.h>
-#include <Utils/PythonErrorGuard.h>
+#include <aspects/helpers.h>
 #include <tests/test_common.hpp>
+#include <utils/python_error_guard.h>
 
 using HasPyErrCheck = PyEnvCheck;
 

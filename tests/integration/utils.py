@@ -28,7 +28,7 @@ class BadEncoder:
 def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     from ddtrace.trace import tracer as t
 
-    for client in t._writer._clients:
+    for client in t._span_aggregator.writer._clients:
         client.encoder = encoder_cls()
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("asdf").finish()
@@ -36,10 +36,12 @@ def send_invalid_payload_and_get_logs(encoder_cls=BadEncoder):
     return log
 
 
-def parametrize_with_all_encodings(env=None, out="", err=""):
+def parametrize_with_all_encodings(env=None, out="", err="", check_logs=True):
     if env is None:
         env = dict()
-    return pytest.mark.subprocess(parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err)
+    return pytest.mark.subprocess(
+        parametrize={"DD_TRACE_API_VERSION": ["v0.5", "v0.4"]}, env=env, out=out, err=err, check_logs=check_logs
+    )
 
 
 def mark_snapshot(f):

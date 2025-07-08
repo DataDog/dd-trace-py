@@ -1,3 +1,4 @@
+from io import StringIO
 import math
 import pprint
 import sys
@@ -14,16 +15,16 @@ from typing import Type
 from typing import Union
 from typing import cast
 
-from ddtrace import config
+from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
 from ddtrace._trace._span_pointer import _SpanPointer
 from ddtrace._trace._span_pointer import _SpanPointerDirection
 from ddtrace._trace.context import Context
+from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_LIMIT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
@@ -44,34 +45,34 @@ from ddtrace.internal import core
 from ddtrace.internal._rand import rand64bits as _rand64bits
 from ddtrace.internal._rand import rand128bits as _rand128bits
 from ddtrace.internal.compat import NumericType
-from ddtrace.internal.compat import StringIO
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import is_integer
+from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.settings._config import _JSONType
-
-
-_NUMERIC_TAGS = (_ANALYTICS_SAMPLE_RATE_KEY,)
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.settings._config import config
+from ddtrace.vendor.debtcollector import deprecate
 
 
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
 
     def __init__(
-        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, time_unix_nano: Optional[int] = None
+        self,
+        name: str,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        time_unix_nano: Optional[int] = None,
     ):
         self.name: str = name
-        if attributes is None:
-            self.attributes = {}
-        else:
-            self.attributes = attributes
         if time_unix_nano is None:
             time_unix_nano = time_ns()
         self.time_unix_nano: int = time_unix_nano
+        self.attributes: dict = attributes if attributes else {}
 
     def __dict__(self):
         d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
@@ -87,6 +88,12 @@ class SpanEvent:
 
         attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
         return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+
+    def __iter__(self):
+        yield "name", self.name
+        yield "time_unix_nano", self.time_unix_nano
+        if self.attributes:
+            yield "attributes", self.attributes
 
 
 log = get_logger(__name__)
@@ -122,6 +129,7 @@ class Span(object):
         "duration_ns",
         # Internal attributes
         "_context",
+        "_parent_context",
         "_local_root_value",
         "_parent",
         "_ignored_exceptions",
@@ -179,7 +187,6 @@ class Span(object):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
-
         self.name = name
         self.service = service
         self._resource = [resource or name]
@@ -205,7 +212,8 @@ class Span(object):
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
-        self._context: Optional[Context] = context._with_span(self) if context else None
+        self._parent_context: Optional[Context] = context
+        self._context = context.copy(self.trace_id, self.span_id) if context else None
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
@@ -217,6 +225,17 @@ class Span(object):
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
         self._store: Optional[Dict[str, Any]] = None
+
+    def _update_tags_from_context(self) -> None:
+        context = self._context
+        if context is None:
+            return
+
+        with context:
+            for tag in context._meta:
+                self._meta.setdefault(tag, context._meta[tag])
+            for metric in context._metrics:
+                self._metrics.setdefault(metric, context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -361,20 +380,6 @@ class Span(object):
             self.set_metric(key, value)
             return
 
-        # Key should explicitly be converted to a float if needed
-        elif key in _NUMERIC_TAGS:
-            if value is None:
-                log.debug("ignoring not number metric %s:%s", key, value)
-                return
-
-            try:
-                # DEV: `set_metric` will try to cast to `float()` for us
-                self.set_metric(key, value)
-            except (TypeError, ValueError):
-                log.warning("error setting numeric metric %s:%s", key, value)
-
-            return
-
         elif key == MANUAL_KEEP_KEY:
             self._override_sampling_decision(USER_KEEP)
             return
@@ -484,10 +489,13 @@ class Span(object):
         return self._metrics.get(key)
 
     def _add_event(
-        self, name: str, attributes: Optional[Dict[str, _JSONType]] = None, timestamp: Optional[int] = None
+        self, name: str, attributes: Optional[Dict[str, _AttributeValueType]] = None, timestamp: Optional[int] = None
     ) -> None:
-        """Add an event to the span."""
         self._events.append(SpanEvent(name, attributes, timestamp))
+
+    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
+        """Add an errortracking related callback to the on_finish_callback array"""
+        self._on_finish_callbacks.insert(0, callback)
 
     def get_metrics(self) -> _MetricDictType:
         """Return all metrics."""
@@ -497,19 +505,68 @@ class Span(object):
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
         """
-        if limit is None:
-            limit = config._span_traceback_max_size
-
         (exc_type, exc_val, exc_tb) = sys.exc_info()
 
         if exc_type and exc_val and exc_tb:
-            self.set_exc_info(exc_type, exc_val, exc_tb)
+            if limit:
+                limit = -abs(limit)
+            self.set_exc_info(exc_type, exc_val, exc_tb, limit=limit)
         else:
+            if limit is None:
+                limit = config._span_traceback_max_size
             tb = "".join(traceback.format_stack(limit=limit + 1)[:-1])
             self._meta[ERROR_STACK] = tb
 
+    def _get_traceback(
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
+    ) -> str:
+        """
+        Return a formatted traceback as a string.
+        If the traceback is too long, it will be truncated to the limit parameter,
+        but from the end of the traceback (keeping the most recent frames).
+
+        If the traceback surpasses the MAX_SPAN_META_VALUE_LEN limit, it will
+        try to reduce the traceback size by half until it fits
+        within this limit (limit for tag values).
+
+        :param exc_type: the exception type
+        :param exc_val: the exception value
+        :param exc_tb: the exception traceback
+        :param limit: the maximum number of frames to keep
+        :return: the formatted traceback as a string
+        """
+        # If limit is None, use the default value from the configuration
+        if limit is None:
+            limit = config._span_traceback_max_size
+        # Ensure the limit is negative for traceback.print_exception (to keep most recent frames)
+        limit: int = -abs(limit)  # type: ignore[no-redef]
+
+        # Create a buffer to hold the traceback
+        buff = StringIO()
+        # Print the exception traceback to the buffer with the specified limit
+        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+        tb = buff.getvalue()
+
+        # Check if the traceback exceeds the maximum allowed length
+        while len(tb) > MAX_SPAN_META_VALUE_LEN and abs(limit) > 1:
+            # Reduce the limit by half and print the traceback again
+            limit //= 2
+            buff = StringIO()
+            traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=limit)
+            tb = buff.getvalue()
+
+        return tb
+
     def set_exc_info(
-        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]
+        self,
+        exc_type: Type[BaseException],
+        exc_val: BaseException,
+        exc_tb: Optional[TracebackType],
+        limit: Optional[int] = None,
     ) -> None:
         """Tag the span with an error tuple as from `sys.exc_info()`."""
         if not (exc_type and exc_val and exc_tb):
@@ -523,11 +580,7 @@ class Span(object):
             return
 
         self.error = 1
-
-        # get the traceback
-        buff = StringIO()
-        traceback.print_exception(exc_type, exc_val, exc_tb, file=buff, limit=config._span_traceback_max_size)
-        tb = buff.getvalue()
+        tb = self._get_traceback(exc_type, exc_val, exc_tb, limit=limit)
 
         # readable version of type (e.g. exceptions.ZeroDivisionError)
         exc_type_str = "%s.%s" % (exc_type.__module__, exc_type.__name__)
@@ -549,6 +602,99 @@ class Span(object):
         core.dispatch("web.request.final_tags", (self,))
 
         core.dispatch("span.exception", (self, exc_type, exc_val, exc_tb))
+
+    def record_exception(
+        self,
+        exception: BaseException,
+        attributes: Optional[Dict[str, _AttributeValueType]] = None,
+        timestamp: Optional[int] = None,
+        escaped: bool = False,
+    ) -> None:
+        """
+        Records an exception as a span event. Multiple exceptions can be recorded on a span.
+
+        :param exception: The exception to record.
+        :param attributes: Optional dictionary of additional attributes to add to the exception event.
+            These attributes will override the default exception attributes if they contain the same keys.
+            Valid attribute values include (homogeneous array of) strings, booleans, integers, floats.
+        :param timestamp: Deprecated.
+        :param escaped: Deprecated.
+        """
+        if escaped:
+            deprecate(
+                prefix="The escaped argument is deprecated for record_exception",
+                message="""If an exception exits the scope of the span, it will automatically be
+                reported in the span tags.""",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+        if timestamp is not None:
+            deprecate(
+                prefix="The timestamp argument is deprecated for record_exception",
+                message="""The timestamp of the span event should correspond to the time when the
+                error is recorded which is set automatically.""",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+
+        tb = self._get_traceback(type(exception), exception, exception.__traceback__)
+
+        attrs: Dict[str, _AttributeValueType] = {
+            "exception.type": "%s.%s" % (exception.__class__.__module__, exception.__class__.__name__),
+            "exception.message": str(exception),
+            "exception.stacktrace": tb,
+        }
+        if attributes:
+            attributes = {k: v for k, v in attributes.items() if self._validate_attribute(k, v)}
+
+            # User provided attributes must take precedence over attrs
+            attrs.update(attributes)
+
+        self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
+
+    def _validate_attribute(self, key: str, value: object) -> bool:
+        if isinstance(value, (str, bool, int, float)):
+            return self._validate_scalar(key, value)
+
+        if not isinstance(value, list):
+            log.warning("record_exception: Attribute %s must be a string, number, or boolean: %s.", key, value)
+            return False
+
+        if len(value) == 0:
+            return True
+
+        if not isinstance(value[0], (str, bool, int, float)):
+            log.warning("record_exception: List values %s must be string, number, or boolean: %s.", key, value)
+            return False
+
+        first_type = type(value[0])
+        for val in value:
+            if not isinstance(val, first_type) or not self._validate_scalar(key, val):
+                log.warning("record_exception: Attribute %s array must be homogenous: %s.", key, value)
+                return False
+        return True
+
+    def _validate_scalar(self, key: str, value: Union[bool, str, int, float]) -> bool:
+        if isinstance(value, (bool, str)):
+            return True
+
+        if isinstance(value, int):
+            if value < _MIN_INT_64BITS or value > _MAX_INT_64BITS:
+                log.warning(
+                    "record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.",
+                    key,
+                    value,
+                )
+                return False
+            return True
+
+        if isinstance(value, float):
+            if not math.isfinite(value):
+                log.warning("record_exception: Attribute %s must be a finite number: %s.", key, value)
+                return False
+            return True
+
+        return False
 
     def _pprint(self) -> str:
         """Return a human readable version of the span."""
@@ -706,13 +852,13 @@ class Span(object):
             self.name,
         )
 
+    @property
+    def _is_top_level(self) -> bool:
+        """Return whether the span is a "top level" span.
 
-def _is_top_level(span: Span) -> bool:
-    """Return whether the span is a "top level" span.
-
-    Top level meaning the root of the trace or a child span
-    whose service is different from its parent.
-    """
-    return (span._local_root is span) or (
-        span._parent is not None and span._parent.service != span.service and span.service is not None
-    )
+        Top level meaning the root of the trace or a child span
+        whose service is different from its parent.
+        """
+        return (self._local_root is self) or (
+            self._parent is not None and self._parent.service != self.service and self.service is not None
+        )

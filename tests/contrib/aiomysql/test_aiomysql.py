@@ -13,7 +13,6 @@ from tests.contrib import shared_tests_async as shared_tests
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
 from tests.contrib.config import MYSQL_CONFIG
-from tests.utils import flaky
 
 
 AIOMYSQL_CONFIG = dict(MYSQL_CONFIG)
@@ -62,7 +61,6 @@ async def test_queries(snapshot_conn):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot
-@flaky(1741838400, reason="Did not receive expected traces: 'pytest.test','pytest.test'")
 async def test_pin_override(patched_conn, tracer):
     Pin._override(patched_conn, service="db")
     cursor = await patched_conn.cursor()

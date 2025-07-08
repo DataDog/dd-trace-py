@@ -1,6 +1,7 @@
 """
 tags for common git attributes
 """
+
 import contextlib
 import logging
 import os
@@ -8,6 +9,7 @@ import random
 import re
 from shutil import which
 import subprocess
+from tempfile import TemporaryDirectory
 from typing import Dict  # noqa:F401
 from typing import Generator  # noqa:F401
 from typing import List  # noqa:F401
@@ -377,7 +379,7 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
 
     # check that the tempdir and cwd are on the same filesystem, otherwise git pack-objects will fail
     cwd = cwd if cwd else os.getcwd()
-    tempdir = compat.TemporaryDirectory()
+    tempdir = TemporaryDirectory()
     if _get_device_for_path(cwd) == _get_device_for_path(tempdir.name):
         basepath = tempdir.name
     else:
@@ -399,7 +401,7 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
         )
         yield prefix, process_details
     finally:
-        if isinstance(tempdir, compat.TemporaryDirectory):
+        if isinstance(tempdir, TemporaryDirectory):
             log.debug("Cleaning up temporary directory: %s", basepath)
             tempdir.cleanup()
 

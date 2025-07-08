@@ -7,7 +7,6 @@ from warnings import warn
 import mock
 import pytest
 
-from ddtrace.internal.coverage.code import ModuleCodeCollector
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 import tests.test_module
@@ -51,9 +50,17 @@ def module_watchdog():
     ModuleWatchdog.uninstall()
 
 
+@pytest.mark.subprocess
 def test_watchdog_install_uninstall():
+    import sys
+
+    from ddtrace.internal.module import ModuleWatchdog
+
+    if ModuleWatchdog.is_installed():
+        ModuleWatchdog.uninstall()
+
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
 
     ModuleWatchdog.install()
 
@@ -63,7 +70,7 @@ def test_watchdog_install_uninstall():
     ModuleWatchdog.uninstall()
 
     assert not ModuleWatchdog.is_installed()
-    assert not any(isinstance(m, ModuleWatchdog) and not isinstance(m, ModuleCodeCollector) for m in sys.meta_path)
+    assert not any(isinstance(m, ModuleWatchdog) for m in sys.meta_path)
 
 
 def test_import_origin_hook_for_imported_module(module_watchdog):
@@ -434,7 +441,7 @@ def test_module_watchdog_namespace_import_no_warnings():
     import namespace_test.ns_module  # noqa:F401
 
 
-@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)))
+@pytest.mark.subprocess(ddtrace_run=True, env=dict(NSPATH=str(Path(__file__).parent)), err=None)
 def test_module_watchdog_pkg_resources_support():
     # Test that we can access resource files with pkg_resources without raising
     # an exception.
@@ -443,9 +450,12 @@ def test_module_watchdog_pkg_resources_support():
 
     sys.path.insert(0, os.getenv("NSPATH"))
 
-    import pkg_resources as p
+    try:
+        import pkg_resources as p
 
-    p.resource_listdir("namespace_test.ns_module", ".")
+        p.resource_listdir("namespace_test.ns_module", ".")
+    except Exception as e:
+        pytest.fail("Using pkg_resources raised exception", e)
 
 
 @pytest.mark.subprocess(
@@ -490,7 +500,10 @@ def test_module_watchdog_does_not_rewrap_get_code():
     """Ensures that self.loader.get_code() does not raise an error when the module is reloaded many times"""
     from importlib import reload
 
-    import ddtrace  #  noqa:F401
+    from ddtrace.internal.module import ModuleWatchdog
+
+    ModuleWatchdog.install()
+
     from tests.internal.namespace_test import ns_module
 
     # Check that the loader's get_code is wrapped:
@@ -557,6 +570,8 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
+        "ddtrace.contrib.integration_registry.mappings",
+        "ddtrace.contrib.integration_registry.utils",
         "ddtrace.contrib.aiohttp",
         "ddtrace.contrib.dbapi_async",
         "ddtrace.contrib.wsgi",
@@ -586,3 +601,9 @@ def test_module_watchdog_no_interal_frames_in_import_exceptions(module_watchdog)
 
         m_origin = origin(m)
         assert m_origin is not None and m_origin not in sources
+
+
+def test_lazy_decorator():
+    import tests.internal.lazy as lazy
+
+    assert lazy.new_value == 42

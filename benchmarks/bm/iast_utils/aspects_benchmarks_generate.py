@@ -15,7 +15,7 @@ from benchmarks.bm.utils import override_env
 
 
 with override_env({"DD_IAST_ENABLED": "True"}):
-    from tests.appsec.iast.aspects.conftest import _iast_patched_module
+    from tests.appsec.iast.iast_utils import _iast_patched_module
 
     mod_patched_methods = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
     mod_patched_methods_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")

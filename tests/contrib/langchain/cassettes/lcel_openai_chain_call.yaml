@@ -32,27 +32,24 @@ interactions:
       x-stainless-runtime:
       - CPython
       x-stainless-runtime-version:
-      - 3.10.5
+      - 3.10.13
     method: POST
     uri: https://api.openai.com/v1/completions
   response:
-    content: "{\n  \"id\": \"cmpl-9lfUT2u3JyOCZk50QLcXEifB8ausk\",\n  \"object\":
-      \"text_completion\",\n  \"created\": 1721147933,\n  \"model\": \"gpt-3.5-turbo-instruct\",\n
-      \ \"choices\": [\n    {\n      \"text\": \"\\nSystem: Langsmith can help with testing in 
-      several ways. First, it can generate automated tests based on your technical documentation, 
-      ensuring that your code matches the documented specifications. This can save you time and 
-      effort in testing your code manually. Additionally, Langsmith can also analyze your technical 
-      documentation for completeness and accuracy, helping you identify any potential gaps or errors 
-      before testing begins. Finally, Langsmith can assist with creating test cases and scenarios 
-      based on your documentation, making the testing process more efficient and effective.\",\n
-      \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-      \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
-      101,\n    \"total_tokens\": 121\n  }\n}\n"
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA0RSTU8bMRC951eM9pxEYZMSmls/1JYSWqRW6qFUaPBOdt14ZxbPGIgQ/x3ZIeRi
+        2fP83rz5eBoBVL6pVlC5fgiTjxd/vn75/u3zspVFuvu0nKefpz8urrCL5++vqnH+Lbf/yVlmGD3a
+        jZN+CGReeA+7SGiUFU+Wi0U9n9XLkwL00lDItHawyXz6bmIp3srEs1pMzlb1rJ7PzurF5L5+VerE
+        O9JqBX9HAABP5YR93ix0zdf8a6dG/Qo+MKzXl+A69DwGDCqwZXlgQAWEtectNbD2anCJw+C5PXz1
+        GW/QEPY+UiRISg1sJAJtNt55Ygs7UJOYecgNRLLo6T4/M3UK55aFci8kc2UDCErRk+Y7S0M6BkLX
+        gRM29FyU4B5DoqKIMIhnowgmYB0B06MVIngugeJ3Cr+77DgEedBiUekuEZvHAOgcqR4EsrEx9LjN
+        qbzlojYpFI6hbhU0uS63RyXaoTAljK7z3E6P7VTASLm2Xjjs9s3xXIpN2fAQpY3Y9weN0kxkDDv1
+        Oi2zLGPz3NBjtYLZWyRIO0S5zSPmFMJbfOPZa3cTCVU4T1pNhqqgzyOAf2U9kmJL1ep1LaohSj/Y
+        jcmWOAvW9V6uOi7oETw7fQVNDMMxfjI7G+Ucz6MXAAAA//8DACh4RxEZAwAA
     headers:
-      CF-Cache-Status:
-      - DYNAMIC
       CF-RAY:
-      - 8a436cd8ba1d36fe-YYZ
+      - 92dcba775e22d650-IAD
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -62,14 +59,14 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 16 Jul 2024 16:38:55 GMT
+      - Wed, 09 Apr 2025 20:24:31 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=.oJlFxTrqhQKREBJTneopRH_RcejZhvYpWEaHPTwTzI-1721147935-1.0.1.1-JBreMz2DrvgZpflrsg63jryfPxfLKlzOl4EOiTlmXX.suz_LcXPQwAzZd.xy9DTuMvYb8Z5UQplP_XSWOu07yQ;
-        path=/; expires=Tue, 16-Jul-24 17:08:55 GMT; domain=.api.openai.com; HttpOnly;
+      - __cf_bm=XC7EqjohTy1jlAXm.LBzFpbQSTBmkNpUBi4Q3.iRSPQ-1744230271-1.0.1.1-pfzhuvJ5hGtk9QWrMpJTQUMlrp21P.dyac3HkIlmifTN2fAC8ltUF7vCnsDXbNkGZRtiXk3LIzl6BqUuGKC9Wo8z_DBFooIUaN0mInH3Ro8;
+        path=/; expires=Wed, 09-Apr-25 20:54:31 GMT; domain=.api.openai.com; HttpOnly;
         Secure; SameSite=None
-      - _cfuvid=Gk1OlKJljUw5u_Ot4uTNwvQoevglGzF9cHaExOJJjdY-1721147935464-0.0.1.1-604800000;
+      - _cfuvid=WehjkpmRsF7sJ6inbRljBTFbdFe8q2G14DJ_WoAYadw-1744230271834-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -77,18 +74,26 @@ interactions:
       - nosniff
       access-control-allow-origin:
       - '*'
+      access-control-expose-headers:
+      - X-Request-ID
       alt-svc:
       - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
       openai-model:
-      - gpt-3.5-turbo-instruct
+      - gpt-3.5-turbo-instruct:20230824-v2
       openai-organization:
-      - datadog-4
+      - datadog-staging
       openai-processing-ms:
-      - '1713'
+      - '856'
       openai-version:
       - '2020-10-01'
       strict-transport-security:
-      - max-age=15552000; includeSubDomains; preload
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-9c695cdd4-kflsf
+      x-envoy-upstream-service-time:
+      - '827'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -96,13 +101,14 @@ interactions:
       x-ratelimit-remaining-requests:
       - '3499'
       x-ratelimit-remaining-tokens:
-      - '89718'
+      - '89973'
       x-ratelimit-reset-requests:
       - 17ms
       x-ratelimit-reset-tokens:
-      - 188ms
+      - 18ms
       x-request-id:
-      - req_3fd8c44d52c44781a84b30541b55dbed
-    http_version: HTTP/1.1
-    status_code: 200
+      - req_83551336f688eeb8d464bfc98669a922
+    status:
+      code: 200
+      message: OK
 version: 1

@@ -25,7 +25,7 @@ def main():
 if __name__ == "__main__":
     iast_enabled = bool(os.environ.get("DD_IAST_ENABLED", "") == "true")
     logger.info("IAST env var: %s", iast_enabled)
-    tracer._configure(iast_enabled=not iast_enabled)
+    tracer.configure(iast_enabled=not iast_enabled)
     main()
     if not iast_enabled:
         # Disabled by env var but then enabled with ``tracer.configure``

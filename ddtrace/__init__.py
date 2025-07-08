@@ -1,19 +1,9 @@
 import sys
 import os
-import warnings
 
 
 LOADED_MODULES = frozenset(sys.modules.keys())
 
-# Configuration for the whole tracer from file. Do it before anything else happens.
-from ddtrace.internal.native import _apply_configuration_from_disk
-
-_apply_configuration_from_disk()
-
-from ddtrace.internal.module import ModuleWatchdog
-
-
-ModuleWatchdog.install()
 
 # Ensure we capture references to unpatched modules as early as possible
 import ddtrace.internal._unpatched  # noqa
@@ -22,7 +12,7 @@ from ._logger import configure_ddtrace_logger
 # configure ddtrace logger before other modules log
 configure_ddtrace_logger()  # noqa: E402
 
-from .settings import _global_config as config
+from .settings._config import config
 
 
 # Enable telemetry writer and excepthook as early as possible to ensure we capture any exceptions from initialization
@@ -35,12 +25,6 @@ from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
 
 from ddtrace.vendor import debtcollector
 from .version import get_version  # noqa: E402
-
-
-# TODO(mabdinur): Remove this once we have a better way to start the mini agent
-from ddtrace.internal.serverless.mini_agent import maybe_start_serverless_mini_agent as _start_mini_agent
-
-_start_mini_agent()
 
 __version__ = get_version()
 

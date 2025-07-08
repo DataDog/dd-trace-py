@@ -1,15 +1,14 @@
 from typing import Optional  # noqa:F401
+from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.trace_utils import _sanitized_url
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -17,6 +16,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -75,7 +75,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = config._get_from(instance)
+    cfg = ddtrace.trace.Pin._get_config(instance)
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -97,10 +97,7 @@ def _wrap_send(func, instance, args, kwargs):
 
         # Configure trace search sample rate
         # DEV: analytics enabled on per-session basis
-        cfg = config._get_from(instance)
-        analytics_enabled = cfg.get("analytics_enabled")
-        if analytics_enabled:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, cfg.get("analytics_sample_rate", True))
+        cfg = Pin._get_config(instance)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

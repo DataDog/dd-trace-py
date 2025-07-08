@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    single-step instrumentation: Resolves an issue where using Poetry to run an application under a version of
+    Python different from the version used to install Poetry caused automatic library injection to fail.

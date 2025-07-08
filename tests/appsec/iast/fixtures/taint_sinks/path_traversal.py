@@ -15,12 +15,34 @@ def pt_open_secure(origin_string):
     try:
         if os.path.commonprefix((os.path.realpath(origin_string), root_dir)) == root_dir:
             open(origin_string)
-    except Exception:
+    except (FileNotFoundError, IsADirectoryError):
         pass
     return origin_string
 
 
 def pt_open(origin_string):
+    result = ""
+    try:
+        m = open(origin_string)
+        result = m.read()
+    except (FileNotFoundError, IsADirectoryError):
+        pass
+    return result
+
+
+def path__io_open(origin_string):
+    result = ""
+    try:
+        # label path__io_open
+        m = open(origin_string)
+        result = m.read()
+    except (FileNotFoundError, IsADirectoryError):
+        pass
+    return result
+
+
+def path_io_open(origin_string):
+    # label path_io_open
     m = open(origin_string)
     return m.read()
 

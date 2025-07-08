@@ -1,7 +1,7 @@
 [[
   {
     "name": "http.request",
-    "service": "tests.contrib.httpx",
+    "service": "ddtrace_subprocess_dir",
     "resource": "http.request",
     "trace_id": 0,
     "span_id": 1,
@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "67b8bab400000000",
       "component": "httpx",
       "http.method": "GET",
       "http.status_code": "200",
@@ -18,7 +18,7 @@
       "http.useragent": "python-httpx/x.xx.x",
       "language": "python",
       "out.host": "localhost",
-      "runtime-id": "6f9d8b39083d4c69b64e0c0adb09dd7e",
+      "runtime-id": "d089202423a84e278ca4ad55b1fc549a",
       "span.kind": "client"
     },
     "metrics": {
@@ -26,8 +26,8 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 919
+      "process_id": 16245
     },
-    "duration": 2441000,
-    "start": 1683920781812906000
+    "duration": 1891709,
+    "start": 1740159668391149845
   }]]

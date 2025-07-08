@@ -5,82 +5,18 @@ import mock
 import pytest
 
 from ddtrace.contrib.internal.botocore.patch import patch
-from ddtrace.contrib.internal.botocore.patch import unpatch
 from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
+from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
+from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import flaky
-from tests.utils import override_global_config
-
-
-@pytest.fixture(scope="session")
-def request_vcr():
-    yield get_request_vcr()
-
-
-@pytest.fixture
-def ddtrace_global_config():
-    config = {}
-    return config
-
-
-@pytest.fixture
-def aws_credentials():
-    """Mocked AWS Credentials. To regenerate test cassettes, comment this out and use real credentials."""
-    os.environ["AWS_ACCESS_KEY_ID"] = "testing"
-    os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
-    os.environ["AWS_SECURITY_TOKEN"] = "testing"
-    os.environ["AWS_SESSION_TOKEN"] = "testing"
-    os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-
-
-@pytest.fixture
-def mock_tracer(ddtrace_global_config, bedrock_client):
-    pin = Pin.get_from(bedrock_client)
-    mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-    pin._override(bedrock_client, tracer=mock_tracer)
-    yield mock_tracer
-
-
-@pytest.fixture
-def boto3(aws_credentials, mock_llmobs_span_writer, ddtrace_global_config):
-    global_config = {"_dd_api_key": "<not-a-real-api_key>"}
-    global_config.update(ddtrace_global_config)
-    with override_global_config(global_config):
-        patch()
-        import boto3
-
-        yield boto3
-        unpatch()
-
-
-@pytest.fixture
-def bedrock_client(boto3, request_vcr):
-    session = boto3.Session(
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-        aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-        aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-        region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-    )
-    bedrock_client = session.client("bedrock-runtime")
-    yield bedrock_client
-
-
-@pytest.fixture
-def mock_llmobs_span_writer():
-    patcher = mock.patch("ddtrace.llmobs._llmobs.LLMObsSpanWriter")
-    try:
-        LLMObsSpanWriterMock = patcher.start()
-        m = mock.MagicMock()
-        LLMObsSpanWriterMock.return_value = m
-        yield m
-    finally:
-        patcher.stop()
 
 
 class TestBedrockConfig(SubprocessTestCase):
@@ -138,18 +74,22 @@ class TestBedrockConfig(SubprocessTestCase):
                     sampled += 1
         assert (rate * num_completions - 30) < sampled < (rate * num_completions + 30)
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.0"))
     def test_span_sampling_0(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.25"))
     def test_span_sampling_25(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.75"))
     def test_span_sampling_75(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
 
+    @flaky(until=1752686557)
     @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="1.0"))
     def test_span_sampling_100(self):
         self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
@@ -356,13 +296,30 @@ def test_amazon_embedding(bedrock_client, request_vcr):
 
 
 @pytest.mark.snapshot
-@flaky(1741838400, reason="Did not receive expected traces: 'bedrock-runtime.command'")
 def test_cohere_embedding(bedrock_client, request_vcr):
     body = json.dumps({"texts": ["Hello World!", "Goodbye cruel world!"], "input_type": "search_document"})
     model = "cohere.embed-english-v3"
     with request_vcr.use_cassette("cohere_embedding.yaml"):
         response = bedrock_client.invoke_model(body=body, modelId=model)
         json.loads(response.get("body").read())
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+@pytest.mark.snapshot
+def test_converse(bedrock_client, request_vcr):
+    with request_vcr.use_cassette("bedrock_converse.yaml"):
+        bedrock_client.converse(**create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool))
+
+
+@pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+@pytest.mark.snapshot
+def test_converse_stream(bedrock_client, request_vcr):
+    with request_vcr.use_cassette("bedrock_converse_stream.yaml"):
+        response = bedrock_client.converse_stream(
+            **create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
+        )
+        for chunk in response["stream"]:
+            pass
 
 
 def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tracer):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json
-import sys
+from unittest.mock import ANY
 
 import pytest
 
@@ -10,7 +10,6 @@ from tests.appsec.appsec_utils import flask_server
 _PORT = 8060
 
 
-@pytest.mark.skipif(sys.version_info >= (3, 12, 0), reason="Package not yet compatible with Python 3.12")
 @pytest.mark.parametrize(
     "orm, xfail",
     [
@@ -108,7 +107,7 @@ def test_iast_flask_headers():
         content = json.loads(tainted_response.content)
         assert content["param"] == [
             ["Host", f"0.0.0.0:{_PORT}"],
-            ["User-Agent", "python-requests/2.32.3"],
+            ["User-Agent", ANY],
             ["Accept-Encoding", "gzip, deflate, br"],
             ["Accept", "*/*"],
             ["Connection", "keep-alive"],

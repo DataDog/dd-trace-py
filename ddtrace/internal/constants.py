@@ -29,6 +29,10 @@ W3C_TRACESTATE_PARENT_ID_KEY = "p"
 W3C_TRACESTATE_ORIGIN_KEY = "o"
 W3C_TRACESTATE_SAMPLING_PRIORITY_KEY = "s"
 DEFAULT_SAMPLING_RATE_LIMIT = 100
+SAMPLING_HASH_MODULO = 1 << 64
+# Big prime number to make hashing better distributed, it has to be the same factor as the Agent
+# and other tracers to allow chained sampling
+SAMPLING_KNUTH_FACTOR = 1111111111111111111
 SAMPLING_DECISION_TRACE_TAG_KEY = "_dd.p.dm"
 LAST_DD_PARENT_ID_KEY = "_dd.parent_id"
 DEFAULT_SERVICE_NAME = "unnamed-python-service"
@@ -36,6 +40,8 @@ DEFAULT_SERVICE_NAME = "unnamed-python-service"
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
+MIN_INT_64BITS = -(2**63)
+MAX_INT_64BITS = 2**63 - 1
 SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
@@ -68,7 +74,12 @@ ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
 EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
+MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_MESSAGE_ID = "messaging.message_id"
+MESSAGING_OPERATION = "messaging.operation"
 MESSAGING_SYSTEM = "messaging.system"
+
+NETWORK_DESTINATION_NAME = "network.destination.name"
 
 FLASK_ENDPOINT = "flask.endpoint"
 FLASK_VIEW_ARGS = "flask.view_args"
@@ -80,26 +91,50 @@ DEFAULT_TIMEOUT = 2.0
 # baggage
 DD_TRACE_BAGGAGE_MAX_ITEMS = 64
 DD_TRACE_BAGGAGE_MAX_BYTES = 8192
+BAGGAGE_TAG_PREFIX = "baggage."
+
+SPAN_EVENTS_HAS_EXCEPTION = "_dd.span_events.has_exception"
+COLLECTOR_MAX_SIZE_PER_SPAN = 100
+
+LOG_ATTR_TRACE_ID = "dd.trace_id"
+LOG_ATTR_SPAN_ID = "dd.span_id"
+LOG_ATTR_ENV = "dd.env"
+LOG_ATTR_VERSION = "dd.version"
+LOG_ATTR_SERVICE = "dd.service"
+LOG_ATTR_VALUE_ZERO = "0"
+LOG_ATTR_VALUE_EMPTY = ""
 
 
-class _PRIORITY_CATEGORY:
-    USER = "user"
-    RULE_DEF = "rule_default"
-    RULE_CUSTOMER = "rule_customer"
-    RULE_DYNAMIC = "rule_dynamic"
-    AUTO = "auto"
-    DEFAULT = "default"
+class SamplingMechanism(object):
+    DEFAULT = 0
+    AGENT_RATE_BY_SERVICE = 1
+    REMOTE_RATE = 2  # not used, this mechanism is deprecated
+    LOCAL_USER_TRACE_SAMPLING_RULE = 3
+    MANUAL = 4
+    APPSEC = 5
+    REMOTE_RATE_USER = 6  # not used, this mechanism is deprecated
+    REMOTE_RATE_DATADOG = 7  # not used, this mechanism is deprecated
+    SPAN_SAMPLING_RULE = 8
+    OTLP_INGEST_PROBABILISTIC_SAMPLING = 9  # not used in ddtrace
+    DATA_JOBS_MONITORING = 10  # not used in ddtrace
+    REMOTE_USER_TRACE_SAMPLING_RULE = 11
+    REMOTE_DYNAMIC_TRACE_SAMPLING_RULE = 12
 
 
-# intermediate mapping of priority categories to actual priority values
-# used to simplify code that selects sampling priority based on many factors
-_CATEGORY_TO_PRIORITIES = {
-    _PRIORITY_CATEGORY.USER: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_DEF: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_CUSTOMER: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.RULE_DYNAMIC: (USER_KEEP, USER_REJECT),
-    _PRIORITY_CATEGORY.AUTO: (AUTO_KEEP, AUTO_REJECT),
-    _PRIORITY_CATEGORY.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+SAMPLING_MECHANISM_TO_PRIORITIES = {
+    # TODO(munir): Update mapping to include single span sampling and appsec sampling mechanisms
+    SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
+    SamplingMechanism.MANUAL: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
 }
 _KEEP_PRIORITY_INDEX = 0
 _REJECT_PRIORITY_INDEX = 1
+
+
+# List of support values in DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED
+class EXPERIMENTAL_FEATURES:
+    # Enables submitting runtime metrics as gauges (instead of distributions)
+    RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"

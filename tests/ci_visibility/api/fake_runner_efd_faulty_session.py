@@ -16,7 +16,7 @@ from ddtrace.internal.test_visibility import api
 
 
 def _make_test_ids():
-    _unique_test_ids = {
+    _known_test_ids = {
         "m1": {
             "m1_s1": [
                 ["m1_s1_t3"],
@@ -32,12 +32,12 @@ def _make_test_ids():
     }
 
     test_ids = set()
-    for module, suites in _unique_test_ids.items():
+    for module, suites in _known_test_ids.items():
         module_id = ext_api.TestModuleId(module)
         for suite, tests in suites.items():
             suite_id = ext_api.TestSuiteId(module_id, suite)
             for test in tests:
-                test_id = api.InternalTestId(suite_id, *test)
+                test_id = ext_api.TestId(suite_id, *test)
                 test_ids.add(test_id)
     return test_ids
 
@@ -60,13 +60,13 @@ def run_tests():
 
     # M1_S1 tests
 
-    m1_s1_t1_id = api.InternalTestId(m1_s1_id, "m1_s1_t1")
+    m1_s1_t1_id = ext_api.TestId(m1_s1_id, "m1_s1_t1")
     api.InternalTest.discover(m1_s1_t1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
 
-    m1_s1_t2_id = api.InternalTestId(m1_s1_id, "m1_s1_t2")
+    m1_s1_t2_id = ext_api.TestId(m1_s1_id, "m1_s1_t2")
     api.InternalTest.discover(m1_s1_t2_id, source_file_info=None)
 
-    m1_s1_t3_id = api.InternalTestId(m1_s1_id, "m1_s1_t3")
+    m1_s1_t3_id = ext_api.TestId(m1_s1_id, "m1_s1_t3")
     api.InternalTest.discover(
         m1_s1_t3_id,
         codeowners=["@romain", "@romain2"],
@@ -74,9 +74,9 @@ def run_tests():
     )
 
     # NOTE: these parametrized tests will not be retried
-    m1_s1_t4_p1_id = api.InternalTestId(m1_s1_id, "m1_s1_t4_p1", parameters=json.dumps({"param1": "value1"}))
+    m1_s1_t4_p1_id = ext_api.TestId(m1_s1_id, "m1_s1_t4_p1", parameters=json.dumps({"param1": "value1"}))
     api.InternalTest.discover(m1_s1_t4_p1_id)
-    m1_s1_t4_p2_id = api.InternalTestId(m1_s1_id, "m1_s1_t4_p2_id", parameters=json.dumps({"param1": "value2"}))
+    m1_s1_t4_p2_id = ext_api.TestId(m1_s1_id, "m1_s1_t4_p2_id", parameters=json.dumps({"param1": "value2"}))
     api.InternalTest.discover(m1_s1_t4_p2_id)
 
     # M2
@@ -90,7 +90,7 @@ def run_tests():
     api.InternalTestSuite.discover(m2_s1_id)
 
     # M2_S1 tests
-    m2_s1_test_ids = [api.InternalTestId(m2_s1_id, f"m2_s1_t{i}") for i in range(35)]
+    m2_s1_test_ids = [ext_api.TestId(m2_s1_id, f"m2_s1_t{i}") for i in range(35)]
     for test_id in m2_s1_test_ids:
         api.InternalTest.discover(test_id)
 
@@ -101,23 +101,23 @@ def run_tests():
 
     # M2_S2 tests
 
-    m2_s2_t1_id = api.InternalTestId(m2_s2_id, "m2_s2_t1")
+    m2_s2_t1_id = ext_api.TestId(m2_s2_id, "m2_s2_t1")
     api.InternalTest.discover(m2_s2_t1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
 
-    m2_s2_t2_id = api.InternalTestId(m2_s2_id, "m2_s2_t2")
+    m2_s2_t2_id = ext_api.TestId(m2_s2_id, "m2_s2_t2")
     api.InternalTest.discover(m2_s2_t2_id)
 
-    m2_s2_t3_id = api.InternalTestId(m2_s2_id, "m2_s2_t3")
+    m2_s2_t3_id = ext_api.TestId(m2_s2_id, "m2_s2_t3")
     api.InternalTest.discover(
         m2_s2_t3_id,
         codeowners=["@romain"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
     )
 
-    m2_s2_t4_id = api.InternalTestId(m2_s2_id, "m2_s2_t4")
+    m2_s2_t4_id = ext_api.TestId(m2_s2_id, "m2_s2_t4")
     api.InternalTest.discover(m2_s2_t4_id)
 
-    m2_s2_t5_id = api.InternalTestId(m2_s2_id, "m2_s2_t5")
+    m2_s2_t5_id = ext_api.TestId(m2_s2_id, "m2_s2_t5")
     api.InternalTest.discover(m2_s2_t5_id)
 
     # END DISCOVERY
@@ -215,13 +215,15 @@ def main():
     with mock.patch(
         "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
         return_value=TestVisibilityAPISettings(
-            require_git=False, early_flake_detection=EarlyFlakeDetectionSettings(True)
+            require_git=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(True),
+            known_tests_enabled=True,
         ),
     ):
         ext_api.enable_test_visibility()
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._unique_test_ids",
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._instance._known_test_ids",
             _make_test_ids(),
         ):
             run_tests()

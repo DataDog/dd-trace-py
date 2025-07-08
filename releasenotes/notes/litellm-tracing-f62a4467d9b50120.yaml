@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    litellm: Introduces tracing support for the LiteLLM Python SDK's synchronous and asynchronous ``completion`` and ``text_completion`` methods.
+      See `the docs <https://ddtrace.readthedocs.io/en/stable/integrations.html#litellm>`
+      for more information.

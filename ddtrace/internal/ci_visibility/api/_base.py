@@ -13,15 +13,16 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
-from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.ext.test_visibility.status import TestSourceFileInfo
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
@@ -70,9 +71,12 @@ class TestVisibilitySessionSettings:
     itr_test_skipping_level: Optional[ITR_SKIPPING_LEVEL] = None
     itr_correlation_id: str = ""
     coverage_enabled: bool = False
+    known_tests_enabled: bool = False
     efd_settings: EarlyFlakeDetectionSettings = dataclasses.field(default_factory=EarlyFlakeDetectionSettings)
     atr_settings: AutoTestRetriesSettings = dataclasses.field(default_factory=AutoTestRetriesSettings)
     test_management_settings: TestManagementSettings = dataclasses.field(default_factory=TestManagementSettings)
+    ci_provider_name: Optional[str] = None
+    is_auto_injected: bool = False
 
     def __post_init__(self):
         if not isinstance(self.tracer, Tracer):
@@ -87,6 +91,7 @@ class TestVisibilitySessionSettings:
 
 class SPECIAL_STATUS(Enum):
     UNFINISHED = 1
+    NONSTARTED = 2
 
 
 CIDT = TypeVar("CIDT", TestModuleId, TestSuiteId, TestId)  # Child item ID types
@@ -173,9 +178,14 @@ class TestVisibilityItemBase(abc.ABC):
             except Exception as e:
                 log.debug("Error setting tag %s: %s", tag, e)
 
-    def _start_span(self) -> None:
+    def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
+        # except if context is passed (for xdist support)
+        parent_span: Optional[Union[Span, Context]] = None
+        if context is not None:
+            parent_span = context
+        elif isinstance(self, TestVisibilityParentItem):
+            parent_span = self.get_parent_span()
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -205,6 +215,9 @@ class TestVisibilityItemBase(abc.ABC):
         # Add efd-related tags if EFD is enabled
         if self._session_settings.efd_settings is not None and self._session_settings.efd_settings.enabled:
             self._set_efd_tags()
+
+        if self._session_settings.known_tests_enabled:
+            self._set_known_tests_tags()
 
         if self._session_settings.atr_settings is not None and self._session_settings.atr_settings.enabled:
             self._set_atr_tags()
@@ -274,6 +287,10 @@ class TestVisibilityItemBase(abc.ABC):
 
     def _set_efd_tags(self) -> None:
         """EFD tags are only set at the test or session level"""
+        pass
+
+    def _set_known_tests_tags(self) -> None:
+        """Known test tags are only set at the test level"""
         pass
 
     def _set_atr_tags(self) -> None:
@@ -356,7 +373,7 @@ class TestVisibilityItemBase(abc.ABC):
         # Telemetry for events created has specific tags for item types
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def start(self) -> None:
+    def start(self, context: Optional[Context] = None) -> None:
         log.debug("Test Visibility: starting %s", self)
 
         if self.is_started():
@@ -365,8 +382,9 @@ class TestVisibilityItemBase(abc.ABC):
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             return
+
         self._telemetry_record_event_created()
-        self._start_span()
+        self._start_span(context)
 
     def is_started(self) -> bool:
         return self._span is not None
@@ -405,6 +423,8 @@ class TestVisibilityItemBase(abc.ABC):
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         if self.is_finished():
             return self._status
+        if not self.is_started():
+            return SPECIAL_STATUS.NONSTARTED
         return SPECIAL_STATUS.UNFINISHED
 
     def get_raw_status(self) -> TestStatus:
@@ -529,6 +549,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
     ) -> None:
         super().__init__(name, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
+        self._distributed_children = False
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
@@ -552,7 +573,10 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         for child in self._children.values():
             child_status = child.get_status()
-            if child_status == SPECIAL_STATUS.UNFINISHED:
+            if child_status == SPECIAL_STATUS.NONSTARTED:
+                # This means that the child was never started, so we don't count it
+                continue
+            elif child_status == SPECIAL_STATUS.UNFINISHED:
                 # There's no point in continuing to count if we care about unfinished children
                 log.debug("Item %s has unfinished children", self)
                 return SPECIAL_STATUS.UNFINISHED
@@ -562,7 +586,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         if children_status_counts[TestStatus.FAIL.value] > 0:
             return TestStatus.FAIL
-        if children_status_counts[TestStatus.SKIP.value] == len(self._children):
+        len_children = len(self._children)
+        if len_children > 0 and children_status_counts[TestStatus.SKIP.value] == len_children:
             return TestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[TestStatus.FAIL.value] == 0:
@@ -635,5 +660,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
-        if self._children:
+        if self._children or self._distributed_children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+
+    def set_distributed_children(self) -> None:
+        self._distributed_children = True

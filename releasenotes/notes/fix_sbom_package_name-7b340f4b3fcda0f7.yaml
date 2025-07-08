@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    SCA: This fix resolves an issue where some dependencies where reported with an inaccurate name.

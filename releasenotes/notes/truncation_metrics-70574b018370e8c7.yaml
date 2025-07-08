@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ASM: This introduces new metrics span tags to keep track of truncations of WAF payloads. 

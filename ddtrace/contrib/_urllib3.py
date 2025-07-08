@@ -6,14 +6,12 @@ support for distributed tracing across services the client communicates with.
 Enabling
 ~~~~~~~~
 
-The ``urllib3`` integration is not enabled by default. Use ``patch_all()``
-with the environment variable ``DD_TRACE_URLLIB3_ENABLED`` set, or call
-:func:`patch()<ddtrace.patch>` with the ``urllib3`` argument set to ``True`` to manually
-enable the integration, before importing and using ``urllib3``::
+The ``urllib3`` integration is not enabled by default. Use either ``ddtrace-run``
+or ``import ddtrace.auto`` with ``DD_PATCH_MODULES`` or ``DD_TRACE_URLLIB3_ENABLED`` to enable it.
+``DD_PATCH_MODULES=urllib3 ddtrace-run python app.py`` or
+``DD_PATCH_MODULES=urllib3:true python app.py``::
 
-    from ddtrace import patch
-    patch(urllib3=True)
-
+    import ddtrace.auto
     # use urllib3 like usual
 
 

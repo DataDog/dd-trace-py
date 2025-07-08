@@ -1,16 +1,16 @@
 import os
+from typing import Dict
+from urllib import parse
 
 import urllib3
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
@@ -42,6 +42,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(urllib3, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"urllib3": ">=1.25.0"}
 
 
 def patch():
@@ -138,9 +142,6 @@ def _wrap_urlopen(func, instance, args, kwargs):
                 request_headers = {}
                 kwargs["headers"] = request_headers
             HTTPPropagator.inject(span.context, request_headers)
-
-        if config.urllib3.analytics_enabled:
-            span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.urllib3.get_analytics_sample_rate())
 
         retries = request_retries.total if isinstance(request_retries, urllib3.util.retry.Retry) else None
 

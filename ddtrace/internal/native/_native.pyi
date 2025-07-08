@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 class DDSketch:
     def __init__(self): ...
@@ -53,3 +53,44 @@ class PyConfigurator:
         :return: A string representing the fleet stable configuration type.
         """
         ...
+
+class PyTracerMetadata:
+    """
+    Stores the configuration settings for the Tracer.
+    This data is saved in a temporary file while the Tracer is running.
+    """
+
+    def __init__(
+        self,
+        runtime_id: Optional[str],
+        tracer_version: str,
+        hostname: str,
+        service_name: Optional[str],
+        service_env: Optional[str],
+        service_version: Optional[str],
+    ):
+        """
+        Initialize the `PyTracerMetadata`.
+        :param runtime_id: Runtime UUID.
+        :param tracer_version: Version of the tracer (e.g., "1.0.0").
+        :param hostname: Identifier of the machine running the tracer.
+        :param service_name: Name of the service being instrumented.
+        :param service_env: Environment of the service being instrumented.
+        :param service_version: Version of the service being instrumented.
+        """
+        ...
+
+class PyAnonymousFileHandle:
+    """
+    Represents an anonymous file handle.
+    On Linux, it uses `memfd` (memory file descriptors) to create temporary files in memory.
+    """
+
+    def __init__(self): ...
+
+def store_metadata(data: PyTracerMetadata) -> PyAnonymousFileHandle:
+    """
+    Create an anonymous file storing the tracer configuration.
+    :param data: The tracer configuration to store.
+    """
+    ...

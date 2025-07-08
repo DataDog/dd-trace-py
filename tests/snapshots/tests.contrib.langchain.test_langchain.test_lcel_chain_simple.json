@@ -10,25 +10,22 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4500000000",
+      "_dd.p.tid": "67ab7faa00000000",
       "langchain.request.inputs.0.input": "how can langsmith help with testing?",
       "langchain.request.type": "chain",
-      "langchain.response.outputs.0": "\\nSystem: Langsmith can help with testing in several ways. First, it can generate automated tests based on your technical docume...",
+      "langchain.response.outputs.0": "I am a helpful assistant.",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "283efd16ebfc4477ac4f7c0bb3f68acc"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.tokens.completion_tokens": 101,
-      "langchain.tokens.prompt_tokens": 20,
-      "langchain.tokens.total_tokens": 121,
-      "process_id": 82010
+      "process_id": 45846
     },
-    "duration": 8281000,
-    "start": 1738263109118903000
+    "duration": 3346000,
+    "start": 1739292586795212000
   },
      {
        "name": "langchain.request",
@@ -52,16 +49,16 @@
          "langchain.request.prompts.0": "System: You are world class technical documentation writer.\\nHuman: how can langsmith help with testing?",
          "langchain.request.provider": "openai",
          "langchain.request.type": "llm",
-         "langchain.response.completions.0.finish_reason": "stop",
+         "langchain.response.completions.0.finish_reason": "length",
          "langchain.response.completions.0.logprobs": "None",
-         "langchain.response.completions.0.text": "\\nSystem: Langsmith can help with testing in several ways. First, it can generate automated tests based on your technical docume..."
+         "langchain.response.completions.0.text": "I am a helpful assistant."
        },
        "metrics": {
          "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 101,
-         "langchain.tokens.prompt_tokens": 20,
-         "langchain.tokens.total_tokens": 121
+         "langchain.tokens.completion_tokens": 5,
+         "langchain.tokens.prompt_tokens": 5,
+         "langchain.tokens.total_tokens": 10
        },
-       "duration": 6142000,
-       "start": 1738263109120997000
+       "duration": 2111000,
+       "start": 1739292586796420000
      }]]

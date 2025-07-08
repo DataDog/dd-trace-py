@@ -1,6 +1,8 @@
 import contextlib
+import http.client as httplib
 import socket
 import sys
+from urllib import parse
 from urllib.request import Request
 from urllib.request import build_opener
 from urllib.request import urlopen
@@ -13,8 +15,6 @@ from ddtrace.contrib.internal.httplib.patch import patch
 from ddtrace.contrib.internal.httplib.patch import should_skip_request
 from ddtrace.contrib.internal.httplib.patch import unpatch
 from ddtrace.ext import http
-from ddtrace.internal.compat import httplib
-from ddtrace.internal.compat import parse
 from ddtrace.internal.constants import _HTTPLIB_NO_TRACE_REQUEST
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin

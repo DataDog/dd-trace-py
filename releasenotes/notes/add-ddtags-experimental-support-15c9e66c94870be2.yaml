@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tags: Updates `DD_TAGS` parsing to match the Datadog Agent and other SDKs. Key-value pairs can now be separated by both commas and spaces (e.g., `DD_TAGS="key1:value1, key2:value2, key3:value3"`).
+    This reverts a change introduced in v2.11.0, which only allowed one separator type.

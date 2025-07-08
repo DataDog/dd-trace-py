@@ -11,6 +11,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.api_client._util import _make_fqdn_internal_test_id
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
+from tests.contrib.pytest.utils import assert_stats
 
 
 pytestmark = pytest.mark.skipif(
@@ -49,22 +50,6 @@ _TEST_PASS = """
 def test_pass():
     assert True
 """
-
-
-def assert_stats(rec, **outcomes):
-    """
-    Assert that the correct number of test results of each type is present in a test run.
-
-    This is similar to `rec.assertoutcome()`, but works with test statuses other than 'passed', 'failed' and 'skipped'.
-    """
-    stats = {**rec.getcall("pytest_terminal_summary").terminalreporter.stats}
-    stats.pop("", None)
-
-    for outcome, expected_count in outcomes.items():
-        actual_count = len(stats.pop(outcome, []))
-        assert actual_count == expected_count, f"Expected {expected_count} {outcome} tests, got {actual_count}"
-
-    assert not stats, "Found unexpected stats in test results: {', '.join(stats.keys())}"
 
 
 class PytestDisablingTestCase(PytestTestCaseBase):

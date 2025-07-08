@@ -1,14 +1,13 @@
 import re
 import sys
-from typing import Any
 from typing import AsyncGenerator
-from typing import Dict
 from typing import Generator
-from typing import List
 
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
+from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -26,20 +25,24 @@ _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
 class BaseTracedOpenAIStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, kwargs, is_completion=False):
+    def __init__(self, wrapped, integration, span, kwargs, operation_type="chat"):
         super().__init__(wrapped)
         n = kwargs.get("n", 1) or 1
         prompts = kwargs.get("prompt", "")
-        if is_completion and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
+        if operation_type == "completion" and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
             n *= len(prompts)
         self._dd_span = span
         self._streamed_chunks = [[] for _ in range(n)]
         self._dd_integration = integration
-        self._is_completion = is_completion
+        self._operation_type = operation_type
         self._kwargs = kwargs
 
 
 class TracedOpenAIStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace OpenAI stream objects for chat/completion/response.
+    """
+
     def __enter__(self):
         self.__wrapped__.__enter__()
         return self
@@ -61,10 +64,13 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                    self._dd_integration,
+                    self._dd_span,
+                    self._kwargs,
+                    self._streamed_chunks,
+                    self._operation_type,
                 )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     def __next__(self):
         try:
@@ -74,15 +80,17 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
             return chunk
         except StopIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                self._dd_integration,
+                self._dd_span,
+                self._kwargs,
+                self._streamed_chunks,
+                self._operation_type,
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
     def _extract_token_chunk(self, chunk):
@@ -106,6 +114,10 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
 
 
 class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
+    """
+    This class is used to trace AsyncOpenAI stream objects for chat/completion/response.
+    """
+
     async def __aenter__(self):
         await self.__wrapped__.__aenter__()
         return self
@@ -127,10 +139,9 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         finally:
             if not exception_raised:
                 _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
                 )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
 
     async def __anext__(self):
         try:
@@ -140,15 +151,13 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
             return chunk
         except StopAsyncIteration:
             _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._is_completion
+                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
             )
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
         except Exception:
             self._dd_span.set_exc_info(*sys.exc_info())
             self._dd_span.finish()
-            self._dd_integration.metric(self._dd_span, "dist", "request.duration", self._dd_span.duration_ns)
             raise
 
     async def _extract_token_chunk(self, chunk):
@@ -254,112 +263,55 @@ def _is_async_generator(resp):
 
 
 def _loop_handler(span, chunk, streamed_chunks):
-    """Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
-
-    When handling a streamed chat/completion response, this function is called for each chunk in the streamed response.
+    """
+    Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
+    When handling a streamed chat/completion/responses,
+    this function is called for each chunk in the streamed response.
     """
     if span.get_tag("openai.response.model") is None:
-        span.set_tag("openai.response.model", chunk.model)
-    for choice in chunk.choices:
+        if hasattr(chunk, "type") and chunk.type.startswith("response."):
+            response = getattr(chunk, "response", None)
+            model = getattr(response, "model", "")
+        else:
+            model = getattr(chunk, "model", "")
+        span.set_tag_str("openai.response.model", model)
+
+    response = getattr(chunk, "response", None)
+    if response is not None:
+        streamed_chunks[0].insert(0, response)
+
+    # Completions/chat completions are returned as `choices`
+    for choice in getattr(chunk, "choices", []):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
 
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
     try:
-        if is_completion:
-            formatted_completions = [_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks]
-        else:
-            formatted_completions = [_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks]
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, integration, formatted_completions, prompts, request_messages, kwargs)
-        operation = "completion" if is_completion else "chat"
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
+        if operation_type == "response":
+            formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None
+        elif operation_type == "completion":
+            formatted_completions = [
+                openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
+        elif operation_type == "chat":
+            formatted_completions = [
+                openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
+            ]
+        if integration.is_pc_sampled_span(span) and not operation_type == "response":
+            _tag_streamed_completions(integration, span, formatted_completions)
+        _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
+        integration.llmobs_set_tags(
+            span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
+        )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
-def _construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
-    """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
-    if not streamed_chunks:
-        return {"text": ""}
-    completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if streamed_chunks[-1].finish_reason is not None:
-        completion["finish_reason"] = streamed_chunks[-1].finish_reason
-    if hasattr(streamed_chunks[0], "usage"):
-        completion["usage"] = streamed_chunks[0].usage
-    return completion
-
-
-def _construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_chunk=None, function_call_chunk=None):
-    """Builds a tool_call dictionary from streamed function_call/tool_call chunks."""
-    if function_call_chunk:
-        if not stored_tool_calls:
-            stored_tool_calls.append({"name": getattr(function_call_chunk, "name", ""), "arguments": ""})
-        stored_tool_calls[0]["arguments"] += getattr(function_call_chunk, "arguments", "")
-        return
-    if not tool_call_chunk:
-        return
-    tool_call_idx = getattr(tool_call_chunk, "index", None)
-    tool_id = getattr(tool_call_chunk, "id", None)
-    tool_type = getattr(tool_call_chunk, "type", None)
-    function_call = getattr(tool_call_chunk, "function", None)
-    function_name = getattr(function_call, "name", "")
-    # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
-    list_idx = next(
-        (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
-        None,
-    )
-    if list_idx is None:
-        stored_tool_calls.append(
-            {"name": function_name, "arguments": "", "index": tool_call_idx, "tool_id": tool_id, "type": tool_type}
-        )
-        list_idx = -1
-    stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
-
-
-def _construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
-    """Constructs a chat completion message dictionary from streamed chunks.
-    The resulting message dictionary is of form:
-    {"content": "...", "role": "...", "tool_calls": [...], "finish_reason": "..."}
-    """
-    message = {"content": "", "tool_calls": []}
-    for chunk in streamed_chunks:
-        if getattr(chunk, "usage", None):
-            message["usage"] = chunk.usage
-        if not hasattr(chunk, "delta"):
-            continue
-        if getattr(chunk, "index", None) and not message.get("index"):
-            message["index"] = chunk.index
-        if getattr(chunk.delta, "role") and not message.get("role"):
-            message["role"] = chunk.delta.role
-        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
-            message["finish_reason"] = chunk.finish_reason
-        chunk_content = getattr(chunk.delta, "content", "")
-        if chunk_content:
-            message["content"] += chunk_content
-            continue
-        function_call = getattr(chunk.delta, "function_call", None)
-        if function_call:
-            _construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = getattr(chunk.delta, "tool_calls", None)
-        if not tool_calls:
-            continue
-        for tool_call in tool_calls:
-            _construct_tool_call_from_streamed_chunk(message["tool_calls"], tool_call_chunk=tool_call)
-    if message["tool_calls"]:
-        message["tool_calls"].sort(key=lambda x: x.get("index", 0))
-    else:
-        message.pop("tool_calls", None)
-    message["content"] = message["content"].strip()
-    return message
-
-
-def _tag_streamed_response(integration, span, completions_or_messages=None):
+def _tag_streamed_completions(integration, span, completions_or_messages=None):
     """Tagging logic for streamed completions and chat completions."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
@@ -381,15 +333,22 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion responses, and submit them as integration metrics.
+def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
+    usage = None
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
-        prompt_tokens = getattr(usage, "prompt_tokens", 0)
-        completion_tokens = getattr(usage, "completion_tokens", 0)
+    elif response and getattr(response, "usage", None):
+        usage = response.usage
+
+    if usage:
+        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
+            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
+            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
         total_tokens = getattr(usage, "total_tokens", 0)
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
@@ -401,11 +360,6 @@ def _set_token_metrics(span, integration, response, prompts, messages, kwargs):
     span.set_metric("openai.response.usage.completion_tokens", completion_tokens)
     span.set_metric("openai.response.completion_tokens_estimated", int(estimated))
     span.set_metric("openai.response.usage.total_tokens", total_tokens)
-
-    tags = ["openai.estimated:true"] if estimated else None
-    integration.metric(span, "dist", "tokens.prompt", prompt_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.completion", completion_tokens, tags=tags)
-    integration.metric(span, "dist", "tokens.total", total_tokens, tags=tags)
 
 
 def _compute_prompt_tokens(model_name, prompts=None, messages=None):

@@ -37,18 +37,20 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
-from ._overhead_control_engine import OverheadControl
+from ._listener import iast_listen
+from ._overhead_control_engine import oce
 
 
 log = get_logger(__name__)
 
-oce = OverheadControl()
+_IAST_TO_BE_LOADED = True
+_iast_propagation_enabled = False
 
 
 def ddtrace_iast_flask_patch():
     """
     Patch the code inside the Flask main app source code file (typically "app.py") so
-    IAST/Custom Code propagation works also for the functions and methods defined inside it.
+    Runtime Code Analysis (IAST) works also for the functions and methods defined inside it.
     This must be called on the top level or inside the `if __name__ == "__main__"`
     and must be before the `app.run()` call. It also requires `DD_IAST_ENABLED` to be
     activated.
@@ -79,9 +81,6 @@ def ddtrace_iast_flask_patch():
     exec(compiled_code, module.__dict__)  # nosec B102
 
 
-_iast_propagation_enabled = False
-
-
 def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
@@ -92,14 +91,14 @@ def enable_iast_propagation():
     global _iast_propagation_enabled
     if _iast_propagation_enabled:
         return
-    log.debug("IAST enabled")
+
+    log.debug("iast::instrumentation::starting IAST")
     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
     _iast_propagation_enabled = True
 
 
 def _iast_pytest_activation():
     global _iast_propagation_enabled
-    global oce
     if _iast_propagation_enabled:
         return
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
@@ -135,8 +134,15 @@ def disable_iast_propagation():
 
 
 __all__ = [
-    "oce",
     "ddtrace_iast_flask_patch",
     "enable_iast_propagation",
     "disable_iast_propagation",
 ]
+
+
+def load_iast():
+    """Lazily load the iast module listeners."""
+    global _IAST_TO_BE_LOADED
+    if _IAST_TO_BE_LOADED:
+        iast_listen()
+        _IAST_TO_BE_LOADED = False

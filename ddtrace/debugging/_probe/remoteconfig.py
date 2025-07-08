@@ -288,13 +288,14 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     """
 
     def __init__(self, data_connector, callback, name, status_logger):
-        super().__init__(data_connector, callback, name)
+        super().__init__(data_connector, None, name)
         self._configs: Dict[str, Dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(
             time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval
         )
         self._status_timestamp = next(self._status_timestamp_sequence)
         self._status_logger = status_logger
+        self._debugger_callback = callback
 
     def _exec_callback(self, data, test_tracer=None):
         # Check if it is time to re-emit probe status messages.
@@ -306,16 +307,15 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
 
         if data:
             log.debug("[%s][P: %s] Dynamic Instrumentation Updated", os.getpid(), os.getppid())
-            for metadata, config in zip(data["metadata"], data["config"]):
-                if metadata is None:
+            for payload in data:
+                if payload.metadata is None:
                     log.debug(
                         "[%s][P: %s] Dynamic Instrumentation: no RCM metadata for configuration; skipping",
                         os.getpid(),
                         os.getppid(),
                     )
                     continue
-
-                self._update_probes_for_config(metadata["id"], config)
+                self._update_probes_for_config(payload.metadata.id, payload.content)
 
         # Flush any probe status messages that might have been generated
         self._status_logger.flush()
@@ -327,7 +327,7 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
             os.getppid(),
         )
 
-        self._callback(ProbePollerEvent.STATUS_UPDATE, [])
+        self._debugger_callback(ProbePollerEvent.STATUS_UPDATE, [])
 
     def _dispatch_probe_events(self, prev_probes: Dict[str, Probe], next_probes: Dict[str, Probe]) -> None:
         new_probes = [p for _, p in next_probes.items() if _ not in prev_probes]
@@ -335,11 +335,11 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
         modified_probes = [p for _, p in next_probes.items() if _ in prev_probes and p != prev_probes[_]]
 
         if deleted_probes:
-            self._callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
+            self._debugger_callback(ProbePollerEvent.DELETED_PROBES, deleted_probes)
         if modified_probes:
-            self._callback(ProbePollerEvent.MODIFIED_PROBES, modified_probes)
+            self._debugger_callback(ProbePollerEvent.MODIFIED_PROBES, modified_probes)
         if new_probes:
-            self._callback(ProbePollerEvent.NEW_PROBES, new_probes)
+            self._debugger_callback(ProbePollerEvent.NEW_PROBES, new_probes)
 
     def _update_probes_for_config(self, config_id: str, config: Any) -> None:
         prev_probes: Dict[str, Probe] = self._configs.get(config_id, {})

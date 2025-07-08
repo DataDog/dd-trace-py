@@ -11,14 +11,6 @@ from ddtrace.llmobs.decorators import tool
 from ddtrace.llmobs.decorators import workflow
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.llmobs._utils import _expected_span_link
-from tests.utils import override_global_config
-
-
-@pytest.fixture
-def auto_linking_enabled():
-    with override_global_config(dict(_llmobs_auto_span_linking_enabled=True)):
-        yield
 
 
 @pytest.fixture
@@ -442,7 +434,7 @@ def test_automatic_annotation_non_llm_decorators(llmobs, llmobs_events):
         assert llmobs_events[-1] == _expected_llmobs_non_llm_span_event(
             span,
             decorator_name,
-            input_value=str({"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}),
+            input_value='{"prompt": "test_prompt", "arg_2": "arg_2", "kwarg_2": 12345}',
             output_value="test_prompt",
             session_id="test_session_id",
         )
@@ -460,7 +452,7 @@ def test_automatic_annotation_retrieval_decorator(llmobs, llmobs_events):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "retrieval",
-        input_value=str({"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}),
+        input_value='{"query": "test_query", "arg_2": "arg_2", "kwarg_2": 12345}',
         session_id="test_session_id",
     )
 
@@ -831,83 +823,8 @@ def test_generator_exit_exception_sync(llmobs, llmobs_events):
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
-        input_value=str({"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}),
+        input_value='{"alist": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]}',
         error=span.get_tag("error.type"),
         error_message=span.get_tag("error.message"),
         error_stack=span.get_tag("error.stack"),
     )
-
-
-def test_decorator_records_span_links(llmobs, llmobs_events, auto_linking_enabled):
-    @workflow
-    def one(inp):
-        return 1
-
-    @task
-    def two(inp):
-        return inp
-
-    with llmobs.agent("dummy_trace"):
-        two(one("test_input"))
-
-    one_span = llmobs_events[0]
-    two_span = llmobs_events[1]
-
-    assert "span_links" not in one_span
-    assert len(two_span["span_links"]) == 2
-    assert two_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
-    assert two_span["span_links"][1] == _expected_span_link(one_span, "output", "output")
-
-
-def test_decorator_records_span_links_for_multi_input_functions(llmobs, llmobs_events, auto_linking_enabled):
-    @agent
-    def some_agent(a, b):
-        pass
-
-    @workflow
-    def one():
-        return 1
-
-    @task
-    def two():
-        return 2
-
-    with llmobs.agent("dummy_trace"):
-        some_agent(one(), two())
-
-    one_span = llmobs_events[0]
-    two_span = llmobs_events[1]
-    three_span = llmobs_events[2]
-
-    assert "span_links" not in one_span
-    assert "span_links" not in two_span
-    assert len(three_span["span_links"]) == 2
-    assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
-    assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
-
-
-def test_decorator_records_span_links_via_kwargs(llmobs, llmobs_events, auto_linking_enabled):
-    @agent
-    def some_agent(a=None, b=None):
-        pass
-
-    @workflow
-    def one():
-        return 1
-
-    @task
-    def two():
-        return 2
-
-    with llmobs.agent("dummy_trace"):
-        some_agent(one(), two())
-
-    one_span = llmobs_events[0]
-    two_span = llmobs_events[1]
-    three_span = llmobs_events[2]
-
-    assert "span_links" not in one_span
-    assert "span_links" not in two_span
-    assert len(three_span["span_links"]) == 2
-    assert three_span["span_links"][0] == _expected_span_link(one_span, "output", "input")
-    assert three_span["span_links"][1] == _expected_span_link(two_span, "output", "input")
