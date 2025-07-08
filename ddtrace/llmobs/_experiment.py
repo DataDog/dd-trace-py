@@ -1,14 +1,9 @@
-import concurrent.futures
-from copy import deepcopy
 import inspect
-import sys
-import time
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypedDict
 from typing import Union
 import wrapt
@@ -75,29 +70,29 @@ class ExperimentEvaluatorWrapper(wrapt.ObjectProxy):
 
 class Experiment:
     def __init__(
-        self, name: str, task: ExperimentTaskWrapper, dataset: Dataset, evaluators: List[ExperimentEvaluatorWrapper], description: str = "", config: Optional[Dict[str, Any]] = None
+        self,
+        name: str,
+        task: ExperimentTaskWrapper,
+        dataset: Dataset,
+        evaluators: List[ExperimentEvaluatorWrapper],
+        description: str = "",
+        config: Optional[Dict[str, Any]] = None,
     ) -> None:
         self.name = name
         self._task = task
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
-        # TODO: What to do with these?
-        #  Summary metrics
-        #  Metadata/Tags
-        #  Project
-        #  Config
         self._config: Dict[str, Any] = config or {}
-
-        self._experiment_id: Optional[str] = None
+        self._id: Optional[str] = None
         self._project_id: Optional[str] = None
 
     def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
-        self._run_task(jobs, raise_errors, sample_size)
-        self._run_evaluators()
+        experiment_results = self._run_task(jobs, raise_errors, sample_size)
+        self._run_evaluators(experiment_results, raise_errors=raise_errors)
 
-    def _run_task(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
-        pass
+    def _run_task(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[Any]:
+        return []
 
-    def _run_evaluators(self):
+    def _run_evaluators(self, results, raise_errors: bool = False) -> None:
         pass
