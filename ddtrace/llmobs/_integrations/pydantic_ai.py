@@ -132,7 +132,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "message")
         tool_name = "PydanticAI Tool"
-        tool_input = {}
+        tool_input: Any = {}
         if tool_call:
             tool_name = getattr(tool_call, "tool_name", "")
             tool_input = getattr(tool_call, "args", {})
@@ -202,4 +202,5 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self._running_agents[span.span_id] = []
 
     def _register_tool(self, span: Span) -> None:
-        self._running_agents[self._latest_agent].append(span.span_id)
+        if self._latest_agent is not None:
+            self._running_agents[self._latest_agent].append(span.span_id)
