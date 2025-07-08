@@ -15,7 +15,6 @@ from ddtrace._trace import Span
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-DEFAULT_CONCURRENT_JOBS = 10
 
 
 class DatasetRecord(TypedDict):
@@ -34,13 +33,6 @@ class Dataset:
         self.name = name
         self._id = dataset_id
         self._data = data
-
-    def __len__(self):
-        return len(self._data)
-
-    def __iter__(self):
-        for idx, record in enumerate(self._data):
-            yield idx, record
 
 
 class ExperimentTaskWrapper(wrapt.ObjectProxy):
