@@ -16,6 +16,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypedDict
 from typing import cast
 from urllib import parse
 import urllib.parse
@@ -1032,6 +1033,15 @@ class SnapshotFailed(Exception):
     pass
 
 
+class TestAgentRequest(TypedDict):
+    method: str
+    url: str
+    headers: Dict[str, str]
+    body: bytes
+    status: int
+    response: bytes
+
+
 class TestAgentClient:
     def __init__(self, base_url: str, token: Optional[str] = None):
         self._base_url = base_url
@@ -1064,11 +1074,40 @@ class TestAgentClient:
                 conn.close()
         return 0, b""
 
-    def requests(self) -> List[Dict[str, Any]]:
+    def requests(self) -> List[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
         return cast(List[Dict[str, Any]], data)
+
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            if "dd-telemetry-request-type" not in req["headers"]:
+                continue
+
+            if telemetry_type is None:
+                reqs.append(req)
+            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
+                reqs.append(req)
+        return reqs
+
+    def crash_reports(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.telemetry_requests(telemetry_type="logs"):
+            # Parse the json data in order to filter based on "origin" key,
+            # but we give the user back just the raw body
+            try:
+                data = json.loads(base64.b64decode(req["body"]))
+            except Exception:
+                continue
+
+            if data.get("origin") != "Crashtracker":
+                continue
+
+            req["body"] = base64.b64decode(req["body"])
+            reqs.append(req)
+        return reqs
 
     def clear(self) -> None:
         status, _ = self._request("GET", self._url("/test/session/clear"))
@@ -1088,33 +1127,6 @@ class SnapshotTest:
 
     def requests(self) -> List[Dict[str, Any]]:
         return self._client.requests()
-
-    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[Dict[str, Any]]:
-        reqs = []
-        for req in self.requests():
-            if "dd-telemetry-request-type" not in req.get("headers", {}):
-                continue
-
-            if telemetry_type is None:
-                reqs.append(req)
-            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
-                reqs.append(req)
-        return reqs
-
-    def crash_reports(self) -> List[Dict[str, Any]]:
-        reqs = []
-        for req in self.telemetry_requests(telemetry_type="logs"):
-            try:
-                data = json.loads(base64.b64decode(req["body"]))
-            except Exception:
-                continue
-
-            if data.get("origin") != "Crashtracker":
-                continue
-
-            req["body"] = base64.b64decode(req["body"])
-            reqs.append(req)
-        return reqs
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""

@@ -9,8 +9,9 @@ from typing import Generator
 from typing import List
 from typing import Optional
 
-from tests.utils import SnapshotTest
-from tests.utils import snapshot_context
+import ddtrace
+from tests.utils import TestAgentClient
+from tests.utils import TestAgentRequest
 
 
 def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None) -> bool:
@@ -105,7 +106,7 @@ class CrashtrackerWrapper:
         return read_files([self.stdout, self.stderr])
 
 
-def wait_for_crash_reports(test_agent_client: SnapshotTest) -> List[Dict[str, Any]]:
+def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
     crash_reports = []
     for _ in range(5):
         crash_reports = test_agent_client.crash_reports()
@@ -116,7 +117,7 @@ def wait_for_crash_reports(test_agent_client: SnapshotTest) -> List[Dict[str, An
     return crash_reports
 
 
-def get_crash_report(test_agent_client: SnapshotTest) -> Dict[str, Any]:
+def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
     crash_reports = wait_for_crash_reports(test_agent_client)
     assert len(crash_reports) == 1
@@ -124,6 +125,13 @@ def get_crash_report(test_agent_client: SnapshotTest) -> Dict[str, Any]:
 
 
 @contextmanager
-def with_test_agent() -> Generator[SnapshotTest, None, None]:
-    with snapshot_context(token=None) as ctx:
-        yield ctx
+def with_test_agent() -> Generator[TestAgentClient, None, None]:
+    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
+    client = TestAgentClient(base_url=base_url, token=None)
+    try:
+        # Reset state before starting the test
+        client.clear()
+        yield client
+    finally:
+        # Always reset state at the end of the test
+        client.clear()
