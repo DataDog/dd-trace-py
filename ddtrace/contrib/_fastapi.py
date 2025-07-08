@@ -38,7 +38,7 @@ Configuration
 
    Default: ``'fastapi.request'``
 
-See :ref:`asgi-config-obfuscation` for details on resource name obfuscation.
+See :ref:`asgi configuration<asgi-config-obfuscation>` for details on resource name obfuscation.
 
 
 Example::
