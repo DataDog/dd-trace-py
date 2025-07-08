@@ -132,11 +132,11 @@ def get_app():
             for param in query_params:
                 if param.startswith("filename"):
                     filename = query_params[param]
-                try:
-                    with open(filename, "rb") as f:
-                        res.append(f"File: {f.read()}")
-                except Exception as e:
-                    res.append(f"Error: {e}")
+                    try:
+                        with open(filename, "rb") as f:
+                            res.append(f"File: {f.read()}")
+                    except Exception as e:
+                        res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\br>\n".join(res))
         elif endpoint == "ssrf":
@@ -146,25 +146,25 @@ def get_app():
                     urlname = query_params[param]
                     if not urlname.startswith("http"):
                         urlname = f"http://{urlname}"
-                try:
-                    if param.startswith("url_urlopen_request"):
-                        import urllib.request
+                    try:
+                        if param.startswith("url_urlopen_request"):
+                            import urllib.request
 
-                        request = urllib.request.Request(urlname)
-                        with urllib.request.urlopen(request, timeout=0.15) as f:
-                            res.append(f"Url: {f.read()}")
-                    elif param.startswith("url_urlopen_string"):
-                        import urllib.request
+                            request = urllib.request.Request(urlname)
+                            with urllib.request.urlopen(request, timeout=0.15) as f:
+                                res.append(f"Url: {f.read()}")
+                        elif param.startswith("url_urlopen_string"):
+                            import urllib.request
 
-                        with urllib.request.urlopen(urlname, timeout=0.15) as f:
-                            res.append(f"Url: {f.read()}")
-                    elif param.startswith("url_requests"):
-                        import requests
+                            with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                                res.append(f"Url: {f.read()}")
+                        elif param.startswith("url_requests"):
+                            import requests
 
-                        r = requests.get(urlname, timeout=0.15)
-                        res.append(f"Url: {r.text}")
-                except Exception as e:
-                    res.append(f"Error: {e}")
+                            r = requests.get(urlname, timeout=0.15)
+                            res.append(f"Url: {r.text}")
+                    except Exception as e:
+                        res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "sql_injection":
@@ -172,12 +172,11 @@ def get_app():
             for param in query_params:
                 if param.startswith("user_id"):
                     user_id = query_params[param]
-                try:
-                    if param.startswith("user_id"):
+                    try:
                         cursor = DB.execute(f"SELECT * FROM users WHERE id = {user_id}")
                         res.append(f"Url: {list(cursor)}")
-                except Exception as e:
-                    res.append(f"Error: {e}")
+                    except Exception as e:
+                        res.append(f"Error: {e}")
             tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "shell_injection":
