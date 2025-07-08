@@ -177,9 +177,6 @@ class CIVisibility(Service):
             # assume that a tracer is already configured if it's been passed in.
             self.tracer._span_aggregator.partial_flush_enabled = True
             self.tracer._span_aggregator.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
-            # We need to reset the tracer's enabled state to match the global config.
-            # Investigate this further in a future PR.
-            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
@@ -408,8 +405,13 @@ class CIVisibility(Service):
             )
         if writer is not None:
             self.tracer._span_aggregator.writer = writer
-            # We need to reset the tracer's enabled state to match the global config.
-            # Investigate this further in a future PR.
+            # Tracer.configure(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value
+            # (in Tracer._reset(...)). Removing this side-effect causes some CIVisibility tests to fail.
+            # This MIGHT be due to the shutdown the global tracer in tests (calling tracer.shutdown()
+            # sets tracer.enabled to False and is meant to be an irreversible operation).
+            # To avoid breaking CIVisibility, we continue to reset self.enabled here
+            # to match the global config. Although not deal, this is the safest way to refactor the Tracer class
+            # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
             self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
@@ -643,14 +645,6 @@ class CIVisibility(Service):
         tracer_filters = self.tracer._span_aggregator.user_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
-            # Tracer.configure(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value
-            # (in Tracer._reset(...)). Removing this side-effect causes some CIVisibility tests to fail.
-            # This MIGHT be due to shutdown the global tracer in tests (calling tracer.shutdown()
-            # sets tracer.enabled to False and is meant to be an irreversible operation).
-            # To avoid breaking CIVisibility, we continue to reset self.enabled here
-            # to match the global config. Although not deal, this is the safest way to refactor the Tracer class
-            # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
-            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer.configure(trace_processors=tracer_filters)
 
         def _task_fetch_tests_to_skip():
