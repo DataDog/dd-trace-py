@@ -121,7 +121,7 @@ def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
     usage = {}
     metadata = _get_attr(response, "metadata", {})
     billable_character_count = _get_attr(metadata, "billable_character_count", None)
-    
+
     input_tokens = 0
     for embedding in _get_attr(response, "embeddings", []):
         statistics = _get_attr(embedding, "statistics", {})
@@ -129,10 +129,11 @@ def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
 
     if billable_character_count is not None:
         usage[BILLABLE_CHARACTER_COUNT_METRIC_KEY] = billable_character_count
-    if input_tokens: # falsy value of 0 should not be set
+    if input_tokens:  # falsy value of 0 should not be set
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
 
     return usage
+
 
 def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     """part is a PartUnion = Union[File, Part, PIL_Image, str]
