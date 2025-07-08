@@ -127,7 +127,7 @@ def _handle_error(span, response_error, status_code):
 
 @contextmanager
 def _activated_span(tracer: Tracer, span: Span):
-    prev_span = tracer.current_span()
+    prev_span = tracer.context_provider.active()
     tracer.context_provider.activate(span)
     try:
         yield
@@ -195,11 +195,11 @@ class _ClientInterceptor(
         self._port = port
 
     def _intercept_client_call(self, method_kind, client_call_details):
-        tracer = self._pin.tracer
+        tracer: Tracer = self._pin.tracer
 
         # Instead of using .trace, create the span and activate it at points where we call the continuations
         # This avoids the issue of spans being leaked when using the .future interface.
-        parent = tracer.current_span()
+        parent = tracer.context_provider.active()
         span = tracer.start_span(
             schematize_url_operation("grpc", protocol="grpc", direction=SpanDirection.OUTBOUND),
             span_type=SpanTypes.GRPC,
@@ -226,7 +226,7 @@ class _ClientInterceptor(
         # propagate distributed tracing headers if available
         headers = {}
         if config.grpc.distributed_tracing_enabled:
-            HTTPPropagator.inject(span.context, headers)
+            HTTPPropagator.inject(span.context, headers, span)
 
         metadata = []
         if client_call_details.metadata is not None:
