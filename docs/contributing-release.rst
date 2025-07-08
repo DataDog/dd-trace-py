@@ -48,8 +48,9 @@ Ensure you have followed the prerequisite steps above.
 .. code-block::
 
     Estimated end-of-life date, accurate to within three months: MM-YYYY
+    See [the support level definitions](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/#releases) for more information.
 
-Where the EOL month is calculated thus: <this release line's start date> + <two years>
+Where the EOL month is calculated thus: <this release line's start month> + <18 months>
 
 6. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
    Make sure the “Set as latest release" box is CHECKED only if publishing a new minor release or a patch release for the latest minor version.
