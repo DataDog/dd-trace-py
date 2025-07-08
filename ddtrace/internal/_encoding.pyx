@@ -60,6 +60,9 @@ cdef extern from "pack.h":
     int msgpack_pack_true(msgpack_packer* pk)
     int msgpack_pack_false(msgpack_packer* pk)
 
+cdef extern from "limits.h":
+    cdef int LONG_MAX
+
 
 cdef long long ITEM_LIMIT = (2**32)-1
 
@@ -122,6 +125,7 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
         return msgpack_pack_nil(pk)
 
     if PyLong_Check(n):
+        n = max(-1 * LONG_MAX, min(LONG_MAX, n))
         try:
             if n > 0:
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
@@ -1048,12 +1052,12 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        _ = span.start_ns
+        _ = max(0, min(LONG_MAX, span.start_ns))
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0:
             return ret
 
-        _ = span.duration_ns
+        _ = max(0, min(LONG_MAX, span.duration_ns))
         ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
         if ret != 0:
             return ret
