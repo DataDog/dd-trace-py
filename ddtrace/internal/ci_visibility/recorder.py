@@ -177,6 +177,9 @@ class CIVisibility(Service):
             # assume that a tracer is already configured if it's been passed in.
             self.tracer._span_aggregator.partial_flush_enabled = True
             self.tracer._span_aggregator.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            # We need to reset the tracer's enabled state to match the global config.
+            # Investigate this further in a future PR.
+            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
@@ -405,6 +408,9 @@ class CIVisibility(Service):
             )
         if writer is not None:
             self.tracer._span_aggregator.writer = writer
+            # We need to reset the tracer's enabled state to match the global config.
+            # Investigate this further in a future PR.
+            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
