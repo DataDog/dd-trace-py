@@ -13,6 +13,7 @@ from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -145,4 +146,40 @@ def mock_generate_content_with_tools(genai):
         return MOCK_TOOL_FINAL_RESPONSE
 
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content_with_tools):
+        yield
+
+
+@pytest.fixture
+def mock_embed_content(genai):
+    """
+    Since embed_content does not wrap a private helper like _generate_content,
+    we need to patch the request method on BaseApiClient to avoid overwriting our own patching code
+    """
+    import json
+    from unittest.mock import Mock
+
+    mock_response = Mock()
+    mock_response.headers = {}
+    mock_response.body = json.dumps(MOCK_EMBED_CONTENT_RESPONSE.model_dump())
+
+    def _fake_request(self, method, path, request_dict, http_options):
+        return mock_response
+
+    with mock_patch("google.genai._api_client.BaseApiClient.request", _fake_request):
+        yield
+
+
+@pytest.fixture
+def mock_async_embed_content(genai):
+    import json
+    from unittest.mock import Mock
+
+    mock_response = Mock()
+    mock_response.headers = {}
+    mock_response.body = json.dumps(MOCK_EMBED_CONTENT_RESPONSE.model_dump())
+
+    async def _fake_async_request(self, method, path, request_dict, http_options):
+        return mock_response
+
+    with mock_patch("google.genai._api_client.BaseApiClient.async_request", _fake_async_request):
         yield

@@ -112,6 +112,46 @@ MOCK_TOOL_FINAL_RESPONSE = types.GenerateContentResponse(
     ),
 )
 
+EMBED_CONTENT_CONFIG = types.EmbedContentConfig(
+    output_dimensionality=10,
+)
+
+MOCK_EMBED_CONTENT_RESPONSE = types.EmbedContentResponse(
+    embeddings=[
+        types.ContentEmbedding(
+            values=[
+                0.04906727373600006,
+                0.013867330737411976,
+                -0.00046187109546735883,
+                -0.005779101047664881,
+                -0.047801949083805084,
+                -0.02821936458349228,
+                0.021982954815030098,
+                0.0018359724199399352,
+                0.037469010800123215,
+                0.03066416271030903,
+            ],
+            statistics=types.ContentEmbeddingStatistics(truncated=False, token_count=6.0),
+        ),
+        types.ContentEmbedding(
+            values=[
+                0.025134827393812835,
+                -0.008234120485931635,
+                0.012458771094677758,
+                0.003421857264859823,
+                -0.031902847392850494,
+                0.019743895834729472,
+                -0.015892734820149384,
+                0.009387462847392847,
+                0.042834729847392847,
+                -0.008374628473928475,
+            ],
+            statistics=types.ContentEmbeddingStatistics(truncated=False, token_count=4.0),
+        ),
+    ],
+    metadata=types.EmbedContentMetadata(billable_character_count=16),
+)
+
 
 def get_expected_metadata():
     metadata = {}

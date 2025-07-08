@@ -3,6 +3,7 @@ import pytest
 
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
+from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 
@@ -224,6 +225,55 @@ def test_google_genai_generate_content_with_tools(mock_generate_content_with_too
         assert final_response.text
         assert "Boston" in final_response.text
         assert "72" in final_response.text
+
+
+def test_google_genai_embed_content(mock_embed_content, genai_client, snapshot_context):
+    with snapshot_context(token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content"):
+        genai_client.models.embed_content(
+            model="text-embedding-004",
+            contents=["why is the sky blue?", "What is your age?"],
+            config=EMBED_CONTENT_CONFIG,
+        )
+
+
+def test_google_genai_embed_content_error(mock_embed_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content_error",
+        ignores=["meta.error.stack", "meta.error.message"],
+    ):
+        with pytest.raises(TypeError):
+            genai_client.models.embed_content(
+                model="text-embedding-004",
+                contents=["why is the sky blue?", "What is your age?"],
+                config=EMBED_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+
+
+async def test_google_genai_embed_content_async(mock_async_embed_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content",
+        ignores=["resource"],
+    ):
+        await genai_client.aio.models.embed_content(
+            model="text-embedding-004",
+            contents=["why is the sky blue?", "What is your age?"],
+            config=EMBED_CONTENT_CONFIG,
+        )
+
+
+async def test_google_genai_embed_content_async_error(mock_async_embed_content, genai_client, snapshot_context):
+    with snapshot_context(
+        token="tests.contrib.google_genai.test_google_genai.test_google_genai_embed_content_error",
+        ignores=["resource", "meta.error.message", "meta.error.stack"],
+    ):
+        with pytest.raises(TypeError):
+            await genai_client.aio.models.embed_content(
+                model="text-embedding-004",
+                contents=["why is the sky blue?", "What is your age?"],
+                config=EMBED_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
 
 
 @pytest.mark.parametrize(
