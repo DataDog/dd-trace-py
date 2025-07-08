@@ -81,6 +81,14 @@ class BedrockIntegration(BaseLLMIntegration):
         if ctx.get_item("llmobs.usage"):
             usage_metrics = ctx["llmobs.usage"]
 
+        # If cached token metrics exist, input tokens should be the total number of tokens sent to the model
+        # This includes the current input_tokens + cache read + cache write tokens
+        if CACHE_READ_INPUT_TOKENS_METRIC_KEY in usage_metrics or CACHE_WRITE_INPUT_TOKENS_METRIC_KEY in usage_metrics:
+            input_tokens = usage_metrics.get("input_tokens", 0)
+            cache_read_tokens = usage_metrics.get(CACHE_READ_INPUT_TOKENS_METRIC_KEY, 0)
+            cache_write_tokens = usage_metrics.get(CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, 0)
+            usage_metrics["input_tokens"] = input_tokens + cache_read_tokens + cache_write_tokens
+
         if "total_tokens" not in usage_metrics and (
             "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
         ):
@@ -323,6 +331,14 @@ class BedrockIntegration(BaseLLMIntegration):
 
         if not messages:
             messages.append({"role": "assistant", "content": ""})
+
+        # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
+        # the total tokens sent to the model to be consistent with other model providers.
+        if CACHE_READ_INPUT_TOKENS_METRIC_KEY in usage_metrics or CACHE_WRITE_INPUT_TOKENS_METRIC_KEY in usage_metrics:
+            input_tokens = usage_metrics.get("input_tokens", 0)
+            cache_read_tokens = usage_metrics.get(CACHE_READ_INPUT_TOKENS_METRIC_KEY, 0)
+            cache_write_tokens = usage_metrics.get(CACHE_WRITE_INPUT_TOKENS_METRIC_KEY, 0)
+            usage_metrics["input_tokens"] = input_tokens + cache_read_tokens + cache_write_tokens
 
         return messages, metadata, usage_metrics
 
