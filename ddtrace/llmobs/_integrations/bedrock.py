@@ -5,9 +5,12 @@ from typing import List
 from typing import Optional
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -16,6 +19,7 @@ from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
@@ -24,6 +28,7 @@ from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -57,6 +62,7 @@ class BedrockIntegration(BaseLLMIntegration):
                                 "top_p": Optional[int]}
             "llmobs.usage": Optional[dict],
             "llmobs.stop_reason": Optional[str],
+            "llmobs.proxy_request": Optional[bool],
         }
         """
         if operation == "agent":
@@ -65,6 +71,8 @@ class BedrockIntegration(BaseLLMIntegration):
         metadata = {}
         usage_metrics = {}
         ctx = args[0]
+
+        span_kind = "workflow" if ctx.get_item(PROXY_REQUEST) else "llm"
 
         request_params = ctx.get_item("llmobs.request_params") or {}
 
@@ -114,15 +122,17 @@ class BedrockIntegration(BaseLLMIntegration):
 
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: span_kind,
                 MODEL_NAME: ctx.get_item("model_name") or "",
                 MODEL_PROVIDER: ctx.get_item("model_provider") or "",
                 INPUT_MESSAGES: input_messages,
                 METADATA: metadata,
-                METRICS: usage_metrics,
+                METRICS: usage_metrics if span_kind != "workflow" else {},
                 OUTPUT_MESSAGES: output_messages,
             }
         )
+
+        update_proxy_workflow_input_output_value(span, span_kind)
 
     def _llmobs_set_tags_agent(self, span, args, kwargs, response):
         if not self.llmobs_enabled or not span:
@@ -251,6 +261,18 @@ class BedrockIntegration(BaseLLMIntegration):
                     if "{}Tokens".format(token_type) in usage:
                         usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
 
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
+                if cache_read_tokens is not None:
+                    usage_metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+                if cache_write_tokens is not None:
+                    usage_metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+
             if "messageStart" in chunk:
                 message_data = chunk["messageStart"]
                 current_message = {"role": message_data.get("role", "assistant"), "content_block_indicies": []}
@@ -340,3 +362,14 @@ class BedrockIntegration(BaseLLMIntegration):
                 return [{"content": str(content)} for content in response["text"]]
             if isinstance(response["text"][0], dict):
                 return [{"content": response["text"][0].get("text", "")}]
+
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        endpoint = getattr(instance, "_endpoint", None)
+        endpoint_host = getattr(endpoint, "host", None) if endpoint else None
+        return str(endpoint_host) if endpoint_host else None
+
+    def _tag_proxy_request(self, ctx: core.ExecutionContext) -> None:
+        base_url = self._get_base_url(instance=ctx.get_item("instance"))
+        if self._is_instrumented_proxy_url(base_url):
+            ctx.set_item(PROXY_REQUEST, True)

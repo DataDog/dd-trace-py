@@ -1,9 +1,10 @@
 import sys
 
 from hypothesis import given
+from hypothesis import seed
+from hypothesis import settings
 from hypothesis.strategies import builds
 from hypothesis.strategies import integers
-from hypothesis.strategies import one_of
 from hypothesis.strategies import sampled_from
 from hypothesis.strategies import text
 import pytest
@@ -15,22 +16,24 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
 from tests.appsec.iast.iast_utils import CustomStr
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.appsec.iast.iast_utils import non_empty_binary
 from tests.appsec.iast.iast_utils import non_empty_text
-from tests.appsec.iast.iast_utils import string_strategies
 
 
 mod = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods")
 mod_py3 = _iast_patched_module("benchmarks.bm.iast_fixtures.str_methods_py3")
 
 
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_fstring(text):
     result = mod_py3.do_fstring(text)
     assert result == mod_py3.do_fstring(text)
     assert result == f"{text}"
 
 
+@seed(42)
+@settings(max_examples=1000)
 @given(builds(CustomStr, text()))
 def test_fstring_custom_str(text):
     result = mod_py3.do_fstring(text)
@@ -47,6 +50,8 @@ def test_fstring_with_bytes():
 
 @pytest.mark.skip_iast_check_logs
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@seed(42)
+@settings(max_examples=1000)
 @given(non_empty_text)
 def test_fstring_tainted(text):
     string_input = taint_pyobject(
@@ -59,6 +64,8 @@ def test_fstring_tainted(text):
 
 @pytest.mark.skip_iast_check_logs
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@seed(42)
+@settings(max_examples=1000)
 @given(non_empty_binary)
 def test_fstring_tainted_bytes(bytes_string):
     r"""Many bytes characters such as
@@ -87,16 +94,17 @@ def test_fstring_tainted_byte():
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@seed(42)
+@settings(max_examples=1000)
 @given(non_empty_text)
 def test_fstring_fill_spaces_tainted(text):
-    if not text.startswith("\x00"):
-        string_input = taint_pyobject(
-            pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
-        )
-        result = mod_py3.do_fmt_value(string_input)
-        assert result == mod_py3.do_fmt_value(text)
-        assert result == f"{text:<8s}bar"
-        assert is_pyobject_tainted(result)
+    string_input = taint_pyobject(
+        pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
+    )
+    result = mod_py3.do_fmt_value(string_input)
+    assert result == mod_py3.do_fmt_value(text)
+    assert result == f"{text:<8s}bar"
+    assert is_pyobject_tainted(result)
 
 
 @given(
@@ -145,29 +153,29 @@ def test_fstring_fill_spaces_integers_invalid_format(text, spec):
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@seed(42)
+@settings(max_examples=1000)
 @given(non_empty_text)
 def test_repr_fstring_tainted(text):
-    if not text.startswith("\x00"):
-        string_input = taint_pyobject(
-            pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
-        )
-        result = mod_py3.do_repr_fstring(string_input)
-        assert result == mod_py3.do_repr_fstring(text)
-        assert result == f"{text!r}"
-        assert is_pyobject_tainted(result)
+    string_input = taint_pyobject(
+        pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
+    )
+    result = mod_py3.do_repr_fstring(string_input)
+    assert result == mod_py3.do_repr_fstring(text)
+    assert result == f"{text!r}"
+    assert is_pyobject_tainted(result)
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
 @given(non_empty_text)
 def test_repr_fstring_with_format_tainted(text):
-    if not text.startswith("\x00"):
-        string_input = taint_pyobject(
-            pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
-        )
-        result = mod_py3.do_repr_fstring_with_format(string_input)
-        assert result == mod_py3.do_repr_fstring_with_format(text)
-        assert result == f"{text!r:10}"
-        assert is_pyobject_tainted(result)
+    string_input = taint_pyobject(
+        pyobject=text, source_name="foo", source_value=text, source_origin=OriginType.PARAMETER
+    )
+    result = mod_py3.do_repr_fstring_with_format(string_input)
+    assert result == mod_py3.do_repr_fstring_with_format(text)
+    assert result == f"{text!r:10}"
+    assert is_pyobject_tainted(result)
 
 
 @given(integers())

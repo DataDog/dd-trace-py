@@ -61,6 +61,7 @@ def build_libddwaf_filename() -> str:
 
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -140,6 +141,7 @@ class ASMConfig(DDConfig):
     )
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
+    _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
 
     _iast_is_testing = False
 
@@ -175,6 +177,7 @@ class ASMConfig(DDConfig):
         "_asm_static_rule_file",
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
+        "_asm_processed_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_iast_enabled",
@@ -182,6 +185,7 @@ class ASMConfig(DDConfig):
         "_iast_debug",
         "_iast_propagation_debug",
         "_iast_telemetry_report_lvl",
+        "_iast_security_controls",
         "_iast_is_testing",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
@@ -258,6 +262,12 @@ class ASMConfig(DDConfig):
         else:
             # Is one click available?
             self._eval_asm_can_be_enabled()
+
+    @property
+    def asm_enabled_origin(self):
+        if APPSEC_ENV in os.environ:
+            return APPSEC.ENABLED_ORIGIN_ENV
+        return self._asm_enabled_origin
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""

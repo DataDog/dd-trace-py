@@ -3,6 +3,7 @@ from operator import itemgetter
 import os
 import sys
 
+import langchain
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
@@ -12,7 +13,10 @@ import pytest
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Span
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
+from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
@@ -22,11 +26,7 @@ from tests.subprocesstest import run_in_subprocess
 PINECONE_VERSION = parse_version(pinecone_.__version__)
 
 
-def _expected_langchain_llmobs_llm_span(
-    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False
-):
-    provider = span.get_tag("langchain.request.provider")
-
+def _expected_metadata(span, provider):
     metadata = {}
     temperature_key = "temperature"
     if provider == "huggingface_hub":
@@ -42,6 +42,14 @@ def _expected_langchain_llmobs_llm_span(
         metadata["temperature"] = float(temperature)
     if max_tokens is not None:
         metadata["max_tokens"] = int(max_tokens)
+    return metadata
+
+
+def _expected_langchain_llmobs_llm_span(
+    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False
+):
+    provider = span.get_tag("langchain.request.provider")
+    metadata = _expected_metadata(span, provider)
 
     input_messages = [{"content": mock.ANY}]
     output_messages = [{"content": mock.ANY}]
@@ -56,7 +64,7 @@ def _expected_langchain_llmobs_llm_span(
     return _expected_llmobs_llm_span_event(
         span,
         model_name=span.get_tag("langchain.request.model"),
-        model_provider=span.get_tag("langchain.request.provider"),
+        model_provider=provider,
         input_messages=input_messages if not mock_io else mock.ANY,
         output_messages=output_messages if not mock_io else mock.ANY,
         metadata=metadata,
@@ -67,6 +75,7 @@ def _expected_langchain_llmobs_llm_span(
 
 
 def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=None, span_links=False):
+    metadata = _expected_metadata(span, span.get_tag("langchain.request.provider"))
     return _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -74,6 +83,7 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
         output_value=output_value if output_value is not None else mock.ANY,
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=span_links,
+        metadata=metadata,
     )
 
 
@@ -84,6 +94,27 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_compl
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(span, mock_token_metrics=True)
+
+
+@mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_completion):
+    mock_generate.return_value = mock_langchain_llm_generate_response
+    llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
+    llm.invoke("What is the capital of France?")
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+        span,
+        input_value=json.dumps([{"content": "What is the capital of France?"}]),
+    )
+
+    # span created from request with non-proxy URL should result in an LLM span
+    llm = langchain_openai.OpenAI(base_url="http://localhost:8000", model="gpt-3.5-turbo")
+    llm.invoke("What is the capital of France?")
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 2
+    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
 def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_chat_completion):
@@ -97,6 +128,27 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
         input_role="user",
         mock_token_metrics=True,
     )
+
+
+@mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
+def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_chat_completion):
+    mock_generate.return_value = mock_langchain_chat_generate_response
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
+    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
+        span,
+        input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}]),
+    )
+
+    # span created from request with non-proxy URL should result in an LLM span
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:8000")
+    chat_model.invoke([HumanMessage(content="What is the capital of France?")])
+    span = tracer.pop_traces()[0][0]
+    assert len(llmobs_events) == 2
+    assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
 def test_llmobs_chain(langchain_core, langchain_openai, llmobs_events, tracer):
@@ -511,6 +563,17 @@ def test_llmobs_non_ascii_completion(langchain_openai, llmobs_events, tracer):
     assert len(llmobs_events) == 1
     actual_llmobs_span_event = llmobs_events[0]
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
+
+
+def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
+    integration = langchain._datadog_integration
+    integration._llmobs_set_tags(
+        span=Span("test_span", service="test_service"),
+        args=[],
+        kwargs={},
+        response=None,
+        operation="chat",
+    )
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):

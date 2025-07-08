@@ -23,6 +23,7 @@ Supported vulnerability types include:
 from wrapt import when_imported
 
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
+from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.secure_marks import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks import sqli_sanitizer
@@ -72,6 +73,9 @@ def patch_iast(patch_modules=IAST_PATCH):
         when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
 
     iast_funcs = WrapFunctonsForIAST()
+
+    _apply_custom_security_controls(iast_funcs)
+
     # CMDI sanitizers
     iast_funcs.wrap_function("shlex", "quote", cmdi_sanitizer)
 

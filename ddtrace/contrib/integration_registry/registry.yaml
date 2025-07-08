@@ -138,8 +138,18 @@ integrations:
   - azure-functions
   tested_versions_by_dependency:
     azure-functions:
-      min: 1.20.0
-      max: 1.21.3
+      min: 1.10.1
+      max: 1.23.0
+
+- integration_name: azure_servicebus
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - azure-servicebus
+  tested_versions_by_dependency:
+    azure-servicebus:
+      min: 7.14.2
+      max: 7.14.2
 
 - integration_name: boto
   is_external_package: true
@@ -383,6 +393,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: google_genai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - google-genai
+  tested_versions_by_dependency:
+    google-genai:
+      min: 1.21.1
+      max: 1.21.1
+
 - integration_name: google_generativeai
   is_external_package: true
   is_tested: true
@@ -533,7 +553,7 @@ integrations:
   tested_versions_by_dependency:
     mariadb:
       min: 1.0.11
-      max: 1.1.11
+      max: 1.1.12
 
 - integration_name: molten
   is_external_package: true
@@ -583,7 +603,7 @@ integrations:
   tested_versions_by_dependency:
     openai:
       min: 1.0.0
-      max: 1.60.0
+      max: 1.91.0
 
 - integration_name: openai_agents
   is_external_package: true
@@ -614,10 +634,20 @@ integrations:
   tested_versions_by_dependency:
     psycopg:
       min: 3.0.18
-      max: 3.2.1
+      max: 3.2.9
     psycopg2-binary:
       min: 2.8.6
       max: 2.9.10
+
+- integration_name: pydantic_ai
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - pydantic-ai-slim
+  tested_versions_by_dependency:
+    pydantic-ai-slim:
+      min: 0.3.0
+      max: 0.3.3
 
 - integration_name: pylibmc
   is_external_package: true
@@ -647,7 +677,7 @@ integrations:
   tested_versions_by_dependency:
     pymongo:
       min: 3.8.0
-      max: 4.10.1
+      max: 4.13.2
 
 - integration_name: pymysql
   is_external_package: true

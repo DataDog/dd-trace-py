@@ -328,7 +328,7 @@ def try_unwrap(module, name):
             original = _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
             apply_patch(parent, attribute, original)
             del _DD_ORIGINAL_ATTRIBUTES[(parent, attribute)]
-    except ModuleNotFoundError:
+    except (ModuleNotFoundError, AttributeError):
         log.debug("ERROR unwrapping %s.%s ", module, name)
 
 

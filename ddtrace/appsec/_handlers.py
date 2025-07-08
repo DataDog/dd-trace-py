@@ -19,8 +19,10 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
@@ -96,6 +98,7 @@ def _on_lambda_start_request(
     route: str,
     method: str,
     parsed_query: Dict[str, Any],
+    request_path_parameters: Optional[Dict[str, Any]],
 ):
     if not (asm_config._asm_enabled and span.span_type in asm_config._asm_http_span_types):
         return
@@ -113,7 +116,7 @@ def _on_lambda_start_request(
         headers,
         request_cookies,
         parsed_query,
-        None,
+        request_path_parameters,
         request_body,
         None,
         None,
@@ -373,7 +376,16 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
     trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
+def _on_telemetry_periodic():
+    if asm_config._asm_enabled:
+        telemetry.telemetry_writer.add_gauge_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "enabled", 2, (("origin", asm_config.asm_enabled_origin),)
+        )
+
+
 def listen():
+    core.on("telemetry.periodic", _on_telemetry_periodic)
+
     core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
 

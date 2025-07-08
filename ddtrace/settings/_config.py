@@ -101,6 +101,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dramatiq",
         "flask",
         "google_generativeai",
+        "google_genai",
         "urllib3",
         "subprocess",
         "kafka",
@@ -120,6 +121,7 @@ INTEGRATION_CONFIGS = frozenset(
         "snowflake",
         "pymemcache",
         "azure_functions",
+        "azure_servicebus",
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",
@@ -173,6 +175,7 @@ INTEGRATION_CONFIGS = frozenset(
         "genai",
         "openai",
         "crewai",
+        "pydantic_ai",
         "logging",
         "cassandra",
         "boto",
@@ -648,6 +651,9 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_instrumented_proxy_urls = _get_config(
+            "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
+        )
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
