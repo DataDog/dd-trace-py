@@ -52,6 +52,8 @@ Configuration
 
    Default: ``'asgi'``
 
+.. _asgi-config-obfuscation:
+
 .. py:data:: ddtrace.config.asgi['obfuscate_404_resource']
 
    Indicates whether to obfuscate resource name for spans that result in a 404 response code.

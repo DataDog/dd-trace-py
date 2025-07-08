@@ -42,6 +42,8 @@ Configuration
 
    Default: ``'starlette.request'``
 
+See :ref:`asgi-config-obfuscation` for details on resource name obfuscation.
+
 
 Example::
 
@@ -55,5 +57,6 @@ Example::
 
     # Override request span name
     config.starlette['request_span_name'] = 'custom-request-span-name'
+
 
 """

@@ -38,6 +38,8 @@ Configuration
 
    Default: ``'fastapi.request'``
 
+See :ref:`asgi-config-obfuscation` for details on resource name obfuscation.
+
 
 Example::
 
@@ -48,5 +50,6 @@ Example::
 
     # Override request span name
     config.fastapi['request_span_name'] = 'custom-request-span-name'
+
 
 """
