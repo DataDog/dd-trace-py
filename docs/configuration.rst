@@ -426,7 +426,7 @@ Trace Context propagation
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
 Metrics
-------
+-------
 
 .. ddtrace-configuration-options::
 
