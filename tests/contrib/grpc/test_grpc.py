@@ -619,7 +619,7 @@ class GrpcTestCase(GrpcBaseTestCase):
                 stub = HelloStub(channel)
                 _ = stub.SayHello(HelloRequest(name="test"))
 
-        spans = self.get_spans_with_sync_and_assert(size=3, should_retry=True)
+        spans = self.get_spans_with_sync_and_assert(size=3)
         root = spans[0]
         client = spans[1]
         server = spans[2]
@@ -634,7 +634,7 @@ class GrpcTestCase(GrpcBaseTestCase):
             # wait so that we don't cancel the request
             future.result()
 
-        self.get_spans_with_sync_and_assert(size=2, should_retry=True)
+        self.get_spans_with_sync_and_assert(size=2)
 
     def test_span_active_in_custom_interceptor(self):
         # add an interceptor that raises a custom exception and check error tags
