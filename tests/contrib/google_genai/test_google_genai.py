@@ -1,9 +1,9 @@
 from google.genai import types
 import pytest
 
+from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
-from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
 from tests.utils import override_global_config
 

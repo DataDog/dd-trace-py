@@ -5,8 +5,8 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -16,13 +16,14 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
-from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_generate_metrics_google_genai
 from ddtrace.llmobs._integrations.google_genai_utils import extract_embedding_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_generate_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
+
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
 GENERATE_METADATA_PARAMS = [

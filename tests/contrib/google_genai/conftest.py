@@ -9,11 +9,11 @@ from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Pin
+from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
-from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
