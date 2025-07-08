@@ -1,9 +1,11 @@
 import enum
+import json
 import os
 import typing as t
 
 from envier import En
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
@@ -12,6 +14,8 @@ from ddtrace.settings._config import config
 from ddtrace.settings.http import HttpConfig
 from ddtrace.vendor.debtcollector import deprecate
 
+
+log = get_logger(__name__)
 
 requires = ["remote-configuration"]
 
@@ -116,14 +120,76 @@ def apm_tracing_rc_subscribe(dd_config):
     )
 
 
+def _remove_invalid_rules(rc_rules: t.List) -> t.List:
+    """Remove invalid sampling rules from the given list"""
+    # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
+    new_rc_rules = []
+    for rule in rc_rules:
+        if (
+            ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
+            or "sample_rate" not in rule
+            or "provenance" not in rule
+        ):
+            log.debug("Invalid sampling rule from remoteconfig found in: %s, rule will be removed: %s", rc_rules, rule)
+            continue
+        new_rc_rules.append(rule)
+
+    return new_rc_rules
+
+
+def _convert_rc_trace_sampling_rules(
+    rc_rules: t.List[t.Dict[str, t.Any]], global_sample_rate: t.Optional[float]
+) -> t.Optional[str]:
+    """Example of an incoming rule:
+    [
+      {
+        "service": "my-service",
+        "name": "web.request",
+        "resource": "*",
+        "provenance": "customer",
+        "sample_rate": 1.0,
+        "tags": [
+          {
+            "key": "care_about",
+            "value_glob": "yes"
+          },
+          {
+            "key": "region",
+            "value_glob": "us-*"
+          }
+        ]
+      }
+    ]
+
+            Example of a converted rule:
+            '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
+    """
+    rc_rules = _remove_invalid_rules(rc_rules)
+    for rule in rc_rules:
+        if "tags" in rule:
+            # Remote config provides sampling rule tags as a list,
+            # but DD_TRACE_SAMPLING_RULES expects them as a dict.
+            # Here we convert tags to a dict to ensure a consistent format.
+            if isinstance(rule["tags"], list):
+                rule["tags"] = {tag["key"]: tag["value_glob"] for tag in rule["tags"]}
+
+    if global_sample_rate is not None:
+        rc_rules.append({"sample_rate": global_sample_rate})
+
+    if rc_rules:
+        return json.dumps(rc_rules)
+    else:
+        return None
+
+
 def apm_tracing_rc(lib_config, dd_config):
-    base_rc_config: t.Dict[str, t.Any] = {n: None for n in dd_config._config}
+    base_rc_config: t.Dict[str, t.Any] = {}
 
     if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
         global_sampling_rate = lib_config.get("tracing_sampling_rate")
         trace_sampling_rules = lib_config.get("tracing_sampling_rules") or []
         # returns None if no rules
-        trace_sampling_rules = dd_config._convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
+        trace_sampling_rules = _convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
         if trace_sampling_rules:
             base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
 
@@ -145,7 +211,11 @@ def apm_tracing_rc(lib_config, dd_config):
             tags = dd_config._format_tags(lib_config["tracing_header_tags"])
         base_rc_config["_trace_http_header_tags"] = tags
 
-    dd_config._set_config_items([(k, v, "remote_config") for k, v in base_rc_config.items()])
+    if base_rc_config:
+        # If new remote config values are set, we should update the global config
+        merged_configs = {**{n: None for n in dd_config._config}, **base_rc_config}
+        dd_config._set_config_items([(k, v, "remote_config") for k, v in merged_configs.items()])
+        log.debug("Remote config APM Tracing Received: %s,\nExisiting configs: %s,\nUpdated Configs: %s", lib_config, base_rc_config, merged_configs)
 
     # unconditionally handle the case where header tags have been unset
     header_tags_conf = dd_config._config["_trace_http_header_tags"]
