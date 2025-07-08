@@ -1,3 +1,4 @@
+import base64
 import contextlib
 from contextlib import contextmanager
 import datetime as dt
@@ -1085,8 +1086,35 @@ class SnapshotTest:
         self.tracer = tracer
         self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
 
-    def requests(self) -> List[Any]:
+    def requests(self) -> List[Dict[str, Any]]:
         return self._client.requests()
+
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        reqs = []
+        for req in self.requests():
+            if "dd-telemetry-request-type" not in req.get("headers", {}):
+                continue
+
+            if telemetry_type is None:
+                reqs.append(req)
+            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
+                reqs.append(req)
+        return reqs
+
+    def crash_reports(self) -> List[Dict[str, Any]]:
+        reqs = []
+        for req in self.telemetry_requests(telemetry_type="logs"):
+            try:
+                data = json.loads(base64.b64decode(req["body"]))
+            except Exception:
+                continue
+
+            if data.get("origin") != "Crashtracker":
+                continue
+
+            req["body"] = base64.b64decode(req["body"])
+            reqs.append(req)
+        return reqs
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
