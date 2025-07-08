@@ -1,6 +1,7 @@
 from google.genai import types
 import pytest
 
+from tests.contrib.google_genai.utils import EMBED_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import FULL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
@@ -111,6 +112,53 @@ class TestLLMObsGoogleGenAI:
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
+
+    def test_embed_content(self, genai_client, llmobs_events, mock_tracer, mock_embed_content):
+        import sys
+
+        response = genai_client.models.embed_content(
+            model="text-embedding-004",
+            contents=["why is the sky blue?", "What is your age?"],
+            config=EMBED_CONTENT_CONFIG,
+        )
+        print(f"response in test_embed_content: {response}", file=sys.stderr)
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
+
+    def test_embed_content_error(self, genai_client, llmobs_events, mock_tracer, mock_embed_content):
+        with pytest.raises(TypeError):
+            genai_client.models.embed_content(
+                model="text-embedding-004",
+                contents=["why is the sky blue?", "What is your age?"],
+                config=EMBED_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
+
+    async def test_embed_content_async(self, genai_client, llmobs_events, mock_tracer, mock_async_embed_content):
+        await genai_client.aio.models.embed_content(
+            model="text-embedding-004",
+            contents=["why is the sky blue?", "What is your age?"],
+            config=EMBED_CONTENT_CONFIG,
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
+
+    async def test_embed_content_async_error(self, genai_client, llmobs_events, mock_tracer, mock_async_embed_content):
+        with pytest.raises(TypeError):
+            await genai_client.aio.models.embed_content(
+                model="text-embedding-004",
+                contents=["why is the sky blue?", "What is your age?"],
+                config=EMBED_CONTENT_CONFIG,
+                not_an_argument="why am i here?",
+            )
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_llmobs_embedding_error_span_event(span)
 
     def test_generate_content_with_tools(
         self, genai_client, llmobs_events, mock_tracer, mock_generate_content_with_tools
@@ -248,5 +296,53 @@ def expected_llmobs_tool_response_span_event(span):
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+    )
+
+
+def expected_llmobs_embedding_span_event(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        span_kind="embedding",
+        model_name="text-embedding-004",
+        model_provider="google",
+        input_documents=[
+            {"text": "why is the sky blue?"},
+            {"text": "What is your age?"},
+        ],
+        output_value="[2 embedding(s) returned with size 10]",
+        metadata={
+            "auto_truncate": None,
+            "mime_type": None,
+            "output_dimensionality": 10,
+            "task_type": None,
+            "title": None,
+        },
+        token_metrics={"input_tokens": 10, "billable_character_count": 16},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+    )
+
+
+def expected_llmobs_embedding_error_span_event(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        span_kind="embedding",
+        model_name="text-embedding-004",
+        model_provider="google",
+        input_documents=[
+            {"text": "why is the sky blue?"},
+            {"text": "What is your age?"},
+        ],
+        output_value="",
+        error="builtins.TypeError",
+        error_message=span.get_tag("error.message"),
+        error_stack=span.get_tag("error.stack"),
+        metadata={
+            "auto_truncate": None,
+            "mime_type": None,
+            "output_dimensionality": 10,
+            "task_type": None,
+            "title": None,
+        },
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
     )

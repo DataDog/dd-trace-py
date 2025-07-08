@@ -12,7 +12,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "686d243300000000",
       "google_genai.request.model": "text-embedding-004",
-      "google_genai.request.provider": "custom",
+      "google_genai.request.provider": "google",
       "language": "python",
       "runtime-id": "766445521958404b835a8acdb26d8311"
     },

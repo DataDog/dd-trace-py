@@ -122,16 +122,16 @@ def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
     usage = {}
     metadata = _get_attr(response, "metadata", {})
     billable_character_count = _get_attr(metadata, "billable_character_count", None)
-
     input_tokens = 0
-    for embedding in _get_attr(response, "embeddings", []):
+    embeddings = _get_attr(response, "embeddings", [])
+    for embedding in embeddings if embeddings is not None else []:
         statistics = _get_attr(embedding, "statistics", {})
         input_tokens += _get_attr(statistics, "token_count", 0)
 
     if billable_character_count is not None:
         usage[BILLABLE_CHARACTER_COUNT_METRIC_KEY] = billable_character_count
     if input_tokens:  # falsy value of 0 should not be set
-        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        usage[INPUT_TOKENS_METRIC_KEY] = int(input_tokens)
 
     return usage
 

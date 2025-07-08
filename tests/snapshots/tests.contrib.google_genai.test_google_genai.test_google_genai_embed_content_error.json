@@ -15,7 +15,7 @@
       "error.stack": "Traceback (most recent call last):\n  File \"/Users/max.zhang/dd-trace-py/ddtrace/contrib/internal/google_genai/patch.py\", line 120, in traced_embed_content\n    resp = func(*args, **kwargs)\n           ^^^^^^^^^^^^^^^^^^^^^\nTypeError: Models.embed_content() got an unexpected keyword argument 'not_an_argument'\n",
       "error.type": "builtins.TypeError",
       "google_genai.request.model": "text-embedding-004",
-      "google_genai.request.provider": "custom",
+      "google_genai.request.provider": "google",
       "language": "python",
       "runtime-id": "766445521958404b835a8acdb26d8311"
     },

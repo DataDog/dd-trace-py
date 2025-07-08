@@ -1,6 +1,7 @@
 import os
 from typing import Any
 from typing import Iterator
+from unittest.mock import Mock
 from unittest.mock import patch as mock_patch
 
 import pytest
@@ -153,33 +154,37 @@ def mock_generate_content_with_tools(genai):
 def mock_embed_content(genai):
     """
     Since embed_content does not wrap a private helper like _generate_content,
-    we need to patch the request method on BaseApiClient to avoid overwriting our own patching code
+    we patch the request method to avoid API calls and the _from_response method
+    to return a correct response object.
     """
-    import json
-    from unittest.mock import Mock
 
-    mock_response = Mock()
-    mock_response.headers = {}
-    mock_response.body = json.dumps(MOCK_EMBED_CONTENT_RESPONSE.model_dump())
+    def _fake_from_response(response, kwargs):
+        return MOCK_EMBED_CONTENT_RESPONSE
 
     def _fake_request(self, method, path, request_dict, http_options):
+        mock_response = Mock()
+        mock_response.headers = {}
+        mock_response.body = "{}"
         return mock_response
 
-    with mock_patch("google.genai._api_client.BaseApiClient.request", _fake_request):
+    with mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response), mock_patch.object(
+        genai._api_client.BaseApiClient, "request", _fake_request
+    ):
         yield
 
 
 @pytest.fixture
 def mock_async_embed_content(genai):
-    import json
-    from unittest.mock import Mock
-
-    mock_response = Mock()
-    mock_response.headers = {}
-    mock_response.body = json.dumps(MOCK_EMBED_CONTENT_RESPONSE.model_dump())
+    def _fake_from_response(response, kwargs):
+        return MOCK_EMBED_CONTENT_RESPONSE
 
     async def _fake_async_request(self, method, path, request_dict, http_options):
+        mock_response = Mock()
+        mock_response.headers = {}
+        mock_response.body = "{}"
         return mock_response
 
-    with mock_patch("google.genai._api_client.BaseApiClient.async_request", _fake_async_request):
+    with mock_patch.object(genai.types.EmbedContentResponse, "_from_response", _fake_from_response), mock_patch.object(
+        genai._api_client.BaseApiClient, "async_request", _fake_async_request
+    ):
         yield

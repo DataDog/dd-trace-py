@@ -146,12 +146,11 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         return messages
 
     def _extract_embedding_output_value(self, response) -> str:
-        if not response:
-            return ""
         embeddings = _get_attr(response, "embeddings", [])
         if embeddings:
             embedding_dim = len(embeddings[0].values)
-        return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
+            return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
+        return ""
 
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = get_argument_value(args, kwargs, -1, "contents")
