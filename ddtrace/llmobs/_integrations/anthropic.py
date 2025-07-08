@@ -191,7 +191,8 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         metrics = {}
 
-        # input tokens for anthropic is the non-cached input tokens
+        # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
+        # the total tokens sent to the model to be consistent with other model providers.
         if cache_write_tokens is not None or cache_read_tokens is not None:
             total_input_tokens = (input_tokens or 0) + (cache_write_tokens or 0) + (cache_read_tokens or 0)
             metrics[INPUT_TOKENS_METRIC_KEY] = total_input_tokens
