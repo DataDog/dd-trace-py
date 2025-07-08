@@ -175,7 +175,7 @@ def patch_conn(django, conn):
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
             config.django.global_config,
-            "{}-{}".format("django", alias),  # name not used but set anyway
+            "{}-{}".format("django", "database"),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
             trace_fetch_methods=config.django.trace_fetch_methods,
