@@ -190,12 +190,19 @@ class AnthropicIntegration(BaseLLMIntegration):
         cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
         metrics = {}
-        if input_tokens is not None:
+
+        # input tokens for anthropic is the non-cached input tokens
+        if cache_write_tokens is not None or cache_read_tokens is not None:
+            total_input_tokens = (input_tokens or 0) + (cache_write_tokens or 0) + (cache_read_tokens or 0)
+            metrics[INPUT_TOKENS_METRIC_KEY] = total_input_tokens
+        elif input_tokens is not None:
             metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+
         if output_tokens is not None:
             metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if input_tokens is not None and output_tokens is not None:
-            metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        if INPUT_TOKENS_METRIC_KEY in metrics and output_tokens is not None:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + output_tokens
+
         if cache_write_tokens is not None:
             metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
         if cache_read_tokens is not None:
