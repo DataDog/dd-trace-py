@@ -3410,6 +3410,7 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="appsec_threats_flask",
             command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
             pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
