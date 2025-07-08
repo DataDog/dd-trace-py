@@ -99,5 +99,5 @@ experiments:
               - max_rss_usage < 28.35 MB
           - name: tracer-small
             thresholds:
-              - execution_time < 400.00 us
+              - execution_time < 0.37 ms
               - max_rss_usage < 28.35 MB
