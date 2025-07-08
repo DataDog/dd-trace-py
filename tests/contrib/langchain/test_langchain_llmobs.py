@@ -130,6 +130,16 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
     )
 
 
+def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+    
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["metrics"].get("input_tokens") is None
+    assert llmobs_events[0]["metrics"].get("output_tokens") is None
+    assert llmobs_events[0]["metrics"].get("total_tokens") is None
+
+
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
 def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_chat_completion):
     mock_generate.return_value = mock_langchain_chat_generate_response
