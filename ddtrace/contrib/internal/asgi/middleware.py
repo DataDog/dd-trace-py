@@ -207,7 +207,11 @@ class TraceMiddleware:
                     break
             method = scope.get("method")
             server = scope.get("server")
-            scheme = scope.get("scheme", "http")
+            # Ensure HTTP requests always have the correct scheme
+            if scope["type"] == "http":
+                scheme = "http"
+            else:
+                scheme = scope.get("scheme", "http")
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
             if host_header:
