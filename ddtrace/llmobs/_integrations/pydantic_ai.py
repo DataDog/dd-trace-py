@@ -35,7 +35,7 @@ PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
 
 class PydanticAIIntegration(BaseLLMIntegration):
     _integration_name = "pydantic_ai"
-    _running_agents = {}  # dictionary mapping agent span ID to tool span ID(s)
+    _running_agents: Dict[str, List[str]] = {}  # dictionary mapping agent span ID to tool span ID(s)
     _latest_agent = None  # str representing the span ID of the latest agent that was started
     _run_stream_active = False  # bool indicating if the latest agent span was generated from run_stream
 
@@ -132,7 +132,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.get("instance", None)
         tool_call = get_argument_value(args, kwargs, 0, "message")
         tool_name = "PydanticAI Tool"
-        tool_input = ""
+        tool_input = {}
         if tool_call:
             tool_name = getattr(tool_call, "tool_name", "")
             tool_input = getattr(tool_call, "args", {})
@@ -168,7 +168,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
         }
 
-    def _get_span_links(self, span: Span, span_kind: str) -> List[Dict[str, Any]]:
+    def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
         span_links = []
         if span_kind == "agent":
             for tool_span_id in self._running_agents[span.span_id]:
@@ -191,7 +191,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 )
         return span_links
 
-    def _register_span(self, span: Span, kind: str) -> None:
+    def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":
             self._register_agent(span)
         elif kind == "tool":
