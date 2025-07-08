@@ -559,13 +559,6 @@ class DummyWriterMixin:
             self.spans += spans
             self.traces += traces
 
-            self.json_encoder.encode_traces(traces)
-            if self._trace_flush_enabled:
-                AgentWriter.write(self, spans=spans)
-            else:
-                self.msgpack_encoder.put(spans)
-                self.msgpack_encoder.encode()
-
     def pop(self):
         # type: () -> List[Span]
         s = self.spans
@@ -599,6 +592,14 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
+        if spans:
+            traces = [spans]
+            self.json_encoder.encode_traces(traces)
+            if self._trace_flush_enabled:
+                AgentWriter.write(self, spans=spans)
+            else:
+                self.msgpack_encoder.put(spans)
+                self.msgpack_encoder.encode()
 
     def pop(self):
         spans = DummyWriterMixin.pop(self)
