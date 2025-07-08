@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -69,6 +70,7 @@ def record_llmobs_enabled(
     start_ns: int,
     auto: bool,
     instrumented_proxy_urls: Optional[Set[str]],
+    ml_app: Optional[str],
 ):
     tags = _base_tags(error)
     tags.extend(
@@ -77,6 +79,7 @@ def record_llmobs_enabled(
             ("site", site),
             ("auto", str(int(auto))),
             ("instrumented_proxy_urls", "true" if instrumented_proxy_urls else "false"),
+            ("ml_app", ml_app or "N/A"),
         ]
     )
     init_time_ms = (time.time_ns() - start_ns) / 1e6
@@ -102,6 +105,7 @@ def record_span_created(span: Span):
     decorator = span._get_ctx_item(DECORATOR) is True
     span_kind = span._get_ctx_item(SPAN_KIND)
     model_provider = span._get_ctx_item("model_provider")
+    ml_app = _get_ml_app(span)
 
     tags = [
         ("autoinstrumented", str(int(autoinstrumented))),
@@ -109,6 +113,7 @@ def record_span_created(span: Span):
         ("is_root_span", str(int(is_root_span))),
         ("span_kind", span_kind or "N/A"),
         ("integration", integration or "N/A"),
+        ("ml_app", ml_app or "N/A"),
         ("error", str(span.error)),
     ]
     if not autoinstrumented:
@@ -177,7 +182,7 @@ def record_llmobs_user_processor_called(error: bool) -> None:
 
 
 def record_llmobs_submit_evaluation(join_on: Dict[str, Any], metric_type: str, error: Optional[str]):
-    _metric_type = metric_type if metric_type in ("categorical", "score") else "other"
+    _metric_type = metric_type if metric_type in ("categorical", "score", "boolean") else "other"
     custom_joining_key = str(int(join_on.get("tag") is not None))
     tags = _base_tags(error)
     tags.extend([("metric_type", _metric_type), ("custom_joining_key", custom_joining_key)])

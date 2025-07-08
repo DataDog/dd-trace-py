@@ -355,6 +355,28 @@ class TracerTestCases(TracerTestCase):
             "visible to the caller"
         )
 
+    def test_tracer_wrap_generator_with_return_value(self):
+        @self.tracer.wrap()
+        def iter_signals():
+            for i in range(10):
+                yield i
+            return 10
+
+        with self.trace("root") as span:
+            signals = iter_signals()
+            while True:
+                try:
+                    # DEV: We don't need the return value
+                    next(signals)
+                except StopIteration as e:
+                    assert e.value == 10
+                    span.set_metric("num_signals", e.value)
+                    break
+
+        self.assert_span_count(2)
+        root_span = self.get_root_span()
+        root_span.assert_matches(name="root", metrics={"num_signals": 10})
+
     def test_tracer_disabled(self):
         self.tracer.enabled = True
         with self.trace("foo") as s:
