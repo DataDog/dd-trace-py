@@ -1,6 +1,7 @@
 from typing import List
 from typing import Union
 
+from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -65,7 +66,7 @@ def _iast_report_cmdi(shell_args: Union[str, List[str]]) -> None:
                 elif CommandInjection.is_tainted_pyobject(shell_args):
                     report_cmdi = shell_args
 
-                if report_cmdi:
+                if report_cmdi and isinstance(report_cmdi, IAST.TEXT_TYPES):
                     iast_propagation_sink_point_debug_log("Reporting command injection")
                     CommandInjection.report(evidence_value=report_cmdi)
 

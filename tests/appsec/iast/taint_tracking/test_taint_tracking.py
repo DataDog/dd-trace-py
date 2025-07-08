@@ -2,7 +2,8 @@ import logging
 import sys
 
 from hypothesis import given
-from hypothesis.strategies import one_of
+from hypothesis import seed
+from hypothesis import settings
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -15,13 +16,15 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
+from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.appsec.iast.iast_utils import non_empty_text
-from tests.appsec.iast.iast_utils import string_strategies
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
 @pytest.mark.skipif(sys.version_info < (3, 9), reason="Python3.8 works different with fstrings")
+@seed(42)
+@settings(max_examples=1000)
 @given(non_empty_text)
 def test_taint_pyobject(text_to_taint):
     tainted_text = taint_pyobject(
@@ -31,7 +34,7 @@ def test_taint_pyobject(text_to_taint):
 
 
 @pytest.mark.skip_iast_check_logs
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_taint_pyobject_all(text_to_taint):
     tainted_text = taint_pyobject(
         text_to_taint, source_name="request_body", source_value=text_to_taint, source_origin=OriginType.PARAMETER

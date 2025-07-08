@@ -3,6 +3,7 @@ from operator import itemgetter
 import os
 import sys
 
+import langchain
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
@@ -12,6 +13,7 @@ import pytest
 from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
+from ddtrace.trace import Span
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
@@ -126,6 +128,16 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
         input_role="user",
         mock_token_metrics=True,
     )
+
+
+def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["metrics"].get("input_tokens") is None
+    assert llmobs_events[0]["metrics"].get("output_tokens") is None
+    assert llmobs_events[0]["metrics"].get("total_tokens") is None
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
@@ -561,6 +573,17 @@ def test_llmobs_non_ascii_completion(langchain_openai, llmobs_events, tracer):
     assert len(llmobs_events) == 1
     actual_llmobs_span_event = llmobs_events[0]
     assert actual_llmobs_span_event["meta"]["input"]["messages"][0]["content"] == "안녕,\n 지금 몇 시야?"
+
+
+def test_llmobs_set_tags_with_none_response(langchain_openai, llmobs_events, tracer):
+    integration = langchain._datadog_integration
+    integration._llmobs_set_tags(
+        span=Span("test_span", service="test_service"),
+        args=[],
+        kwargs={},
+        response=None,
+        operation="chat",
+    )
 
 
 class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
