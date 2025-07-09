@@ -157,9 +157,10 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
     @pytest.fixture(autouse=True, scope="function")
     def setup_enabled_features_in_main_process(self):
         from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
+            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True),
         ):
             yield
 
