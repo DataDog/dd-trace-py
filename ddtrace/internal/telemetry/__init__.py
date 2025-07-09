@@ -16,6 +16,7 @@ from ddtrace.settings._core import FLEET_CONFIG_IDS
 from ddtrace.settings._core import LOCAL_CONFIG
 from ddtrace.settings._core import DDConfig
 from ddtrace.settings._otel_remapper import ENV_VAR_MAPPINGS
+from ddtrace.settings._otel_remapper import SUPPORTED_OTEL_ENV_VARS
 from ddtrace.settings._otel_remapper import parse_otel_env
 
 
@@ -159,7 +160,7 @@ def validate_otel_envs():
         if (
             otel_env not in ENV_VAR_MAPPINGS
             and otel_env.startswith("OTEL_")
-            and otel_env not in ("OTEL_PYTHON_CONTEXT", "OTEL_TRACES_SAMPLER_ARG", "OTEL_LOGS_EXPORTER")
+            and otel_env not in SUPPORTED_OTEL_ENV_VARS
         ):
             _unsupported_otel_config(otel_env)
         elif otel_env == "OTEL_LOGS_EXPORTER":
