@@ -37,22 +37,28 @@ def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
     # sampling configs always come as a pair
     if "_trace_sampling_rules" in items:
         tracer._sampler.set_sampling_rules(cfg._trace_sampling_rules)
+        log.debug("Updated tracer sampling rules via remote_config: %s", cfg._trace_sampling_rules)
 
     if "tags" in items:
         tracer._tags = cfg.tags.copy()
+        log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
 
     if "_tracing_enabled" in items:
-        if tracer.enabled:
-            if cfg._tracing_enabled is False:
-                tracer.enabled = False
-        else:
-            # the product specification says not to allow tracing to be re-enabled remotely at runtime
-            if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
-                tracer.enabled = True
+        if tracer.enabled and cfg._tracing_enabled is False:
+            tracer.enabled = False
+            log.debug("Tracing disabled via remote_config. Config Items: %s", items)
+        elif cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+            tracer.enabled = True
+            log.debug("Tracing enabled via remote_config. Config Items: %s", items)
 
     if "_trace_http_header_tags" in items:
         # Update the HTTP header tags configuration
         cfg._http = HttpConfig(header_tags=cfg._trace_http_header_tags)
+        log.debug("Updated HTTP header tags configuration via remote_config: %s", cfg._http._header_tags)
+
+    if "_logs_injection" in items:
+        # Update the logs injection configuration
+        log.debug("Updated logs injection configuration via remote_config: %s", cfg._logs_injection)
 
 
 def post_preload():
@@ -122,6 +128,16 @@ def apm_tracing_rc_subscribe(dd_config):
     dd_config._subscribe(
         ["_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled", "_trace_http_header_tags"],
         _on_global_config_update,
+    )
+    log.debug(
+        "APM Tracing Remote Config enabled for trace sampling rules, log injection, dd tags, "
+        "tracing enablement, and HTTP header tags.\nConfigs on startup: sampling_rules: %s, "
+        "logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
+        dd_config._trace_sampling_rules,
+        dd_config._logs_injection,
+        dd_config.tags,
+        dd_config._tracing_enabled,
+        dd_config._trace_http_header_tags,
     )
 
 
@@ -217,8 +233,4 @@ def apm_tracing_rc(lib_config, dd_config):
         new_rc_configs["_trace_http_header_tags"] = tags
 
     dd_config._set_config_items([(k, v, "remote_config") for k, v in new_rc_configs.items()])
-    log.debug(
-        "APM Tracing Received: %s from the Agent,\nNew Tracer configs: %s",
-        lib_config,
-        new_rc_configs,
-    )
+    log.debug("APM Tracing Received: %s from the Agent", lib_config)
