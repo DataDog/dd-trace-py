@@ -85,7 +85,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         elif operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
-    def _llmobs_set_meta_tags_from_llm(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
         config = get_argument_value(args, kwargs, -1, "config", optional=True)
         span._set_ctx_items(
             {
@@ -96,7 +96,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
 
-    def _llmobs_set_meta_tags_from_embedding(self, span, args, kwargs, response):
+    def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
         config = get_argument_value(args, kwargs, -1, "config", optional=True)
         span._set_ctx_items(
             {
