@@ -114,8 +114,6 @@ class TestLLMObsGoogleGenAI:
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
     def test_embed_content(self, genai_client, llmobs_events, mock_tracer, mock_embed_content):
-        import sys
-
         response = genai_client.models.embed_content(
             model="text-embedding-004",
             contents=["why is the sky blue?", "What is your age?"],
