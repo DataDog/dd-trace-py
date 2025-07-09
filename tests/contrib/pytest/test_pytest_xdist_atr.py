@@ -154,6 +154,15 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 """
         self.testdir.makepyfile(sitecustomize=sitecustomize_content)
 
+    @pytest.fixture(autouse=True, scope="function")
+    def setup_enabled_features_in_main_process(self):
+        from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(flaky_test_retries_enabled=True)
+        ):
+            yield
+
     def inline_run(self, *args, **kwargs):
         # Add -n 2 to the end of the command line arguments
         args = list(args) + ["-n", "2", "-c", "/dev/null"]
