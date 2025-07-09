@@ -35,6 +35,7 @@ experiments:
             thresholds:
               - execution_time < 4.75 ms
               - max_rss_usage < 62.40 MB
+
           # span
           - name: span-add-event
             thresholds:
@@ -88,6 +89,7 @@ experiments:
             thresholds:
               - execution_time < 24.10 ms
               - max_rss_usage < 48.00 MB
+
           # tracer
           - name: tracer-large
             thresholds:
