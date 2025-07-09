@@ -167,9 +167,7 @@ async def _on_asgi_request_parse_body(receive, headers):
         body_parts = []
         try:
             while more_body:
-                print("Waiting for ASGI body data", file=sys.stderr)
                 data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
-                print(f"Receiving for ASGI body data {data_received}", file=sys.stderr)
                 if data_received is None:
                     more_body = False
                 if isinstance(data_received, dict):
