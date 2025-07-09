@@ -8,6 +8,7 @@ from agents import (
 
 def create_agent_manifest(agent):
     manifest = {}
+    manifest["framework"] = "OpenAI"
     manifest["model_provider"] = "openai"
 
     if hasattr(agent, "name"):
@@ -84,16 +85,15 @@ def extract_tools_from_agent(agent):
                 parameter_schema = tool.params_json_schema
                 required_params = get_required_param_dict(parameter_schema.get("required", [])) 
                 parameters = {}
-                if "properties" in parameter_schema:
-                    for param, schema in parameter_schema["properties"].items():
-                        param_dict = {}
-                        if "type" in schema:
-                            param_dict["type"] = schema["type"]
-                        if "title" in schema:
-                            param_dict["title"] = schema["title"]
-                        if param in required_params:
-                            param_dict["required"] = True
-                        parameters[param] = param_dict
+                for param, schema in parameter_schema.get("properties", {}).items():
+                    param_dict = {}
+                    if "type" in schema:
+                        param_dict["type"] = schema["type"]
+                    if "title" in schema:
+                        param_dict["title"] = schema["title"]
+                    if param in required_params:
+                        param_dict["required"] = True
+                    parameters[param] = param_dict
                 tool_dict["parameters"] = parameters
         tools.append(tool_dict)                     
     
