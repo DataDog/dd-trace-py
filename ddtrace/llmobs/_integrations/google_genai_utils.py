@@ -85,7 +85,7 @@ def normalize_contents(contents) -> List[Dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_generate_metrics_google_genai(response) -> Dict[str, Any]:
+def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
     if not response:
         return {}
 
