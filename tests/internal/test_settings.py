@@ -638,3 +638,37 @@ def test_config_public_properties_and_methods():
         "tags",
         "version",
     }, public_attrs
+
+
+@pytest.mark.subprocess()
+def test_subscription_handler_called_once_for_duplicate_values():
+    # This test ensures that the subscription handler is called only once
+    # when the value is set multiple times to the same value.
+    # It also checks that the handler is called again when the value changes.
+
+    from ddtrace import config
+
+    call_count = 0
+
+    def _handler(cfg, items):
+        global call_count
+        call_count += 1
+
+    config._subscribe(
+        [
+            "_logs_injection",
+        ],
+        _handler,
+    )
+
+    assert call_count == 0, "Handler should not be called before setting the value"
+    for _ in range(3):
+        config._logs_injection = "true"
+        assert call_count == 1, "Handler should be called only once for the same value"
+
+    for _ in range(3):
+        config._logs_injection = "false"
+        assert call_count == 2, "Handler should be called only once for the same value"
+
+    config._logs_injection = "true"
+    assert call_count == 3, "Handler should be called again for a different value"
