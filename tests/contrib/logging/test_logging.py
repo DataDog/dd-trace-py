@@ -304,7 +304,7 @@ class LoggingTestCase(TracerTestCase):
 
 @pytest.mark.parametrize("dd_logs_enabled", ["true", "false", "structured"])
 def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
-    code = f"""
+    code = """
 import ddtrace.auto
 
 import logging
