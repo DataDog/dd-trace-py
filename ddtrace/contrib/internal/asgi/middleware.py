@@ -531,6 +531,9 @@ class TraceMiddleware:
                     )
                     core.dispatch("asgi.start_response", ("asgi",))
                 core.dispatch("asgi.finalize_response", (message.get("body"), response_headers))
+                blocked = get_blocked()
+                if blocked:
+                    raise BlockingException(blocked)
                 try:
                     # Finish the receive span after the send is complete
                     if (
@@ -555,24 +558,39 @@ class TraceMiddleware:
                     ):
                         span.finish()
 
+            async def wrapped_blocked_send(message):
+                result = core.dispatch_with_results("asgi.block.started", (ctx, url)).status_headers_content
+                if result:
+                    status, headers, content = result.value
+                else:
+                    status, headers, content = 403, [], b""
+                if span and message.get("type") == "http.response.start":
+                    message["headers"] = headers
+                    message["status"] = int(status)
+                    core.dispatch("asgi.finalize_response", (None, headers))
+                elif message.get("type") == "http.response.body":
+                    message["body"] = (
+                        content if isinstance(content, bytes) else content.encode("utf-8", errors="ignore")
+                    )
+                    message["more_body"] = False
+                    core.dispatch("asgi.finalize_response", (content, None))
+                try:
+                    return await send(message)
+                finally:
+                    trace_utils.set_http_meta(
+                        span, self.integration_config, status_code=status, response_headers=headers
+                    )
+                    if message.get("type") == "http.response.body" and span.error == 0:
+                        span.finish()
+
             wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
 
-                if get_blocked():
-                    set_blocked(get_blocked())
-                    return await _blocked_asgi_app(scope, receive, wrapped_send, ctx, url)
-
-                result = await self.app(scope, wrapped_recv, wrapped_send)
-
-                if get_blocked():
-                    set_blocked(get_blocked())
-                    return await _blocked_asgi_app(scope, receive, wrapped_send, ctx, url)
-
-                return result
+                return await self.app(scope, wrapped_recv, wrapped_send)
             except BlockingException as e:
                 set_blocked(e.args[0])
-                return await _blocked_asgi_app(scope, receive, wrapped_send)
+                return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
             except Exception as exc:
                 (exc_type, exc_val, exc_tb) = sys.exc_info()
                 span.set_exc_info(exc_type, exc_val, exc_tb)
@@ -584,7 +602,7 @@ class TraceMiddleware:
                     for exc in exception.exceptions:
                         if isinstance(exc, BlockingException):
                             set_blocked(exc.args[0])
-                            return await _blocked_asgi_app(scope, receive, wrapped_send)
+                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
