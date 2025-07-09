@@ -121,7 +121,6 @@ class TestLLMObsGoogleGenAI:
             contents=["why is the sky blue?", "What is your age?"],
             config=EMBED_CONTENT_CONFIG,
         )
-        print(f"response in test_embed_content: {response}", file=sys.stderr)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_embedding_span_event(span)
