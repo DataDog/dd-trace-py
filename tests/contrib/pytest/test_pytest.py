@@ -129,9 +129,7 @@ class PytestTestCaseBase(TracerTestCase):
             _test_env.update(extra_env)
 
         with _ci_override_env(_test_env, replace_os_env=True):
-            run_result = self.testdir.runpytest_inprocess("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
-            return run_result.reprec
-            # return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
+            return self.testdir.inline_run("-p", "no:randomly", *args, plugins=[CIVisibilityPlugin()])
 
     def subprocess_run(self, *args, env: t.Optional[t.Dict[str, str]] = None):
         """Execute test script with test tracer."""

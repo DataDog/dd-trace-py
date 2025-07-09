@@ -1634,7 +1634,7 @@ venv = Venv(
         ),
         Venv(
             name="pytest",
-            command="pytest --no-ddtrace --no-cov -v {cmdargs} tests/contrib/pytest/",
+            command="pytest --no-ddtrace --no-cov -v --capture=fd {cmdargs} tests/contrib/pytest/",
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-xdist": latest,
