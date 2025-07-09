@@ -155,7 +155,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
         contents = get_argument_value(args, kwargs, -1, "contents")
         messages = self._extract_messages_from_contents(contents, "user")
-        # reuse logic for parsing messages from generate_content
         documents = [Document(text=str(message["content"])) for message in messages]
         return documents
 
