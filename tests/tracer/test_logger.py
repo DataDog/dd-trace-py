@@ -346,7 +346,6 @@ def test_logger_log_level_from_env(monkeypatch):
 
     original_trie = dd_logger.LOG_LEVEL_TRIE
     dd_logger.LOG_LEVEL_TRIE = dd_logger.LoggerPrefix.build_trie()
-    print(dd_logger.LOG_LEVEL_TRIE)
 
     try:
         assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
