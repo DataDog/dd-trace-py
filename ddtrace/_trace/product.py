@@ -50,6 +50,10 @@ def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
             if cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
                 tracer.enabled = True
 
+    if "_trace_http_header_tags" in items:
+        # Update the HTTP header tags configuration
+        cfg._http = HttpConfig(header_tags=cfg._trace_http_header_tags)
+
 
 def post_preload():
     if _config.enabled:
@@ -184,7 +188,7 @@ def _convert_rc_trace_sampling_rules(
 
 
 def apm_tracing_rc(lib_config, dd_config):
-    base_rc_config: t.Dict[str, t.Any] = {}
+    new_rc_configs: t.Dict[str, t.Any] = {n: None for n in dd_config._config}
 
     if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
         global_sampling_rate = lib_config.get("tracing_sampling_rate")
@@ -192,34 +196,29 @@ def apm_tracing_rc(lib_config, dd_config):
         # returns None if no rules
         trace_sampling_rules = _convert_rc_trace_sampling_rules(trace_sampling_rules, global_sampling_rate)
         if trace_sampling_rules:
-            base_rc_config["_trace_sampling_rules"] = trace_sampling_rules
+            new_rc_configs["_trace_sampling_rules"] = trace_sampling_rules
 
     if "log_injection_enabled" in lib_config:
-        base_rc_config["_logs_injection"] = str(lib_config["log_injection_enabled"]).lower()
+        new_rc_configs["_logs_injection"] = str(lib_config["log_injection_enabled"]).lower()
 
     if "tracing_tags" in lib_config:
         tags = lib_config["tracing_tags"]
         if tags:
             tags = dd_config._format_tags(lib_config["tracing_tags"])
-        base_rc_config["tags"] = tags
+        new_rc_configs["tags"] = tags
 
     if "tracing_enabled" in lib_config and lib_config["tracing_enabled"] is not None:
-        base_rc_config["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])
+        new_rc_configs["_tracing_enabled"] = asbool(lib_config["tracing_enabled"])
 
     if "tracing_header_tags" in lib_config:
         tags = lib_config["tracing_header_tags"]
         if tags:
             tags = dd_config._format_tags(lib_config["tracing_header_tags"])
-        base_rc_config["_trace_http_header_tags"] = tags
-        dd_config._http = HttpConfig(header_tags=tags)
+        new_rc_configs["_trace_http_header_tags"] = tags
 
-    if base_rc_config:
-        # If new remote config values are set, we should update the global config
-        merged_configs = {**{n: None for n in dd_config._config}, **base_rc_config}
-        dd_config._set_config_items([(k, v, "remote_config") for k, v in merged_configs.items()])
-        log.debug(
-            "Remote config APM Tracing Received: %s,\nExisiting configs: %s,\nUpdated Configs: %s",
-            lib_config,
-            base_rc_config,
-            merged_configs,
-        )
+    dd_config._set_config_items([(k, v, "remote_config") for k, v in new_rc_configs.items()])
+    log.debug(
+        "APM Tracing Received: %s from the Agent,\nNew Tracer configs: %s",
+        lib_config,
+        new_rc_configs,
+    )
