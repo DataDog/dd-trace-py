@@ -1,5 +1,7 @@
+import asyncio
 import io
 import json
+import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -161,19 +163,30 @@ def _on_lambda_start_response(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        more_body = True
+        body_parts = []
         try:
-            data_received = await receive()
-        except Exception:
+            while more_body:
+                print("Waiting for ASGI body data", file=sys.stderr)
+                data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
+                print(f"Receiving for ASGI body data {data_received}", file=sys.stderr)
+                if data_received is None:
+                    more_body = False
+                if isinstance(data_received, dict):
+                    more_body = data_received.get("more_body", False)
+                    body_parts.append(data_received.get("body", b""))
+        except asyncio.TimeoutError:
+            pass
+        except Exception as e:
             return receive, None
+        body = b''.join(body_parts)
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
-                return data_received
+                return {"type": "http.request", "body": body, "more_body": more_body}
             return await receive()
-
         try:
-            body = data_received.get("body", b"")
             content_type = headers.get("content-type") or headers.get("Content-Type")
             if content_type in ("application/json", "text/json"):
                 if body is None or body == b"":
@@ -191,6 +204,7 @@ async def _on_asgi_request_parse_body(receive, headers):
             return receive_wrapped, None
 
     return receive, None
+
 
 
 # FLASK
