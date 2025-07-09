@@ -81,7 +81,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             }
         )
         if operation == "embedding":
-            self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response)
+            self._llmobs_set_tags_from_embedding(span, args, kwargs, response)
         elif operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response)
 
