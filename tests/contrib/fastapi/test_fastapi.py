@@ -555,7 +555,7 @@ def _run_websocket_test():
         with TestClient(application) as client:
             with client.websocket_connect("/ws") as websocket:
                 initial_data = websocket.receive_json()
-                assert initial_data == {"test": "Hello WebSocket"}
+                assert initial_data == {"test": "Hello WebSocket"}, initial_data
 
                 websocket.send_text("message")
                 try:

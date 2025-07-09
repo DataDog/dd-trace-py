@@ -255,6 +255,7 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
+            global_root_span = span._local_root or span
 
             @wraps(receive)
             async def wrapped_receive():
@@ -297,8 +298,13 @@ class TraceMiddleware:
                             trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
                         )
 
+                        # set sampling
+                        if self.integration_config._asgi_websockets_inherit_sampling:
+                            recv_span.set_metric("_dd.dm.inherited", 1)
+                            recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                            recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+
                         if span.context:
-                            # Copy baggage items from the handshake span's context
                             for key, value in span.context._baggage.items():
                                 recv_span.context.set_baggage_item(key, value)
                                 recv_span.set_tag_str(f"baggage.{key}", value)
@@ -341,6 +347,13 @@ class TraceMiddleware:
                         disconnect_span.set_link(
                             trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "executed_by"}
                         )
+
+                        # set sampling
+                        if self.integration_config._asgi_websockets_inherit_sampling:
+                            disconnect_span.set_metric("_dd.dm.inherited", 1)
+                            disconnect_span.set_tag_str("_dd.dm.service", global_root_span.service)
+                            disconnect_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+
                         if span.context:
                             for key, value in span.context._baggage.items():
                                 disconnect_span.context.set_baggage_item(key, value)
