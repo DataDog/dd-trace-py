@@ -1,4 +1,3 @@
-import inspect
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -8,7 +7,6 @@ from typing import TypedDict
 from typing import Union
 
 from typing_extensions import NotRequired
-import wrapt
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
@@ -33,42 +31,16 @@ class Dataset:
         self._data = data
 
 
-class ExperimentTaskWrapper(wrapt.ObjectProxy):
-    def __init__(self, wrapped: Callable):
-        super().__init__(wrapped)
-        sig = inspect.signature(wrapped)
-        params = sig.parameters
-        if "input_data" not in params:
-            raise TypeError("Task function must have an 'input_data' parameter.")
-        self._self_accept_config = "config" in params
-
-    def __call__(self, *args, **kwargs) -> Any:
-        return self.__wrapped__(*args, **kwargs)
-
-
-class ExperimentEvaluatorWrapper(wrapt.ObjectProxy):
-    def __init__(self, wrapped: Callable):
-        super().__init__(wrapped)
-        sig = inspect.signature(wrapped)
-        params = sig.parameters
-        required_params = ("input_data", "output_data", "expected_output")
-        if not all(param in params for param in required_params):
-            raise TypeError("Evaluator function must have parameters {}.".format(required_params))
-
-    def __call__(self, *args, **kwargs) -> Any:
-        return self.__wrapped__(*args, **kwargs)
-
-
 class Experiment:
     def __init__(
         self,
         name: str,
-        task: ExperimentTaskWrapper,
+        task: Callable[[Dict[str, Any]], Any],
         dataset: Dataset,
-        evaluators: List[ExperimentEvaluatorWrapper],
-        _llmobs: Any,
+        evaluators: List[Callable[[Any, Any, Any], Any]],
         description: str = "",
         config: Optional[Dict[str, Any]] = None,
+        _llmobs: Optional[Any] = None,
     ) -> None:
         self.name = name
         self._task = task
@@ -78,7 +50,6 @@ class Experiment:
         self._config: Dict[str, Any] = config or {}
         self._llmobs = _llmobs
         self._id: Optional[str] = None
-        self._project_id: Optional[str] = None
 
     def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
         task_results = self._run_task(jobs, raise_errors, sample_size)
