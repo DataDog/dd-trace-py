@@ -14,7 +14,7 @@ NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONTyp
 
 
 class DatasetRecord(TypedDict):
-    input: NonNoneJSONType
+    input_data: NonNoneJSONType
     expected_output: JSONType
     metadata: Dict[str, Any]
     record_id: NotRequired[Optional[str]]
