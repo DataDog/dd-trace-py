@@ -55,12 +55,11 @@ langchain,langchain,0.1.20,0.3.18,True
 langgraph,langgraph,0.2.23,0.4.3,True
 langgraph-checkpoint,langgraph,1.0.12,2.0.25,True
 litellm,litellm *,1.65.4,1.65.4,True
-logbook,logbook,1.0.0,1.8.1,True
-loguru,loguru,0.4.1,0.7.2,True
+logbook,logbook,1.0.0,1.8.1,False
+loguru,loguru,0.4.1,0.7.2,False
 mako,mako,1.0.14,1.3.8,True
 mariadb,mariadb,1.0.11,1.1.12,True
-mcp,mcp,1.0.0,1.9.4,True
-
+mcp,mcp *,1.9.4,1.10.1,False
 molten,molten,1.0.2,1.0.2,True
 mongoengine,mongoengine,0.23.1,0.29.1,True
 mysql-connector-python,mysql,8.0.5,9.0.0,True
@@ -89,7 +88,7 @@ snowflake-connector-python,snowflake,2.3.10,3.12.2,False
 sqlalchemy,sqlalchemy,1.3.24,2.0.40,False
 pysqlite3-binary,sqlite3,0.5.2.post3,0.5.2.post3,True
 starlette,starlette,0.14.2,0.39.2,True
-structlog,structlog,20.2.0,24.4.0,True
+structlog,structlog,20.2.0,24.4.0,False
 tornado,tornado *,6.0.4,6.5.1,False
 urllib3,urllib3,1.25,2.2.3,False
 valkey,valkey,6.0.2,6.0.2,True

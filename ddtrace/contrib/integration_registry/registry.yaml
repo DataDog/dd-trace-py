@@ -562,8 +562,8 @@ integrations:
   - mcp
   tested_versions_by_dependency:
     mcp:
-      min: 1.0.0
-      max: 1.0.0
+      min: 1.9.4
+      max: 1.10.1
 
 - integration_name: molten
   is_external_package: true
