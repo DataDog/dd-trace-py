@@ -164,7 +164,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 30m
@@ -197,7 +197,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_fastapi:
     parallelism: 9
     paths:
@@ -230,7 +230,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'
