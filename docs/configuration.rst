@@ -344,6 +344,22 @@ Traces
      version_added:
         v1.9.0:
 
+   DD_TRACE_SAFE_INSTRUMENTATION_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        Whether to enable safe instrumentation.
+
+        When enabled, ``ddtrace`` will check if the version of an installed package is compatible with the respective ``ddtrace`` integration
+        patching the package. If the version is not compatible, ``ddtrace`` will not patch the respective package.
+
+        This is useful to avoid application crashes from patching packages that are incompatible with the ``ddtrace`` supported integration 
+        version ranges.
+     
+     version_added:
+        v3.11.0:
+
 Trace Context propagation
 -------------------------
 
@@ -548,6 +564,14 @@ AppSec
      default: "DES,Blowfish,RC2,RC4,IDEA"
      description: Weak cipher algorithms that should be reported, comma separated.
 
+   DD_IAST_SECURITY_CONTROLS_CONFIGURATION:
+     type: String
+     default: ""
+     description: |
+        Allows you to specify custom sanitizers and validators that IAST should recognize when
+        analyzing your application for security vulnerabilities.
+        See the `Security Controls <https://docs.datadoghq.com/security/code_security/iast/security_controls>`_
+        documentation for more information about this feature.
 
 Test Visibility
 ---------------
@@ -725,9 +749,9 @@ Logs
 .. ddtrace-configuration-options::
 
    DD_LOGS_INJECTION:
-     type: Boolean
-     default: False
-     description: Enables :ref:`Logs Injection`.
+     type: string
+     default: structured
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -856,10 +880,11 @@ Other
          These metrics track the memory management and concurrency of the python runtime. 
          Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
 
-   DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED:
+   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
      type: Boolean
      default: False
      version_added:
+       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
        v3.2.0: Adds initial support
 
      description: |
@@ -914,6 +939,18 @@ Other
       version_added:
          v1.15.0:
 
+   DD_TRACE_BAGGAGE_TAG_KEYS:
+      type: String
+      default: "user.id,account.id,session.id"
+
+      description: |
+          A comma-separated list of baggage keys, sent via HTTP headers, to automatically tag as baggage.<key> on the local root span.
+          Only baggage extracted from incoming headers is supported. Baggage set via ``Context.set_baggage_item(..., ...)`` is not included. Keys must have non-empty values. 
+          Set to * to tag all baggage keys (use with caution to avoid exposing sensitive data). Set to an empty string to disable the feature.
+
+      version_added: 
+         v3.6.0:
+
 .. _Unified Service Tagging: https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging/
 
 .. _Configure the Datadog Tracing Library: https://docs.datadoghq.com/tracing/trace_collection/library_config/
@@ -948,3 +985,24 @@ Live Debugging
 --------------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.live_debugging:LiveDebuggerConfig
+
+Error Tracking
+--------------
+.. ddtrace-configuration-options::
+  DD_ERROR_TRACKING_HANDLED_ERRORS:
+      type: String
+      default: ""
+
+      description: |
+          Report automatically handled errors to Error Tracking.
+          Handled errors are also attached to spans through span events.
+
+          Possible values are: ``user|third_party|all``. Report handled exceptions
+          of user code, third party packages or both.
+
+  DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE:
+      type: String
+      default: ""
+
+      description: |
+          Comma-separated list of Python modules for which we report handled errors.

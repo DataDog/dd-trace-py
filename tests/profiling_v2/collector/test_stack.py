@@ -77,7 +77,7 @@ def test_stack_locations(tmp_path):
     def foo():
         bar()
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=True):
+    with stack.StackCollector(_stack_collector_v2_enabled=True):
         for _ in range(10):
             foo()
     ddup.upload()
@@ -126,7 +126,6 @@ def test_push_span(tmp_path, tracer):
     span_type = ext.SpanTypes.WEB
 
     with stack.StackCollector(
-        None,
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
@@ -175,7 +174,6 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
                 time.sleep(0.1)
 
         with stack.StackCollector(
-            None,
             tracer=tracer,
             endpoint_collection_enabled=True,
             ignore_profiler=True,  # this is not necessary, but it's here to trim samples
@@ -223,7 +221,6 @@ def test_push_non_web_span(tmp_path, tracer):
     span_type = ext.SpanTypes.SQL
 
     with stack.StackCollector(
-        None,
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
@@ -267,7 +264,6 @@ def test_push_span_none_span_type(tmp_path, tracer):
     resource = str(uuid.uuid4())
 
     with stack.StackCollector(
-        None,
         tracer=tracer,
         endpoint_collection_enabled=True,
         ignore_profiler=True,  # this is not necessary, but it's here to trim samples
@@ -309,7 +305,7 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
         try:
             raise ValueError("hello")
         except Exception:
@@ -356,7 +352,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
 
         def target_fun():
             try:
@@ -417,7 +413,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, tracer=tracer, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
+    with stack.StackCollector(tracer=tracer, ignore_profiler=True, _stack_collector_v2_enabled=stack_v2_enabled):
         with tracer.trace("foobar", resource="resource", span_type=ext.SpanTypes.WEB):
             try:
                 raise ValueError("hello")
@@ -472,7 +468,7 @@ def test_collect_once_with_class(tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=True):
+    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=True):
         SomeClass.sleep_class()
 
     ddup.upload()
@@ -526,7 +522,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    with stack.StackCollector(None, ignore_profiler=True, _stack_collector_v2_enabled=True):
+    with stack.StackCollector(ignore_profiler=True, _stack_collector_v2_enabled=True):
         SomeClass.sleep_class(123)
 
     ddup.upload()
@@ -610,7 +606,7 @@ def test_collect_gevent_thread_task():
 
     threads = []
 
-    with stack.StackCollector(None, _stack_collector_v2_enabled=False):
+    with stack.StackCollector():
         for i in range(5):
             t = threading.Thread(target=_dofib, name="TestThread %d" % i)
             t.start()
@@ -620,39 +616,47 @@ def test_collect_gevent_thread_task():
 
     ddup.upload()
 
-    expected_task_ids = {thread.ident for thread in threads}
-
     profile = pprof_utils.parse_profile(output_filename)
-    samples = pprof_utils.get_samples_with_label_key(profile, "task id")
+    samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
-    checked_thread = False
-
-    for sample in samples:
-        task_id_label = pprof_utils.get_label_with_key(profile.string_table, sample, "task id")
-        task_id = int(task_id_label.num)
-        if task_id in expected_task_ids:
-            pprof_utils.assert_stack_event(
-                profile,
-                sample,
-                pprof_utils.StackEvent(
-                    task_name=r"TestThread \d+$",
-                    task_id=task_id,
+    pprof_utils.assert_profile_has_sample(
+        profile,
+        samples,
+        expected_sample=pprof_utils.StackEvent(
+            thread_name="MainThread",
+            task_name=r"Greenlet-\d+$",
+            locations=[
+                # Since we're using recursive function _fib(), we expect to have
+                # multiple locations for _fib(n) = _fib(n-1) + _fib(n-2)
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
                 ),
-            )
-            checked_thread = True
-
-    assert checked_thread, "No samples found for the expected threads"
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+                pprof_utils.StackLocation(
+                    filename="test_stack.py",
+                    function_name="_fib",
+                    line_no=_fib.__code__.co_firstlineno + 6,
+                ),
+            ],
+        ),
+    )
 
 
 def test_max_time_usage():
     with pytest.raises(ValueError):
-        stack.StackCollector(None, max_time_usage_pct=0)
+        stack.StackCollector(max_time_usage_pct=0)
 
 
 def test_max_time_usage_over():
     with pytest.raises(ValueError):
-        stack.StackCollector(None, max_time_usage_pct=200)
+        stack.StackCollector(max_time_usage_pct=200)
 
 
 @pytest.mark.parametrize(
@@ -675,7 +679,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
     ddup.config(env="test", service=test_name, version="my_version", output_filename=pprof_prefix)
     ddup.start()
 
-    s = stack.StackCollector(None, ignore_profiler=ignore_profiler, _stack_collector_v2_enabled=stack_v2_enabled)
+    s = stack.StackCollector(ignore_profiler=ignore_profiler, _stack_collector_v2_enabled=stack_v2_enabled)
     collector_worker_thread_id = None
 
     with s:
@@ -776,6 +780,6 @@ def test_repr():
     test_collector._test_repr(
         stack.StackCollector,
         "StackCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=16384, max_events={}), min_interval_time=0.01, max_time_usage_pct=1.0, "
+        "min_interval_time=0.01, max_time_usage_pct=1.0, "
         "nframes=64, ignore_profiler=False, endpoint_collection_enabled=None, tracer=None)",
     )

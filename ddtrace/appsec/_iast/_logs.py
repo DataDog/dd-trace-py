@@ -32,6 +32,10 @@ def iast_propagation_debug_log(msg, *args, **kwargs):
     log.debug("iast::propagation::error::%s", msg, *args, **kwargs)
 
 
+def iast_propagation_sink_point_debug_log(msg, *args, **kwargs):
+    log.debug("iast::propagation::sink_point::%s", msg, *args, **kwargs)
+
+
 def iast_instrumentation_ast_patching_errorr_log(msg):
     iast_error(msg, default_prefix="iast::instrumentation::ast_patching::")
 
@@ -45,4 +49,4 @@ def iast_error(msg, default_prefix="iast::"):
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
         log.debug("%s%s:\n%s", default_prefix, msg, frame_info)
-    _set_iast_error_metric(f"{default_prefix}. {msg}")
+        _set_iast_error_metric(f"{default_prefix}{msg}")

@@ -78,7 +78,6 @@ Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filenam
           .system_name_id = { 0 },
           .filename = to_slice(filename),
           .filename_id = { 0 },
-          .start_line = 0, // We don't know the start_line for the function
         },
         .address = address,
         .line = line,

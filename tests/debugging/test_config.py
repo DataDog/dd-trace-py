@@ -74,3 +74,8 @@ def test_redacted_types_matching():
     with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES="Secret*") as config:
         assert config.redacted_types_re.search("Secret")
         assert not config.redacted_types_re.search("NotSecret")
+
+
+def test_redaction_excluded_identifiers():
+    with debugger_config(DD_DYNAMIC_INSTRUMENTATION_REDACTION_EXCLUDED_IDENTIFIERS="foo , bar") as config:
+        assert config.redaction_excluded_identifiers == frozenset(["foo", "bar"])

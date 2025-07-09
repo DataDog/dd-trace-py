@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "createResponse",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "682e47b000000000",
+      "component": "openai",
+      "language": "python",
+      "openai.base_url": "https://api.openai.com/v1/",
+      "openai.request.client": "OpenAI",
+      "openai.request.endpoint": "/v1/responses",
+      "openai.request.method": "POST",
+      "openai.request.model": "gpt-4.1",
+      "openai.request.stream": "True",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "fb5d2f34f378429aa0be083c68187ecb"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 27589
+    },
+    "duration": 1079000,
+    "start": 1747863472917077000
+  }]]

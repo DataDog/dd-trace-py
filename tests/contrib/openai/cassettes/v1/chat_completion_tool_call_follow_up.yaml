@@ -1,0 +1,114 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "user", "content": "\n    David Nguyen is a sophomore
+      majoring in computer science at Stanford University and has a GPA of 3.8.\n    David
+      is an active member of the university''s Chess Club and the South Asian Student
+      Association.\n    He hopes to pursue a career in software engineering after
+      graduating.\n    "}, {"content": null, "role": "assistant", "tool_calls": [{"id":
+      "call_FJStsEjxdODw9tBmQRRkm6vY", "function": {"arguments": "{\n  \"name\": \"David
+      Nguyen\",\n  \"major\": \"computer science\",\n  \"school\": \"Stanford University\",\n  \"grades\":
+      3.8,\n  \"clubs\": [\n    \"Chess Club\",\n    \"South Asian Student Association\"\n  ]\n}",
+      "name": "extract_student_info"}, "type": "function"}]}, {"role": "tool", "tool_call_id":
+      "call_FJStsEjxdODw9tBmQRRkm6vY", "content": "{\"status\": \"success\", \"gpa_verified\":
+      true}"}, {"role": "user", "content": "Can you summarize the student''s academic
+      performance?"}], "model": "gpt-3.5-turbo", "user": "ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '999'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.30.1
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.30.1
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFNNb9swDL3nVxA6J0Gz1EmT24YCHbbsA+h2GgpDkWibqS1pIp01KPrf
+        Bzlp7G4dsIsPfHxPfI/04whAkVVrUKbSYppQT96FD5vVTbX48vF6s70Nlz8zvnf7zerT7lu2UOPE
+        8NsdGnlmTY1vQo1C3h1hE1ELJtXZMptli6vlctYBjbdYJ1oZZDKfZhNp49ZPLmZvshOz8mSQ1Rp+
+        jAAAHrtvmtFZfFBruBg/Vxpk1iWq9bkJQEVfp4rSzMSinahxDxrvBF039rXek4XPZXtAB8SggX2o
+        fOMjQqN3PpIrgRwkZ61gBDaEziBogVvRrvDRwndHe4xMcoBfJBVouPn6FnwB8+nVFN4nWaMtNmQg
+        YCx8bHSSIAZqQkRm2iNoZ6HqivhgsK5PD1fEwNJaQp4OPUQsWtYpQ9fW9QDQznnRaQddencn5Omc
+        V+3LEP2W/6CqghxxlUfU7F3KhsUH1aFPI4C7bi/ti6hViL4Jkou/x+652eX8qKf6U+jR+eIEihdd
+        D1jL1fgVvdyiaKp5sFlltKnQ9tT+DHRryQ+A0cD139O8pn10Tq78H/keMAaDoM1DREvmpeO+LWL6
+        U/7Vdk65G1gxxj0ZzIUwpk1YLHRbH29Y8YEFm7wgV2IMkbpDTpscPY1+AwAA//8DAFBXDG3HAwAA
+    headers:
+      CF-RAY:
+      - 95989511df8b41f3-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 03 Jul 2025 18:52:51 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=x5Z57WQCvdto1MSBbso.uyMCHb7OkrsdyLKzL_CzOLo-1751568771-1.0.1.1-JPVJFrizj89_z8NOyvdAG9gEWU63T7ZcTFZFcVzPmpxfC_6LogOYi4P5L9.kiJO0pCOZbnM3bTuJlzmPn90AobMggjgHw7na540TkK59D5A;
+        path=/; expires=Thu, 03-Jul-25 19:22:51 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=cbboIj87077r1fZ2ouqGAsAl8xZsnRHnHF6RfYkEfEg-1751568771891-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '770'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '775'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999899'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_14ce57b3856df1407745046b69a0afb1
+    status:
+      code: 200
+      message: OK
+version: 1

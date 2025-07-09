@@ -43,13 +43,13 @@ def test_repr():
     test_collector._test_repr(
         collector_threading.ThreadingLockCollector,
         "ThreadingLockCollector(status=<ServiceStatus.STOPPED: 'stopped'>, "
-        "recorder=Recorder(default_max_events=16384, max_events={}), capture_pct=1.0, nframes=64, "
-        "endpoint_collection_enabled=True, export_libdd_enabled=True, tracer=None)",
+        "capture_pct=1.0, nframes=64, "
+        "endpoint_collection_enabled=True, tracer=None)",
     )
 
 
 def test_wrapper():
-    collector = collector_threading.ThreadingLockCollector(None)
+    collector = collector_threading.ThreadingLockCollector()
     with collector:
 
         class Foobar(object):
@@ -71,7 +71,7 @@ def test_wrapper():
 
 def test_patch():
     lock = threading.Lock
-    collector = collector_threading.ThreadingLockCollector(None)
+    collector = collector_threading.ThreadingLockCollector()
     collector.start()
     assert lock == collector._original
     # wrapt makes this true
@@ -82,7 +82,8 @@ def test_patch():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="only works on linux")
-@pytest.mark.subprocess()
+@pytest.mark.subprocess(err=None)
+# For macOS: Could print 'Error uploading' but okay to ignore since we are checking if native_id is set
 def test_user_threads_have_native_id():
     from os import getpid
     from threading import Thread
@@ -156,7 +157,7 @@ def test_wrapt_disable_extensions():
     assert os.environ.get("WRAPT_DISABLE_EXTENSIONS")
     assert _lock.WRAPT_C_EXT is False
 
-    with collector_threading.ThreadingLockCollector(None, capture_pct=100):
+    with collector_threading.ThreadingLockCollector(capture_pct=100):
         th_lock = threading.Lock()  # !CREATE! test_wrapt_disable_extensions
         with th_lock:  # !ACQUIRE! !RELEASE! test_wrapt_disable_extensions
             pass
@@ -226,7 +227,7 @@ def test_lock_gevent_tasks():
         lock.acquire()  # !ACQUIRE! test_lock_gevent_tasks
         lock.release()  # !RELEASE! test_lock_gevent_tasks
 
-    with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+    with collector_threading.ThreadingLockCollector(capture_pct=100):
         t = threading.Thread(name="foobar", target=play_with_lock)
         t.start()
         t.join()
@@ -245,8 +246,11 @@ def test_lock_gevent_tasks():
                 filename=expected_filename,
                 linenos=linenos,
                 lock_name="lock",
-                task_id=t.ident,
-                task_name="foobar",
+                # TODO: With stack_v2, the way we trace gevent greenlets has
+                # changed, and we'd need to expose an API to get the task_id,
+                # task_name, and task_frame.
+                # task_id=t.ident,
+                # task_name="foobar",
             ),
         ],
         expected_release_events=[
@@ -255,8 +259,11 @@ def test_lock_gevent_tasks():
                 filename=expected_filename,
                 linenos=linenos,
                 lock_name="lock",
-                task_id=t.ident,
-                task_name="foobar",
+                # TODO: With stack_v2, the way we trace gevent greenlets has
+                # changed, and we'd need to expose an API to get the task_id,
+                # task_name, and task_frame.
+                # task_id=t.ident,
+                # task_name="foobar",
             ),
         ],
     )
@@ -299,7 +306,7 @@ class TestThreadingLockCollector:
     def test_lock_events(self):
         # The first argument is the recorder.Recorder which is used for the
         # v1 exporter. We don't need it for the v2 exporter.
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             lock = threading.Lock()  # !CREATE! test_lock_events
             lock.acquire()  # !ACQUIRE! test_lock_events
             lock.release()  # !RELEASE! test_lock_events
@@ -329,7 +336,7 @@ class TestThreadingLockCollector:
         )
 
     def test_lock_acquire_events_class(self):
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
 
             class Foobar(object):
                 def lockfunc(self):
@@ -360,10 +367,8 @@ class TestThreadingLockCollector:
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
-            None,
             tracer=tracer,
             capture_pct=100,
-            export_libdd_enabled=True,
         ):
             lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_1
             lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_1
@@ -423,10 +428,8 @@ class TestThreadingLockCollector:
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.SQL
         with collector_threading.ThreadingLockCollector(
-            None,
             tracer=tracer,
             capture_pct=100,
-            export_libdd_enabled=True,
         ):
             with tracer.trace("test", resource=resource, span_type=span_type) as t:
                 lock2 = threading.Lock()  # !CREATE! test_lock_events_tracer_non_web
@@ -467,10 +470,8 @@ class TestThreadingLockCollector:
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
-            None,
             tracer=tracer,
             capture_pct=100,
-            export_libdd_enabled=True,
         ):
             lock1 = threading.Lock()  # !CREATE! test_lock_events_tracer_late_finish_1
             lock1.acquire()  # !ACQUIRE! test_lock_events_tracer_late_finish_1
@@ -524,10 +525,8 @@ class TestThreadingLockCollector:
         resource = str(uuid.uuid4())
         span_type = ext.SpanTypes.WEB
         with collector_threading.ThreadingLockCollector(
-            None,
             tracer=tracer,
             capture_pct=100,
-            export_libdd_enabled=True,
             endpoint_collection_enabled=False,
         ):
             lock1 = threading.Lock()  # !CREATE! test_resource_not_collected_1
@@ -583,7 +582,7 @@ class TestThreadingLockCollector:
         )
 
     def test_lock_enter_exit_events(self):
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             th_lock = threading.Lock()  # !CREATE! test_lock_enter_exit_events
             with th_lock:  # !ACQUIRE! !RELEASE! test_lock_enter_exit_events
                 pass
@@ -622,7 +621,7 @@ class TestThreadingLockCollector:
         with mock.patch("ddtrace.settings.profiling.config.lock.name_inspect_dir", inspect_dir_enabled):
             expected_lock_name = "foo_lock" if inspect_dir_enabled else None
 
-            with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+            with collector_threading.ThreadingLockCollector(capture_pct=100):
                 foobar = Foo()
                 foobar.foo()
                 bar = Bar()
@@ -666,7 +665,7 @@ class TestThreadingLockCollector:
                 with self.__lock:  # !RELEASE! !ACQUIRE! test_private_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             foo = Foo()
             foo.foo()
 
@@ -705,7 +704,7 @@ class TestThreadingLockCollector:
                 with self.foo.foo_lock:  # !RELEASE! !ACQUIRE! test_inner_lock
                     pass
 
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             bar = Bar()
             bar.bar()
 
@@ -737,7 +736,7 @@ class TestThreadingLockCollector:
         )
 
     def test_anonymous_lock(self):
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_anonymous_lock
                 pass
         ddup.upload()
@@ -764,7 +763,7 @@ class TestThreadingLockCollector:
         )
 
     def test_global_locks(self):
-        with collector_threading.ThreadingLockCollector(None, capture_pct=100, export_libdd_enabled=True):
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
             from tests.profiling.collector import global_locks
 
             global_locks.foo()

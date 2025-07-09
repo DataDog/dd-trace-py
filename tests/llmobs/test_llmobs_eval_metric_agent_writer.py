@@ -12,12 +12,23 @@ from tests.llmobs.test_llmobs_eval_metric_agentless_writer import _score_metric_
 
 INTAKE_ENDPOINT = agent_config.trace_agent_url
 AGENT_PROXY_URL = f"{INTAKE_ENDPOINT}{EVP_PROXY_AGENT_BASE_PATH}{EVAL_ENDPOINT}"
+UNIX_AGENT_INTAKE = "unix:///var/run/datadog/apm.sock"
+UNIX_AGENT_PROXY_URL = "{}{}{}".format(UNIX_AGENT_INTAKE, EVP_PROXY_AGENT_BASE_PATH, EVAL_ENDPOINT)
 
 
 def test_writer_start(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False)
     llmobs_eval_metric_writer.start()
     mock_writer_logs.debug.assert_has_calls([mock.call("started %r to %r", "LLMObsEvalMetricWriter", AGENT_PROXY_URL)])
+    llmobs_eval_metric_writer.stop()
+
+
+def test_unix_socket_writer_start(mock_writer_logs):
+    llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=False, _override_url=UNIX_AGENT_INTAKE)
+    llmobs_eval_metric_writer.start()
+    mock_writer_logs.debug.assert_has_calls(
+        [mock.call("started %r to %r", "LLMObsEvalMetricWriter", UNIX_AGENT_PROXY_URL)]
+    )
     llmobs_eval_metric_writer.stop()
 
 

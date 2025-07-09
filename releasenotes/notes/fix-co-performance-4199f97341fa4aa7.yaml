@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: Fixed an issue with a GC-based lookup for code origin resolution resulting in high
+    performance overhead.

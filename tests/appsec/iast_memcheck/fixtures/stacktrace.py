@@ -1,7 +1,6 @@
 import os
 
 from ddtrace.appsec._iast._stacktrace import get_info_frame
-from tests.appsec.iast_memcheck._stacktrace_py import get_info_frame as get_info_frame_py
 
 
 CWD = os.path.abspath(os.getcwd())
@@ -84,16 +83,6 @@ def func_19(a, b, c):
 
 
 def func_20(a, b, c):
-    if b == "py":
-        func = get_info_frame_py
-    else:
-        func = get_info_frame
-    if a == "empty_byte":
-        frame_info = func(b"")
-    elif a == "empty_string":
-        frame_info = func("")
-    elif a == "random_string":
-        frame_info = func("aaaa")
-    else:
-        frame_info = func(CWD)
+    func = get_info_frame
+    frame_info = func()
     return frame_info

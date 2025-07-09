@@ -6,6 +6,7 @@
 #include <Python.h>
 #include <frameobject.h>
 
+#include "_memalloc_debug.h"
 #include "_memalloc_tb.h"
 #include "_pymacro.h"
 
@@ -159,6 +160,7 @@ traceback_free(traceback_t* tb)
         Py_DECREF(tb->frames[nframe].filename);
         Py_DECREF(tb->frames[nframe].name);
     }
+    memalloc_debug_gil_release();
     PyMem_RawFree(tb);
 }
 
@@ -233,6 +235,7 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
 #else
         pyframe = pyframe->f_back;
 #endif
+        memalloc_debug_gil_release();
     }
 
     size_t traceback_size = TRACEBACK_SIZE(traceback_buffer->nframe);

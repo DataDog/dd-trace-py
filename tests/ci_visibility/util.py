@@ -6,6 +6,7 @@ from unittest import mock
 import ddtrace
 import ddtrace.ext.test_visibility  # noqa: F401
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
@@ -13,7 +14,6 @@ from ddtrace.internal.ci_visibility.git_client import METADATA_UPLOAD_STATUS
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.recorder import CIVisibility
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.settings._config import Config
 from tests.utils import DummyCIVisibilityWriter
 from tests.utils import override_env
@@ -43,7 +43,7 @@ def _get_default_civisibility_ddconfig(itr_skipping_level: ITR_SKIPPING_LEVEL = 
     return new_ddconfig
 
 
-def _fetch_known_tests_side_effect(known_test_ids: t.Optional[t.Set[InternalTestId]] = None):
+def _fetch_known_tests_side_effect(known_test_ids: t.Optional[t.Set[TestId]] = None):
     if known_test_ids is None:
         known_test_ids = set()
 
@@ -72,7 +72,7 @@ def set_up_mock_civisibility(
     require_git: bool = False,
     suite_skipping_mode: bool = False,
     skippable_items=None,
-    known_test_ids: t.Optional[t.Set[InternalTestId]] = None,
+    known_test_ids: t.Optional[t.Set[TestId]] = None,
     efd_settings: t.Optional[EarlyFlakeDetectionSettings] = None,
 ):
     """This is a one-stop-shop that patches all parts of CI Visibility for testing.

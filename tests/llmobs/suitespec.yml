@@ -6,6 +6,9 @@ components:
   google_generativeai:
     - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
+  google_genai:
+    - ddtrace/contrib/_google_genai.py
+    - ddtrace/contrib/internal/google_genai/*
   vertexai:
     - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
@@ -29,6 +32,9 @@ components:
   openai_agents:
     - ddtrace/contrib/_openai_agents.py
     - ddtrace/contrib/internal/openai_agents/*
+  pydantic_ai:
+    - ddtrace/contrib/_pydantic_ai.py
+    - ddtrace/contrib/internal/pydantic_ai/*
 suites:
   anthropic:
     parallelism: 2
@@ -55,6 +61,19 @@ suites:
     - '@llmobs'
     - tests/contrib/google_generativeai/*
     - tests/snapshots/tests.contrib.google_generativeai.*
+    runner: riot
+    snapshot: true
+  google_genai:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@google_genai'
+      - '@llmobs'
+      - tests/contrib/google_genai/*
+      - tests/snapshots/tests.contrib.google_genai.*
     runner: riot
     snapshot: true
   vertexai:
@@ -156,5 +175,17 @@ suites:
       - '@llmobs'
       - tests/contrib/openai_agents/*
       - tests/snapshots/tests.contrib.openai_agents.*
+    runner: riot
+    snapshot: true
+  pydantic_ai:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@pydantic_ai'
+      - '@llmobs'
+      - tests/contrib/pydantic_ai/*
+      - tests/snapshots/tests.contrib.pydantic_ai.*
     runner: riot
     snapshot: true

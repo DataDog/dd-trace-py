@@ -49,6 +49,7 @@ def _assert_expected_agent_run(
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="agent",
+        metadata=mock.ANY,
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     if not previous_tool_events:
@@ -77,8 +78,8 @@ def _assert_expected_agent_run(
             tool_call = tool_calls[i // 2]
             error_args = (
                 {
-                    "error": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
-                    "error_message": "Error running tool (non-fatal)",
+                    "error_message": f'{{"tool_name": "{tool_call["tool_name"]}", "error": "This is a test error"}}',
+                    "error": "Error running tool (non-fatal)",
                 }
                 if tool_call["error"]
                 else {}
@@ -129,7 +130,13 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
         tools=[],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the capital of France?"}],
+                [
+                    {
+                        "role": "system",
+                        "content": simple_agent.instructions,
+                    },
+                    {"role": "user", "content": "What is the capital of France?"},
+                ],
                 [{"role": "assistant", "content": result.final_output}],
             )
         ],
@@ -172,7 +179,13 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
         tools=[],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the capital of France?"}],
+                [
+                    {
+                        "role": "system",
+                        "content": simple_agent.instructions,
+                    },
+                    {"role": "user", "content": "What is the capital of France?"},
+                ],
                 [{"role": "assistant", "content": result.final_output}],
             )
         ],
@@ -208,7 +221,13 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
         tools=[],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the capital of France?"}],
+                [
+                    {
+                        "role": "system",
+                        "content": simple_agent.instructions,
+                    },
+                    {"role": "user", "content": "What is the capital of France?"},
+                ],
                 [{"role": "assistant", "content": result.final_output}],
             )
         ],
@@ -257,7 +276,13 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
         tools=[],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the capital of France?"}],
+                [
+                    {
+                        "role": "system",
+                        "content": simple_agent.instructions,
+                    },
+                    {"role": "user", "content": "What is the capital of France?"},
+                ],
                 [{"role": "assistant", "content": result.final_output}],
             )
         ],
@@ -294,7 +319,10 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         tools=["add"],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                [
+                    {"role": "system", "content": addition_agent.instructions},
+                    {"role": "user", "content": "What is the sum of 1 and 2?"},
+                ],
                 [
                     {
                         "tool_calls": [
@@ -310,6 +338,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
             ),
             (
                 [
+                    {"role": "system", "content": "You are a helpful assistant specialized in addition calculations."},
                     {"role": "user", "content": "What is the sum of 1 and 2?"},
                     {
                         "tool_calls": [
@@ -321,7 +350,7 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),
@@ -362,9 +391,13 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             (
                 [
                     {
+                        "role": "system",
+                        "content": research_workflow.instructions,
+                    },
+                    {
                         "role": "user",
                         "content": "What is a brief summary of what happened yesterday in the soccer world??",
-                    }
+                    },
                 ],
                 [
                     {
@@ -382,6 +415,10 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             (
                 [
                     {
+                        "role": "system",
+                        "content": research_workflow.instructions,
+                    },
+                    {
                         "content": "What is a brief summary of what happened yesterday in the soccer world??",
                         "role": "user",
                     },
@@ -395,7 +432,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [
                     {"role": "assistant", "content": mock.ANY},
@@ -459,7 +496,13 @@ async def test_llmobs_single_agent_with_tool_errors(
         tools=["add"],
         llm_calls=[
             (
-                [{"role": "user", "content": "What is the sum of 1 and 2?"}],
+                [
+                    {
+                        "role": "system",
+                        "content": addition_agent_with_tool_errors.instructions,
+                    },
+                    {"role": "user", "content": "What is the sum of 1 and 2?"},
+                ],
                 [
                     {
                         "tool_calls": [
@@ -475,6 +518,10 @@ async def test_llmobs_single_agent_with_tool_errors(
             ),
             (
                 [
+                    {
+                        "role": "system",
+                        "content": addition_agent_with_tool_errors.instructions,
+                    },
                     {"role": "user", "content": "What is the sum of 1 and 2?"},
                     {
                         "tool_calls": [
@@ -486,7 +533,7 @@ async def test_llmobs_single_agent_with_tool_errors(
                             }
                         ]
                     },
-                    {"tool_calls": [{"tool_id": mock.ANY, "type": "function_call_output"}]},
+                    {"role": "tool", "content": mock.ANY, "tool_id": mock.ANY},
                 ],
                 [{"role": "assistant", "content": result.final_output}],
             ),

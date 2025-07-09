@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where ddtrace pytest plugin used with xdist would report test suites as failing even when all tests pass.
