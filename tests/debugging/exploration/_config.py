@@ -101,6 +101,13 @@ class ExplorationConfig(DDConfig):
             help="Whether to delete function probes after they are triggered",
         )
 
+        instrumentation_rate = DDConfig.v(
+            float,
+            "instrumentation_rate",
+            default=1.0,
+            help="Rate at which to instrument functions for profiling",
+        )
+
     class CoverageConfig(DDConfig):
         __item__ = "coverage"
         __prefix__ = "dd.debugger.expl.coverage"
@@ -117,6 +124,13 @@ class ExplorationConfig(DDConfig):
             "delete_line_probes",
             default=False,
             help="Whether to delete line probes after they are triggered",
+        )
+
+        instrumentation_rate = DDConfig.v(
+            float,
+            "instrumentation_rate",
+            default=1.0,
+            help="Rate at which to instrument lines for coverage",
         )
 
 
