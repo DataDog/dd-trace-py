@@ -84,8 +84,6 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_meta_tags_from_embedding(span, args, kwargs, response)
         elif operation == "llm":
             self._llmobs_set_meta_tags_from_llm(span, args, kwargs, response)
-        else:
-            raise ValueError(f"Invalid operation: {operation}")
 
     def _llmobs_set_meta_tags_from_llm(self, span, args, kwargs, response):
         config = get_argument_value(args, kwargs, -1, "config", optional=True)
