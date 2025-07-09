@@ -93,7 +93,7 @@ def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 
 
-async def _blocked_asgi_app(scope, receive, send):
+async def _blocked_asgi_app(scope, receive, send, ctx=None, url=None):
     await send({"type": "http.response.start", "status": 403, "headers": []})
     await send({"type": "http.response.body", "body": b""})
 
