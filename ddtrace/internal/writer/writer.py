@@ -249,13 +249,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     headers,
                 )
                 resp = self._conn.getresponse()
-                log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
+                log.log(
+                    log_level,
+                    "Got response: %d %s sent %s in %.5fs to %s",
+                    resp.status,
+                    resp.reason,
+                    _human_size(len(data)),
+                    t,
+                    self._intake_endpoint(client),
+                )
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
