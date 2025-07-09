@@ -401,6 +401,9 @@ class CIVisibility(Service):
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
+        if asbool(os.getenv("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
+            return None
+
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:
