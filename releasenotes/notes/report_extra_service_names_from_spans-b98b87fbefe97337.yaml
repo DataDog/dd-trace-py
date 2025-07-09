@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Tracer: This fix resolves an issue where the extra service names from span modified by customers were not being reported correctly.

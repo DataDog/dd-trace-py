@@ -85,3 +85,26 @@ assert len(extra_services) == 0
     env["DD_REMOTE_CONFIGURATION_ENABLED"] = "false"
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, (stdout, stderr, status)
+
+
+def test_config_extra_service_names_customer_changes(run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+import ddtrace
+import re
+import os
+import sys
+import time
+
+for i in range(10):
+    with ddtrace.tracer.trace("test") as span:
+        span.service = f"extra_service_{i}"
+
+extra_services = ddtrace.config._get_extra_services()
+assert len(extra_services) == 10, len(extra_services)
+    """
+
+    env = os.environ.copy()
+    env["DD_REMOTE_CONFIGURATION_ENABLED"] = "true"
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, (stdout, stderr, status)
