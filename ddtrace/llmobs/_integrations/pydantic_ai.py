@@ -88,27 +88,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     ) -> None:
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
-        self._tag_agent_manifest(span, agent_instance)
-        if agent_instance:
-            agent_name = getattr(agent_instance, "name", None)
-            agent_instructions = getattr(agent_instance, "_instructions", None)
-            agent_system_prompts = getattr(agent_instance, "_system_prompts", None)
-            agent_tools = list(getattr(agent_instance, "_function_tools", {}).keys())
-            agent_model_settings = getattr(agent_instance, "model_settings", None)
-            metadata = {
-                "instructions": agent_instructions,
-                "system_prompts": agent_system_prompts,
-                "tools": agent_tools,
-            }
-            if agent_model_settings:
-                metadata["max_tokens"] = agent_model_settings.get("max_tokens", None)
-                metadata["temperature"] = agent_model_settings.get("temperature", None)
-            span._set_ctx_items(
-                {
-                    NAME: agent_name if agent_name else "PydanticAI Agent",
-                    METADATA: metadata,
-                }
-            )
+        self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
@@ -151,27 +131,31 @@ class PydanticAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
 
-    def _tag_agent_manifest(self, span: Span, agent: Any) -> None:
+    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
             return
-        agent_name = getattr(agent, "name", None)
-        agent_instructions = getattr(agent, "_instructions", None)
-        agent_system_prompts = getattr(agent, "_system_prompts", None)
-        agent_tools = self._get_agent_tools(getattr(agent, "_function_tools", {}))
-        agent_model = span.get_tag("pydantic_ai.request.model") or ""
-        agent_provider = span.get_tag("pydantic_ai.request.provider") or ""
-        agent_model_settings = getattr(agent, "model_settings", None)
-        agent_manifest = {
-            "name": agent_name,
-            "instructions": agent_instructions,
-            "system_prompts": agent_system_prompts,
-            "tools": agent_tools,
-            "model": agent_model,
-            "model_provider": agent_provider,
-            "model_settings": agent_model_settings,
-            "framework": "PydanticAI",
-        }
-        span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
+        
+        manifest = {}
+        manifest["framework"] = "PydanticAI"
+        if hasattr(agent, "name"):
+            manifest["name"] = agent.name or "PydanticAI Agent"
+        if span.get_tag("pydantic_ai.request.model"):
+            manifest["model"] = span.get_tag("pydantic_ai.request.model")
+        if span.get_tag("pydantic_ai.request.provider"):
+            manifest["model_provider"] = span.get_tag("pydantic_ai.request.provider")
+        if hasattr(agent, "model_settings"):
+            manifest["model_settings"] = agent.model_settings
+        if hasattr(agent, "_instructions"):
+            manifest["instructions"] = agent._instructions
+        if hasattr(agent, "_system_prompts"):
+            manifest["system_prompts"] = agent._system_prompts
+        if hasattr(agent, "_function_tools"):
+            manifest["tools"] = self._get_agent_tools(agent._function_tools)
+        if kwargs.get("deps", None):
+            agent_dependencies = kwargs.get("deps", None)
+            manifest["dependencies"] = agent_dependencies.__dict__ if hasattr(agent_dependencies, "__dict__") else agent_dependencies
+        
+        span._set_ctx_item(AGENT_MANIFEST, manifest)
     
     def _get_agent_tools(self, tools: Any) -> List[Dict[str, Any]]:
         if not tools:
@@ -180,7 +164,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
         for tool_name, tool_instance in tools.items():
             tool_dict = {}
             tool_dict["name"] = tool_name
-            tool_dict["description"] = getattr(tool_instance, "description", "")
+            if hasattr(tool_instance, "description"):
+                tool_dict["description"] = tool_instance.description
             function_schema = getattr(tool_instance, "function_schema", None)
             json_schema = getattr(function_schema, "json_schema", None)
             required_params = {param: True for param in json_schema.get("required", [])}
