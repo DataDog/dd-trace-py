@@ -2841,6 +2841,20 @@ venv = Venv(
             pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
         ),
         Venv(
+            name="mcp",
+            command="pytest {cmdargs} tests/contrib/mcp",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"mcp": ">=1.0.0"},
+                ),
+            ],
+        ),
+        Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
