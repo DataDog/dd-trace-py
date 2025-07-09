@@ -80,6 +80,22 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Common venv configurations for appsec threats testing
+_appsec_threats_iast_variants = [
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "false",
+        },
+    ),
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "true",
+            "DD_IAST_REQUEST_SAMPLING": "100",
+        },
+    ),
+]
+
+
 venv = Venv(
     pkgs={
         "mock": latest,
@@ -175,6 +191,44 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_django",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
+            pkgs={
+                "requests": latest,
+                "pylibmc": latest,
+                "bcrypt": "==4.2.1",
+                "pytest-django[testing]": "==3.10.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"django": "~=2.2"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "~=3.2"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "==4.0.10"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "~=4.2"},
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={"django": "~=5.1"},
+                ),
+            ],
+        ),
+        Venv(
             name="appsec_integrations_fastapi",
             command="pytest {cmdargs} tests/appsec/integrations/fastapi_tests/",
             pkgs={
@@ -238,6 +292,26 @@ venv = Venv(
             pkgs={
                 "austin-python": "~=1.0",
                 "rich": latest,
+            },
+        ),
+        Venv(
+            name="appsec_iast_default",
+            command="pytest {cmdargs} tests/appsec/iast/",
+            pys=select_pys(),
+            pkgs={
+                "requests": latest,
+                "urllib3": latest,
+                "pycryptodome": latest,
+                "cryptography": latest,
+                "astunparse": latest,
+                "simplejson": latest,
+                "grpcio": latest,
+                "pytest-asyncio": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -1816,6 +1890,15 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="pytest:flaky",
+            pys=select_pys(min_version="3.8", max_version="3.12"),
+            command="pytest {cmdargs} --no-ddtrace --no-cov -p no:flaky tests/contrib/pytest_flaky/",
+            pkgs={
+                "flaky": latest,
+                "pytest-randomly": latest,
+            },
+        ),
+        Venv(
             name="grpc",
             command="python -m pytest -v {cmdargs} tests/contrib/grpc",
             pkgs={
@@ -2755,10 +2838,7 @@ venv = Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "langgraph": "~=0.2.60",
-            },
+            pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
         ),
         Venv(
             name="litellm",
@@ -2923,7 +3003,7 @@ venv = Venv(
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),
             pkgs={
-                "azure.functions": ["~=1.20.0", latest],
+                "azure.functions": ["~=1.10.1", latest],
                 "azure.servicebus": latest,
                 "requests": latest,
             },
@@ -3306,6 +3386,98 @@ venv = Venv(
                         "flask": "~=3.1",
                         "Werkzeug": "~=3.1",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_integrations_langchain",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
+            pkgs={
+                "pytest": latest,
+                "pytest-asyncio": latest,
+                "pytest-cov": latest,
+                "hypothesis": latest,
+                "pytest-randomly": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-experimental": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-community": "~=0.2",
+                        "langchain-experimental": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-community": "~=0.3",
+                        "langchain-experimental": "~=0.3",
+                    },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_django",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            pkgs={
+                "requests": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "django": "~=2.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10"],
+                    pkgs={
+                        "django": "~=3.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10"],
+                    pkgs={
+                        "django": "==4.0.10",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "django": "~=4.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "django": "~=5.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),

@@ -103,7 +103,7 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.20.0",
+        "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.23.0",
         "pinned": "true",
         "auto-instrumented": true
@@ -114,7 +114,7 @@
         "minimum_tracer_supported": "7.14.2",
         "max_tracer_supported": "7.14.2",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "boto3",
@@ -382,17 +382,15 @@
     {
         "dependency": "langgraph",
         "integration": "langgraph",
-        "minimum_tracer_supported": "0.2.60",
-        "max_tracer_supported": "0.2.61",
-        "pinned": "true",
+        "minimum_tracer_supported": "0.2.23",
+        "max_tracer_supported": "0.4.3",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
-        "minimum_tracer_supported": "2.0.9",
-        "max_tracer_supported": "2.0.9",
-        "pinned": "true",
+        "minimum_tracer_supported": "1.0.12",
+        "max_tracer_supported": "2.0.25",
         "auto-instrumented": true
     },
     {
@@ -408,14 +406,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "mako",
@@ -498,9 +496,9 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.3.3",
+        "max_tracer_supported": "0.3.5",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "pylibmc",
@@ -556,7 +554,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.3.5",
+        "max_tracer_supported": "8.4.1",
         "auto-instrumented": false
     },
     {
@@ -635,7 +633,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "tornado",

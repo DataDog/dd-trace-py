@@ -928,6 +928,7 @@ def test_django_command_injection_secure_mark(client, iast_span, tracer):
 
     loaded = root_span.get_tag(IAST.JSON)
     assert loaded is None
+    assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
 
 
 @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1000,6 +1001,7 @@ def test_django_command_injection_security_control(client, tracer, security_cont
         loaded = root_span.get_tag(IAST.JSON)
         if match_function:
             assert loaded is None
+            assert root_span.get_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY + ".command_injection")
         else:
             assert loaded is not None
         _end_iast_context_and_oce()

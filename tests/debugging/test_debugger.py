@@ -1,7 +1,9 @@
 from collections import Counter
 from decimal import Decimal
+import json
 import os.path
 import sys
+import tempfile
 from threading import Thread
 
 import mock
@@ -24,6 +26,7 @@ from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._signal.snapshot import _EMPTY_CAPTURED_CONTEXT
 from ddtrace.debugging._signal.tracing import SPAN_NAME
 from ddtrace.debugging._signal.utils import redacted_value
+from ddtrace.internal.compat import Path
 from ddtrace.internal.remoteconfig.worker import remoteconfig_poller
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import format_trace_id
@@ -1294,3 +1297,78 @@ def test_debugger_exception_conditional_function_probe():
     return_capture = snapshot_data["captures"]["return"]
     assert return_capture["throwable"]["message"] == "'Hello', 'world!', 42"
     assert return_capture["throwable"]["type"] == "Exception"
+
+
+def test_debugger_probe_file_configuration():
+    # Create sample probe configurations in the expected JSON format
+    probe_config = [
+        {
+            "id": "12e4866b-c2d0-4948-baf8-bd98027cd457",
+            "version": 0,
+            "type": "LOG_PROBE",
+            "language": "python",
+            "where": {
+                "sourceFile": "tests/submod/stuff.py",
+                "lines": [36],
+            },
+            "tags": [],
+            "template": "Hello new monitoring API",
+            "captureSnapshot": True,
+            "capture": {"maxReferenceDepth": 3},
+            "evaluateAt": "EXIT",
+        }
+    ]
+
+    # Create temporary probe file
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as temp_file:
+        json.dump(probe_config, temp_file)
+        # Capture the PATH to the file
+        temp_file_path = Path(temp_file.name)
+
+    try:
+        with debugger(probe_file=temp_file_path) as d:
+            from tests.submod.stuff import Stuff
+
+            Stuff().instancestuff()
+
+            assert len(d._probe_registry) == 1
+            assert d._probe_registry.get("12e4866b-c2d0-4948-baf8-bd98027cd457", False)
+    finally:
+        # Clean up temporary file
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+
+def test_debugger_probe_malformed_file_configuration():
+    # Failing to parse the probe configuration will result in an error being logged.
+    malformed_probe_config = [
+        {
+            "version": 0,
+            "type": "LOG_PROBE",
+            "language": "python",
+            "where": {
+                "sourceFile": "tests/submod/stuff.py",
+                "lines": [36],
+            },
+            "tags": [],
+            "template": "Hello new monitoring API",
+            "captureSnapshot": True,
+            "capture": {"maxReferenceDepth": 3},
+            "evaluateAt": "EXIT",
+        }
+    ]
+
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as temp_file:
+        json.dump(malformed_probe_config, temp_file)
+        temp_file_path = temp_file.name
+
+    try:
+        with mock.patch("ddtrace.debugging._debugger.log") as mock_logger:
+            with debugger(probe_file=temp_file_path):
+                mock_logger.error.assert_called_once()
+                call_args = mock_logger.error.call_args[0]
+                assert "Failed to load probes from file" in call_args[0]
+                assert temp_file_path in call_args[1]
+    finally:
+        if os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)

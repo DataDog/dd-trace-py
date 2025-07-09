@@ -12,6 +12,7 @@ from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import FINGERPRINTING
 from ddtrace.appsec._constants import WAF_DATA_NAMES
 from ddtrace.appsec._ddwaf import DDWaf
+from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_get_config_paths
 from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._processor import _transform_headers
 from ddtrace.appsec._utils import get_triggers
@@ -261,6 +262,7 @@ def test_ip_update_rules_and_block(tracer):
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
+    assert py_ddwaf_builder_get_config_paths(tracer._appsec_processor._ddwaf._builder, "ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
@@ -765,3 +767,28 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
             WAF_DATA_NAMES[ephemeral]: {"key_2": "value_3"},
         }
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:1"
+
+
+@pytest.mark.parametrize("skip_event", [True, False])
+def test_lambda_unsupported_event(tracer, skip_event):
+    """
+    Test that the processor correctly handles the appsec_skip_next_lambda_event flag.
+    """
+    if skip_event:
+        core.set_item("appsec_skip_next_lambda_event", True)
+
+    config = {
+        "_asm_enabled": True,
+        "_asm_processed_span_types": {SpanTypes.SERVERLESS},
+    }
+
+    with asm_context(tracer=tracer, config=config, span_type=SpanTypes.SERVERLESS) as span:
+        pass
+
+    if skip_event:
+        # When skip_event is True, the metric should be set and context item should be discarded
+        assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) == 1.0
+        assert core.get_item("appsec_skip_next_lambda_event") is None
+    else:
+        # When skip_event is False, the metric should not be set
+        assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
