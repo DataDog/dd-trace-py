@@ -74,6 +74,9 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentEvaluatorWrapper
+from ddtrace.llmobs._experiment import ExperimentTaskWrapper
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -572,6 +575,36 @@ class LLMObs(Service):
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
+
+    @classmethod
+    def experiment_task(cls, func: Callable) -> ExperimentTaskWrapper:
+        """Return a wrapper around a function to be used as an experiment task."""
+        return ExperimentTaskWrapper(func)
+
+    @classmethod
+    def experiment_evaluator(cls, func: Callable) -> ExperimentEvaluatorWrapper:
+        """Return a wrapper around a function to be used as an experiment evaluator."""
+        return ExperimentEvaluatorWrapper(func)
+
+    @classmethod
+    def experiment(
+        cls,
+        name: str,
+        task: ExperimentTaskWrapper,
+        dataset: Dataset,
+        evaluators: List[ExperimentEvaluatorWrapper],
+        description: str = "",
+    ) -> Experiment:
+        """Initializes an Experiment to run a task on a Dataset and evaluators.
+
+        :param name: The name of the experiment.
+        :param task: The task function to run, wrapped in @LLMObs.experiment_task.
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions to evaluate the task output,
+                           each wrapped in @LLMObs.experiment_evaluator.
+        :param description: A description of the experiment.
+        """
+        return Experiment(name, task, dataset, evaluators, _llmobs=cls, description=description)
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
