@@ -631,6 +631,7 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
