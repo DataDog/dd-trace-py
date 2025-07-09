@@ -177,6 +177,7 @@ tests/appsec/iast/fixtures/aspects/obj_callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_obj_callers.py
 tests/appsec/iast/fixtures/aspects/callers.py
 tests/appsec/iast/fixtures/aspects/unpatched_callers.py
+tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 #MacOS files
 .DS_Store

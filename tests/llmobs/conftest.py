@@ -270,6 +270,7 @@ def llmobs(
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
         yield llmobs_service
+    tracer.shutdown()
     llmobs_service.disable()
 
 
