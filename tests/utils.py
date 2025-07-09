@@ -549,6 +549,8 @@ class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
         self.spans = []
         self.traces = []
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -589,8 +591,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)

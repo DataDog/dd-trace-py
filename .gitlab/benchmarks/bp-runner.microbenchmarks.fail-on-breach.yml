@@ -1,0 +1,37 @@
+# Thresholds set based on guidance in https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates#How-to-choose-thresholds-for-pre-release-gates%3F
+
+experiments:
+  - name: SLO Check
+    steps:
+      - name: SLO Check
+        run: fail_on_breach
+        scenarios:
+          # flask_simple
+          - name: flasksimple-tracer
+            thresholds:
+              - execution_time < 3.65 ms
+              - max_rss_usage < 52.50 MB
+          - name: flasksimple-profiler
+            thresholds:
+              - execution_time < 2.10 ms
+              - max_rss_usage < 43.80 MB
+          - name: flasksimple-debugger
+            thresholds:
+              - execution_time < 2.00 ms
+              - max_rss_usage < 42.50 MB
+          - name: flasksimple-iast-get
+            thresholds:
+              - execution_time < 2.00 ms
+              - max_rss_usage < 44.75 MB
+          - name: flasksimple-appsec-get
+            thresholds:
+              - execution_time < 4.75 ms
+              - max_rss_usage < 62.10 MB
+          - name: flasksimple-appsec-post
+            thresholds:
+              - execution_time < 6.75 ms
+              - max_rss_usage < 62.40 MB
+          - name: flasksimple-appsec-telemetry
+            thresholds:
+              - execution_time < 4.75 ms
+              - max_rss_usage < 62.40 MB
