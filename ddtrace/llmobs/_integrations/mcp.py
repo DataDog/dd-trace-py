@@ -10,6 +10,7 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
@@ -48,8 +49,16 @@ class MCPIntegration(BaseLLMIntegration):
         )
         if span.error or response is None:
             return
-        # The tool output is either a `CallToolResult` pydantic object (client side) or `Any` value (server side)
-        # In both cases, we can try using `model_dump` and fall back to `safe_json`.
-        span._set_ctx_item(
-            OUTPUT_VALUE, response.model_dump() if hasattr(response, "model_dump") else safe_json(response)
-        )
+        if operation == "call_tool":
+            # Client side: Extract `content` and `isError` from `CallToolResult`
+            content = _get_attr(response, "content", [])
+            is_error = _get_attr(response, "isError", False)
+            processed_content = []
+            for item in content:
+                if _get_attr(item, "type", None) == "text" and hasattr(item, "model_dump"):
+                    processed_content.append(item.model_dump())
+            output_value = {"content": processed_content, "isError": is_error}
+        else:
+            # On the server side, the function returns a raw tool result which has type `Any`
+            output_value = safe_json(response)
+        span._set_ctx_item(OUTPUT_VALUE, output_value)

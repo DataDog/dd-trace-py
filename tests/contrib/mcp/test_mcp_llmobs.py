@@ -1,4 +1,5 @@
 import asyncio
+import json
 
 import mock
 
@@ -38,9 +39,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         client_span,
         span_kind="tool",
         input_value='{"operation": "add", "a": 20, "b": 22}',
-        output_value=(
-            '{"meta": null, "content": [{"type": "text", "text": "{\\n  \\"result\\": 42\\n}", '
-            '"annotations": null}], "isError": false}'
+        output_value=json.dumps(
+            {"content": [{"type": "text", "text": '{\n  "result": 42\n}', "annotations": None}], "isError": False}
         ),
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
@@ -72,10 +72,17 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         client_span,
         span_kind="tool",
         input_value='{"param": "value"}',
-        output_value=(
-            '{"meta": null, "content": [{"type": "text", "text": '
-            '"Error executing tool failing_tool: Tool execution failed", '
-            '"annotations": null}], "isError": true}'
+        output_value=json.dumps(
+            {
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "Error executing tool failing_tool: Tool execution failed",
+                        "annotations": None,
+                    }
+                ],
+                "isError": True,
+            }
         ),
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
