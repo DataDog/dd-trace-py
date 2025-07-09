@@ -1,7 +1,6 @@
-import pytest
-
 from mcp.server.fastmcp import FastMCP
 from mcp.shared.memory import create_connected_server_and_client_session
+import pytest
 
 from ddtrace.contrib.internal.mcp.patch import patch
 from ddtrace.contrib.internal.mcp.patch import unpatch
@@ -15,7 +14,6 @@ from tests.utils import override_global_config
 
 @pytest.fixture(autouse=True)
 def mcp_setup():
-    """Set up MCP integration for testing."""
     patch()
     import mcp
 
@@ -25,7 +23,6 @@ def mcp_setup():
 
 @pytest.fixture
 def mock_tracer(mcp_setup):
-    """Mock tracer for MCP tests."""
     pin = Pin.get_from(mcp_setup)
     mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
     pin._override(mcp_setup, tracer=mock_tracer)
@@ -34,7 +31,6 @@ def mock_tracer(mcp_setup):
 
 @pytest.fixture
 def mcp_llmobs(mock_tracer, llmobs_span_writer):
-    """Set up LLMObs for MCP tests."""
     llmobs_service.disable()
     with override_global_config(
         {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "<ml-app-name>", "service": "mcptest"}
@@ -47,13 +43,11 @@ def mcp_llmobs(mock_tracer, llmobs_span_writer):
 
 @pytest.fixture
 def llmobs_span_writer():
-    """LLMObs span writer for testing."""
     yield TestLLMObsSpanWriter(1.0, 5.0, is_agentless=True, _site="datad0g.com", _api_key="<not-a-real-key>")
 
 
 @pytest.fixture
 def llmobs_events(mcp_llmobs, llmobs_span_writer):
-    """LLMObs events from span writer."""
     return llmobs_span_writer.events
 
 
@@ -98,8 +92,25 @@ def mcp_server():
 
 
 @pytest.fixture
+def mcp_call_tool(mcp_server):
+    """Fixture for calling MCP tools"""
+
+    def _call_tool(tool_name, arguments):
+        async def run_test():
+            from mcp.shared.memory import create_connected_server_and_client_session
+
+            async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
+                await client.initialize()
+                return await client.call_tool(tool_name, arguments)
+
+        return run_test()
+
+    return _call_tool
+
+
+@pytest.fixture
 async def mcp_client(mcp_server):
-    """Connected MCP client session."""
+    """Connected MCP client-server session."""
     async with create_connected_server_and_client_session(mcp_server._mcp_server) as client:
         await client.initialize()
         yield client

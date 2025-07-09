@@ -1,5 +1,5 @@
 """
-The MCP (Model Context Protocol) integration instruments the MCP Python library to emit traces for client tool calls 
+The MCP (Model Context Protocol) integration instruments the MCP Python library to emit traces for client tool calls
 and server tool executions with distributed tracing support.
 
 All traces submitted from the MCP integration are tagged by:

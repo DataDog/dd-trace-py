@@ -25,28 +25,30 @@ def _supported_versions() -> Dict[str, str]:
 
 
 @with_traced_module
+def traced_send_request(mcp, pin, func, instance, args, kwargs):
+    """Injects distributed tracing headers into MCP request metadata"""
+    integration = mcp._datadog_integration
+
+    if not args:
+        return func(*args, **kwargs)
+
+    request = args[0]
+    modified_request = integration.inject_distributed_headers(request)
+    return func(*((modified_request,) + args[1:]), **kwargs)
+
+
+@with_traced_module
 async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
-    span = integration.trace(pin, "call_tool", span_name="MCP Tool Call", submit_to_llmobs=True)
 
-    # Inject distributed tracing headers into tool arguments before the call
-    if integration.llmobs_enabled:
-        from ddtrace.llmobs import LLMObs
-
-        headers = LLMObs.inject_distributed_headers({})
-        if headers and len(args) > 1:
-            # Modify the arguments parameter (second argument) to include headers
-            tool_arguments = args[1] if args[1] is not None else {}
-            tool_arguments = dict(tool_arguments) if tool_arguments else {}
-            tool_arguments["_dd_trace_headers"] = headers
-            # Update args tuple with modified arguments
-            args = (args[0], tool_arguments) + args[2:]
+    span = integration.trace(pin, "call_tool", submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="call_tool")
         return result
     except Exception:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="call_tool")
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -54,30 +56,18 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_tool_run(mcp, pin, func, instance, args, kwargs):
+async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
+    integration.extract_and_activate_distributed_headers(kwargs)
 
-    # Extract and activate distributed tracing headers BEFORE creating the span
-    if integration.llmobs_enabled and args and len(args) > 0:
-        # For FastMCP Tool.run(), arguments is the first parameter
-        tool_arguments = args[0] if args[0] is not None else {}
-        if isinstance(tool_arguments, dict) and "_dd_trace_headers" in tool_arguments:
-            headers = tool_arguments.pop("_dd_trace_headers")
-            if headers:
-                from ddtrace.llmobs import LLMObs
-
-                LLMObs.activate_distributed_headers(headers)
-            # Update args tuple with cleaned arguments
-            args = (tool_arguments,) + args[1:]
-
-    span = integration.trace(pin, "execute_tool", span_name="MCP Tool Execute", submit_to_llmobs=True)
+    span = integration.trace(pin, "execute_tool", submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
-        kwargs["instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="execute_tool")
         return result
     except Exception:
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="execute_tool")
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -93,10 +83,12 @@ def patch():
     mcp._datadog_integration = MCPIntegration(integration_config=config.mcp)
 
     from mcp.client.session import ClientSession
-    from mcp.server.fastmcp.tools.base import Tool
+    from mcp.server.fastmcp.tools.tool_manager import ToolManager
+    from mcp.shared.session import BaseSession
 
+    wrap(BaseSession, "send_request", traced_send_request(mcp))
     wrap(ClientSession, "call_tool", traced_call_tool(mcp))
-    wrap(Tool, "run", traced_tool_run(mcp))
+    wrap(ToolManager, "call_tool", traced_tool_manager_call_tool(mcp))
 
 
 def unpatch():
@@ -106,9 +98,11 @@ def unpatch():
     mcp.__datadog_patch = False
 
     from mcp.client.session import ClientSession
-    from mcp.server.fastmcp.tools.base import Tool
+    from mcp.server.fastmcp.tools.tool_manager import ToolManager
+    from mcp.shared.session import BaseSession
 
+    unwrap(BaseSession, "send_request")
     unwrap(ClientSession, "call_tool")
-    unwrap(Tool, "run")
+    unwrap(ToolManager, "call_tool")
 
     delattr(mcp, "_datadog_integration")
