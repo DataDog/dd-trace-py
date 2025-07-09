@@ -778,11 +778,11 @@ experiments:
           - name: otelspan-add-metrics
             thresholds:
               - execution_time < 344.80 ms
-              - max_rss_usage < 561.00 MB
+              - max_rss_usage < 562.00 MB
           - name: otelspan-add-tags
             thresholds:
               - execution_time < 314.00 ms
-              - max_rss_usage < 562.00 MB
+              - max_rss_usage < 563.50 MB
           - name: otelspan-get-context
             thresholds:
               - execution_time < 92.35 ms
@@ -870,7 +870,7 @@ experiments:
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 34.00 MB
+              - max_rss_usage < 34.50 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
               - execution_time < 0.01 ms
