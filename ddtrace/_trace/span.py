@@ -57,7 +57,7 @@ from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
-import ddtrace
+
 
 class SpanEvent:
     __slots__ = ["name", "attributes", "time_unix_nano"]
@@ -324,7 +324,7 @@ class Span(object):
 
         if self.service:
             # report extra service name as it may have been set after the span was created by the customer
-            ddtrace.config._add_extra_service(self.service)
+            config._add_extra_service(self.service)
         # be defensive so we don't die if start isn't set
         self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 
