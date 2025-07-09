@@ -1110,8 +1110,8 @@ class TestAgentClient:
         return reqs
 
     def clear(self) -> None:
-        status, _ = self._request("GET", self._url("/test/session/clear"))
-        assert status == 200, "Failed to clear test session traces"
+        status, body = self._request("GET", self._url("/test/session/clear"))
+        assert status == 200, f"Failed to clear test session traces:\nstatus: {status}\nbody: {body.decode('utf-8')}"
 
 
 class SnapshotTest:
