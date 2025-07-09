@@ -38,14 +38,12 @@ class ExperimentTaskWrapper(wrapt.ObjectProxy):
         super().__init__(wrapped)
         sig = inspect.signature(wrapped)
         params = sig.parameters
-        if "input" not in params:
-            raise TypeError("Task function must have an 'input' parameter.")
+        if "input_data" not in params:
+            raise TypeError("Task function must have an 'input_data' parameter.")
         self._self_accept_config = "config" in params
 
-    def __call__(self, input: Dict[str, Any], config: Optional[Dict[str, Any]] = None) -> Any:
-        if self._self_accept_config:
-            return self.__wrapped__(input, config)
-        return self.__wrapped__(input)
+    def __call__(self, *args, **kwargs) -> Any:
+        return self.__wrapped__(*args, **kwargs)
 
 
 class ExperimentEvaluatorWrapper(wrapt.ObjectProxy):
@@ -53,7 +51,7 @@ class ExperimentEvaluatorWrapper(wrapt.ObjectProxy):
         super().__init__(wrapped)
         sig = inspect.signature(wrapped)
         params = sig.parameters
-        required_params = ("input", "output", "expected_output")
+        required_params = ("input_data", "output_data", "expected_output")
         if not all(param in params for param in required_params):
             raise TypeError("Evaluator function must have parameters {}.".format(required_params))
 

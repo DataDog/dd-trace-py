@@ -48,7 +48,7 @@ def test_dataset_pull(llmobs, test_dataset):
 
 
 def test_experiment_task_wrapper_on_invalid_function_raises(llmobs):
-    with pytest.raises(TypeError, match="Task function must have an 'input' parameter."):
+    with pytest.raises(TypeError, match="Task function must have an 'input_data' parameter."):
 
         @llmobs.experiment_task
         def my_task(not_input):
@@ -57,37 +57,37 @@ def test_experiment_task_wrapper_on_invalid_function_raises(llmobs):
 
 def test_experiment_task_wrapper_on_valid_function(llmobs):
     @llmobs.experiment_task
-    def my_task(input):
-        return input
+    def my_task(input_data):
+        return input_data
 
     assert my_task("test input") == "test input"
 
 
 def test_experiment_evaluator_wrapper_on_invalid_function_raises(llmobs):
-    expected_err = "Evaluator function must have parameters ('input', 'output', 'expected_output')."
+    expected_err = "Evaluator function must have parameters ('input_data', 'output_data', 'expected_output')."
     with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         @llmobs.experiment_evaluator
-        def my_evaluator_missing_expected_output(input, output):
+        def my_evaluator_missing_expected_output(input_data, output_data):
             pass
 
     with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         @llmobs.experiment_evaluator
-        def my_evaluator_missing_input(output, expected_output):
+        def my_evaluator_missing_input(output_data, expected_output):
             pass
 
     with pytest.raises(TypeError, match=re.escape(expected_err)):
 
         @llmobs.experiment_evaluator
-        def my_evaluator_missing_output(input, expected_output):
+        def my_evaluator_missing_output(input_data, expected_output):
             pass
 
 
 def test_experiment_evaluator_wrapper_on_valid_function(llmobs):
     @llmobs.experiment_evaluator
-    def my_evaluator(input, output, expected_output):
-        return output == expected_output
+    def my_evaluator(input_data, output_data, expected_output):
+        return output_data == expected_output
 
     assert my_evaluator("test input", "test output", "test output") is True
 
@@ -95,8 +95,8 @@ def test_experiment_evaluator_wrapper_on_valid_function(llmobs):
 @pytest.fixture
 def dummy_task(llmobs):
     @llmobs.experiment_task
-    def my_task(input):
-        return input
+    def my_task(input_data):
+        return input_data
 
     yield my_task
 
@@ -104,8 +104,8 @@ def dummy_task(llmobs):
 @pytest.fixture
 def dummy_evaluator(llmobs):
     @llmobs.experiment_evaluator
-    def my_evaluator(input, output, expected_output):
-        return output == expected_output
+    def my_evaluator(input_data, output_data, expected_output):
+        return output_data == expected_output
 
     yield my_evaluator
 
