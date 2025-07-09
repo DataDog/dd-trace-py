@@ -8,8 +8,6 @@ from typing import Union
 
 from typing_extensions import NotRequired
 
-import ddtrace
-
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
@@ -42,7 +40,7 @@ class Experiment:
         evaluators: List[Callable[[Any, Any, Any], Any]],
         description: str = "",
         config: Optional[Dict[str, Any]] = None,
-        _llmobs: Optional["ddtrace.llmobs.LLMObs"] = None,
+        _llmobs: Optional[Any] = None,  # LLMObs service (cannot import here due to circular dependency)
     ) -> None:
         self.name = name
         self._task = task
