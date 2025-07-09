@@ -35,7 +35,7 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[Dict[str, Any]], Any],
+        task: Callable[[Dict[str, JSONType]], Any],
         dataset: Dataset,
         evaluators: List[Callable[[Any, Any, Any], Any]],
         description: str = "",
