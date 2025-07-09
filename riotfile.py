@@ -111,6 +111,22 @@ FLASK_THREATS_VENVS = [
 ]
 
 
+# Common venv configurations for appsec threats testing
+_appsec_threats_iast_variants = [
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "false",
+        },
+    ),
+    Venv(
+        env={
+            "DD_IAST_ENABLED": "true",
+            "DD_IAST_REQUEST_SAMPLING": "100",
+        },
+    ),
+]
+
+
 venv = Venv(
     pkgs={
         "mock": latest,
@@ -204,6 +220,44 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATE_ENABLED": "false",
             },
+        ),
+        Venv(
+            name="appsec_integrations_django",
+            command="pytest -vvv {cmdargs} tests/appsec/integrations/django_tests/",
+            pkgs={
+                "requests": latest,
+                "pylibmc": latest,
+                "bcrypt": "==4.2.1",
+                "pytest-django[testing]": "==3.10.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={"django": "~=2.2"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "~=3.2"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "==4.0.10"},
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={"django": "~=4.2"},
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={"django": "~=5.1"},
+                ),
+            ],
         ),
         Venv(
             name="appsec_integrations_fastapi",
@@ -3406,6 +3460,55 @@ venv = Venv(
                         "langchain-community": "~=0.3",
                         "langchain-experimental": "~=0.3",
                     },
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_django",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            pkgs={
+                "requests": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "django": "~=2.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.9", "3.10"],
+                    pkgs={
+                        "django": "~=3.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10"],
+                    pkgs={
+                        "django": "==4.0.10",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "django": "~=4.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.10", "3.13"],
+                    pkgs={
+                        "django": "~=5.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),
