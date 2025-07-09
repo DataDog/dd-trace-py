@@ -322,9 +322,6 @@ class Span(object):
         if self.duration_ns is not None:
             return
 
-        if self.service:
-            # report extra service name as it may have been set after the span was created by the customer
-            config._add_extra_service(self.service)
         # be defensive so we don't die if start isn't set
         self.duration_ns = finish_time_ns - (self.start_ns or finish_time_ns)
 

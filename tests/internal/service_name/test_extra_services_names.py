@@ -96,12 +96,14 @@ import os
 import sys
 import time
 
-for i in range(10):
-    with ddtrace.tracer.trace("test") as span:
-        span.service = f"extra_service_{i}"
-
+with ddtrace.tracer.trace("test") as parent:
+    parent.service = "parent_service"
+    with ddtrace.tracer.trace("child") as child:
+        child.service = "child_service"
 extra_services = ddtrace.config._get_extra_services()
-assert len(extra_services) == 10, len(extra_services)
+# collecting extra services in all spans, including the parent and child
+assert "parent_service" in extra_services
+assert "child_service" in extra_services
     """
 
     env = os.environ.copy()
