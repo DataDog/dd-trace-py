@@ -302,8 +302,9 @@ class LoggingTestCase(TracerTestCase):
                 assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
 
 
-def test_manual_log_formatter_injection(run_python_code_in_subprocess):
-    code = """
+@pytest.mark.parametrize("dd_logs_enabled", ["true", "false", "structured"])
+def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
+    code = f"""
 import ddtrace.auto
 
 import logging
@@ -315,15 +316,13 @@ format_string = (
 
 log = logging.getLogger()
 logging.basicConfig(level=logging.INFO, format=format_string)
-
 log.info("Hello!")
     """
 
-    for value in ("true", "false", "structured"):
-        env = os.environ.copy()
-        env["DD_LOGS_ENABLED"] = value
-        stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
-        assert status == 0, stderr
+    env = os.environ.copy()
+    env["DD_LOGS_ENABLED"] = dd_logs_enabled
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
 
-        assert stdout == b"", stderr
-        assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"
+    assert stdout == b"", stderr
+    assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"
