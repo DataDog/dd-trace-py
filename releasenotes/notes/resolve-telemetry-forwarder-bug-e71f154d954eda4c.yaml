@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix a telemetry forwarding bug for Single Step Instrumentation (SSI) in the `sitecustomize.py` file. When debug logs
+    were enabled, the telemetry forwarder would fail to complete because the `stdout` and `stderr` streams were being
+    closed prematurely. This fix redirects these streams to `DEVNULL` without capturing their output, allowing the
+    forwarder to run successfully without blocking the process.
