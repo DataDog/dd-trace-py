@@ -52,7 +52,7 @@ def patch():
 
     add_trace_processor(LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents)))
     
-    wrap(agents.Runner, "_run_single_turn", patched_run_single_turn(agents))
+    wrap(agents.run.AgentRunner, "_run_single_turn", patched_run_single_turn(agents))
 
 
 def unpatch():
@@ -64,4 +64,4 @@ def unpatch():
 
     agents._datadog_patch = False
 
-    unwrap(agents.Runner, "_run_single_turn")
+    unwrap(agents.run.AgentRunner, "_run_single_turn")
