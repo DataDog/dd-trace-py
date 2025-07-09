@@ -4,7 +4,6 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
@@ -86,7 +85,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_from_llm(span, args, kwargs, response)
 
     def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
-        config = get_argument_value(args, kwargs, -1, "config", optional=True)
+        config = kwargs.get("config")
         span._set_ctx_items(
             {
                 METADATA: self._extract_metadata(config, GENERATE_METADATA_PARAMS),
@@ -97,7 +96,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         )
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
-        config = get_argument_value(args, kwargs, -1, "config", optional=True)
+        config = kwargs.get("config")
         span._set_ctx_items(
             {
                 METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
@@ -114,7 +113,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         if system_instruction is not None:
             messages.extend(self._extract_messages_from_contents(system_instruction, "system"))
 
-        contents = get_argument_value(args, kwargs, -1, "contents")
+        contents = kwargs.get("contents")
         messages.extend(self._extract_messages_from_contents(contents, "user"))
 
         return messages
@@ -151,7 +150,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         return ""
 
     def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
-        contents = get_argument_value(args, kwargs, -1, "contents")
+        contents = kwargs.get("contents")
         messages = self._extract_messages_from_contents(contents, "user")
         documents = [Document(text=str(message["content"])) for message in messages]
         return documents
