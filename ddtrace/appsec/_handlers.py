@@ -177,15 +177,16 @@ async def _on_asgi_request_parse_body(receive, headers):
                     body_parts.append(data_received.get("body", b""))
         except asyncio.TimeoutError:
             pass
-        except Exception as e:
+        except Exception:
             return receive, None
-        body = b''.join(body_parts)
+        body = b"".join(body_parts)
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
                 return {"type": "http.request", "body": body, "more_body": more_body}
             return await receive()
+
         try:
             content_type = headers.get("content-type") or headers.get("Content-Type")
             if content_type in ("application/json", "text/json"):
@@ -204,7 +205,6 @@ async def _on_asgi_request_parse_body(receive, headers):
             return receive_wrapped, None
 
     return receive, None
-
 
 
 # FLASK
