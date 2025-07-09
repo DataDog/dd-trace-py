@@ -54,7 +54,7 @@ class DDLogRecord:
 def _w_makeRecord(func, instance, args, kwargs):
     # Get the LogRecord instance for this log
     record = func(*args, **kwargs)
-    if config._logs_injection != LogInjectionState.ENABLED:
+    if config._logs_injection == LogInjectionState.DISABLED:
         # log injection is opt-in for non-structured logging
         return record
     record.__dict__.update(ddtrace.tracer.get_log_correlation_context())
