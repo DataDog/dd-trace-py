@@ -126,6 +126,7 @@ suites:
       - '@llmobs'
       - tests/llmobs/*
     runner: riot
+    snapshot: true
   mcp:
     parallelism: 1
     paths:
