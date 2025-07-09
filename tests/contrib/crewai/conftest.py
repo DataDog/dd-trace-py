@@ -26,8 +26,9 @@ def request_vcr():
         record_mode="once",
         match_on=["path"],
         filter_headers=["authorization", "x-api-key", "api-key"],
-        # Ignore requests to the agent
+        # Ignore requests to the agent and crewai telemetry endpoint
         ignore_localhost=True,
+        ignore_hosts=["testagent", "telemetry.crewai.com"],
     )
 
 
