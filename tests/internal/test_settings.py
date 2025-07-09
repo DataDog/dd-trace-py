@@ -642,10 +642,10 @@ def test_config_public_properties_and_methods():
 
 @pytest.mark.subprocess()
 def test_subscription_handler_called_once_for_duplicate_values():
-    # This test ensures that the subscription handler is called only once
-    # when the value is set multiple times to the same value.
-    # It also checks that the handler is called again when the value changes.
-
+    """This test ensures that the subscription handler is called only once
+    when the value is set multiple times to the same value.
+    It also checks that the handler is called again when the value changes.
+    """
     from ddtrace import config
 
     call_count = 0
