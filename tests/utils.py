@@ -1,3 +1,4 @@
+import base64
 import contextlib
 from contextlib import contextmanager
 import datetime as dt
@@ -15,6 +16,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypedDict
 from typing import cast
 from urllib import parse
 import urllib.parse
@@ -547,6 +549,8 @@ class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
         self.spans = []
         self.traces = []
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -587,8 +591,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
@@ -1031,6 +1033,15 @@ class SnapshotFailed(Exception):
     pass
 
 
+class TestAgentRequest(TypedDict):
+    method: str
+    url: str
+    headers: Dict[str, str]
+    body: bytes
+    status: int
+    response: bytes
+
+
 class TestAgentClient:
     def __init__(self, base_url: str, token: Optional[str] = None):
         self._base_url = base_url
@@ -1063,15 +1074,49 @@ class TestAgentClient:
                 conn.close()
         return 0, b""
 
-    def requests(self) -> List[Dict[str, Any]]:
+    def requests(self) -> List[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
         return cast(List[Dict[str, Any]], data)
 
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            if "dd-telemetry-request-type" not in req["headers"]:
+                continue
+
+            if telemetry_type is None:
+                reqs.append(req)
+            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
+                reqs.append(req)
+        return reqs
+
+    def crash_reports(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.telemetry_requests(telemetry_type="logs"):
+            # Parse the json data in order to filter based on "origin" key,
+            # but we give the user back just the raw body
+            try:
+                data = json.loads(base64.b64decode(req["body"]))
+            except Exception:
+                continue
+
+            if data.get("origin") != "Crashtracker":
+                continue
+
+            req["body"] = base64.b64decode(req["body"])
+            reqs.append(req)
+        return reqs
+
     def clear(self) -> None:
-        status, _ = self._request("GET", self._url("/test/session/clear"))
-        assert status == 200, "Failed to clear test session traces"
+        status, body = self._request("GET", self._url("/test/session/clear"))
+        assert status == 200, (
+            "Failed to clear test session traces:\n"
+            f"url: {self._url('/test/session/clear')}\n"
+            f"status: {status}\n"
+            f"body: {body.decode('utf-8')}"
+        )
 
 
 class SnapshotTest:
@@ -1085,7 +1130,7 @@ class SnapshotTest:
         self.tracer = tracer
         self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
 
-    def requests(self) -> List[Any]:
+    def requests(self) -> List[Dict[str, Any]]:
         return self._client.requests()
 
     def clear(self):
