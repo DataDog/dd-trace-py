@@ -111,6 +111,30 @@ FLASK_THREATS_VENVS = [
 ]
 
 
+# FastAPI version matrix for appsec_threats_fastapi
+FASTAPI_THREATS_VENVS = [
+    Venv(
+        pys=["3.8", "3.10", "3.13"],
+        pkgs={
+            "fastapi": "==0.86.0",
+            "anyio": "==3.7.1",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.10", "3.13"],
+        pkgs={
+            "fastapi": "==0.94.1",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.10", "3.13"],
+        pkgs={
+            "fastapi": "~=0.114.2",
+        },
+    ),
+]
+
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -3560,6 +3584,37 @@ venv = Venv(
                         "DD_IAST_REQUEST_SAMPLING": "100",
                     },
                     venvs=FLASK_THREATS_VENVS,
+                ),
+            ],
+        ),
+        Venv(
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
+            pys=["3.8", "3.10", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "httpx": "<0.28.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+            },
+            venvs=[
+                Venv(
+                    name="appsec_threats_fastapi_no_iast",
+                    env={"DD_IAST_ENABLED": "false"},
+                    venvs=FASTAPI_THREATS_VENVS,
+                ),
+                Venv(
+                    name="appsec_threats_fastapi_iast",
+                    env={
+                        "DD_IAST_ENABLED": "true",
+                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    },
+                    venvs=FASTAPI_THREATS_VENVS,
                 ),
             ],
         ),

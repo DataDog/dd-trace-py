@@ -214,7 +214,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_flask:
     parallelism: 10
     paths:
