@@ -105,6 +105,7 @@ def shared_stream(
         span.finish()
         raise
 
+
 def _get_chunk_callback(interface_type, args, kwargs):
     results = core.dispatch_with_results("langchain.stream.chunk.callback", (interface_type, args, kwargs))
     callbacks = []

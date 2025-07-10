@@ -220,7 +220,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
-    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -367,8 +366,6 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
 @with_traced_module
 def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
-    query = get_argument_value(args, kwargs, 0, "query")
-    k = kwargs.get("k", args[1] if len(args) >= 2 else None)
     provider = instance.__class__.__name__.lower()
     span = integration.trace(
         pin,

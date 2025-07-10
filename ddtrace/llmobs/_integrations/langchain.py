@@ -384,12 +384,10 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if temperature is not None and temperature != "None":
-            metadata["temperature"] = float(temperature)
+            metadata["temperature"] = int(temperature)
 
         if metadata:
             span._set_ctx_item(METADATA, metadata)
-        
-        
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
