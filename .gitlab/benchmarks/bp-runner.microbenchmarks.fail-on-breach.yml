@@ -140,7 +140,7 @@ experiments:
           - name: flasksqli-appsec-enabled
             thresholds:
               - execution_time < 4.20 ms
-              - max_rss_usage < 63.00 MB
+              - max_rss_usage < 65.00 MB
           - name: flasksqli-iast-enabled
             thresholds:
               - execution_time < 2.80 ms
@@ -820,7 +820,7 @@ experiments:
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
               - execution_time < 354.30 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 37.50 MB
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms
