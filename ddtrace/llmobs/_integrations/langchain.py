@@ -372,12 +372,12 @@ class LangChainIntegration(BaseLLMIntegration):
                 for k, v in val.items():
                     if k == "temperature":
                         temperature = v
-                    elif k in ["max_tokens", "maxTokens"]:
+                    elif k in ["max_tokens", "maxTokens", "max_completion_tokens"]:
                         max_tokens = v
             else:
                 if param == "temperature":
                     temperature = val
-                elif param in ["max_tokens", "maxTokens"]:
+                elif param in ["max_tokens", "maxTokens", "max_completion_tokens"]:
                     max_tokens = val
 
         metadata = {}
