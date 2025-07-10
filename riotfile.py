@@ -80,37 +80,6 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
-# Flask version matrix for appsec_threats_flask
-FLASK_THREATS_VENVS = [
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "~=1.1",
-            "MarkupSafe": "~=1.1",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "==2.1.3",
-            "Werkzeug": "<3.0",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "flask": "~=2.3",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.11", "3.13"],
-        pkgs={
-            "flask": "~=3.0",
-        },
-    ),
-]
-
-
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -122,6 +91,7 @@ _appsec_threats_iast_variants = [
         env={
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_DEDUPLICATION_ENABLED": "false",
         },
     ),
 ]
@@ -3486,7 +3456,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
             },
@@ -3534,7 +3504,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
+            name="appsec_threats_flask",
+            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
                 "pytest": latest,
@@ -3549,17 +3520,34 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="appsec_threats_flask_no_iast",
-                    env={"DD_IAST_ENABLED": "false"},
-                    venvs=FLASK_THREATS_VENVS,
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "~=1.1",
+                        "MarkupSafe": "~=1.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    name="appsec_threats_flask_iast",
-                    env={
-                        "DD_IAST_ENABLED": "true",
-                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "==2.1.3",
+                        "Werkzeug": "<3.0",
                     },
-                    venvs=FLASK_THREATS_VENVS,
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "flask": "~=2.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),

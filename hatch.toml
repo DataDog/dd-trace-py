@@ -244,7 +244,7 @@ test = [
     "uname -a",
     "pip freeze",
     "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
+    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
 ]
 
 # if you add or remove a version here, please also update the parallelism parameter
@@ -350,24 +350,6 @@ test = [
 
 [[envs.multiple_os_tests.matrix]]
 python = ["3.13", "3.12", "3.10", "3.8"]
-
-[envs.errortracking]
-template = "errortracking"
-dependencies = [
-    "flask",
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-]
-
-[envs.errortracking.scripts]
-test = [
-    "pip freeze",
-    "pytest tests/internal/errortracking",
-]
-
-[[envs.errortracking.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
 
 [envs.pytest_plugin_v2]
 template = "pytest_plugin_v2"

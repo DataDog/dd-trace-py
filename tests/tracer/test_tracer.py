@@ -34,7 +34,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
 from ddtrace.trace import Context
@@ -684,7 +684,7 @@ class TracerTestCases(TracerTestCase):
 def test_tracer_url_default():
     import ddtrace
 
-    assert ddtrace.trace.tracer._span_aggregator.writer.agent_url == "http://localhost:8126"
+    assert ddtrace.trace.tracer._span_aggregator.writer.intake_url == "http://localhost:8126"
 
 
 @pytest.mark.subprocess()
@@ -941,7 +941,7 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(global_tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1974,14 +1974,14 @@ def test_detect_agent_config_with_lambda_extension():
 
     with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
         import ddtrace
-        from ddtrace.internal.writer import AgentWriter
+        from ddtrace.internal.writer import AgentWriterInterface
         from ddtrace.trace import tracer
 
         assert ddtrace.internal.serverless.in_aws_lambda()
 
         assert ddtrace.internal.serverless.has_aws_lambda_agent_extension()
 
-        assert isinstance(tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(tracer._span_aggregator.writer, AgentWriterInterface)
         assert tracer._span_aggregator.writer._sync_mode
 
 
