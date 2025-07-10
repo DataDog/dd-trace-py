@@ -8,6 +8,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -151,6 +152,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         Agent spans are 1:1 with its parent (task/tool) span, so we link them directly here, even on the parent itself.
         """
         agent_instance = kwargs.get("instance")
+        self._tag_agent_manifest(span, agent_instance)
         agent_role = getattr(agent_instance, "role", "")
         agent_goal = getattr(agent_instance, "goal", "")
         agent_backstory = getattr(agent_instance, "backstory", "")
@@ -182,7 +184,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
-
+    
     def _llmobs_set_tags_tool(self, span, args, kwargs, response):
         tool_instance = kwargs.get("instance")
         tool_name = getattr(tool_instance, "name", "")
@@ -197,6 +199,71 @@ class CrewAIIntegration(BaseLLMIntegration):
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
+
+    def _tag_agent_manifest(self, span, agent):
+        if not agent:
+            return
+        
+        manifest = {}
+        manifest["framework"] = "CrewAI"
+        if hasattr(agent, "role"):
+            manifest["name"] = agent.role or "CrewAI Agent"
+        if hasattr(agent, "goal"):
+            manifest["goal"] = agent.goal
+        if hasattr(agent, "backstory"):
+            manifest["backstory"] = agent.backstory
+        if hasattr(agent, "llm"):
+            if hasattr(agent.llm, "model"):
+                manifest["model"] = agent.llm.model
+            model_settings = {}
+            if hasattr(agent.llm, "max_tokens"):
+                model_settings["max_tokens"] = agent.llm.max_tokens
+            if hasattr(agent.llm, "temperature"):
+                model_settings["temperature"] = agent.llm.temperature
+            if model_settings:
+                manifest["model_settings"] = model_settings
+        if hasattr(agent, "allow_delegation"):
+            manifest["handoffs"] = {"allow_delegation": agent.allow_delegation}
+        code_execution_permissions = {}
+        if hasattr(agent, "allow_code_execution"):
+            manifest["code_execution_permissions"] = {"allow_code_execution": agent.allow_code_execution}
+        if hasattr(agent, "code_execution_mode"):
+            manifest["code_execution_permissions"] = {"code_execution_mode": agent.code_execution_mode}
+        if code_execution_permissions:
+            manifest["code_execution_permissions"] = code_execution_permissions
+        if hasattr(agent, "max_iter"):
+            manifest["max_iterations"] = agent.max_iter
+        if hasattr(agent, "tools"):
+            manifest["tools"] = self._get_agent_tools(agent.tools)
+        if hasattr(agent, "crew"):
+            memory = {}
+            if hasattr(agent.crew, "_short_term_memory"):
+                memory["short_term_memory"] = agent.crew._short_term_memory
+            if hasattr(agent.crew, "_long_term_memory"):
+                memory["long_term_memory"] = agent.crew._long_term_memory
+            if hasattr(agent.crew, "_entity_memory"):
+                memory["entity_memory"] = agent.crew._entity_memory
+            if hasattr(agent.crew, "_user_memory"):
+                memory["user_memory"] = agent.crew._user_memory
+            if hasattr(agent.crew, "_external_memory"):
+                memory["external_memory"] = agent.crew._external_memory
+            if memory:
+                manifest["memory"] = memory
+
+        span._set_ctx_item(AGENT_MANIFEST, manifest)
+    
+    def _get_agent_tools(self, tools):
+        if not tools or not isinstance(tools, list):
+            return []
+        formatted_tools = []
+        for tool in tools:
+            tool_dict = {}
+            if hasattr(tool, "name"):
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "description"):
+                tool_dict["description"] = tool.description
+            formatted_tools.append(tool_dict)
+        return formatted_tools
 
     def _llmobs_set_span_link_on_task(self, span, args, kwargs):
         """Set span links for the next queued task in a CrewAI workflow.
