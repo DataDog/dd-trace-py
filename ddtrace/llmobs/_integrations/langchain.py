@@ -354,7 +354,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         Deletes the references of steps in a chain from the instance id to span mapping.
 
-        The relevant instances will be recorded again if they are re-used in another chain when
+        The relevant instances will be recorded again if they are reused in another chain when
         the other chain is invoked.
 
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
