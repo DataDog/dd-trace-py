@@ -384,7 +384,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if temperature is not None and temperature != "None":
-            metadata["temperature"] = int(temperature)
+            metadata["temperature"] = float(temperature)
 
         if metadata:
             span._set_ctx_item(METADATA, metadata)
