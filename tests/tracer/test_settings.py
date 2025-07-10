@@ -249,7 +249,7 @@ def test_config_exception_deprecation():
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
-        from ddtrace.settings import ConfigException
+        from ddtrace.settings import ConfigException  # noqa: F401
 
         assert len(warns) == 1
         warn = warns[0]
@@ -266,7 +266,7 @@ def test_http_config_deprecation():
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
-        from ddtrace.settings import HttpConfig
+        from ddtrace.settings import HttpConfig  # noqa: F401
 
         assert len(warns) == 1
         warn = warns[0]
@@ -282,7 +282,7 @@ def test_hooks_deprecation():
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
-        from ddtrace.settings import Hooks
+        from ddtrace.settings import Hooks  # noqa: F401
 
         assert len(warns) == 1
         warn = warns[0]
@@ -298,7 +298,7 @@ def test_integration_config_deprecation():
     with warnings.catch_warnings(record=True) as warns:
         warnings.simplefilter("default")
 
-        from ddtrace.settings import IntegrationConfig
+        from ddtrace.settings import IntegrationConfig  # noqa: F401
 
         assert len(warns) == 1
         warn = warns[0]
