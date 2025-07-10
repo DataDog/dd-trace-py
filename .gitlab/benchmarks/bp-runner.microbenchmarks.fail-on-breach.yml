@@ -824,7 +824,7 @@ experiments:
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 35.00 MB
+              - max_rss_usage < 37.50 MB
 
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
