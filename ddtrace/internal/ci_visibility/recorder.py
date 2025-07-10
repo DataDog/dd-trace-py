@@ -51,7 +51,6 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
-from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -269,7 +268,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
@@ -323,12 +322,6 @@ class CIVisibility(Service):
         if not coverage_enabled_by_api and not asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
-            return False
-        if not is_coverage_available():
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
             return False
         return True
 
@@ -396,7 +389,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent_config.trace_agent_url if url is None else url,
+                intake_url=url or agent_config.trace_agent_url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
@@ -408,6 +401,9 @@ class CIVisibility(Service):
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
+        if asbool(os.getenv("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
+            return None
+
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:

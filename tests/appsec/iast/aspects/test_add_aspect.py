@@ -4,7 +4,6 @@ from pathlib import PosixPath
 
 from hypothesis import given
 from hypothesis.strategies import from_type
-from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -18,12 +17,12 @@ import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
-from tests.appsec.iast.iast_utils import string_strategies
+from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.utils import override_env
 from tests.utils import override_global_config
 
 
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_add_aspect(text):
     assert ddtrace_aspects.add_aspect(text, text) == text + text
 

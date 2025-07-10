@@ -86,6 +86,15 @@ if config._otel_logs_enabled:
         set_otel_logs_exporter()
 
 
+if config._otel_metrics_enabled:
+
+    @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
+    def _otel_metrics(_):
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+        set_otel_meter_provider()
+
+
 if config._llmobs_enabled:
     from ddtrace.llmobs import LLMObs
 

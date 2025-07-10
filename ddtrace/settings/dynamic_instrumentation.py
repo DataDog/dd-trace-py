@@ -3,6 +3,7 @@ import typing as t
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import gitmetadata
+from ddtrace.internal.compat import Path
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.settings._agent import config as agent_config
@@ -136,6 +137,14 @@ class DynamicInstrumentationConfig(DDConfig):
         default=set(),
         help_type="List",
         help="List of identifiers to exclude from redaction",
+    )
+
+    probe_file = DDConfig.v(
+        t.Optional[Path],
+        "probe_file",
+        default=None,
+        help_type="Path",
+        help="Path to a file containing probe definitions",
     )
 
 
