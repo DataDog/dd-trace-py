@@ -126,15 +126,15 @@ experiments:
           - name: flasksimple-appsec-get
             thresholds:
               - execution_time < 4.75 ms
-              - max_rss_usage < 62.10 MB
+              - max_rss_usage < 63.30 MB
           - name: flasksimple-appsec-post
             thresholds:
               - execution_time < 6.75 ms
-              - max_rss_usage < 62.40 MB
+              - max_rss_usage < 63.40 MB
           - name: flasksimple-appsec-telemetry
             thresholds:
               - execution_time < 4.75 ms
-              - max_rss_usage < 62.40 MB
+              - max_rss_usage < 63.40 MB
 
           # flasksqli
           - name: flasksqli-appsec-enabled

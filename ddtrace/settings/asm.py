@@ -171,6 +171,10 @@ class ASMConfig(DDConfig):
     _django_include_user_login = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
     _django_include_user_realname = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
 
+    # FASTAPI ASYNC
+    # Timeout for the request body reading in seconds.
+    _fast_api_async_body_timeout = DDConfig.var(float, "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", default=0.1)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
