@@ -10,22 +10,21 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685daa0b00000000",
-      "langchain.request.api_key": "",
+      "_dd.p.tid": "68700fb400000000",
       "langchain.request.provider": "pineconevectorstore",
       "langchain.request.type": "similarity_search",
       "language": "python",
-      "runtime-id": "1a03006a2aa244f295c54df26cc92005"
+      "runtime-id": "5abd28be46464877a8cefb70c254e928"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 64736
+      "process_id": 31734
     },
-    "duration": 1890000,
-    "start": 1750968843518706000
+    "duration": 2073000,
+    "start": 1752174516059542000
   },
      {
        "name": "langchain.request",
@@ -37,7 +36,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.api_key": "...key>",
          "langchain.request.model": "text-embedding-ada-002",
          "langchain.request.provider": "openai",
          "langchain.request.type": "embedding"
@@ -45,6 +43,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 51000,
-       "start": 1750968843518834000
+       "duration": 60000,
+       "start": 1752174516059672000
      }]]

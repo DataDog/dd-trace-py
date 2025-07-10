@@ -10,20 +10,20 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685daa0c00000000",
+      "_dd.p.tid": "68700fb400000000",
       "langchain.request.type": "chain",
       "language": "python",
-      "runtime-id": "1a03006a2aa244f295c54df26cc92005"
+      "runtime-id": "5abd28be46464877a8cefb70c254e928"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 64736
+      "process_id": 31734
     },
-    "duration": 13761000,
-    "start": 1750968844114615000
+    "duration": 12572000,
+    "start": 1752174516094228000
   },
      {
        "name": "langchain.request",
@@ -40,8 +40,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 5167000,
-       "start": 1750968844119322000
+       "duration": 5353000,
+       "start": 1752174516097328000
      },
         {
           "name": "langchain.request",
@@ -53,7 +53,6 @@
           "type": "",
           "error": 0,
           "meta": {
-            "langchain.request.api_key": "...key>",
             "langchain.request.model": "gpt-3.5-turbo",
             "langchain.request.provider": "openai",
             "langchain.request.type": "chat_model"
@@ -61,8 +60,8 @@
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 3414000,
-          "start": 1750968844120835000
+          "duration": 3581000,
+          "start": 1752174516098855000
         },
      {
        "name": "langchain.request",
@@ -74,7 +73,6 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.api_key": "...key>",
          "langchain.request.model": "gpt-3.5-turbo",
          "langchain.request.provider": "openai",
          "langchain.request.type": "chat_model"
@@ -82,6 +80,6 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 3099000,
-       "start": 1750968844125071000
+       "duration": 3268000,
+       "start": 1752174516103299000
      }]]

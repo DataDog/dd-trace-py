@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685daa2500000000",
-      "langchain.request.api_key": "...key>",
+      "_dd.p.tid": "68700feb00000000",
       "langchain.request.provider": "cohere",
       "langchain.request.type": "llm",
       "language": "python",
-      "runtime-id": "c75266796a7f4d9c8de09c802a97ed2d"
+      "runtime-id": "d9558f1ae23340ab8e27f0a93f418a9d"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 64966
+      "process_id": 32054
     },
-    "duration": 4199000,
-    "start": 1750968869327252000
+    "duration": 5134000,
+    "start": 1752174571143086000
   }]]

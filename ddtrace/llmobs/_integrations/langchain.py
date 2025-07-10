@@ -708,11 +708,6 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
-            else:
-                span.set_tag_str(API_KEY, api_key)
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
