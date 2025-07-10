@@ -60,8 +60,7 @@ cdef extern from "pack.h":
     int msgpack_pack_true(msgpack_packer* pk)
     int msgpack_pack_false(msgpack_packer* pk)
 
-cdef extern from "limits.h":
-    cdef int LONG_MAX
+from libc.limits cimport LONG_MAX
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
