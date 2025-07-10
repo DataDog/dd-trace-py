@@ -1,6 +1,7 @@
 import os
 
 import django
+from django.core.cache import cache
 from django.db import connection
 from django.template import Context
 from django.template import Template
@@ -10,6 +11,11 @@ from django.urls import path
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DEBUG = False
 ROOT_URLCONF = __name__
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.dummy.DummyCache",
+    }
+}
 DATABASES = {
     "default": {
         "ENGINE": "django.db.backends.sqlite3",
@@ -53,7 +59,12 @@ def index(request):
     context = Context({"table": table})
     template.render(context)
     # query db for random data
-    for _ in range(10):
+    for i in range(10):
+        # Simulate:
+        #   - looking in a cache and not finding the value
+        #   - querying the database for the value
+        #   - storing the value in the cache
+        cache.get(f"random_{i}", i)
         with connection.cursor() as cursor:
             cursor.execute(
                 """with recursive
@@ -63,6 +74,8 @@ def index(request):
         select * from cnt"""
             )
             cursor.fetchall()
+        cache.set(f"random_{i}", i)
+
     index = Template(
         """
 <html lang="en">

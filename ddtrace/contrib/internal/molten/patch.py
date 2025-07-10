@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 from urllib.parse import urlencode
 
 import molten
@@ -40,6 +41,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(molten, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"molten": ">=1.0"}
 
 
 def patch():
@@ -97,7 +102,6 @@ def patch_app_call(wrapped, instance, args, kwargs):
         integration_config=config.molten,
         activate_distributed_headers=True,
         headers_case_sensitive=True,
-        analytics_sample_rate=config.molten.get_analytics_sample_rate(use_global_config=True),
     ) as ctx, ctx.span as req_span:
         ctx.set_item("req_span", req_span)
         core.dispatch("web.request.start", (ctx, config.molten))

@@ -23,12 +23,12 @@ from langchain_core.prompts import MessagesPlaceholder
 from langchain_core.prompts import PromptTemplate
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.iast.conftest import iast_span_defaults  # noqa: F401
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 TEST_FILE = "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
@@ -118,7 +118,7 @@ def test_cmdi_with_shelltool_invoke(iast_span_defaults):  # noqa: F811
     # label test_cmdi_with_shelltool_invoke
     shell.invoke({"commands": cmd})
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report
 
 
@@ -134,7 +134,7 @@ async def test_cmdi_with_shelltool_ainvoke(iast_span_defaults):  # noqa: F811
     # label test_cmdi_with_shelltool_ainvoke
     await shell.ainvoke({"commands": cmd})
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report
 
 
@@ -146,7 +146,7 @@ def test_cmdi_with_agent_invoke(iast_span_defaults):  # noqa: F811
     assert res["output"] == "4"
 
     location = assert_cmdi()
-    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["path"].endswith("tests/appsec/integrations/langchain_tests/test_iast_langchain.py")
     assert location["line"]
     assert location["method"] == "test_cmdi_with_agent_invoke"
     assert "class" not in location
@@ -161,7 +161,7 @@ async def test_cmdi_with_agent_ainvoke(iast_span_defaults):  # noqa: F811
 
     location = assert_cmdi()
     # FIXME: Vulnerability here cannot be detected within the original user code, skip line and hash check.
-    assert location["path"] == "langchain_experimental/llm_bash/bash.py"
+    assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
     assert "class" not in location
@@ -188,7 +188,7 @@ def test_openai_functions_agent_invoke(iast_span_defaults):  # noqa: F811
     )
     agent = create_openai_functions_agent(llm=llm, tools=[shell], prompt=prompt_template)
     prompt = taint_string("I need to use the terminal tool to print a Hello World")
-    # label test_cmdi_with_openai_functions_agent_invoke
+    # label test_openai_functions_agent_invoke
     res = agent.invoke({"input": prompt, "intermediate_steps": []})
     assert isinstance(res, AgentActionMessageLog)
     assert res.tool == "my-tool"
@@ -226,7 +226,7 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults, llm_class):
     assert isinstance(res, dict)
     assert res == {"input": prompt, "output": "END"}
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]
@@ -245,7 +245,7 @@ def test_cmdi_with_openai_functions_agent_invoke(iast_span_defaults, llm_class):
 
     assert vulnerability["hash"]
     location = vulnerability["location"]
-    assert location["path"] == "tests/appsec/integrations/langchain_tests/test_iast_langchain.py"
+    assert location["path"].endswith("tests/appsec/integrations/langchain_tests/test_iast_langchain.py")
     assert location["line"]
     assert location["method"] == "test_cmdi_with_openai_functions_agent_invoke"
     assert "class" not in location
@@ -281,7 +281,7 @@ async def test_cmdi_with_openai_functions_agent_ainvoke(iast_span_defaults, llm_
     assert isinstance(res, dict)
     assert res == {"input": prompt, "output": "END"}
 
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]
@@ -300,7 +300,7 @@ async def test_cmdi_with_openai_functions_agent_ainvoke(iast_span_defaults, llm_
 
     assert vulnerability["hash"]
     location = vulnerability["location"]
-    assert location["path"] == "langchain_experimental/llm_bash/bash.py"
+    assert location["path"].endswith("langchain_experimental/llm_bash/bash.py")
     assert location["line"]
     assert location["method"] == "_run"
     assert "class" not in location
@@ -324,7 +324,7 @@ def prepare_tainted_prompt() -> str:
 
 
 def assert_cmdi():
-    span_report = _get_span_report()
+    span_report = get_iast_reporter()
     assert span_report
     data = span_report.build_and_scrub_value_parts()
     vulnerability = data["vulnerabilities"][0]

@@ -7,8 +7,9 @@ import pytest
 import ddtrace
 from ddtrace.ext import ci
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility import CIVisibility
 from ddtrace.internal.ci_visibility._api_client import AgentlessTestVisibilityAPIClient
 from ddtrace.internal.ci_visibility._api_client import EVPProxyTestVisibilityAPIClient
@@ -16,7 +17,6 @@ from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH_V
 from ddtrace.internal.ci_visibility.constants import REQUESTS_MODE
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_data import GitData
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.utils.http import Response
 
 
@@ -113,7 +113,7 @@ def _make_fqdn_internal_test_id(module_name: str, suite_name: str, test_name: st
 
     This is useful for mass-making test ids.
     """
-    return InternalTestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
+    return TestId(TestSuiteId(TestModuleId(module_name), suite_name), test_name, parameters)
 
 
 def _make_fqdn_test_ids(test_descs: t.List[t.Union[t.Tuple[str, str, str], t.Tuple[str, str, str, str]]]):

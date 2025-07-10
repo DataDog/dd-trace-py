@@ -8,6 +8,7 @@ import gc
 import logging
 from os import getpid
 import threading
+import time
 from unittest.case import SkipTest
 
 import mock
@@ -33,7 +34,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
 from ddtrace.trace import Context
@@ -283,6 +284,98 @@ class TracerTestCases(TracerTestCase):
             dict(name="wrap.parent", service="webserver"),
             (dict(name="wrap.overwrite", service="webserver", meta=dict(args="(42,)", kwargs="{'kw_param': 42}")),),
         )
+
+    def test_tracer_wrap_generator(self):
+        @self.tracer.wrap("decorated_generator", service="s", resource="r", span_type="t")
+        def f(tag_name, tag_value):
+            # make sure we can still set tags
+            span = self.tracer.current_span()
+            span.set_tag(tag_name, tag_value)
+
+            for i in range(3):
+                time.sleep(0.01)
+                yield i
+
+        result = list(f("a", "b"))
+        assert result == [0, 1, 2]
+
+        self.assert_span_count(1)
+        span = self.get_root_span()
+        span.assert_matches(
+            name="decorated_generator",
+            service="s",
+            resource="r",
+            span_type="t",
+            meta=dict(a="b"),
+        )
+
+        # tracer should finish _after_ the generator has been exhausted
+        assert span.duration is not None
+        assert span.duration > 0.03
+
+    def test_tracer_wrap_nested_generators_preserves_stack_order(self):
+        result = {"handled": False}
+
+        def trace_and_call_next(*call_args, **call_kwargs):
+            def _outer_wrapper(func):
+                @self.tracer.wrap("foobar")
+                def _inner_wrapper(*args, **kwargs):
+                    wrapped_generator = func(*args, **kwargs)
+                    try:
+                        yield next(wrapped_generator)
+                    except BaseException as e:
+                        result["handled"] = True
+                        wrapped_generator.throw(e)
+
+                return _inner_wrapper
+
+            return _outer_wrapper(*call_args, **call_kwargs)
+
+        @contextlib.contextmanager
+        @trace_and_call_next
+        def wrapper():
+            try:
+                yield
+            except NotImplementedError:
+                raise ValueError()
+
+        exception_note = (
+            "The expected exception should bubble up from a traced generator-based context manager "
+            "that yields another generator"
+        )
+        try:
+            with wrapper():
+                raise NotImplementedError()
+        except Exception as e:
+            assert isinstance(e, ValueError), exception_note
+        else:
+            assert False, exception_note
+        assert result["handled"], (
+            "Exceptions raised by traced generator-based context managers that yield generators should be "
+            "visible to the caller"
+        )
+
+    def test_tracer_wrap_generator_with_return_value(self):
+        @self.tracer.wrap()
+        def iter_signals():
+            for i in range(10):
+                yield i
+            return 10
+
+        with self.trace("root") as span:
+            signals = iter_signals()
+            while True:
+                try:
+                    # DEV: We don't need the return value
+                    next(signals)
+                except StopIteration as e:
+                    assert e.value == 10
+                    span.set_metric("num_signals", e.value)
+                    break
+
+        self.assert_span_count(2)
+        root_span = self.get_root_span()
+        root_span.assert_matches(name="root", metrics={"num_signals": 10})
 
     def test_tracer_disabled(self):
         self.tracer.enabled = True
@@ -591,7 +684,7 @@ class TracerTestCases(TracerTestCase):
 def test_tracer_url_default():
     import ddtrace
 
-    assert ddtrace.trace.tracer._span_aggregator.writer.agent_url == "http://localhost:8126"
+    assert ddtrace.trace.tracer._span_aggregator.writer.intake_url == "http://localhost:8126"
 
 
 @pytest.mark.subprocess()
@@ -848,7 +941,7 @@ class EnvTracerTestCase(TracerTestCase):
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(global_tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1881,14 +1974,14 @@ def test_detect_agent_config_with_lambda_extension():
 
     with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
         import ddtrace
-        from ddtrace.internal.writer import AgentWriter
+        from ddtrace.internal.writer import AgentWriterInterface
         from ddtrace.trace import tracer
 
         assert ddtrace.internal.serverless.in_aws_lambda()
 
         assert ddtrace.internal.serverless.has_aws_lambda_agent_extension()
 
-        assert isinstance(tracer._span_aggregator.writer, AgentWriter)
+        assert isinstance(tracer._span_aggregator.writer, AgentWriterInterface)
         assert tracer._span_aggregator.writer._sync_mode
 
 

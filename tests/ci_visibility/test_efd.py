@@ -4,8 +4,9 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
@@ -15,7 +16,6 @@ from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from tests.utils import DummyTracer
 
 
@@ -210,14 +210,14 @@ class TestCIVisibilityTestEFD:
         for i in range(50):
             test_name = f"m1_s1_known_t{i}"
             m1_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
             )
 
         for i in range(50):
             test_name = f"m1_s1_new_t{i}"
             m1_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
             )
 
@@ -232,14 +232,14 @@ class TestCIVisibilityTestEFD:
         for i in range(50):
             test_name = f"m2_s1_known_t{i}"
             m2_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
             )
 
         for i in range(50):
             test_name = f"m2_s1_new_t{i}"
             m2_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
             )
 
@@ -278,14 +278,14 @@ class TestCIVisibilityTestEFD:
         for i in range(5):
             test_name = f"m1_s1_known_t{i}"
             m1_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
             )
 
         for i in range(20):
             test_name = f"m1_s1_new_t{i}"
             m1_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
             )
 
@@ -300,14 +300,14 @@ class TestCIVisibilityTestEFD:
         for i in range(5):
             test_name = f"m2_s1_known_t{i}"
             m2_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
             )
 
         for i in range(20):
             test_name = f"m2_s1_new_t{i}"
             m2_s1.add_child(
-                InternalTestId(m1_s1_id, name=test_name),
+                TestId(m1_s1_id, name=test_name),
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
             )
 

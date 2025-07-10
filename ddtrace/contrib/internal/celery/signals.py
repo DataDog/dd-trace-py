@@ -4,7 +4,6 @@ from celery import current_app
 from celery import registry
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -59,11 +58,6 @@ def trace_prerun(*args, **kwargs):
 
     # set component tag equal to name of integration
     span.set_tag_str(COMPONENT, config.celery.integration_name)
-
-    # set analytics sample rate
-    rate = config.celery.get_analytics_sample_rate()
-    if rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(_SPAN_MEASURED_KEY)
     attach_span(task, task_id, span)
@@ -133,11 +127,6 @@ def trace_before_publish(*args, **kwargs):
 
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-
-    # set analytics sample rate
-    rate = config.celery.get_analytics_sample_rate()
-    if rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
 
     span.set_tag(_SPAN_MEASURED_KEY)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)

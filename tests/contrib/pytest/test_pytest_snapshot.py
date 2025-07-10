@@ -86,6 +86,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
@@ -132,6 +133,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
@@ -168,6 +170,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                         DD_PATCH_MODULES="httpx:true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )

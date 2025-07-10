@@ -1,5 +1,6 @@
 import os
 import sys
+from typing import Dict
 
 import google.generativeai as genai
 
@@ -31,6 +32,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(genai, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"google.generativeai": ">=0.7.0"}
 
 
 @with_traced_module

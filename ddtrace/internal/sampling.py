@@ -1,5 +1,4 @@
 import json
-import re
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Dict
@@ -57,9 +56,9 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
-# Use regex to validate trace tag value
-TRACE_TAG_RE = re.compile(r"^-([0-9])$")
-
+SAMPLING_MECHANISM_CONSTANTS = {
+    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
+}
 
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
@@ -79,7 +78,7 @@ def validate_sampling_decision(
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
-        if TRACE_TAG_RE.match(value) is None:
+        if value not in SAMPLING_MECHANISM_CONSTANTS:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
             log.warning("failed to decode _dd.p.dm: %r", value)

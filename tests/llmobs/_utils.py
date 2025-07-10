@@ -24,7 +24,14 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
+        filter_headers=[
+            "authorization",
+            "OpenAI-Organization",
+            "api-key",
+            "x-api-key",
+            ("DD-API-KEY", "XXXXXX"),
+            ("DD-APPLICATION-KEY", "XXXXXX"),
+        ],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -208,7 +215,7 @@ def _llmobs_base_span_event(
     span_links=False,
 ):
     span_event = {
-        "trace_id": format_trace_id(span.trace_id),
+        "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": _get_span_name(span),
@@ -218,7 +225,11 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
-        "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
+        "_dd": {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        },
     }
     if session_id:
         span_event["session_id"] = session_id
@@ -255,6 +266,7 @@ def _expected_llmobs_eval_metric_event(
     categorical_value=None,
     score_value=None,
     numerical_value=None,
+    boolean_value=None,
     tags=None,
     metadata=None,
 ):
@@ -277,6 +289,8 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if boolean_value is not None:
+        eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
     if timestamp_ms is not None:
@@ -610,7 +624,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -629,7 +643,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -657,7 +671,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -675,7 +689,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -693,7 +707,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -707,7 +721,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -725,7 +739,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -739,7 +753,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -756,7 +770,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -781,7 +795,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -800,7 +814,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -818,7 +832,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 

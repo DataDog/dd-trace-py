@@ -12,6 +12,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_handle_capsule
 from ddtrace.appsec._utils import _observator
+from ddtrace.appsec._utils import unpatching_popen
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -26,18 +27,17 @@ log = get_logger(__name__)
 
 if system() == "Linux":
     try:
-        asm_config._bypass_instrumentation_for_waf = True
-        ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
+        with unpatching_popen():
+            ctypes.CDLL(ctypes.util.find_library("rt"), mode=ctypes.RTLD_GLOBAL)
     except Exception:  # nosec
         pass
-    finally:
-        asm_config._bypass_instrumentation_for_waf = False
 
 ARCHI = machine().lower()
 
 # 32-bit-Python on 64-bit-Windows
 
-ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
+with unpatching_popen():
+    ddwaf = ctypes.CDLL(asm_config._asm_libddwaf)
 #
 # Constants
 #
@@ -404,6 +404,23 @@ ddwaf_builder_build_instance = ctypes.CFUNCTYPE(ddwaf_handle, ddwaf_builder)(
 
 def py_ddwaf_builder_build_instance(builder: ddwaf_builder_capsule) -> ddwaf_handle_capsule:
     return ddwaf_handle_capsule(ddwaf_builder_build_instance(builder.builder), ddwaf_destroy)
+
+
+ddwaf_builder_get_config_paths = ctypes.CFUNCTYPE(
+    ctypes.c_uint32, ddwaf_builder, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32
+)(
+    ("ddwaf_builder_get_config_paths", ddwaf),
+    (
+        (1, "builder"),
+        (1, "paths"),
+        (1, "filter"),
+        (1, "filter_len"),
+    ),
+)
+
+
+def py_ddwaf_builder_get_config_paths(builder: ddwaf_builder_capsule, filter_str: str) -> int:
+    return ddwaf_builder_get_config_paths(builder.builder, None, filter_str.encode(), len(filter_str))
 
 
 ddwaf_builder_destroy = ctypes.CFUNCTYPE(None, ddwaf_builder)(

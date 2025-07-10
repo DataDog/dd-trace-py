@@ -14,6 +14,7 @@ from ddtrace.appsec._iast._taint_tracking import get_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import _to_tainted_string_with_origin
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -28,13 +29,13 @@ class TestOperatorModuloReplacement(BaseReplacement):
         expected_result,  # type: Text
         escaped_expected_result,  # type: Text
     ):  # type: (...) -> None
-        template = self._to_tainted_string_with_origin(taint_escaped_template)
+        template = _to_tainted_string_with_origin(taint_escaped_template)
 
         parameter = tuple()  # type: Any
         if isinstance(taint_escaped_parameter, (tuple, List)):
-            parameter = tuple([self._to_tainted_string_with_origin(item) for item in taint_escaped_parameter])
+            parameter = tuple([_to_tainted_string_with_origin(item) for item in taint_escaped_parameter])
         else:
-            parameter = self._to_tainted_string_with_origin(taint_escaped_parameter)
+            parameter = _to_tainted_string_with_origin(taint_escaped_parameter)
 
         result = mod.do_modulo(template, parameter)
 

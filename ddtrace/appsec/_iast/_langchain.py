@@ -1,4 +1,4 @@
-from ddtrace.appsec._iast._metrics import _set_iast_error_metric
+from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -45,9 +45,38 @@ def _langchain_patch():
         "agents.self_ask_with_search.output_parser.SelfAskOutputParser",
         "agents.structured_chat.output_parser.StructuredChatOutputParser",
     )
-    for class_ in agent_output_parser_classes:
-        wrap("langchain", class_ + ".format", _wrapper_agentoutput_parse)
-        wrap("langchain", class_ + ".aformat", _wrapper_agentoutput_aparse)
+
+    # Check which package contains agents module (langchain 0.1 vs langchain-community 0.2+)
+    agents_package = None
+    try:
+        import langchain.agents  # noqa: F401
+
+        agents_package = "langchain"
+    except ImportError:
+        try:
+            import langchain_community.agents  # noqa: F401
+
+            agents_package = "langchain_community"
+        except ImportError:
+            pass  # No agents module available
+
+    if agents_package:
+        for class_ in agent_output_parser_classes:
+            # Only wrap if the class and methods exist
+            try:
+                # Check if the class exists and has the methods before wrapping
+                import importlib
+
+                module = importlib.import_module(agents_package)
+                class_obj = module
+                for part in class_.split("."):
+                    class_obj = getattr(class_obj, part)
+                if hasattr(class_obj, "format"):
+                    wrap(agents_package, class_ + ".format", _wrapper_agentoutput_parse)
+                if hasattr(class_obj, "aformat"):
+                    wrap(agents_package, class_ + ".aformat", _wrapper_agentoutput_aparse)
+            except (ImportError, AttributeError):
+                continue  # Class or method doesn't exist, skip it
 
 
 def _langchain_unpatch():
@@ -102,9 +131,7 @@ def _langchain_llm_generate_after(prompts, completions):
                 )
                 setattr(gen, text_attr, new_text)
     except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain _langchain_llm_generate_after. {}".format(e))
+        iast_error(f"propagation::source::langchain _langchain_llm_generate_after. {e}")
 
 
 def _langchain_chatmodel_generate_after(messages, completions):
@@ -172,9 +199,7 @@ def _langchain_chatmodel_generate_after(messages, completions):
                                 if isinstance(arguments, str):
                                     function_call["arguments"] = _iast_taint_if_str(source, arguments)
     except Exception as e:
-        from ddtrace.appsec._iast._metrics import _set_iast_error_metric
-
-        _set_iast_error_metric("IAST propagation error. langchain _langchain_chatmodel_generate_after. {}".format(e))
+        iast_error(f"propagation::source::langchain _langchain_chatmodel_generate_after. {e}")
 
 
 def _langchain_stream_chunk_callback(interface_type, args, kwargs):
@@ -192,7 +217,7 @@ def _create_taint_chunk_callback(source):
         try:
             _langchain_iast_taint_chunk(source, chunk)
         except Exception as e:
-            _set_iast_error_metric("IAST propagation error. langchain _langchain_iast_taint_chunk. {}".format(e))
+            iast_error(f"propagation::source::langchain _langchain_iast_taint_chunk. {e}")
 
     return _iast_chunk_taint
 
@@ -307,7 +332,7 @@ def _propagate_prompt_template_format(kwargs, result):
                 source = ranges[0].source
                 return taint_pyobject(result, source.name, source.value, source.origin)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain iast_propagate_prompt_template_format. {}".format(e))
+        iast_error(f"propagation::source::langchain iast_propagate_prompt_template_format. {e}")
     return result
 
 
@@ -338,5 +363,5 @@ def _propagante_agentoutput_parse(args, kwargs, result):
                 values = result.return_values
                 values["output"] = taint_pyobject(values["output"], source.name, source.value, source.origin)
     except Exception as e:
-        _set_iast_error_metric("IAST propagation error. langchain taint_parser_output. {}".format(e))
+        iast_error(f"propagation::source::langchain taint_parser_output. {e}")
     return result

@@ -1,6 +1,7 @@
 # this module must not load any other unsafe appsec module directly
 
 import collections
+import contextlib
 import json
 import logging
 import typing
@@ -8,10 +9,12 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec._constants import IAST
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
@@ -60,7 +63,9 @@ class DDWaf_result:
         "total_runtime",
         "timeout",
         "truncation",
-        "derivatives",
+        "meta_tags",
+        "metrics",
+        "api_security",
         "keep",
     ]
 
@@ -83,7 +88,16 @@ class DDWaf_result:
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
-        self.derivatives = derivatives
+        self.metrics: Dict[str, Union[int, float]] = {}
+        self.meta_tags: Dict[str, str] = {}
+        self.api_security: Dict[str, str] = {}
+        for k, v in derivatives.items():
+            if k.startswith("_dd.appsec.s."):
+                self.api_security[k] = v
+            elif isinstance(v, str):
+                self.meta_tags[k] = v
+            else:
+                self.metrics[k] = v
         self.keep = keep
 
     def __repr__(self):
@@ -91,7 +105,8 @@ class DDWaf_result:
             f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
             f" actions: {self.actions}, runtime: {self.runtime},"
             f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
-            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+            f" truncation: {self.truncation}, meta_tags: {self.meta_tags})"
+            f" metrics: {self.metrics}, api_security: {self.api_security}, keep: {self.keep}"
         )
 
 
@@ -327,6 +342,38 @@ def get_triggers(span) -> Any:
     return None
 
 
+def get_security(span) -> Any:
+    if asm_config._use_metastruct_for_iast:
+        return span.get_struct_tag(IAST.STRUCT)
+    json_payload = span.get_tag(IAST.JSON)
+    if json_payload:
+        try:
+            return json.loads(json_payload)
+        except Exception:
+            log.debug("Failed to parse security", exc_info=True)
+    return None
+
+
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"
+
+
+@contextlib.contextmanager
+def unpatching_popen():
+    """
+    Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
+    This is useful to ensure that the original `Popen` behavior is restored after the context.
+    """
+    import subprocess  # nosec B404
+
+    from ddtrace.internal._unpatched import unpatched_Popen
+
+    original_popen = subprocess.Popen
+    subprocess.Popen = unpatched_Popen
+    asm_config._bypass_instrumentation_for_waf = True
+    try:
+        yield
+    finally:
+        subprocess.Popen = original_popen
+        asm_config._bypass_instrumentation_for_waf = False

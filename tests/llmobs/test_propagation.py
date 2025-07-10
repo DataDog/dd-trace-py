@@ -5,6 +5,7 @@ import pytest
 
 from ddtrace.contrib.internal.futures.patch import patch as patch_futures
 from ddtrace.contrib.internal.futures.patch import unpatch as unpatch_futures
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
@@ -203,7 +204,10 @@ LLMObs.enable(ml_app="test-app", site="datad0g.com", api_key="dummy-key", agentl
 
 with LLMObs.workflow("LLMObs span") as root_span:
     with tracer.trace("Non-LLMObs span") as child_span:
-        headers = {"_DD_LLMOBS_SPAN_ID": str(root_span.span_id)}
+        headers = {
+            "_DD_LLMOBS_SPAN_ID": str(root_span.span_id),
+            "_DD_LLMOBS_TRACE_ID": str(root_span._get_ctx_item("_ml_obs.llmobs_trace_id"))
+        }
         headers = LLMObs.inject_distributed_headers(headers, span=child_span)
 
 print(json.dumps(headers))
@@ -219,6 +223,7 @@ print(json.dumps(headers))
         assert str(span.parent_id) == headers["x-datadog-parent-id"]
         assert span._get_ctx_item(PARENT_ID_KEY) == headers["_DD_LLMOBS_SPAN_ID"]
         assert span._get_ctx_item(ML_APP) == "test-app"  # should have been propagated
+        assert span._get_ctx_item(LLMOBS_TRACE_ID) == int(headers["_DD_LLMOBS_TRACE_ID"])
 
 
 def test_activate_distributed_headers_propagate_complex(ddtrace_run_python_code_in_subprocess, llmobs):
@@ -376,6 +381,9 @@ def test_threading_submit_propagation(llmobs, llmobs_events, patched_futures):
             executor_thread_span = span
     assert main_thread_span["parent_id"] == ROOT_PARENT_ID
     assert executor_thread_span["parent_id"] == main_thread_span["span_id"]
+    assert main_thread_span["trace_id"] == executor_thread_span["trace_id"]
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_span["_dd"]["apm_trace_id"]
+    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]
 
 
 def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
@@ -399,3 +407,8 @@ def test_threading_map_propagation(llmobs, llmobs_events, patched_futures):
     assert main_thread_span["parent_id"] == ROOT_PARENT_ID
     assert executor_thread_spans[0]["parent_id"] == main_thread_span["span_id"]
     assert executor_thread_spans[1]["parent_id"] == main_thread_span["span_id"]
+    assert main_thread_span["trace_id"] == executor_thread_spans[0]["trace_id"]
+    assert main_thread_span["trace_id"] == executor_thread_spans[1]["trace_id"]
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[0]["_dd"]["apm_trace_id"]
+    assert main_thread_span["_dd"]["apm_trace_id"] == executor_thread_spans[1]["_dd"]["apm_trace_id"]
+    assert main_thread_span["trace_id"] != main_thread_span["_dd"]["apm_trace_id"]

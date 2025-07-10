@@ -8,7 +8,6 @@ import pytest
 
 from ddtrace import DDTraceDeprecationWarning
 from ddtrace import config as dd_config
-from ddtrace._monkey import patch
 from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
 from ddtrace.contrib.internal.coverage.data import _coverage_data
 from ddtrace.contrib.internal.coverage.patch import patch as patch_coverage
@@ -17,6 +16,7 @@ from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_cove
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
 from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
+from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
 from ddtrace.contrib.internal.pytest._types import pytest_Config
@@ -39,6 +39,7 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retries
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -99,6 +100,28 @@ log = get_logger(__name__)
 _NODEID_REGEX = re.compile("^((?P<module>.*)/(?P<suite>[^/]*?))::(?P<name>.*?)$")
 OUTCOME_QUARANTINED = "quarantined"
 DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
+INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
+
+skip_pytest_runtest_protocol = False
+
+
+class XdistHooks:
+    @pytest.hookimpl
+    def pytest_configure_node(self, node):
+        main_session_span = InternalTestSession.get_span()
+        if main_session_span:
+            root_span = main_session_span.span_id
+        else:
+            root_span = 0
+
+        node.workerinput["root_span"] = root_span
+
+    @pytest.hookimpl
+    def pytest_testnodedown(self, node, error):
+        if hasattr(node, "workeroutput") and "itr_skipped_count" in node.workeroutput:
+            if not hasattr(pytest, "global_worker_itr_results"):
+                pytest.global_worker_itr_results = 0
+            pytest.global_worker_itr_results += node.workeroutput["itr_skipped_count"]
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -122,6 +145,13 @@ def _handle_itr_should_skip(item, test_id) -> bool:
         InternalTest.mark_itr_skipped(test_id)
         # Marking the test as skipped by ITR so that it appears in pytest's output
         item.add_marker(pytest.mark.skip(reason=SKIPPED_BY_ITR_REASON))  # TODO don't rely on internal for reason
+
+        # If we're in a worker process, count the skipped test
+        if hasattr(item.config, "workeroutput"):
+            if "itr_skipped_count" not in item.config.workeroutput:
+                item.config.workeroutput["itr_skipped_count"] = 0
+            item.config.workeroutput["itr_skipped_count"] += 1
+
         return True
 
     return False
@@ -209,13 +239,16 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
-    if not _is_enabled_early(early_config):
+    if not _is_enabled_early(early_config, args):
         return
 
     try:
         take_over_logger_stream_handler()
-        # Freezegun is proactively patched to avoid it interfering with internal timing
-        patch(freezegun=True)
+        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
+            from ddtrace._monkey import patch
+
+            # Freezegun is proactively patched to avoid it interfering with internal timing
+            patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -230,6 +263,8 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
 
 def pytest_configure(config: pytest_Config) -> None:
+    global skip_pytest_runtest_protocol
+
     if os.getenv("DD_PYTEST_USE_NEW_PLUGIN_BETA"):
         # Logging the warning at this point ensures it shows up in output regardless of the use of the -s flag.
         deprecate(
@@ -246,11 +281,31 @@ def pytest_configure(config: pytest_Config) -> None:
             if _is_pytest_cov_enabled(config):
                 patch_coverage()
 
+            skip_pytest_runtest_protocol = False
+
+            for plugin in INCOMPATIBLE_PLUGINS:
+                if config.pluginmanager.hasplugin(plugin):
+                    log.warning(
+                        "The pytest `%s` plugin is in use; Test Optimization advanced features will be disabled. "
+                        "You can run `pytest` with `-p no:%s` to disable the plugin and enable Test Optimization "
+                        "features.",
+                        plugin,
+                        plugin,
+                    )
+                    skip_pytest_runtest_protocol = True
+
             # pytest-bdd plugin support
             if config.pluginmanager.hasplugin("pytest-bdd"):
                 from ddtrace.contrib.internal.pytest._pytest_bdd_subplugin import _PytestBddSubPlugin
 
                 config.pluginmanager.register(_PytestBddSubPlugin(), "_datadog-pytest-bdd")
+
+            if config.pluginmanager.hasplugin("xdist"):
+                config.pluginmanager.register(XdistHooks())
+
+                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                    # Main process
+                    pytest.global_worker_itr_results = 0
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -298,7 +353,30 @@ def pytest_sessionstart(session: pytest.Session) -> None:
 
         InternalTestSession.set_library_capabilities(library_capabilities)
 
-        InternalTestSession.start()
+        extracted_context = None
+        distributed_children = False
+        if hasattr(session.config, "workerinput"):
+            from ddtrace._trace.context import Context
+            from ddtrace.constants import USER_KEEP
+
+            received_root_span = session.config.workerinput.get("root_span", "MISSING_SPAN")
+            try:
+                root_span = int(received_root_span)
+                extracted_context = Context(
+                    trace_id=1,
+                    span_id=root_span,  # This span_id here becomes context.span_id for the parent context
+                    sampling_priority=USER_KEEP,
+                )
+            except ValueError:
+                log.debug(
+                    "pytest_sessionstart: Could not convert root_span %s to int",
+                    received_root_span,
+                )
+        elif hasattr(pytest, "global_worker_itr_results"):
+            distributed_children = True
+
+        InternalTestSession.start(distributed_children, extracted_context)
+
         if InternalTestSession.efd_enabled() and not _pytest_version_supports_efd():
             log.warning("Early Flake Detection disabled: pytest version is not supported")
 
@@ -384,7 +462,7 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     _handle_test_management(item, test_id)
     _handle_itr_should_skip(item, test_id)
 
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_skipped_by_itr(test_id)
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
 
     collect_test_coverage = InternalTestSession.should_collect_coverage() and not item_will_skip
 
@@ -399,6 +477,16 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    if not InternalTest.is_finished(test_id):
+        log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
+        reports_dict = reports_by_item.get(item)
+        if reports_dict:
+            test_outcome = _process_reports_dict(item, reports_dict)
+            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        else:
+            log.debug("Test %s has no entry in reports_by_item", test_id)
+            InternalTest.finish(test_id)
+
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
 
@@ -409,11 +497,11 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # - we trust that the next item is in the same module if it is in the same suite
     next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
     if next_test_id is None or next_test_id.parent_id != suite_id:
-        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_forced_run(suite_id):
+        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_itr_forced_run(suite_id):
             InternalTestSuite.mark_itr_skipped(suite_id)
         else:
             _handle_coverage_dependencies(suite_id)
-            InternalTestSuite.finish(suite_id)
+        InternalTestSuite.finish(suite_id)
         if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
             InternalTestModule.finish(module_id)
 
@@ -442,6 +530,13 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
     if not is_test_visibility_enabled():
         return None
 
+    if skip_pytest_runtest_protocol:
+        # Retry-based features such as Early Flake Detection, Auto Test Retries, and Attempt-to-Fix do not work properly
+        # with external retry plugins such as `flaky` and `pytest-rerunfailures`. If those plugins are in use, we let
+        # their `pytest_runtest_protocol` run and report their results to the backend, and do not run our advanced
+        # features.
+        return None
+
     try:
         _pytest_run_one_test(item, nextitem)
         return True  # Do not run pytest's internal `pytest_runtest_protocol`.
@@ -455,9 +550,8 @@ def pytest_runtest_protocol(item, nextitem) -> t.Optional[bool]:
 def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logstart(nodeid=item.nodeid, location=item.location)
     reports = runtestprotocol(item, nextitem=nextitem, log=False)
-    test_outcome = _process_reports(item, reports)
-
     reports_dict = {report.when: report for report in reports}
+    test_outcome = _process_reports_dict(item, reports_dict)
 
     test_id = _get_test_id_from_item(item)
     is_quarantined = InternalTest.is_quarantined_test(test_id)
@@ -510,14 +604,20 @@ def _pytest_run_one_test(item, nextitem):
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
 
-def _process_reports(item, reports) -> _TestOutcome:
+def _process_reports_dict(item, reports) -> _TestOutcome:
     final_outcome = None
-    for report in reports:
+
+    for when in (TestPhase.SETUP, TestPhase.CALL, TestPhase.TEARDOWN):
+        report = reports.get(when)
+        if not report:
+            continue
+
         outcome = _process_result(item, report)
         if final_outcome is None or final_outcome.status is None:
             final_outcome = outcome
             if final_outcome.status is not None:
                 return final_outcome
+
     return final_outcome
 
 
@@ -550,7 +650,7 @@ def _process_result(item, result) -> _TestOutcome:
     # If run with --runxfail flag, tests behave as if they were not marked with xfail,
     # that's why no XFAIL_REASON or test.RESULT tags will be added.
     if result.skipped:
-        if InternalTest.was_skipped_by_itr(test_id):
+        if InternalTest.was_itr_skipped(test_id):
             # Items that were skipped by ITR already have their status and reason set
             return _TestOutcome()
 
@@ -592,16 +692,13 @@ def _process_result(item, result) -> _TestOutcome:
 
 
 def _pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo, outcome: pytest_TestReport) -> None:
+    original_result = outcome.get_result()
+
     # When ATR or EFD retries are active, we do not want makereport to generate results
-    if _pytest_version_supports_retries() and get_retry_num(item.nodeid) is not None:
+    if _pytest_version_supports_retries() and get_retry_num(original_result) is not None:
         return
 
-    original_result = outcome.get_result()
-    test_outcome = _process_result(item, original_result)
-
-    # A None value for test_outcome.status implies the test has not finished yet
-    # Only continue to finishing the test if the test has finished, or if tearing down the test
-    if test_outcome.status is None and call.when != TestPhase.TEARDOWN:
+    if call.when != TestPhase.TEARDOWN:
         return
 
     # Support for pytest-benchmark plugin
@@ -618,6 +715,7 @@ def pytest_runtest_makereport(item: pytest.Item, call: pytest_CallInfo) -> None:
     # DEV: Make excinfo available for later use, when we don't have the `call` object anymore.
     # We cannot stash it directly into the report because pytest-xdist fails to serialize the report if we do that.
     excinfo_by_report[outcome.get_result()] = call.excinfo
+    reports_by_item.setdefault(item, {})[call.when] = outcome.get_result()
 
     if not is_test_visibility_enabled():
         return
@@ -673,6 +771,7 @@ def _pytest_terminal_summary_post_yield(terminalreporter, failed_reports_initial
     quarantine_pytest_terminal_summary_post_yield(terminalreporter)
     attempt_to_fix_pytest_terminal_summary_post_yield(terminalreporter)
 
+    print_test_report_links(terminalreporter)
     return
 
 
@@ -711,13 +810,6 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if not is_test_visibility_enabled():
         return
 
-    if InternalTestSession.efd_enabled() and InternalTestSession.efd_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.atr_is_enabled() and InternalTestSession.atr_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-    if InternalTestSession.attempt_to_fix_has_failed_tests():
-        session.exitstatus = pytest.ExitCode.TESTS_FAILED
-
     invoked_by_coverage_run_status = _is_coverage_invoked_by_coverage_run()
     pytest_cov_status = _is_pytest_cov_enabled(session.config)
     if _is_coverage_patched() and (pytest_cov_status or invoked_by_coverage_run_status):
@@ -733,7 +825,18 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
     if ModuleCodeCollector.is_installed():
         ModuleCodeCollector.uninstall()
 
-    InternalTestSession.finish(force_finish_children=True)
+    # Count ITR skipped tests from workers if we're in the main process
+    if hasattr(pytest, "global_worker_itr_results"):
+        skipped_count = pytest.global_worker_itr_results
+        if skipped_count > 0:
+            # Update the session's internal _itr_skipped_count so that when _set_itr_tags() is called
+            # during session finishing, it will use the correct worker-aggregated count
+            InternalTestSession.set_itr_skipped_count(skipped_count)
+
+    InternalTestSession.finish(
+        force_finish_children=True,
+        override_status=TestStatus.FAIL if session.exitstatus == pytest.ExitCode.TESTS_FAILED else None,
+    )
 
 
 @pytest.hookimpl(hookwrapper=True, tryfirst=True)

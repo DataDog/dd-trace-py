@@ -26,7 +26,6 @@ from ddtrace.ext import EXIT_SPAN_TYPES
 from ddtrace.internal import core
 from ddtrace.internal.packages import is_user_code
 from ddtrace.internal.safety import _isinstance
-from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.settings.code_origin import config as co_config
 from ddtrace.trace import Span
@@ -197,11 +196,45 @@ class EntrySpanWrappingContext(WrappingContext):
 
 
 @dataclass
-class SpanCodeOriginProcessor(SpanProcessor):
+class SpanCodeOriginProcessorEntry:
     __uploader__ = LogsIntakeUploaderV1
 
-    _instance: t.Optional["SpanCodeOriginProcessor"] = None
+    _instance: t.Optional["SpanCodeOriginProcessorEntry"] = None
     _handler: t.Optional[t.Callable] = None
+
+    @classmethod
+    def enable(cls):
+        if cls._instance is not None:
+            return
+
+        cls._instance = cls()
+
+        # Register code origin for span with the snapshot uploader
+        cls.__uploader__.register(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        # Register the entrypoint wrapping for entry spans
+        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__.get_collector())
+        core.on("service_entrypoint.patch", handler)
+
+    @classmethod
+    def disable(cls):
+        if cls._instance is None:
+            return
+
+        # Unregister the entrypoint wrapping for entry spans
+        core.reset_listeners("service_entrypoint.patch", cls._handler)
+        # Unregister code origin for span with the snapshot uploader
+        cls.__uploader__.unregister(UploaderProduct.CODE_ORIGIN_SPAN)
+
+        cls._handler = None
+        cls._instance = None
+
+
+@dataclass
+class SpanCodeOriginProcessorExit(SpanProcessor):
+    __uploader__ = LogsIntakeUploaderV1
+
+    _instance: t.Optional["SpanCodeOriginProcessorExit"] = None
 
     def on_span_start(self, span: Span) -> None:
         if span.span_type not in EXIT_SPAN_TYPES:
@@ -223,12 +256,17 @@ class SpanCodeOriginProcessor(SpanProcessor):
 
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.file", filename)
                 span.set_tag_str(f"_dd.code_origin.frames.{n}.line", str(code.co_firstlineno))
+
+                # Get the module and function name from the frame and code object. In Python3.11+ qualname
+                # is available, otherwise we'll fallback to the unqualified name.
                 try:
-                    (f,) = functions_for_code(code)
-                    span.set_tag_str(f"_dd.code_origin.frames.{n}.type", f.__module__)
-                    span.set_tag_str(f"_dd.code_origin.frames.{n}.method", f.__qualname__)
-                except ValueError:
-                    continue
+                    name = code.co_qualname  # type: ignore[attr-defined]
+                except AttributeError:
+                    name = code.co_name
+
+                mod = frame.f_globals.get("__name__")
+                span.set_tag_str(f"_dd.code_origin.frames.{n}.type", mod) if mod else None
+                span.set_tag_str(f"_dd.code_origin.frames.{n}.method", name) if name else None
 
                 # Check if we have any level 2 debugging sessions running for
                 # the current trace
@@ -266,18 +304,10 @@ class SpanCodeOriginProcessor(SpanProcessor):
         # Register the processor for exit spans
         instance.register()
 
-        # Register the entrypoint wrapping for entry spans
-        cls._handler = handler = partial(wrap_entrypoint, cls.__uploader__.get_collector())
-        core.on("service_entrypoint.patch", handler)
-
     @classmethod
     def disable(cls):
         if cls._instance is None:
             return
-
-        # Unregister the entrypoint wrapping for entry spans
-        core.reset_listeners("service_entrypoint.patch", cls._handler)
-        cls._handler = None
 
         # Unregister the processor for exit spans
         cls._instance.unregister()

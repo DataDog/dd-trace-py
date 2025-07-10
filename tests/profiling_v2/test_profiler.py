@@ -6,7 +6,6 @@ import pytest
 
 import ddtrace
 from ddtrace.profiling import collector
-from ddtrace.profiling import exporter
 from ddtrace.profiling import profiler
 from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
@@ -49,33 +48,6 @@ def test_tracer_api(monkeypatch):
             break
     else:
         pytest.fail("Unable to find stack collector")
-
-
-def test_profiler_init_float_division_regression(run_python_code_in_subprocess):
-    """
-    Regression test for https://github.com/DataDog/dd-trace-py/pull/3751
-      When float division is enabled, the value of `max_events` can be a `float`,
-        this is then passed as `deque(maxlen=float)` which is a type error
-
-    File "/var/task/ddtrace/profiling/recorder.py", line 80, in _get_deque_for_event_type
-    return collections.deque(maxlen=self.max_events.get(event_type, self.default_max_events))
-    TypeError: an integer is required
-    """
-    code = """
-from ddtrace.profiling import profiler
-from ddtrace.profiling.collector import stack_event
-
-prof = profiler.Profiler()
-
-# The error only happened for this specific kind of event
-# DEV: Yes, this is likely a brittle way to test, but quickest/easiest way to trigger the error
-prof._recorder.push_event(stack_event.StackExceptionSampleEvent())
-    """
-
-    out, err, status, _ = run_python_code_in_subprocess(code)
-    assert status == 0, err
-    assert out == b"", err
-    assert err == b""
 
 
 @pytest.mark.subprocess()
@@ -131,16 +103,12 @@ def test_failed_start_collector(caplog, monkeypatch):
 
     monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
 
-    class Exporter(exporter.Exporter):
-        def export(self, events, *args, **kwargs):
-            pass
-
     class TestProfiler(profiler._ProfilerInstance):
         def _build_default_exporters(self, *args, **kargs):
-            return [Exporter()]
+            return []
 
     p = TestProfiler()
-    err_collector = mock.MagicMock(wraps=ErrCollect(p._recorder))
+    err_collector = mock.MagicMock(wraps=ErrCollect())
     p._collectors = [err_collector]
     p.start()
 
@@ -192,11 +160,113 @@ def test_profiler_ddtrace_deprecation():
         from ddtrace.profiling import _threading  # noqa:F401
         from ddtrace.profiling import event  # noqa:F401
         from ddtrace.profiling import profiler  # noqa:F401
-        from ddtrace.profiling import recorder  # noqa:F401
         from ddtrace.profiling import scheduler  # noqa:F401
         from ddtrace.profiling.collector import _lock  # noqa:F401
         from ddtrace.profiling.collector import _task  # noqa:F401
         from ddtrace.profiling.collector import _traceback  # noqa:F401
         from ddtrace.profiling.collector import memalloc  # noqa:F401
         from ddtrace.profiling.collector import stack  # noqa:F401
-        from ddtrace.profiling.collector import stack_event  # noqa:F401
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load ddup module (mock failure message), disabling profiling\n",
+)
+def test_libdd_failure_telemetry_logging():
+    """Test that libdd initialization failures log to telemetry. This mimics
+    one of the two scenarios where profiling can be configured.
+    1) using ddtrace-run with DD_PROFILNG_ENABLED=true
+    2) import ddtrace.profiling.auto
+    """
+
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.ddup",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace.settings.profiling import config  # noqa:F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS
+    err=None
+)
+def test_libdd_failure_telemetry_logging_with_auto():
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.ddup",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load ddup module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_PROFILING_ENABLED="true"),
+    err="Failed to load stack_v2 module (mock failure message), falling back to v1 stack sampler\n",
+)
+def test_stack_v2_failure_telemetry_logging():
+    # Test that stack_v2 initialization failures log to telemetry. This is
+    # mimicking the behavior of ddtrace-run, where the config is imported to
+    # determine if profiling/stack_v2 is enabled
+
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.stack_v2",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        from ddtrace.settings.profiling import config  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack_v2 module" in message
+        assert "mock failure message" in message
+
+
+@pytest.mark.subprocess(
+    # We'd like to check the stderr, but it somehow leads to triggering the
+    # upload code path on macOS.
+    err=None,
+)
+def test_stack_v2_failure_telemetry_logging_with_auto():
+    import mock
+
+    with mock.patch.multiple(
+        "ddtrace.internal.datadog.profiling.stack_v2",
+        failure_msg="mock failure message",
+        is_available=False,
+    ), mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_log") as mock_add_log:
+        from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
+        import ddtrace.profiling.auto  # noqa: F401
+
+        mock_add_log.assert_called_once()
+        call_args = mock_add_log.call_args
+        assert call_args[0][0] == TELEMETRY_LOG_LEVEL.ERROR
+        message = call_args[0][1]
+        assert "Failed to load stack_v2 module" in message
+        assert "mock failure message" in message
