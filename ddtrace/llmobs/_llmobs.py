@@ -74,6 +74,7 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -86,6 +87,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -135,11 +137,11 @@ class LLMObsSpan:
             if ctx:
                 model_name = ctx._get_ctx_item("_ml_obs.meta.model_name")
                 metadata = ctx._get_ctx_item("_ml_obs.meta.metadata") or {}
-                
+
                 # Omit spans based on full context
                 if model_name == "sensitive-model" and metadata.get("contains_pii"):
                     return None  # This span will be omitted
-            
+
             # Modify input/output
             if span.get_tag("omit_span") == "1":
                 return None
@@ -165,13 +167,13 @@ class LLMObsSpan:
         :rtype: Optional[str]
         """
         return self._tags.get(key)
-    
+
     def get_span_context(self) -> Optional["Span"]:
         """Get read-only access to the full span for context.
-        
+
         This provides access to all span data including metadata, metrics,
         model information, and any other span fields for decision making.
-        
+
         :return: The full span object for reading context, or None if not available.
         :rtype: Optional[Span]
         """
@@ -181,6 +183,7 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
+    _app_key: str = os.environ.get("DD_APP_KEY", "")
 
     def __init__(
         self,
@@ -205,6 +208,12 @@ class LLMObs(Service):
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
+        )
+        self._dne_client = LLMObsExperimentsClient(
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            _app_key=self._app_key,
+            is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
         forksafe.register(self._child_after_fork)
@@ -309,7 +318,7 @@ class LLMObs(Service):
                 span_clone = copy.copy(span)
                 llmobs_span._span_context = span_clone
                 llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS) or {})
-                
+
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
@@ -480,6 +489,7 @@ class LLMObs(Service):
         instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
+        app_key: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
@@ -495,6 +505,7 @@ class LLMObs(Service):
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
+        :param str app_key: Your datadog application key.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and returns an
@@ -510,6 +521,7 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
+        cls._app_key = app_key or cls._app_key
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -581,6 +593,18 @@ class LLMObs(Service):
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
             )
+
+    @classmethod
+    def pull_dataset(cls, name: str) -> Dataset:
+        return cls._instance._dne_client.dataset_pull(name)
+
+    @classmethod
+    def create_dataset(cls, name: str, description: str) -> Dataset:
+        return cls._instance._dne_client.dataset_create(name, description)
+
+    @classmethod
+    def _delete_dataset(cls, dataset_id: str) -> None:
+        return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
