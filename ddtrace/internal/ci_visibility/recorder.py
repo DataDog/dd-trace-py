@@ -269,7 +269,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                agent_config.trace_agent_url if not self.tracer._agent_url else self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
