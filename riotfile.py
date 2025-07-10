@@ -80,39 +80,6 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
-# Flask version matrix for appsec_threats_flask
-FLASK_THREATS_VENVS = [
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "~=1.1",
-            "MarkupSafe": "~=1.1",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "==2.1.3",
-            "Werkzeug": "<3.0",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "flask": "~=2.3",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.11", "3.13"],
-        pkgs={
-            "flask": "~=3.0",
-        },
-    ),
-]
-
-
-
-
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
