@@ -162,7 +162,7 @@ class TestGlobalConfig(SubprocessTestCase):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
-            ddtrace.config.version = AgentWriter(agent_url="foobar")
+            ddtrace.config.version = AgentWriter(intake_url="foobar")
             ddtrace.trace.tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 

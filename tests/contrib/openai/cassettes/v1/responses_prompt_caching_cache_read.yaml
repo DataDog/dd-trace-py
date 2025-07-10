@@ -1,0 +1,216 @@
+interactions:
+- request:
+    body: '{"input":"hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello hello hello hello hello hello hello
+      hello hello hello hello hello hello hello  count from 2 to 4","max_output_tokens":100,"model":"gpt-4o","temperature":0.1,"user":"ddtrace-test"}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '9111'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=AgYI9mJr2TSVuUiV.tbZaAyNrCHKQ6jNsF44HXQlkNM-1751567903-1.0.1.1-lQmx06lbEl6K8W70PfVGXBznNK.RJfgsWElUra8xjWvEfk4vJ3Bs7bAnGYI4mkwV573hT_rSeDxQLTZmV33dsNEOcynVGMuGiBlZS7KUklg;
+        _cfuvid=rDopjtrmB0sfaKNnUgWHxUDnc8MMTTbDRwLDYjBPOs0-1751567903293-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.91.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.91.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA3RT0Y6jMAx871dEeW5XoQVK+yurEzLBdLkNMUqc1a5W/fcTgaZwt/eCyIw9scfO
+        904I2bfyKqRDP9ZlVZYas67MUFfZRV9O+SnXDWpsL01RFArLc6VU1+R5g3nXyv0kQM1v1PwQIetx
+        xrVDYGxrmLjsXGRFeb6oU+Q8Awc/5WgaRoOMi1gD+v3mKNipqg6Mxwijc+TkVdhgTAR6+0isW2To
+        jd+ynl3Q3JPd4AN81hR4DFwzvWMkM6USx0Sm1mC2agO1aKZabyMfcjoc1TE/qOqgysWAqCiv4nUn
+        hBDf8ZucHfwtGQtnqCZjm0y1AKpVVd7oS6F/NDZq8NeIUQW9hxs+if85GElNltE+S1qXtZF9mIGf
+        nLJjAFhLDA8DX39tSEO30VHzAxOFrkIe9+K0F7lM3H35S+HSkYklgPe9Z7A8B0+BMUiO4MAYNNup
+        sAvzSowOP3oKvn5sXR39TlNzCJ5sb2/yuvQusevI8Spo8jEMA7ivBdwJcZ8XFN1Hr7HmHqe9ky12
+        EMxskvRMDjf7yTiM6IBDxNVLtqDRjeX2jtwAz/NqCjEudT8XMDf9Rr2eXQpMMhFP5yXTWK/moRI4
+        Trv9spxdsDpOM/bSe2jM48WFuFepyt5uX0eRFft/mdWjS91o0G/YrlJPFzU3tQj8/fKqn/CflNMo
+        n7lbZSYGsy76eEpGBr9MsGUHGg+MfhnjgAwtMExX3Xf3PwAAAP//AwDc6+4UDgUAAA==
+    headers:
+      CF-RAY:
+      - 95987fe3e9173453-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 03 Jul 2025 18:38:23 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '368'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29998466'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 3ms
+      x-request-id:
+      - req_8d0ccf1efec4f6f1ef0a80ed01009164
+    status:
+      code: 200
+      message: OK
+version: 1
