@@ -1,23 +1,24 @@
 # this module must not load any other unsafe appsec module directly
 
 import collections
+import contextlib
+import json
 import logging
 import typing
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 import uuid
 
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.appsec._constants import SPAN_DATA_NAMES
+from ddtrace.appsec._constants import IAST
+from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.http import _get_blocked_template  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_multipart  # noqa:F401
-from ddtrace.internal.utils.http import parse_form_params  # noqa:F401
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -54,7 +55,19 @@ class _observator:
 
 
 class DDWaf_result:
-    __slots__ = ["return_code", "data", "actions", "runtime", "total_runtime", "timeout", "truncation", "derivatives"]
+    __slots__ = [
+        "return_code",
+        "data",
+        "actions",
+        "runtime",
+        "total_runtime",
+        "timeout",
+        "truncation",
+        "meta_tags",
+        "metrics",
+        "api_security",
+        "keep",
+    ]
 
     def __init__(
         self,
@@ -66,6 +79,7 @@ class DDWaf_result:
         timeout: bool,
         truncation: _observator,
         derivatives: Dict[str, Any],
+        keep: bool = False,
     ):
         self.return_code = return_code
         self.data = data
@@ -74,14 +88,25 @@ class DDWaf_result:
         self.total_runtime = total_runtime
         self.timeout = timeout
         self.truncation = truncation
-        self.derivatives = derivatives
+        self.metrics: Dict[str, Union[int, float]] = {}
+        self.meta_tags: Dict[str, str] = {}
+        self.api_security: Dict[str, str] = {}
+        for k, v in derivatives.items():
+            if k.startswith("_dd.appsec.s."):
+                self.api_security[k] = v
+            elif isinstance(v, str):
+                self.meta_tags[k] = v
+            else:
+                self.metrics[k] = v
+        self.keep = keep
 
     def __repr__(self):
         return (
             f"DDWaf_result(return_code: {self.return_code} data: {self.data},"
             f" actions: {self.actions}, runtime: {self.runtime},"
             f" total_runtime: {self.total_runtime}, timeout: {self.timeout},"
-            f" truncation: {self.truncation}, derivatives: {self.derivatives})"
+            f" truncation: {self.truncation}, meta_tags: {self.meta_tags})"
+            f" metrics: {self.metrics}, api_security: {self.api_security}, keep: {self.keep}"
         )
 
 
@@ -156,11 +181,8 @@ class Telemetry_result:
         self.error = 0
 
 
-def parse_response_body(raw_body):
+def parse_response_body(raw_body, headers):
     import xmltodict
-
-    from ddtrace.appsec import _asm_request_context
-    from ddtrace.contrib.internal.trace_utils import _get_header_value_case_insensitive
 
     if not raw_body:
         return
@@ -168,7 +190,6 @@ def parse_response_body(raw_body):
     if isinstance(raw_body, dict):
         return raw_body
 
-    headers = _asm_request_context.get_waf_address(SPAN_DATA_NAMES.RESPONSE_HEADERS_NO_COOKIES)
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
@@ -310,8 +331,6 @@ def has_triggers(span) -> bool:
 
 
 def get_triggers(span) -> Any:
-    import json
-
     if asm_config._use_metastruct_for_triggers:
         return (span.get_struct_tag(APPSEC.STRUCT) or {}).get("triggers", None)
     json_payload = span.get_tag(APPSEC.JSON)
@@ -323,6 +342,38 @@ def get_triggers(span) -> Any:
     return None
 
 
+def get_security(span) -> Any:
+    if asm_config._use_metastruct_for_iast:
+        return span.get_struct_tag(IAST.STRUCT)
+    json_payload = span.get_tag(IAST.JSON)
+    if json_payload:
+        try:
+            return json.loads(json_payload)
+        except Exception:
+            log.debug("Failed to parse security", exc_info=True)
+    return None
+
+
 def add_context_log(logger: logging.Logger, msg: str, offset: int = 0) -> str:
     filename, line_number, function_name, _stack_info = logger.findCaller(False, 3 + offset)
     return f"{msg}[{filename}, line {line_number}, in {function_name}]"
+
+
+@contextlib.contextmanager
+def unpatching_popen():
+    """
+    Context manager to temporarily unpatch `subprocess.Popen` for testing purposes.
+    This is useful to ensure that the original `Popen` behavior is restored after the context.
+    """
+    import subprocess  # nosec B404
+
+    from ddtrace.internal._unpatched import unpatched_Popen
+
+    original_popen = subprocess.Popen
+    subprocess.Popen = unpatched_Popen
+    asm_config._bypass_instrumentation_for_waf = True
+    try:
+        yield
+    finally:
+        subprocess.Popen = original_popen
+        asm_config._bypass_instrumentation_for_waf = False

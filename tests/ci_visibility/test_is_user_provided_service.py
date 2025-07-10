@@ -27,7 +27,7 @@ class IsUserProvidedServiceConfigTestCase(SubprocessTestCase):
 class IsUserProvidedServiceTestTagTestCase(SubprocessTestCase):
     def assert_is_user_provided_service_equals(self, value):
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])
         )
         assert payload["metadata"]["*"]["_dd.test.is_user_provided_service"] == value
 

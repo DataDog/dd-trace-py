@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolves an issue where annotating ``session_id`` on a LLM Observability span via ``LLMObs.annotate/annotation_context()`` 
+    as a tag only set it as a tag on the span, but did not update the span's actual session ID value.

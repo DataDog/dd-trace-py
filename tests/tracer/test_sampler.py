@@ -109,6 +109,34 @@ class RateSamplerTest(unittest.TestCase):
                     other_span
                 ), "sampling should give the same result for a given trace_id"
 
+    def test_deterministic_behavior_with_list_of_trace_ids(self):
+        """Test that specific trace IDs are consistently kept or dropped"""
+        sample_rate = 0.5
+        rule = SamplingRule(sample_rate=sample_rate)
+        rate = RateSampler(sample_rate=sample_rate)
+
+        test_cases = [
+            (6645412625895797507, False),
+            (8696342848850656916, True),
+            (14629469446186818297, False),
+            (13794769880582338323, True),
+            (18444899399302180861, False),
+            (18446744073709551615, False),
+            (10, False),
+        ]
+
+        for trace_id, expected_decision in test_cases:
+            span = Span(name="test.span", trace_id=trace_id)
+
+            for _ in range(10):
+                rule_sample_decision = rule.sample(span)
+                rate_sample_decision = rate.sample(span)
+                assert rule_sample_decision == rate_sample_decision == expected_decision, (
+                    f"Trace ID {trace_id} should be {'kept' if expected_decision else 'dropped'} "
+                    f"with sample rate {sample_rate}, but got SamplingRule:{rule_sample_decision} "
+                    f"and RateSampler:{rate_sample_decision}"
+                )
+
     def test_negative_sample_rate_raises_error(self):
         tracer = DummyTracer()
         tracer._sampler = RateSampler(sample_rate=-0.5)
@@ -701,6 +729,16 @@ class MatchNoSample(SamplingRule):
             0,
             None,
         ),
+        (  # Regression test for https://github.com/DataDog/dd-trace-py/issues/12775
+            # We should not match None values with ?* patterns.
+            DatadogSampler(
+                rules=[SamplingRule(sample_rate=0, name="?*", resource="?*", service="?*", tags={"key": "?*"})],
+            ),
+            AUTO_KEEP,
+            SamplingMechanism.DEFAULT,
+            0,
+            None,
+        ),
     ],
 )
 def test_datadog_sampler_sample_rules(sampler, sampling_priority, sampling_mechanism, rule, limit, dummy_tracer):
@@ -782,7 +820,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
     # It's important to also test in reverse mode for we want to make sure key deletion
@@ -791,7 +829,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
 

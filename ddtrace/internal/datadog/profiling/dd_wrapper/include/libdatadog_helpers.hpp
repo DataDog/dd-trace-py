@@ -61,18 +61,6 @@ enum class ExportLabelKey
     EXPORTER_LABELS(X_ENUM) Length_
 };
 
-// When a std::unique_ptr is registered, the template accepts a custom deleter. We want the runtime to manage pointers
-// for us, so here's the deleter for the exporter.
-struct DdogProfExporterDeleter
-{
-    void operator()(ddog_prof_Exporter* ptr) const
-    {
-        if (ptr) {
-            ddog_prof_Exporter_drop(ptr);
-        }
-    }
-};
-
 inline ddog_CharSlice
 to_slice(std::string_view str)
 {
@@ -122,14 +110,18 @@ to_string(ExportLabelKey key)
 inline bool
 add_tag(ddog_Vec_Tag& tags, std::string_view key, std::string_view val, std::string& errmsg)
 {
+    static bool already_warned = false;
     if (key.empty() || val.empty()) {
         return false;
     }
 
     ddog_Vec_Tag_PushResult res = ddog_Vec_Tag_push(&tags, to_slice(key), to_slice(val));
     if (res.tag == DDOG_VEC_TAG_PUSH_RESULT_ERR) {
-        errmsg = err_to_msg(&res.err, "");
-        std::cout << errmsg << std::endl;
+        if (!already_warned) {
+            already_warned = true;
+            errmsg = err_to_msg(&res.err, "");
+            std::cerr << errmsg << std::endl;
+        }
         ddog_Error_drop(&res.err);
         return false;
     }
@@ -145,16 +137,6 @@ add_tag(ddog_Vec_Tag& tags, const ExportTagKey key, std::string_view val, std::s
     }
 
     return add_tag(tags, key_sv, val, errmsg);
-}
-
-inline std::variant<ddog_prof_Exporter*, ddog_Error>
-get_newexporter_result(const ddog_prof_Exporter_NewResult& res)
-{
-    if (res.tag == DDOG_PROF_EXPORTER_NEW_RESULT_OK) {
-        return res.ok; // NOLINT (cppcoreguidelines-pro-type-union-access)
-    } else {
-        return res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
-    }
 }
 
 // Keep macros from propagating

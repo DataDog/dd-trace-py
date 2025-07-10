@@ -1,11 +1,11 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
-import http.client as httplib
 from json import loads
 import logging
 import os
 import re
+from typing import TYPE_CHECKING
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import ContextManager  # noqa:F401
@@ -19,7 +19,7 @@ from typing import Union  # noqa:F401
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
-from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A001
+from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
 from ddtrace.internal.constants import BLOCKED_RESPONSE_HTML
 from ddtrace.internal.constants import BLOCKED_RESPONSE_JSON
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
@@ -27,21 +27,23 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
-from ddtrace.internal.http import HTTPConnection
-from ddtrace.internal.http import HTTPSConnection
-from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
-
-
-ConnectionType = Union[HTTPSConnection, HTTPConnection, UDSHTTPConnection]
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
 
-Connector = Callable[[], ContextManager[httplib.HTTPConnection]]
+if TYPE_CHECKING:
+    import http.client as httplib
+
+    from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.uds import UDSHTTPConnection
+
+ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
+Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
 
 
 log = logging.getLogger(__name__)
@@ -282,6 +284,10 @@ def get_connection(url: str, timeout: float = DEFAULT_TIMEOUT) -> ConnectionType
     hostname = parsed.hostname or ""
     path = parsed.path or "/"
 
+    from ddtrace.internal.http import HTTPConnection
+    from ddtrace.internal.http import HTTPSConnection
+    from ddtrace.internal.uds import UDSHTTPConnection
+
     if parsed.scheme == "https":
         return HTTPSConnection.with_base_path(hostname, parsed.port, base_path=path, timeout=timeout)
     elif parsed.scheme == "http":
@@ -349,7 +355,7 @@ def _get_blocked_template(accept_header_value):
                 _JSON_BLOCKED_TEMPLATE_CACHE = content
             return content
         except (OSError, IOError) as e:  # noqa: B014
-            log.warning("Could not load custom template at %s: %s", template_path, str(e))  # noqa: G200
+            log.warning("Could not load custom template at %s: %s", template_path, str(e))
 
     # No user-defined template at this point
     if need_html_template:

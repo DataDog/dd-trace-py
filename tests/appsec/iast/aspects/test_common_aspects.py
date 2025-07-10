@@ -8,6 +8,7 @@ import pytest
 
 import tests.appsec.iast.fixtures.aspects.callees
 from tests.appsec.iast.iast_utils import _iast_patched_module
+from tests.appsec.iast.iast_utils import iast_hypothesis_test
 
 
 def generate_callers_from_callees(callees_module, callers_file="", callees_module_str=""):
@@ -46,6 +47,16 @@ patched_callers = _iast_patched_module(PATCHED_CALLERS_FILE.replace("/", ".")[0:
 # This import needs to be done after the file is created (previous line)
 # pylint: disable=[wrong-import-position],[no-name-in-module]
 from tests.appsec.iast.fixtures.aspects import unpatched_callers  # type: ignore[attr-defined] # noqa: E402
+
+
+@iast_hypothesis_test
+def test_aspect_patched_result_hypothesis(text_input):
+    """
+    Test that the result of the patched aspect call is the same as the unpatched one
+    using Hypothesis-generated inputs.
+    """
+    for aspect in [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))]:
+        assert getattr(patched_callers, aspect)(text_input) == getattr(unpatched_callers, aspect)(text_input)
 
 
 @pytest.mark.parametrize("aspect", [x for x in dir(unpatched_callers) if not x.startswith(("_", "@"))])

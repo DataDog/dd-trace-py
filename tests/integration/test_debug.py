@@ -86,7 +86,7 @@ def test_standard_tags():
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
-    assert f.get("log_injection_enabled") is False
+    assert f.get("log_injection_enabled") == "structured"
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("sampler_rules") == []
@@ -131,7 +131,7 @@ class TestGlobalConfig(SubprocessTestCase):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:4321"
         assert f.get("health_metrics_enabled") is True
-        assert f.get("log_injection_enabled") is True
+        assert f.get("log_injection_enabled") == "true"
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
@@ -162,7 +162,7 @@ class TestGlobalConfig(SubprocessTestCase):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
-            ddtrace.config.version = AgentWriter(agent_url="foobar")
+            ddtrace.config.version = AgentWriter(intake_url="foobar")
             ddtrace.trace.tracer.configure()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
 
@@ -283,7 +283,7 @@ def test_custom_writer():
         def flush_queue(self) -> None:
             pass
 
-    tracer._writer = CustomWriter()
+    tracer._span_aggregator.writer = CustomWriter()
     info = debug.collect(tracer)
 
     assert info.get("agent_url") == "CUSTOM"
@@ -396,5 +396,5 @@ def test_partial_flush_log():
 def test_partial_flush_log_subprocess():
     from ddtrace.trace import tracer
 
-    assert tracer._partial_flush_enabled is True
-    assert tracer._partial_flush_min_spans == 2
+    assert tracer._span_aggregator.partial_flush_enabled is True
+    assert tracer._span_aggregator.partial_flush_min_spans == 2

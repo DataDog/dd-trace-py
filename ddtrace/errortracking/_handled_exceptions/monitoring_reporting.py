@@ -4,6 +4,7 @@ from types import CodeType
 from types import ModuleType
 from typing import Callable
 
+from ddtrace import tracer
 from ddtrace.errortracking._handled_exceptions.callbacks import _default_errortracking_exc_callback
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import BaseModuleWatchdog
@@ -83,15 +84,16 @@ def _install_sys_monitoring_reporting():
     sys.monitoring.use_tool_id(config.HANDLED_EXCEPTIONS_MONITORING_ID, "datadog_handled_exceptions")
     sys.monitoring.set_events(config.HANDLED_EXCEPTIONS_MONITORING_ID, sys.monitoring.events.EXCEPTION_HANDLED)
 
-    def _exc_after_unhandled_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
-        if cached_should_report_exception(code.co_filename):
-            _default_errortracking_exc_callback(exc=exception)
+    def _exc_event_handler(code: CodeType, instruction_offset: int, exception: BaseException):
+        span = tracer.current_span()
+        if span and cached_should_report_exception(code.co_filename):
+            _default_errortracking_exc_callback(span=span, exc=exception)
         return True
 
     sys.monitoring.register_callback(
         config.HANDLED_EXCEPTIONS_MONITORING_ID,
         sys.monitoring.events.EXCEPTION_HANDLED,
-        _exc_after_unhandled_event_handler,
+        _exc_event_handler,
     )
 
 
@@ -116,7 +118,6 @@ class MonitorHandledExceptionReportingWatchdog(BaseModuleWatchdog):
         for enabled_module in configured_modules:
             if module_name.startswith(enabled_module):
                 if hasattr(module, "__file__"):
-                    print(hasattr(module, "__file__"))
                     INSTRUMENTED_FILE_PATHS.append(module.__file__)
                 break
 

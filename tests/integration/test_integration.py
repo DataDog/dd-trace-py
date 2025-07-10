@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
-from ddtrace.internal.runtime import container
 from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
@@ -135,8 +134,8 @@ def test_payload_too_large():
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    assert t._writer._max_payload_size == FOUR_KB
-    assert t._writer._buffer_size == FOUR_KB
+    assert t._span_aggregator.writer._max_payload_size == FOUR_KB
+    assert t._span_aggregator.writer._buffer_size == FOUR_KB
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         for i in range(100000 if encoding == "v0.5" else 1000):
             with t.trace("operation") as s:
@@ -158,33 +157,7 @@ def test_payload_too_large():
         log.error.assert_not_called()
 
 
-@skip_if_testagent
-@pytest.mark.subprocess(
-    env=dict(
-        DD_TRACE_API_VERSION="v0.5",
-        DD_TRACE_WRITER_BUFFER_SIZE_BYTES=str(FOUR_KB),
-    )
-)
-def test_resource_name_too_large():
-    import pytest
-
-    from ddtrace.trace import tracer as t
-    from tests.integration.test_integration import FOUR_KB
-
-    assert t._writer._buffer_size == FOUR_KB
-    s = t.trace("operation", service="foo")
-    # Maximum string length is set to 10% of the maximum buffer size
-    s.resource = "B" * int(0.1 * FOUR_KB + 1)
-    try:
-        s.finish()
-    except ValueError:
-        pytest.fail()
-    encoded_spans, size = t._writer._encoder.encode()
-    assert size == 1
-    assert b"<dropped string of length 410 because it's too long (max allowed length 409)>" in encoded_spans
-
-
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_large_payload_is_sent_without_warning_logs():
     import mock
 
@@ -200,7 +173,7 @@ def test_large_payload_is_sent_without_warning_logs():
         log.error.assert_not_called()
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_child_spans_do_not_cause_warning_logs():
     import mock
 
@@ -226,11 +199,11 @@ def test_metrics():
     from tests.utils import AnyInt
     from tests.utils import override_global_config
 
-    assert t._partial_flush_min_spans == 300
+    assert t._span_aggregator.partial_flush_min_spans == 300
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
-        t._writer.dogstatsd = statsd_mock
+        t._span_aggregator.writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(2):
                 spans = []
@@ -278,7 +251,7 @@ def test_metrics_partial_flush_disabled():
 
     with override_global_config(dict(_health_metrics_enabled=True)):
         statsd_mock = mock.Mock()
-        t._writer.dogstatsd = statsd_mock
+        t._span_aggregator.writer.dogstatsd = statsd_mock
         with mock.patch("ddtrace.internal.writer.writer.log") as log:
             for _ in range(2):
                 spans = []
@@ -308,7 +281,7 @@ def test_metrics_partial_flush_disabled():
     )
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(check_logs=False)
 def test_single_trace_too_large():
     import mock
 
@@ -317,17 +290,15 @@ def test_single_trace_too_large():
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
-    long_string = "a" * 250
-    assert t._partial_flush_enabled is True
+    assert t._span_aggregator.partial_flush_enabled is True
     with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
     ) as log:
         with t.trace("huge"):
-            for i in range(30000):
-                with t.trace("operation") as s:
-                    # these strings must be unique to avoid compression
-                    s.set_tag(long_string + str(i), long_string + str(i))
-        assert (
+            for i in range(1 << 20 + 1):
+                t.trace("operation").finish()
+        t._span_aggregator.writer.flush_queue()
+        calls = [
             mock.call(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 AnyInt(),
@@ -336,10 +307,9 @@ def test_single_trace_too_large():
                 AnyInt(),
                 AnyStr(),
             )
-            in log.warning.mock_calls
-        ), log.mock_calls[:20]
+        ]
+        log.warning.assert_has_calls(calls)
         log.error.assert_not_called()
-        t.shutdown()
 
 
 @skip_if_testagent
@@ -352,6 +322,7 @@ def test_single_trace_too_large_partial_flush_disabled():
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
 
+    assert t._span_aggregator.partial_flush_enabled is False
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         with t.trace("huge"):
             for _ in range(200000):
@@ -365,7 +336,7 @@ def test_single_trace_too_large_partial_flush_disabled():
 
 
 @parametrize_with_all_encodings(
-    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}
+    env={"DD_TRACE_HEALTH_METRICS_ENABLED": "true", "DD_TRACE_AGENT_URL": "http://localhost:8125"}, check_logs=False
 )
 def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     import os
@@ -391,49 +362,42 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
-def test_validate_headers_in_payload_to_intake():
-    import mock
-
-    from ddtrace import __version__
-    from ddtrace.internal.runtime import container
-    from ddtrace.trace import tracer as t
-
-    t._writer._put = mock.Mock(wraps=t._writer._put)
-    t.trace("op").finish()
-    t.shutdown()
-    assert t._writer._put.call_count == 1
-    headers = t._writer._put.call_args[0][1]
-    assert headers.get("Datadog-Meta-Tracer-Version") == __version__
-    assert headers.get("Datadog-Meta-Lang") == "python"
-    assert headers.get("Content-Type") == "application/msgpack"
-    assert headers.get("X-Datadog-Trace-Count") == "1"
-    if container.get_container_info():
-        assert "Datadog-Container-Id" in headers
-        assert "Datadog-Entity-ID" in headers
-        assert headers["Datadog-Entity-ID"].startswith("ci")
-
-
-@skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(check_logs=False)
 def test_inode_entity_id_header_present():
     import mock
 
+    from ddtrace import __version__
     from ddtrace.trace import tracer as t
 
-    t._writer._put = mock.Mock(wraps=t._writer._put)
-    with mock.patch("container.get_container_info") as gcimock:
-        gcimock.return_value = container.CGroupInfo(node_inode=12345)
+    with mock.patch("ddtrace.internal.runtime.container.get_container_info") as gcimock, mock.patch(
+        "http.client.HTTPConnection.request"
+    ) as request_mock:
+        from ddtrace.internal.runtime.container import CGroupInfo
+
+        gcimock.return_value = CGroupInfo(node_inode=12345)
+
         t.trace("op").finish()
+        t._span_aggregator.writer.flush_queue()
+        headers = request_mock.call_args[1]["headers"]
+        assert "Datadog-Entity-ID" in headers
+        assert headers["Datadog-Entity-ID"].startswith("in")
+
+        gcimock.return_value = CGroupInfo(container_id=12345)
+        t.trace("op").finish()
+        t._span_aggregator.writer.flush_queue()
+        headers = request_mock.call_args[1]["headers"]
+        assert headers.get("Datadog-Meta-Tracer-Version") == __version__
+        assert headers.get("Datadog-Meta-Lang") == "python"
+        assert headers.get("Content-Type") == "application/msgpack"
+        assert headers.get("X-Datadog-Trace-Count") == "1"
+        assert "Datadog-Container-Id" in headers
+        assert "Datadog-Entity-ID" in headers
+
         t.shutdown()
-    assert t._writer._put.call_count == 1
-    headers = t._writer._put.call_args[0][1]
-    assert "Datadog-Entity-ID" in headers
-    assert headers["Datadog-Entity-ID"].startswith("in")
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings(check_logs=False)
 def test_external_env_header_present():
     import mock
 
@@ -441,58 +405,57 @@ def test_external_env_header_present():
 
     mocked_external_env = "it-false,cn-nginx-webserver,pu-75a2b6d5-3949-4afb-ad0d-92ff0674e759"
 
-    t._writer._put = mock.Mock(wraps=t._writer._put)
-    with mock.patch("os.environ.get") as oegmock:
+    t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
+    with mock.patch("os.environ.get") as oegmock, mock.patch("http.client.HTTPConnection.request") as request_mock:
         oegmock.return_value = mocked_external_env
         t.trace("op").finish()
         t.shutdown()
-    assert t._writer._put.call_count == 1
-    headers = t._writer._put.call_args[0][1]
+    headers = request_mock.call_args[1]["headers"]
     assert "Datadog-External-Env" in headers
     assert headers["Datadog-External-Env"] == mocked_external_env
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     import mock
 
     from ddtrace.trace import tracer as t
 
-    t._writer._put = mock.Mock(wraps=t._writer._put)
+    t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
     for _ in range(100):
         t.trace("op").finish()
     t.shutdown()
-    assert t._writer._put.call_count == 1
-    headers = t._writer._put.call_args[0][1]
+    assert t._span_aggregator.writer._put.call_count == 1
+    headers = t._span_aggregator.writer._put.call_args[0][1]
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
     import mock
 
     from ddtrace.trace import tracer as t
 
-    t._writer._put = mock.Mock(wraps=t._writer._put)
+    t._span_aggregator.writer._put = mock.Mock(wraps=t._span_aggregator.writer._put)
     for _ in range(10):
         with t.trace("op"):
             for _ in range(5):
                 t.trace("child").finish()
     t.shutdown()
-    assert t._writer._put.call_count == 1
-    headers = t._writer._put.call_args[0][1]
+    assert t._span_aggregator.writer._put.call_count == 1
+    headers = t._span_aggregator.writer._put.call_args[0][1]
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_trace_with_invalid_client_endpoint_generates_error_log():
     import mock
 
     from ddtrace.trace import tracer as t
 
-    for client in t._writer._clients:
+    for client in t._span_aggregator.writer._clients:
         client.ENDPOINT = "/bad"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         s = t.trace("operation", service="my-svc")
@@ -503,7 +466,7 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
             "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
-            t._writer.agent_url,
+            t._span_aggregator.writer.intake_url,
         )
     ]
     log.error.assert_has_calls(calls)
@@ -603,9 +566,9 @@ def test_api_version_downgrade_generates_no_warning_logs():
     from ddtrace.internal.utils.http import Response
     from ddtrace.trace import tracer as t
 
-    t._writer.api_version = "v0.5"
-    t._writer._downgrade(Response(status=404), t._writer._clients[0])
-    assert t._writer._endpoint == "v0.4/traces"
+    t._span_aggregator.writer.api_version = "v0.5"
+    t._span_aggregator.writer._downgrade(Response(status=404), t._span_aggregator.writer._clients[0])
+    assert t._span_aggregator.writer._endpoint == "v0.4/traces"
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("operation", service="my-svc").finish()
         t.shutdown()
@@ -614,7 +577,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings
+@parametrize_with_all_encodings()
 def test_writer_flush_queue_generates_debug_log():
     import logging
     import os
@@ -638,7 +601,7 @@ def test_writer_flush_queue_generates_debug_log():
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, encoding),
+                "{}/{}/traces".format(writer.intake_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
@@ -680,18 +643,18 @@ s2.finish()
 def test_writer_configured_correctly_from_env():
     import ddtrace
 
-    assert ddtrace.tracer._writer._encoder.max_size == 1000
-    assert ddtrace.tracer._writer._encoder.max_item_size == 1000
-    assert ddtrace.tracer._writer._interval == 5.0
+    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
+    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
+    assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
 
 
 @pytest.mark.subprocess
 def test_writer_configured_correctly_from_env_defaults():
     import ddtrace
 
-    assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
-    assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
-    assert ddtrace.tracer._writer._interval == 1.0
+    assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
+    assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
+    assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 
 
 def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_python_code_in_subprocess):
@@ -704,9 +667,9 @@ def test_writer_configured_correctly_from_env_under_ddtrace_run(ddtrace_run_pyth
         """
 import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 1000
-assert ddtrace.tracer._writer._encoder.max_item_size == 1000
-assert ddtrace.tracer._writer._interval == 5.0
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 1000
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 1000
+assert ddtrace.tracer._span_aggregator.writer._interval == 5.0
 """,
         env=env,
     )
@@ -718,9 +681,9 @@ def test_writer_configured_correctly_from_env_defaults_under_ddtrace_run(ddtrace
         """
 import ddtrace
 
-assert ddtrace.tracer._writer._encoder.max_size == 20 << 20
-assert ddtrace.tracer._writer._encoder.max_item_size == 20 << 20
-assert ddtrace.tracer._writer._interval == 1.0
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_size == 20 << 20
+assert ddtrace.tracer._span_aggregator.writer._encoder.max_item_size == 20 << 20
+assert ddtrace.tracer._span_aggregator.writer._interval == 1.0
 """,
     )
     assert status == 0, (out, err)

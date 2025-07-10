@@ -2,7 +2,6 @@ import datetime
 import logging
 import os
 import platform
-import re
 import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
@@ -12,7 +11,7 @@ from typing import Union  # noqa:F401
 import ddtrace
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
@@ -54,12 +53,12 @@ def collect(tracer):
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
 
-    if isinstance(tracer._writer, LogWriter):
+    if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._writer, AgentWriter):
-        writer = tracer._writer
-        agent_url = writer.agent_url
+    elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+        writer = tracer._span_aggregator.writer
+        agent_url = writer.intake_url
         try:
             writer.write([])
             writer.flush_queue(raise_exc=True)
@@ -75,7 +74,7 @@ def collect(tracer):
 
     is_venv = in_venv()
 
-    packages_available = {p.name: p.version for p in get_distributions()}
+    packages_available = {name: version for (name, version) in get_distributions().items()}
     integration_configs = {}  # type: Dict[str, Union[Dict[str, Any], str]]
     for module, enabled in ddtrace._monkey.PATCH_MODULES.items():
         # TODO: this check doesn't work in all cases... we need a mapping
@@ -141,7 +140,6 @@ def collect(tracer):
         service=ddtrace.config.service or "",
         debug=log.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
-        analytics_enabled=ddtrace.config._analytics_enabled,
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
         runtime_metrics_enabled=RuntimeWorker.enabled,
@@ -149,8 +147,8 @@ def collect(tracer):
         global_tags=tags_to_str(ddtrace.config.tags),
         tracer_tags=tags_to_str(tracer._tags),
         integrations=integration_configs,
-        partial_flush_enabled=tracer._partial_flush_enabled,
-        partial_flush_min_spans=tracer._partial_flush_min_spans,
+        partial_flush_enabled=tracer._span_aggregator.partial_flush_enabled,
+        partial_flush_min_spans=tracer._span_aggregator.partial_flush_min_spans,
         asm_enabled=asm_config._asm_enabled,
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,
@@ -169,6 +167,16 @@ def pretty_collect(tracer, color=True):
         ENDC = "\033[0m"
         BOLD = "\033[1m"
 
+    if not color:
+        bcolors.HEADER = ""
+        bcolors.OKBLUE = ""
+        bcolors.OKCYAN = ""
+        bcolors.OKGREEN = ""
+        bcolors.WARNING = ""
+        bcolors.FAIL = ""
+        bcolors.ENDC = ""
+        bcolors.BOLD = ""
+
     info = collect(tracer)
 
     info_pretty = """{blue}{bold}Tracer Configurations:{end}
@@ -179,7 +187,6 @@ def pretty_collect(tracer, color=True):
     Debug logging: {debug}
     Writing traces to: {agent_url}
     Agent error: {agent_error}
-    App Analytics enabled(deprecated): {analytics_enabled}
     Log injection enabled: {log_injection_enabled}
     Health metrics enabled: {health_metrics_enabled}
     Priority sampling enabled: {priority_sampling_enabled}
@@ -199,7 +206,6 @@ def pretty_collect(tracer, color=True):
         debug=info.get("debug"),
         agent_url=info.get("agent_url") or "Not writing at the moment, is your tracer running?",
         agent_error=info.get("agent_error") or "None",
-        analytics_enabled=info.get("analytics_enabled"),
         log_injection_enabled=info.get("log_injection_enabled"),
         health_metrics_enabled=info.get("health_metrics_enabled"),
         priority_sampling_enabled=info.get("priority_sampling_enabled"),
@@ -253,12 +259,4 @@ def pretty_collect(tracer, color=True):
 
     info_pretty += "\n\n" + summary
 
-    if color is False:
-        return escape_ansi(info_pretty)
-
     return info_pretty
-
-
-def escape_ansi(line):
-    ansi_escape = re.compile(r"(?:\x1B[@-_]|[\x80-\x9F])[0-9:;<=>?]*[ -/]*[@-~]")
-    return ansi_escape.sub("", line)

@@ -31,6 +31,13 @@ class Sampler
     // One-time setup of echion
     void one_time_setup();
 
+    // Internal perf counters
+    uint64_t process_count = 0;
+    uint64_t sampler_thread_count = 0;
+
+    bool do_adaptive_sampling = true;
+    void adapt_sampling_interval();
+
   public:
     // Singleton instance
     static Sampler& get();
@@ -44,12 +51,17 @@ class Sampler
                       PyObject* _asyncio_eager_tasks);
     void link_tasks(PyObject* parent, PyObject* child);
     void sampling_thread(const uint64_t seq_num);
+    void track_greenlet(uintptr_t greenlet_id, StringTable::Key name, PyObject* frame);
+    void untrack_greenlet(uintptr_t greenlet_id);
+    void link_greenlets(uintptr_t parent, uintptr_t child);
+    void update_greenlet_frame(uintptr_t greenlet_id, PyObject* frame);
 
     // The Python side dynamically adjusts the sampling rate based on overhead, so we need to be able to update our
     // own intervals accordingly.  Rather than a preemptive measure, we assume the rate is ~fairly stable and just
     // update the next rate with the latest interval. This is not perfect because the adjustment is based on
     // self-time, and we're not currently accounting for the echion self-time.
     void set_interval(double new_interval);
+    void set_adaptive_sampling(bool value) { do_adaptive_sampling = value; }
 };
 
 } // namespace Datadog

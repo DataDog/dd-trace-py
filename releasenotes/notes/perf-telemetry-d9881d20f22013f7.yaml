@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    telemetry: improves periodic telemetry writer performance by  removing
+    unnecessary calls to ``importlib.metadata`` for reporting imported dependencies.
+

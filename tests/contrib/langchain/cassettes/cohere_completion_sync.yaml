@@ -1,0 +1,612 @@
+interactions:
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:13 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:17 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:21 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '11'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:25 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:33 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '8'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:43 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '14'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:17:53 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:18:03 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:18:13 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '10'
+    status:
+      code: 401
+      message: Unauthorized
+- request:
+    body: '{"prompt": "What is the secret Krabby Patty recipe?", "stream": false,
+      "model": "command", "max_tokens": 256, "truncate": null, "temperature": 0.75,
+      "stop_sequences": null, "k": 0, "p": 1, "frequency_penalty": 0.0, "presence_penalty":
+      0.0}'
+    headers:
+      accept:
+      - '*/*'
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '239'
+      content-type:
+      - application/json
+      host:
+      - api.cohere.ai
+      user-agent:
+      - python-httpx/0.27.2
+      x-client-name:
+      - langchain
+      x-fern-language:
+      - Python
+      x-fern-sdk-name:
+      - cohere
+      x-fern-sdk-version:
+      - 5.4.0
+    method: POST
+    uri: https://api.cohere.ai/v1/generate
+  response:
+    body:
+      string: '{"message":"invalid api token"}'
+    headers:
+      Alt-Svc:
+      - h3=":443"; ma=2592000,h3-29=":443"; ma=2592000
+      Content-Length:
+      - '31'
+      Via:
+      - 1.1 google
+      cache-control:
+      - no-cache, no-store, no-transform, must-revalidate, private, max-age=0
+      content-type:
+      - application/json
+      date:
+      - Wed, 09 Apr 2025 20:18:24 GMT
+      expires:
+      - Thu, 01 Jan 1970 00:00:00 UTC
+      pragma:
+      - no-cache
+      server:
+      - envoy
+      vary:
+      - Origin
+      x-accel-expires:
+      - '0'
+      x-envoy-upstream-service-time:
+      - '9'
+    status:
+      code: 401
+      message: Unauthorized
+version: 1

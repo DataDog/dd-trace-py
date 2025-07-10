@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: This introduces a new user event sdk available through ddtrace.appsec.track_user_sdk for manual instrumentation.
+    More information on our documentation page.

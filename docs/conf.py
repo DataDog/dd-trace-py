@@ -28,14 +28,8 @@ from typing import Optional  # noqa
 from docutils import nodes
 from docutils import statemachine
 from docutils.parsers import rst
-import dulwich.repo
 from enchant.tokenize import Filter
-from packaging.version import Version
-from reno import config
-from reno import formatter
-from reno import loader
 from sphinx.util import logging
-from sphinx.util.nodes import nested_parse_with_titles
 import yaml
 
 
@@ -71,7 +65,6 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.extlinks",
     "sphinx.ext.intersphinx",
-    "reno.sphinxext",
     "sphinxcontrib.spelling",
     "sphinx_copybutton",  # https://sphinx-copybutton.readthedocs.io/
 ]
@@ -210,7 +203,7 @@ html_theme_options = {
 # The name for this set of Sphinx documents.
 # "<project> v<release> documentation" by default.
 #
-# html_title = u'ddtrace v0.2'
+html_title = "ddtrace python documentation"
 
 # A shorter title for the navigation bar.  Default is the same as html_title.
 #
@@ -333,7 +326,7 @@ latex_elements = {
 # (source start file, target name, title,
 #  author, documentclass [howto, manual, or own class]).
 latex_documents = [
-    (master_doc, "ddtrace.tex", "ddtrace Documentation", "Datadog, Inc", "manual"),
+    (master_doc, "ddtrace.tex", html_title, "Datadog, Inc", "manual"),
 ]
 
 # The name of an image file (relative to this directory) to place at the top of
@@ -367,7 +360,7 @@ latex_documents = [
 
 # One entry per manual page. List of tuples
 # (source start file, name, description, authors, manual section).
-man_pages = [(master_doc, "ddtrace", "ddtrace Documentation", [author], 1)]
+man_pages = [(master_doc, "ddtrace", html_title, [author], 1)]
 
 # If true, show URL addresses after external links.
 #
@@ -383,7 +376,7 @@ texinfo_documents = [
     (
         master_doc,
         "ddtrace",
-        "ddtrace Documentation",
+        html_title,
         author,
         "ddtrace",
         "One line description of project.",
@@ -409,293 +402,6 @@ texinfo_documents = [
 
 
 LOG = logging.getLogger(__name__)
-
-
-class DDTraceReleaseNotesDirective(rst.Directive):
-    r"""
-    Directive class to handle ``.. ddtrace-release-notes::`` directive.
-
-    This directive is used to generate up to date release notes from
-    Reno notes in this repo.
-
-    This directive will dynamically search for all release branches that
-    match ``^[\d]+\.[\d+]``, and generate the notes for each of those
-    releases.
-
-    When generating notes for a given branch we will also search for the
-    best "earliest version" to use for that branch. For example, on a new
-    release branch with only prereleases we will resolve to the rc1 version
-    for that release. If there are any non-prereleases for that branch we will
-    resolve to the first non-rc release.
-
-
-    This directive's content can be a yaml config mapping per-version specific
-    `reno options <https://docs.openstack.org/reno/latest/user/usage.html#configuring-reno>`.
-
-    For example::
-
-        .. ddtrace-release-notes::
-            "1.0.0":
-              ignore_notes:
-                - "keep-alive-b5ec5febb435daad"
-    """
-
-    has_content = True
-
-    def __init__(self, *args, **kwargs):
-        super(DDTraceReleaseNotesDirective, self).__init__(*args, **kwargs)
-
-        self._repo = dulwich.repo.Repo.discover(".")
-        self._release_branch_pattern = re.compile(r"^[\d]+\.[\d]+")
-        self._dev_branch_pattern = re.compile(r"^[\d]+\.x")
-
-    @property
-    def _release_branches(self):
-        # type: () -> list[tuple[Version, str]]
-        r"""
-        Helper to get a list of release branches for this repo.
-
-        A release branch exists under refs/remotes/origin/ and matches the pattern::
-
-            r"^[\d]+\.[\d]+"
-
-        The results are a list of parsed Versions from the branch name (to make sorting/
-        comparing easier), along with the original ref name.
-        """
-        versions = []  # type: list[tuple[Version, str]]
-        for ref in self._repo.get_refs():
-            # We get the ref as bytes from dulwich, convert to str
-            ref = ref.decode()
-
-            # Ignore any refs that aren't for origin/
-            if not ref.startswith("refs/remotes/origin/"):
-                continue
-
-            # Get just the branch name omitting origin/
-            # and make sure it matches our pattern
-            _, _, version_str = ref.partition("refs/remotes/origin/")
-            if not self._release_branch_pattern.match(version_str):
-                continue
-
-            try:
-                # All release branches should be parseable as a Version, even `0.10-dev` for example
-                versions.append((Version(version_str), ref))
-            except Exception:
-                continue
-
-        # Sort them so the most recent version comes first
-        # (1.12, 1.10, 1.0, 0.59, 0.58, ... 0.45, ... 0.5, 0.4)
-        return sorted(versions, key=lambda e: e[0], reverse=True)
-
-    def _get_earliest_version(self, version):
-        # type: (Version) -> Optional[str]
-        """
-        Helper used to get the earliest release tag for a given version.
-
-        If there are only prerelease versions, return the first prerelease version.
-
-        If there exist any non-prerelease versions then return the first non-prerelease version.
-
-        If no release tags exist then return None
-        """
-        # All release tags for this version should start like this
-        version_prefix = "refs/tags/v{0}.{1}.".format(version.major, version.minor)
-
-        tag_versions = []  # type: list[tuple[Version, str]]
-        for ref in self._repo.get_refs():
-            ref = ref.decode()
-
-            # Make sure this matches the expected v{major}.{minor}. format
-            if not ref.startswith(version_prefix):
-                continue
-
-            # Parse as a Version object to make introspection and comparisons easier
-            try:
-                tag = ref[10:]
-                tag_versions.append((Version(tag), tag))
-            except Exception:
-                pass
-
-        # No tags were found, exit early
-        if not tag_versions:
-            return None
-
-        # Sort the tags newest version. tag_versions[-1] should be the earliest version
-        tag_versions = sorted(tag_versions, key=lambda e: e[0], reverse=True)
-
-        # Determine if there are only prereleases for this version
-        is_prerelease = all([version.is_prerelease or version.is_devrelease for version, _ in tag_versions])
-
-        # There are official versions here, filter out the pre/dev releases
-        if not is_prerelease:
-            tag_versions = [
-                (version, tag) for version, tag in tag_versions if not (version.is_prerelease or version.is_devrelease)
-            ]
-
-        # Return the oldest version
-        if tag_versions:
-            return tag_versions[-1][1]
-        return None
-
-    def _get_commit_refs(self, commit_sha):
-        # type: (bytes) -> list[bytes]
-        """Return a list of refs for the given commit sha"""
-        return [ref for ref in self._repo.refs.keys() if self._repo.refs[ref] == commit_sha]
-
-    def _get_report_max_version(self, max_commits=50):
-        # type: (int) -> Optional[Version]
-        """Determine the max cutoff version to report for HEAD
-
-        :param max_commits: Max number of commits to traverse looking for the latest origin/tag ref
-        """
-        for entry, _ in zip(self._repo.get_walker(), range(max_commits)):
-            # If we have reached the max number of commits we want to look at without finding anything, return
-            # DEV: We should be able to find a proper ref within the first few, but if we do not then
-            #      it is better to return `None` and generate the notes for all versions, than to keep going backwards
-            #      looking for any ref that matches
-
-            refs = self._get_commit_refs(entry.commit.id)
-            if not refs:
-                continue
-
-            origins = [ref[20:].decode() for ref in refs if ref.startswith(b"refs/remotes/origin/")]  # type: list[str]
-            tags = [Version(ref[10:].decode()) for ref in refs if ref.startswith(b"refs/tags/v")]  # type: list[Version]
-
-            versions = set()  # set[Version]
-
-            # For release branches we want to set the max to the next minor, e.g. 1.2 -> 1.3.0
-            # For dev branches we want to set the max to the next major, e.g. 2.x -> 3.0.0
-            for origin in origins:
-                if self._release_branch_pattern.match(origin):
-                    v = Version(origin)
-                    versions.add(Version("{}.{}".format(v.major, v.minor + 1)))
-                elif self._dev_branch_pattern.match(origin):
-                    major, _, _ = origin.partition(".")
-                    versions.add(Version("{}.0.0".format(int(major) + 1)))
-
-            # For all tags we want to set the max to the next minor, e.g. v1.2.0rc3 -> 1.3.0, v1.2.1 -> 1.3.0
-            for tag in tags:
-                versions.add(Version("{}.{}.0".format(tag.major, tag.minor + 1)))
-
-            if versions:
-                return max(versions)
-        return None
-
-    def run(self):
-        # type: () -> nodes.Node
-        """
-        Run to generate the output from .. ddtrace-release-notes:: directive
-
-
-        1. Determine the max version cutoff we need to report for
-
-           We determine this by traversing the git log until we
-           find the first dev or release branch ref.
-
-           If we are generating for 1.x branch we will use 2.0 as the cutoff.
-
-           If we are generating for 0.60 branch we will use 0.61 as the cutoff.
-
-           We do this to ensure if we are generating notes for older versions
-           we do no include all up to date release notes. Think releasing 0.57.2
-           when there is 0.58.0, 0.59.0, 1.0.0, etc we only want notes for < 0.58.
-
-        2. Iterate through all release branches
-
-           A release branch is one that matches the ``^[0-9]+.[0-9]+``` pattern
-
-           Skip any that do not meet the max version cutoff.
-
-        3. Determine the earliest version to report for each release branch
-
-           If the release has only RC releases then use ``.0rc1`` as the earliest
-           version. If there are non-RC releases then use ``.0`` version as the
-           earliest.
-
-           We do this because we want reno to only report notes that are for that
-           given release branch but it will collapse RC releases if there is a
-           non-RC tag on that branch. So there isn't a consistent "earliest version"
-           we can use for in-progress/dev branches as well as released branches.
-
-
-        4. Generate a reno config for reporting and generate the notes for each branch
-        """
-        # This is where we will aggregate the generated notes
-
-        # Parse version specific reno options from the directive
-        version_options = {}  # type: dict[Version, dict[str, Any]]
-        if self.has_content:
-            options = yaml.load("\n".join(self.content), Loader=yaml.CLoader)
-            if options:
-                version_options = {Version(version): data for version, data in options.items()}
-
-        result = statemachine.ViewList()
-
-        # Determine the max version we want to report for
-        max_version = self._get_report_max_version()
-        LOG.info("capping max report version to %r", max_version)
-
-        # For each release branch, starting with the newest
-        for version, ref in self._release_branches:
-            # If this version is equal to or greater than the max version we want to report for
-            if max_version is not None and version >= max_version:
-                LOG.info("skipping %s >= %s", version, max_version)
-                continue
-
-            # Older versions did not have reno release notes
-            # DEV: Reno will fail if we try to run on a branch with no notes
-            if (version.major, version.minor) < (0, 44):
-                LOG.info("skipping older version %s", version)
-                continue
-
-            # Parse the branch name from the ref, we want origin/{major}.{minor}[-dev]
-            _, _, branch = ref.partition("refs/remotes/")
-
-            # Determine the earliest release tag for this version
-            earliest_version = self._get_earliest_version(version)
-            if not earliest_version:
-                LOG.info("no release tags found for %s", version)
-                continue
-
-            # Setup reno config
-            conf = config.Config(self._repo.path, "releasenotes")
-            conf.override(
-                branch=branch,
-                collapse_pre_releases=True,
-                stop_at_branch_base=True,
-                earliest_version=earliest_version,
-            )
-            if version in version_options:
-                conf.override(**version_options[version])
-
-            LOG.info(
-                "scanning %s for %s release notes, stopping at %s",
-                os.path.join(self._repo.path, "releasenotes/notes"),
-                branch,
-                earliest_version,
-            )
-
-            # Generate the formatted RST
-            with loader.Loader(conf) as ldr:
-                versions = ldr.versions
-                LOG.info("got versions %s", versions)
-                text = formatter.format_report(
-                    ldr,
-                    conf,
-                    versions,
-                    branch=branch,
-                )
-
-            source_name = "<%s %s>" % (__name__, branch or "current branch")
-            for line_num, line in enumerate(text.splitlines(), 1):
-                LOG.debug("%4d: %s", line_num, line)
-                result.append(line, source_name, line_num)
-
-        # Generate the RST nodes to return for rendering
-        node = nodes.section()
-        node.document = self.state.document
-        nested_parse_with_titles(self.state, result, node)
-        return node.children
 
 
 class DDTraceConfigurationOptionsDirective(rst.Directive):
@@ -808,7 +514,6 @@ class DDEnvierConfigurationDirective(rst.Directive):
 
 
 def setup(app):
-    app.add_directive("ddtrace-release-notes", DDTraceReleaseNotesDirective)
     app.add_directive("ddtrace-configuration-options", DDTraceConfigurationOptionsDirective)
     app.add_directive("ddtrace-envier-configuration", DDEnvierConfigurationDirective)
     metadata_dict = {"version": "1.0.0", "parallel_read_safe": True}

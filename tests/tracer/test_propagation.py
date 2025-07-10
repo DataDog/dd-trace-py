@@ -376,7 +376,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -421,7 +421,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept(tracer):  # noqa: F811
@@ -455,7 +455,7 @@ def test_asm_standalone_missing_propagation_tags_appsec_event_present_trace_kept
         # Ensure span is user keep
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
     finally:
-        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 @pytest.mark.parametrize("sca_enabled", ["true", "false"])
@@ -514,7 +514,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
@@ -562,7 +562,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
         assert span._metrics["_sampling_priority_v1"] == USER_KEEP
 
     finally:
-        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+        tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -631,7 +631,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 @pytest.mark.parametrize("upstream_priority", ["1", "2"])
@@ -700,7 +700,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": sca_enabled}):
                 ddtrace.config._reset()
-                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False)
+                tracer.configure(appsec_enabled=False, apm_tracing_disabled=False, iast_enabled=False)
 
 
 def test_extract_with_baggage_http_propagation(tracer):  # noqa: F811
@@ -926,7 +926,7 @@ def test_extract_unicode(tracer):  # noqa: F811
         ("_dd.p.dm=-", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=--1", {"_dd.propagation_error": "decoding_error"}),
         ("_dd.p.dm=-1.0", {"_dd.propagation_error": "decoding_error"}),
-        ("_dd.p.dm=-10", {"_dd.propagation_error": "decoding_error"}),
+        ("_dd.p.dm=-13", {"_dd.propagation_error": "decoding_error"}),
     ],
 )
 def test_extract_dm(x_datadog_tags, expected_trace_tags):
@@ -1617,7 +1617,7 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 13088165645273925489,
             "span_id": 5678,
-            "sampling_priority": 2,
+            "sampling_priority": None,
             "dd_origin": "synthetics",
             "meta": {"_dd.p.dm": "-3"},
         },
@@ -2256,7 +2256,7 @@ EXTRACT_FIXTURES = [
         {
             "trace_id": 9291375655657946024,
             "span_id": 10,
-            "sampling_priority": 2,
+            "sampling_priority": None,
             "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
         },
     ),
@@ -3538,3 +3538,67 @@ def test_opentracer_propagator_baggage_extract():
     }
     context = HTTPPropagator.extract(headers)
     assert context._baggage == {"key1": "value1"}
+
+
+def test_baggage_span_tags_default():
+    headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    # Only "user.id" is in allowed_keys; expect its value to be tagged under the prefixed key.
+    assert context._meta.get("baggage.user.id") == "123"
+    # Other keys are not tagged.
+    assert "baggage.correlation_id" not in context._meta
+    assert "baggage.region" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS=""),
+)
+def test_baggage_span_tags_empty():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert "baggage.user.id" not in context._meta
+    assert "baggage.correlation_id" not in context._meta
+    assert "baggage.region" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS="user.id"),
+)
+def test_baggage_span_tags_specific_keys():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert context._meta.get("baggage.user.id") == "123"
+    assert "baggage.account.id" not in context._meta
+    assert "baggage.session.id" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS="user.id,ACCOUNT.ID"),
+)
+def test_baggage_span_tags_case_sensitive():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "user.id=123,correlation_id=abc,region=us-east"}
+    context = HTTPPropagator.extract(headers)
+    assert context._meta.get("baggage.user.id") == "123"
+    assert context._meta.get("baggage.ACCOUNT.ID") is None
+    assert "baggage.account.id" not in context._meta
+
+
+@pytest.mark.subprocess(
+    env=dict(DD_TRACE_BAGGAGE_TAG_KEYS="*"),
+)
+def test_baggage_span_tags_wildcard():
+    from ddtrace.propagation.http import HTTPPropagator
+
+    headers = {"baggage": "user.id=foo,correlation_id=car,color=blue,serverNode=DF 28"}
+    context = HTTPPropagator.extract(headers)
+    assert context._meta.get("baggage.user.id") == "foo"
+    assert context._meta.get("baggage.correlation_id") == "car"
+    assert context._meta.get("baggage.color") == "blue"
+    assert context._meta.get("baggage.serverNode") == "DF 28"
+    assert "baggage.session.id" not in context._meta

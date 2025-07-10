@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    fix(tracer):Fixed a bug in the sampling rule matcher where the pattern ``?*`` was not being matched correctly 
+    for ``DD_TRACE_SAMPLING_RULES`` tags, due to it matching on spans with no tag matching the specified key.

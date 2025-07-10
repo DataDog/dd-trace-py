@@ -14,9 +14,12 @@ from typing import Union  # noqa:F401
 
 from ddtrace.internal.serverless import in_azure_function
 from ddtrace.internal.serverless import in_gcp_function
+from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
+from .._logger import LogInjectionState
+from .._logger import get_log_injection_state
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
 from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
@@ -98,6 +101,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dramatiq",
         "flask",
         "google_generativeai",
+        "google_genai",
         "urllib3",
         "subprocess",
         "kafka",
@@ -117,6 +121,7 @@ INTEGRATION_CONFIGS = frozenset(
         "snowflake",
         "pymemcache",
         "azure_functions",
+        "azure_servicebus",
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",
@@ -170,6 +175,7 @@ INTEGRATION_CONFIGS = frozenset(
         "genai",
         "openai",
         "crewai",
+        "pydantic_ai",
         "logging",
         "cassandra",
         "boto",
@@ -360,9 +366,9 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=False,
+            default=LogInjectionState.STRUCTURED,
             envs=["DD_LOGS_INJECTION"],
-            modifier=asbool,
+            modifier=get_log_injection_state,
         ),
         "_trace_http_header_tags": _ConfigItem(
             default=lambda: {},
@@ -480,8 +486,6 @@ class Config(object):
 
         self._span_traceback_max_size = _get_config("DD_TRACE_SPAN_TRACEBACK_MAX_SIZE", 30, int)
 
-        # DD_ANALYTICS_ENABLED is not longer supported, remove this functionatiy from all integrations in the future
-        self._analytics_enabled = False
         self._client_ip_header = _get_config("DD_TRACE_CLIENT_IP_HEADER")
         self._retrieve_client_ip = _get_config("DD_TRACE_CLIENT_IP_ENABLED", False, asbool)
 
@@ -505,6 +509,7 @@ class Config(object):
         self.version = _get_config("DD_VERSION", self.tags.get("version"))
         self._http_server = self._HTTPServerConfig()
 
+        self._extra_services_sent = set()  # type: set[str]
         self._extra_services_queue = None
         if self._remote_config_enabled and not in_aws_lambda():
             # lazy load slow import
@@ -536,7 +541,7 @@ class Config(object):
             "DD_RUNTIME_METRICS_ENABLED", False, asbool, "OTEL_METRICS_EXPORTER"
         )
         self._runtime_metrics_runtime_id_enabled = _get_config(
-            "DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", False, asbool
+            ["DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED", "DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED"], False, asbool
         )
         self._experimental_features_enabled = _get_config(
             "DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED", set(), lambda x: set(x.strip().upper().split(","))
@@ -579,6 +584,9 @@ class Config(object):
         )
 
         self._propagation_extract_first = _get_config("DD_TRACE_PROPAGATION_EXTRACT_FIRST", False, asbool)
+        self._baggage_tag_keys = _get_config(
+            "DD_TRACE_BAGGAGE_TAG_KEYS", ["user.id", "account.id", "session.id"], lambda x: x.strip().split(",")
+        )
 
         # Datadog tracer tags propagation
         x_datadog_tags_max_length = _get_config("DD_TRACE_X_DATADOG_TAGS_MAX_LENGTH", 512, int)
@@ -624,13 +632,12 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
-        # Disabled Span Aggregator Rlock is not supported. Remove this configuration in the future
-        self._span_aggregator_rlock = True
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -645,11 +652,16 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_instrumented_proxy_urls = _get_config(
+            "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
+        )
 
-        self._inject_force = _get_config("DD_INJECT_FORCE", False, asbool)
-        self._lib_was_injected = False
-        self._inject_was_attempted = _get_config("_DD_INJECT_WAS_ATTEMPTED", False, asbool)
+        self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
+        # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
+        self._lib_was_injected = _get_config("_DD_PY_SSI_INJECT", False, asbool, report_telemetry=False)
+        self._inject_enabled = _get_config("DD_INJECTION_ENABLED")
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
+        self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:
@@ -665,8 +677,12 @@ class Config(object):
     def _add_extra_service(self, service_name: str) -> None:
         if self._extra_services_queue is None:
             return
-        if service_name != self.service:
-            self._extra_services_queue.put(service_name)
+
+        if service_name == self.service or service_name in self._extra_services_sent:
+            return
+
+        self._extra_services_queue.put(service_name)
+        self._extra_services_sent.add(service_name)
 
     def _get_extra_services(self):
         # type: () -> set[str]
@@ -777,10 +793,7 @@ class Config(object):
             item_names.append(key)
             item = self._config[key]
             item.set_value_source(value, origin)
-            if self._telemetry_enabled:
-                from ddtrace.internal.telemetry import telemetry_writer
-
-                telemetry_writer.add_configuration(item._name, item.value(), item.source())
+            telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
 
     def _reset(self):
@@ -851,9 +864,11 @@ class Config(object):
         """
         rc_rules = self._remove_invalid_rules(rc_rules)
         for rule in rc_rules:
-            tags = rule.get("tags")
-            if tags:
-                rule["tags"] = self._tags_to_dict(tags)
+            if "tags" in rule:
+                # Remote config provides sampling rule tags as a list,
+                # but DD_TRACE_SAMPLING_RULES expects them as a dict.
+                # Here we convert tags to a dict to ensure a consistent format.
+                rule["tags"] = self._tags_to_dict(rule["tags"])
 
         if global_sample_rate is not None:
             rc_rules.append({"sample_rate": global_sample_rate})

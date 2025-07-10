@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    IAST: Fixes a bug where invalid f-strings didn’t raise the expected "Unknown format code" error when IAST was enabled.

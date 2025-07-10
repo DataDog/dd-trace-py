@@ -27,6 +27,7 @@ from ddtrace.ext.git import extract_workspace_path
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings._telemetry import config as telemetry_config
 from ddtrace.trace import Tracer  # noqa: F401
 
 from .. import telemetry
@@ -92,7 +93,9 @@ class CIVisibilityGitClient(object):
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            tracer_url = agent_config.trace_agent_url if tracer is None else tracer._agent_url
+            tracer_url = agent_config.trace_agent_url
+            if tracer:
+                tracer_url = tracer._agent_url or tracer_url
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(
@@ -113,7 +116,7 @@ class CIVisibilityGitClient(object):
         # type: (Optional[str]) -> None
         if not self._get_git_dir(cwd=cwd):
             log.debug("Missing .git directory; skipping git metadata upload")
-            self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED  # type: ignore[attr-defined]
+            self._metadata_upload_status.value = METADATA_UPLOAD_STATUS.FAILED
             return
 
         self._tags = ci.tags(cwd=cwd)
@@ -239,6 +242,7 @@ class CIVisibilityGitClient(object):
                 _metadata_upload_status.value = METADATA_UPLOAD_STATUS.SUCCESS
                 record_objects_pack_data(0, 0)
         finally:
+            telemetry_config.DEPENDENCY_COLLECTION = False
             telemetry.telemetry_writer.periodic(force_flush=True)
 
     @classmethod

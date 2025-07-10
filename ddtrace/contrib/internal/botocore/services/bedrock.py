@@ -13,6 +13,9 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
 log = get_logger(__name__)
@@ -24,17 +27,6 @@ _ANTHROPIC = "anthropic"
 _COHERE = "cohere"
 _META = "meta"
 _STABILITY = "stability"
-
-_MODEL_TYPE_IDENTIFIERS = (
-    "foundation-model/",
-    "custom-model/",
-    "provisioned-model/",
-    "imported-model/",
-    "prompt/",
-    "endpoint/",
-    "inference-profile/",
-    "default-prompt-router/",
-)
 
 
 class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
@@ -121,14 +113,15 @@ class TracedBotocoreConverseStream(wrapt.ObjectProxy):
 
     def __init__(self, wrapped, ctx: core.ExecutionContext):
         super().__init__(wrapped)
-        self._stream_chunks = []
         self._execution_ctx = ctx
 
     def __iter__(self):
+        stream_processor = self._execution_ctx["bedrock_integration"]._converse_output_stream_processor()
         exception_raised = False
         try:
+            next(stream_processor)
             for chunk in self.__wrapped__:
-                self._stream_chunks.append(chunk)
+                stream_processor.send(chunk)
                 yield chunk
         except Exception:
             core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
@@ -137,7 +130,7 @@ class TracedBotocoreConverseStream(wrapt.ObjectProxy):
         finally:
             if exception_raised:
                 return
-            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, self._stream_chunks])
+            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, stream_processor])
 
 
 def safe_token_count(token_count) -> Optional[int]:
@@ -158,6 +151,8 @@ def _set_llmobs_usage(
     input_tokens: Optional[int],
     output_tokens: Optional[int],
     total_tokens: Optional[int] = None,
+    cache_read_tokens: Optional[int] = None,
+    cache_write_tokens: Optional[int] = None,
 ) -> None:
     """
     Sets LLM usage metrics in the execution context for LLM Observability.
@@ -169,6 +164,10 @@ def _set_llmobs_usage(
         llmobs_usage["output_tokens"] = output_tokens
     if total_tokens is not None:
         llmobs_usage["total_tokens"] = total_tokens
+    if cache_read_tokens is not None:
+        llmobs_usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+    if cache_write_tokens is not None:
+        llmobs_usage[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -379,7 +378,7 @@ def _extract_streamed_response_metadata(
     input_tokens = metadata.get("inputTokenCount")
     output_tokens = metadata.get("outputTokenCount")
 
-    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), None, None, None)
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -394,6 +393,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         if ctx["resource"] in ("Converse", "ConverseStream")
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
+
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
@@ -411,6 +411,9 @@ def handle_bedrock_response(
     output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
+    cache_read_tokens = None
+    cache_write_tokens = None
+
     if ctx["resource"] == "Converse":
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
@@ -421,11 +424,23 @@ def handle_bedrock_response(
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
                 total_tokens = usage.get("totalTokens", total_tokens)
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
     _set_llmobs_usage(
-        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
+        ctx,
+        safe_token_count(input_tokens),
+        safe_token_count(output_tokens),
+        safe_token_count(total_tokens),
+        safe_token_count(cache_read_tokens),
+        safe_token_count(cache_write_tokens),
     )
 
     # for both converse & invoke, dispatch success event to store basic metrics
@@ -453,54 +468,13 @@ def handle_bedrock_response(
     return result
 
 
-def _parse_model_id(model_id: str):
-    """Best effort to extract the model provider and model name from the bedrock model ID.
-    model_id can be a 1/2 period-separated string or a full AWS ARN, based on the following formats:
-    1. Base model: "{model_provider}.{model_name}"
-    2. Cross-region model: "{region}.{model_provider}.{model_name}"
-    3. Other: Prefixed by AWS ARN "arn:aws{+region?}:bedrock:{region}:{account-id}:"
-        a. Foundation model: ARN prefix + "foundation-model/{region?}.{model_provider}.{model_name}"
-        b. Custom model: ARN prefix + "custom-model/{model_provider}.{model_name}"
-        c. Provisioned model: ARN prefix + "provisioned-model/{model-id}"
-        d. Imported model: ARN prefix + "imported-module/{model-id}"
-        e. Prompt management: ARN prefix + "prompt/{prompt-id}"
-        f. Sagemaker: ARN prefix + "endpoint/{model-id}"
-        g. Inference profile: ARN prefix + "{application-?}inference-profile/{model-id}"
-        h. Default prompt router: ARN prefix + "default-prompt-router/{prompt-id}"
-    If model provider cannot be inferred from the model_id formatting, then default to "custom"
-    """
-    if not model_id.startswith("arn:aws"):
-        model_meta = model_id.split(".")
-        if len(model_meta) < 2:
-            return "custom", model_meta[0]
-        return model_meta[-2], model_meta[-1]
-    for identifier in _MODEL_TYPE_IDENTIFIERS:
-        if identifier not in model_id:
-            continue
-        model_id = model_id.rsplit(identifier, 1)[-1]
-        if identifier in ("foundation-model/", "custom-model/"):
-            model_meta = model_id.split(".")
-            if len(model_meta) < 2:
-                return "custom", model_id
-            return model_meta[-2], model_meta[-1]
-        return "custom", model_id
-    return "custom", "custom"
-
-
 def patched_bedrock_api_call(original_func, instance, args, kwargs, function_vars):
     params = function_vars.get("params")
     pin = function_vars.get("pin")
     model_id = params.get("modelId")
-    model_provider, model_name = _parse_model_id(model_id)
+    model_provider, model_name = parse_model_id(model_id)
     integration = function_vars.get("integration")
-    endpoint = getattr(instance, "_endpoint", None)
-    endpoint_host = getattr(endpoint, "host", None) if endpoint else None
-    # only report LLM Obs spans if base_url has not been changed
-    submit_to_llmobs = (
-        integration.llmobs_enabled
-        and "embed" not in model_name
-        and integration.is_default_base_url(str(endpoint_host) if endpoint_host else None)
-    )
+    submit_to_llmobs = integration.llmobs_enabled and "embed" not in model_name
     with core.context_with_data(
         "botocore.patched_bedrock_api_call",
         pin=pin,
@@ -515,6 +489,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         params=params,
         model_provider=model_provider,
         model_name=model_name,
+        instance=instance,
     ) as ctx:
         try:
             handle_bedrock_request(ctx)

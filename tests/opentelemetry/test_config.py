@@ -5,8 +5,6 @@ def _global_sampling_rule():
     from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace.trace import tracer
 
-    assert hasattr(tracer._sampler, "rules")
-
     for rule in tracer._sampler.rules:
         if (
             rule.service == SamplingRule.NO_RULE
@@ -211,7 +209,14 @@ def test_otel_traces_exporter_configuration_unsupported_exporter():
 
 
 @pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "none"})
-def test_otel_metrics_exporter_configuration():
+def test_otel_metrics_exporter_configuration_none():
+    from ddtrace import config
+
+    assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled
+
+
+@pytest.mark.subprocess(env={"OTEL_METRICS_EXPORTER": "otlp"})
+def test_otel_metrics_exporter_configuration_otlp():
     from ddtrace import config
 
     assert config._runtime_metrics_enabled is False, config._runtime_metrics_enabled

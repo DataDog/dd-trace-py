@@ -30,6 +30,7 @@ SUITE_TYPE = "test_suite_end"
 COVERAGE_TAG_NAME = "test.coverage"
 
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
+EVP_PROXY_AGENT_BASE_PATH_V4 = "/evp_proxy/v4"
 EVP_PROXY_AGENT_ENDPOINT = "{}/api/v2/citestcycle".format(EVP_PROXY_AGENT_BASE_PATH)
 AGENTLESS_ENDPOINT = "api/v2/citestcycle"
 AGENTLESS_COVERAGE_ENDPOINT = "api/v2/citestcov"
@@ -86,7 +87,7 @@ CUSTOM_CONFIGURATIONS_PREFIX = "test.configuration"
 CIVISIBILITY_LOG_FILTER_RE = re.compile(
     "|".join(
         [
-            r"^ddtrace\.contrib\.(coverage|pytest|unittest)",
+            r"^ddtrace\.contrib\.internal\.(coverage|pytest|unittest)",
             r"ddtrace\.internal\.(ci_visibility|gitmetadata).*",
             r"ddtrace\.ext\.(git|ci_visibility|test)",
         ]

@@ -1,9 +1,8 @@
-import importlib
-import sys
 import warnings
 
 import pytest
 
+from ddtrace._logger import LogInjectionState
 from ddtrace.settings._config import Config
 from ddtrace.settings.http import HttpConfig
 from ddtrace.settings.integration import IntegrationConfig
@@ -15,11 +14,20 @@ class TestConfig(BaseTestCase):
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
             config = Config()
-            self.assertTrue(config._logs_injection)
+            self.assertEqual(config._logs_injection, LogInjectionState.ENABLED)
 
-        with self.override_env(dict(DD_LOGS_INJECTION="false")):
+        with self.override_env(dict(DD_LOGS_INJECTION="FALSE")):
             config = Config()
-            self.assertFalse(config._logs_injection)
+            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
+
+        with self.override_env(dict(), replace_os_env=True):
+            config = Config()
+            self.assertEqual(config._logs_injection, LogInjectionState.STRUCTURED)
+
+        with self.override_env(dict(DD_LOGS_INJECTION="nonsense")):
+            # If the value is not recognized, it should default to DISABLED
+            config = Config()
+            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
 
     def test_service(self):
         # If none is provided the default should be ``None``
@@ -151,6 +159,61 @@ class TestIntegrationConfig(BaseTestCase):
     def test_service_name_env_var(self):
         ic = IntegrationConfig(self.config, "foo")
         assert ic.service == "foo-svc"
+
+    def test_app_analytics_property(self):
+        # test default values
+        assert self.integration_config.analytics_enabled is False
+        assert self.integration_config.analytics_sample_rate == 1.0
+
+        # test updating values
+        self.integration_config.analytics_enabled = True
+        assert self.integration_config.analytics_enabled is True
+
+        self.integration_config.analytics_sample_rate = 0.5
+        assert self.integration_config.analytics_sample_rate == 0.5
+
+        assert self.integration_config.get_analytics_sample_rate() == 1
+
+    def test_app_analytics_deprecation(self):
+        warnings.simplefilter("always")
+        with warnings.catch_warnings(record=True) as warns:
+            IntegrationConfig(self.config, "test")
+        assert len(warns) == 0
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_enabled
+        assert (
+            "analytics_enabled is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
+            in str(warns[0].message)
+        )
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_enabled = True
+        assert (
+            "analytics_enabled is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
+            in str(warns[0].message)
+        )
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_sample_rate
+        assert (
+            "analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
+            in str(warns[0].message)
+        )
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.analytics_sample_rate = 0.5
+        assert (
+            "analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
+            in str(warns[0].message)
+        )
+
+        with warnings.catch_warnings(record=True) as warns:
+            self.integration_config.get_analytics_sample_rate()
+        assert (
+            "get_analytics_sample_rate is deprecated and will be removed in version '4.0.0': Controlling ingestion via analytics is no longer supported. See https://docs.datadoghq.com/tracing/legacy_app_analytics/?code-lang=python#migrate-to-the-new-configuration-options"  # noqa:E501
+            in str(warns[0].message)
+        )
 
 
 def test_environment_header_tags():

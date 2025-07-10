@@ -73,7 +73,7 @@ def _get_tags_from_package(main_package):
             import importlib_metadata  # type: ignore[no-redef]
 
         source_code_link = ""
-        for val in importlib_metadata.metadata(main_package).get_all("Project-URL"):
+        for val in importlib_metadata.metadata(main_package).get_all("Project-URL") or []:
             capt_val = val.split(", ")
             if len(capt_val) > 1 and capt_val[0] == "source_code_link":
                 source_code_link = capt_val[1].strip()

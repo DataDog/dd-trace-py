@@ -6,6 +6,7 @@ import pytest
 import requests
 
 from tests.appsec.iast.conftest import iast_context_defaults
+from tests.appsec.iast.iast_utils import load_iast_report
 
 
 span_defaults = iast_context_defaults  # So ruff does not remove it
@@ -60,55 +61,60 @@ def get_traces(agent_client: requests.Session) -> requests.Response:
     return agent_client.get(TESTAGENT_URL + "/test/session/traces" + TESTAGENT_TOKEN_PARAM, headers=TESTAGENT_HEADERS)
 
 
-def vulnerability_in_traces(vuln_type: str, agent_client: requests.Session) -> bool:
+def assert_vulnerability_in_traces(
+    agent_client: requests.Session, vuln_type: str, file: str, line: int, class_: str | None, method: str | None
+) -> None:
     time.sleep(5)
     traces = get_traces(agent_client)
     assert traces.status_code == 200, traces.text
-    traces_list = json.loads(traces.text)
-
-    class InnerBreakException(Exception):
-        pass
-
-    try:
-        for trace in traces_list:
-            for trace_dict in trace:
-                if "meta" not in trace_dict:
-                    continue
-                iast_data = trace_dict["meta"].get("_dd.iast.json")
-                if not iast_data:
-                    continue
-
-                vulnerabilities = json.loads(iast_data).get("vulnerabilities")
-                if not vulnerabilities:
-                    continue
-
-                for vuln in vulnerabilities:
-                    if vuln["type"] == vuln_type:
-                        raise InnerBreakException()
-    except InnerBreakException:
-        return True
-
-    return False
+    traces = json.loads(traces.text)
+    assert traces, "No traces to validate"
+    spans = [span for trace in traces for span in trace]
+    assert spans, "No spans"
+    spans = [s for s in spans if "meta" in s]
+    assert spans, "No spans with meta"
+    spans = [s for s in spans if load_iast_report(s) is not None]
+    assert spans, "No spans with iast data"
+    # Ignore vulns from login, which is done on every test
+    spans = [s for s in spans if s["meta"].get("http.route") != "login/"]
+    assert len(spans) == 1, "A single span was expected"
+    span = spans[0]
+    vulns = load_iast_report(span)["vulnerabilities"]
+    assert vulns, "No vulnerabilities"
+    vulns = [v for v in vulns if v["type"] == vuln_type]
+    assert vulns, f"No vulnerabilities of type {vuln_type}"
+    vuln = vulns[0]
+    location = vuln["location"]
+    assert location.get("path") == file
+    assert location.get("line") == line
+    assert location.get("class") == class_
+    assert location.get("method") == method
 
 
 def test_insecure_cookie(client):
     payload = {"name": "My Name", "username": "user1", "pass": "testuser1", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("INSECURE_COOKIE", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "INSECURE_COOKIE", "pygoat/introduction/views.py", 282, None, "auth_lab_signup"
+    )
 
 
 def test_nohttponly_cookie(client):
     payload = {"name": "My Name2", "username": "user2", "pass": "testuser2", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/auth_lab/signup", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("NO_HTTPONLY_COOKIE", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "NO_HTTPONLY_COOKIE", "pygoat/introduction/views.py", 282, None, "auth_lab_signup"
+    )
 
 
 def test_weak_random(client):
     reply = client.pygoat_session.get(PYGOAT_URL + "/otp?email=test%40test.com", headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("WEAK_RANDOMNESS", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "WEAK_RANDOMNESS", "pygoat/introduction/views.py", 486, None, "Otp"
+    )
 
 
 def test_weak_hash(client):
@@ -117,21 +123,27 @@ def test_weak_hash(client):
         PYGOAT_URL + "/cryptographic_failure/lab", data=payload, headers=TESTAGENT_HEADERS
     )
     assert reply.status_code == 200
-    assert vulnerability_in_traces("WEAK_HASH", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "WEAK_HASH", "pygoat/introduction/views.py", 981, None, "crypto_failure_lab"
+    )
 
 
 def test_cmdi(client):
     payload = {"domain": "google.com && ls", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/cmd_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("COMMAND_INJECTION", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "COMMAND_INJECTION", "pygoat/introduction/views.py", 420, None, "cmd_lab"
+    )
 
 
 def test_sqli(client):
     payload = {"name": "admin", "pass": "anything' OR '1' ='1", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/sql_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("SQL_INJECTION", client.agent_session)
+    assert_vulnerability_in_traces(
+        client.agent_session, "SQL_INJECTION", "pygoat/introduction/views.py", 169, None, "sql_lab"
+    )
 
 
 @pytest.mark.skip("TODO: SSRF is not implemented for open()")
@@ -139,17 +151,17 @@ def test_ssrf1(client, iast_context_defaults):
     payload = {"blog": "templates/Lab/ssrf/blogs/blog2.txt", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("SSRF", client.agent_session)
+    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 1, None, "")
 
 
 def test_ssrf2(client, iast_context_defaults):
     payload = {"url": "http://example.com", "csrfmiddlewaretoken": client.csrftoken}
     reply = client.pygoat_session.post(PYGOAT_URL + "/ssrf_lab2", data=payload, headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("SSRF", client.agent_session)
+    assert_vulnerability_in_traces(client.agent_session, "SSRF", "pygoat/introduction/views.py", 918, None, "ssrf_lab2")
 
 
 def test_xss(client):
     reply = client.pygoat_session.get(PYGOAT_URL + '/xssL?q=<script>alert("XSS")</script>', headers=TESTAGENT_HEADERS)
     assert reply.status_code == 200
-    assert vulnerability_in_traces("XSS", client.agent_session)
+    assert_vulnerability_in_traces(client.agent_session, "XSS", "pygoat/introduction/views.py", 98, None, "xss_lab")

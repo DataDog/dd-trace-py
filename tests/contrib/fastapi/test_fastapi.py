@@ -62,6 +62,7 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+
     assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -250,6 +251,37 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "fastapi"
     assert request_span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.subprocess(env=dict(DD_ASGI_OBFUSCATE_404_RESOURCE="true"))
+def test_invalid_path_with_obfuscation_enabled():
+    """
+    Test that 404 responses are obfuscated when DD_ASGI_OBFUSCATE_404_RESOURCE is enabled
+    """
+    import asyncio
+
+    from fastapi import FastAPI
+    import httpx
+
+    from ddtrace.contrib.internal.fastapi.patch import patch
+    from tests.utils import snapshot_context
+
+    patch()
+    app = FastAPI()
+
+    @app.get("/")
+    def read_root():
+        return {"Homepage Read": "Success"}
+
+    async def test():
+        token = "tests.contrib.fastapi.test_fastapi.test_invalid_path_with_obfuscation_enabled"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient(app=app, base_url="http://testserver") as client:
+                response = await client.get("/invalid_path")
+                assert response.status_code == 404
+                assert response.json() == {"detail": "Not Found"}
+
+    asyncio.run(test())
 
 
 def test_invalid_path(client, tracer, test_spans):
@@ -736,3 +768,57 @@ def test_inferred_spans_api_gateway(client, tracer, test_spans, test, inferred_p
 
             if test_headers["type"] == "distributed":
                 assert web_span.trace_id == 1
+
+
+def test_baggage_span_tagging_default(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": "user.id=123,account.id=456,region=us-west"})
+
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    # Assume the request span is the first span in the first trace.
+    request_span = spans[0][0]
+
+    assert request_span.get_tag("baggage.user.id") == "123"
+    assert request_span.get_tag("baggage.account.id") == "456"
+    # Since "region" is not in the default list, its baggage tag should not be present.
+    assert request_span.get_tag("baggage.region") is None
+
+
+def test_baggage_span_tagging_no_headers(client, tracer, test_spans):
+    response = client.get("/", headers={})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_empty_baggage(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+
+    # None of the baggage tags should be present.
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.session.id") is None
+
+
+def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
+    response = client.get("/", headers={"baggage": ""})
+    assert response.status_code == 200
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    request_span.context.set_baggage_item("user.id", "123")
+    # None of the baggage tags should be present since we only tag baggage during extraction from headers
+    assert request_span.get_tag("baggage.account.id") is None
+    assert request_span.get_tag("baggage.user.id") is None
+    assert request_span.get_tag("baggage.session.id") is None

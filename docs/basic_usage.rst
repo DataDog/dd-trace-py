@@ -139,3 +139,58 @@ the ``set_asyncio_event_loop_policy`` method::
 
   prof = Profiler()
   prof.set_asyncio_event_loop_policy()
+
+Error Tracking
+~~~~~~~~~~~~~~
+
+``dd-trace`` can report handled errors. Reported errors will be directly available
+in Error Tracking as well as attached as a span event to the span in which they were handled.
+
+Automatic Instrumentation
+-------------------------
+
+.. important::
+
+  This feature is available on Python3.10+ and ddtrace 3.8.0+.
+
+To enable automatic reporting of handled errors, you can set one of the two environment variables:
+
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS`` = ``user|third_party|all``. Report handled errors of: user code, third party packages or both.
+- ``DD_ERROR_TRACKING_HANDLED_ERRORS_INCLUDE`` = ``module1, module2...``. List of modules for which handled errors will be reported.
+
+  To include a module, you need to specify its full name. For instance, to instrument the module ``security`` in your ``mysite`` app,
+  you need to specify ``mysite.security``. Note that when instrumenting a module, all the submodules are also instrumented.
+
+  You can also use this variable to choose the third-party packages you want to instrument. For instance, providing ``numpy`` will report
+  all the errors from the package.
+
+If you are on Python3.10 or Python3.11, and you want to instrument the ``__main__`` module, you need to add::
+
+  from ddtrace.errortracking._handled_exceptions.bytecode_reporting import instrument_main
+
+  if __name__ == "__main__":
+    instrument_main()
+
+This code should be added after the functions definitions with handled errors.
+
+Manual Instrumentation
+----------------------
+
+.. important::
+
+  This feature is available in ddtrace 3.1.1+.
+
+You can report handled errors manually using ``span.record_exception(e)``::
+
+  from ddtrace import tracer
+
+  try:
+    raise ValueError("foo")
+  except ValueError as e:
+    span = tracer.current_span()
+    if span:
+      span.record_exception(e)
+
+You can also provide additional attributes using::
+
+  span.record_exception(e, {"foo": "bar"})

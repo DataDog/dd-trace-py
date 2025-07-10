@@ -68,9 +68,18 @@ def create_app():
 
     @app.route("/sqli", methods=["POST"])
     def sqli():
-        sql = "SELECT 1 FROM sqlite_master WHERE name = '" + request.form["username"] + "'"
+        sql = f"SELECT 1 FROM sqlite_master WHERE name = '{request.form['username']}'"
         cur.execute(sql)
         return Response("OK")
+
+    @app.route("/sqli_with_errortracking", methods=["POST"])
+    def sqli_with_errortracking():
+        try:
+            sql = f"SELECT 1 FROM sqlite_master WHERE name = '{request.form['username']}'"
+            cur.execute(sql)
+            raise ValueError("there has been a sql error")
+        except ValueError:
+            return Response("OK")
 
     return app
 
@@ -85,6 +94,10 @@ class FlaskScenarioMixin:
                 "DD_TELEMETRY_METRICS_ENABLED": str(self.telemetry_metrics_enabled),
             }
         )
+
+        if self.errortracking_enabled:
+            os.environ.update({"DD_ERROR_TRACKING_HANDLED_ERRORS": self.errortracking_enabled})
+
         if self.profiler_enabled:
             os.environ.update(
                 {"DD_PROFILING_ENABLED": "1", "DD_PROFILING_API_TIMEOUT": "0.1", "DD_PROFILING_UPLOAD_INTERVAL": "10"}

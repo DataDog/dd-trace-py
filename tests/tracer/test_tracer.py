@@ -8,13 +8,13 @@ import gc
 import logging
 from os import getpid
 import threading
+import time
 from unittest.case import SkipTest
 
 import mock
 import pytest
 
 import ddtrace
-from ddtrace._trace.span import _is_top_level
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -34,7 +34,7 @@ from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.serverless import has_aws_lambda_agent_extension
 from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._config import Config
 from ddtrace.trace import Context
@@ -284,6 +284,98 @@ class TracerTestCases(TracerTestCase):
             dict(name="wrap.parent", service="webserver"),
             (dict(name="wrap.overwrite", service="webserver", meta=dict(args="(42,)", kwargs="{'kw_param': 42}")),),
         )
+
+    def test_tracer_wrap_generator(self):
+        @self.tracer.wrap("decorated_generator", service="s", resource="r", span_type="t")
+        def f(tag_name, tag_value):
+            # make sure we can still set tags
+            span = self.tracer.current_span()
+            span.set_tag(tag_name, tag_value)
+
+            for i in range(3):
+                time.sleep(0.01)
+                yield i
+
+        result = list(f("a", "b"))
+        assert result == [0, 1, 2]
+
+        self.assert_span_count(1)
+        span = self.get_root_span()
+        span.assert_matches(
+            name="decorated_generator",
+            service="s",
+            resource="r",
+            span_type="t",
+            meta=dict(a="b"),
+        )
+
+        # tracer should finish _after_ the generator has been exhausted
+        assert span.duration is not None
+        assert span.duration > 0.03
+
+    def test_tracer_wrap_nested_generators_preserves_stack_order(self):
+        result = {"handled": False}
+
+        def trace_and_call_next(*call_args, **call_kwargs):
+            def _outer_wrapper(func):
+                @self.tracer.wrap("foobar")
+                def _inner_wrapper(*args, **kwargs):
+                    wrapped_generator = func(*args, **kwargs)
+                    try:
+                        yield next(wrapped_generator)
+                    except BaseException as e:
+                        result["handled"] = True
+                        wrapped_generator.throw(e)
+
+                return _inner_wrapper
+
+            return _outer_wrapper(*call_args, **call_kwargs)
+
+        @contextlib.contextmanager
+        @trace_and_call_next
+        def wrapper():
+            try:
+                yield
+            except NotImplementedError:
+                raise ValueError()
+
+        exception_note = (
+            "The expected exception should bubble up from a traced generator-based context manager "
+            "that yields another generator"
+        )
+        try:
+            with wrapper():
+                raise NotImplementedError()
+        except Exception as e:
+            assert isinstance(e, ValueError), exception_note
+        else:
+            assert False, exception_note
+        assert result["handled"], (
+            "Exceptions raised by traced generator-based context managers that yield generators should be "
+            "visible to the caller"
+        )
+
+    def test_tracer_wrap_generator_with_return_value(self):
+        @self.tracer.wrap()
+        def iter_signals():
+            for i in range(10):
+                yield i
+            return 10
+
+        with self.trace("root") as span:
+            signals = iter_signals()
+            while True:
+                try:
+                    # DEV: We don't need the return value
+                    next(signals)
+                except StopIteration as e:
+                    assert e.value == 10
+                    span.set_metric("num_signals", e.value)
+                    break
+
+        self.assert_span_count(2)
+        root_span = self.get_root_span()
+        root_span.assert_matches(name="root", metrics={"num_signals": 10})
 
     def test_tracer_disabled(self):
         self.tracer.enabled = True
@@ -592,7 +684,7 @@ class TracerTestCases(TracerTestCase):
 def test_tracer_url_default():
     import ddtrace
 
-    assert ddtrace.trace.tracer._writer.agent_url == "http://localhost:8126"
+    assert ddtrace.trace.tracer._span_aggregator.writer.intake_url == "http://localhost:8126"
 
 
 @pytest.mark.subprocess()
@@ -652,7 +744,7 @@ def test_tracer_fork():
     from ddtrace.trace import tracer as t
 
     original_pid = t._pid
-    original_writer = t._writer
+    original_writer = t._span_aggregator.writer
 
     @contextlib.contextmanager
     def capture_failures(errors):
@@ -687,12 +779,12 @@ def test_tracer_fork():
     # Ensure writing into the tracer in this process still works as expected
     with t.trace("test", service="test"):
         assert t._pid == original_pid
-        assert t._writer == original_writer
-        assert t._writer._encoder == original_writer._encoder
+        assert t._span_aggregator.writer == original_writer
+        assert t._span_aggregator.writer._encoder == original_writer._encoder
 
     # Assert the trace got written into the correct queue
     assert len(original_writer._encoder) == 1
-    assert len(t._writer._encoder) == 1
+    assert len(t._span_aggregator.writer._encoder) == 1
 
 
 def test_tracer_with_version():
@@ -845,11 +937,11 @@ class EnvTracerTestCase(TracerTestCase):
     def test_detect_agentless_env_with_lambda(self):
         assert in_aws_lambda()
         assert not has_aws_lambda_agent_extension()
-        assert isinstance(ddtrace.tracer._writer, LogWriter)
+        assert isinstance(ddtrace.tracer._span_aggregator.writer, LogWriter)
 
     @run_in_subprocess(env_overrides=dict(AWS_LAMBDA_FUNCTION_NAME="my-func", DD_AGENT_HOST="localhost"))
     def test_detect_agent_config(self):
-        assert isinstance(global_tracer._writer, AgentWriter)
+        assert isinstance(global_tracer._span_aggregator.writer, AgentWriterInterface)
 
     @run_in_subprocess(env_overrides=dict(DD_TAGS="key1:value1,key2:value2"))
     def test_dd_tags(self):
@@ -1729,7 +1821,7 @@ def test_tracer_api_version():
     from ddtrace.internal.encoding import MsgpackEncoderV05
     from ddtrace.trace import tracer as t
 
-    assert isinstance(t._writer._encoder, MsgpackEncoderV05)
+    assert isinstance(t._span_aggregator.writer._encoder, MsgpackEncoderV05)
 
 
 @pytest.mark.subprocess(parametrize={"DD_TRACE_ENABLED": ["true", "false"]})
@@ -1771,20 +1863,20 @@ def test_tracer_memory_leak_span_processors():
 
 def test_top_level(tracer):
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span._is_top_level
         with tracer.trace("child") as child_span:
-            assert not _is_top_level(child_span)
+            assert not child_span._is_top_level
             with tracer.trace("subchild") as subchild_span:
-                assert not _is_top_level(subchild_span)
+                assert not subchild_span._is_top_level
             with tracer.trace("subchild2", service="svc-2") as subchild_span2:
-                assert _is_top_level(subchild_span2)
+                assert subchild_span2._is_top_level
 
     with tracer.trace("parent", service="my-svc") as parent_span:
-        assert _is_top_level(parent_span)
+        assert parent_span._is_top_level
         with tracer.trace("child", service="child-svc") as child_span:
-            assert _is_top_level(child_span)
+            assert child_span._is_top_level
         with tracer.trace("child2", service="child-svc") as child_span2:
-            assert _is_top_level(child_span2)
+            assert child_span2._is_top_level
 
 
 def test_finish_span_with_ancestors(tracer):
@@ -1846,7 +1938,7 @@ def test_asm_standalone_configuration(sca_enabled, appsec_enabled, iast_enabled)
         assert tracer._sampler.limiter.rate_limit == 1
         assert tracer._sampler.limiter.time_window == 60e9
 
-        assert tracer._compute_stats is False
+        assert tracer._span_aggregator.sampling_processor._compute_stats_enabled is False
 
     # reset tracer values
     with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
@@ -1882,15 +1974,15 @@ def test_detect_agent_config_with_lambda_extension():
 
     with mock.patch("os.path.exists", side_effect=mock_os_path_exists):
         import ddtrace
-        from ddtrace.internal.writer import AgentWriter
+        from ddtrace.internal.writer import AgentWriterInterface
         from ddtrace.trace import tracer
 
         assert ddtrace.internal.serverless.in_aws_lambda()
 
         assert ddtrace.internal.serverless.has_aws_lambda_agent_extension()
 
-        assert isinstance(tracer._writer, AgentWriter)
-        assert tracer._writer._sync_mode
+        assert isinstance(tracer._span_aggregator.writer, AgentWriterInterface)
+        assert tracer._span_aggregator.writer._sync_mode
 
 
 @pytest.mark.subprocess()
@@ -1905,3 +1997,64 @@ def test_multiple_tracer_instances():
     log.error.assert_called_once_with(
         "Initializing multiple Tracer instances is not supported. Use ``ddtrace.trace.tracer`` instead.",
     )
+
+
+def test_span_creation_with_context(tracer):
+    """Test that a span created with a Context parent correctly sets its parent context.
+
+    This test verifies that when a span is created with a Context object as its parent,
+    the span's _parent_context attribute is properly set to that Context.
+    """
+
+    context = Context(trace_id=123, span_id=321)
+    with tracer.start_span("s1", child_of=context) as span:
+        assert span._parent_context == context
+
+
+def test_activate_context_propagates_to_child_spans(tracer):
+    """Test that activating a context properly propagates to child spans.
+
+    This test verifies that when a context is activated using _activate_context:
+    1. Child spans created within the context inherit the trace_id and parent_id
+    2. Multiple child spans within the same context maintain consistent parentage
+    3. Spans created outside the context have different trace_id and parent_id
+    """
+    with tracer._activate_context(Context(trace_id=1, span_id=1)):
+        with tracer.trace("child1") as c1:
+            assert c1.trace_id == 1
+            assert c1.parent_id == 1
+
+        with tracer.trace("child1") as c2:
+            assert c2.trace_id == 1
+            assert c2.parent_id == 1
+
+    with tracer.trace("root") as root:
+        assert root.trace_id != 1
+        assert root.parent_id != 1
+
+
+def test_activate_context_nesting_and_restoration(tracer):
+    """Test that context activation properly handles nesting and restoration.
+
+    This test verifies that:
+    1. A context can be activated and its values are accessible
+    2. A nested context can be activated and its values override the outer context
+    3. When the nested context exits, the outer context is properly restored
+    4. When all contexts exit, the active context is None
+    """
+
+    with tracer._activate_context(Context(trace_id=1, span_id=1)):
+        active = tracer.context_provider.active()
+        assert active.trace_id == 1
+        assert active.span_id == 1
+
+        with tracer._activate_context(Context(trace_id=2, span_id=2)):
+            active = tracer.context_provider.active()
+            assert active.trace_id == 2
+            assert active.span_id == 2
+
+        active = tracer.context_provider.active()
+        assert active.trace_id == 1
+        assert active.span_id == 1
+
+    assert tracer.context_provider.active() is None

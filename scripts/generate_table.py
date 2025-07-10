@@ -7,11 +7,12 @@ print("Reading supported_versions_output.json")
 with open("supported_versions_output.json", "r") as json_file:
     data = json.load(json_file)
 
-columns = ["integration", "minimum_tracer_supported", "max_tracer_supported", "auto-instrumented"]
+columns = ["dependency", "integration", "minimum_tracer_supported", "max_tracer_supported", "auto-instrumented"]
 csv_rows = []
 
 for entry in data:
     integration_name = entry.get("integration", "")
+    dependency_name = entry.get("dependency", "")
     if entry.get("pinned", "").lower() == "true":
         integration_name += " *"
     entry["integration"] = integration_name

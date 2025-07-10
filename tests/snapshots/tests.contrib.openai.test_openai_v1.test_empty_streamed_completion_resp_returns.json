@@ -1,0 +1,39 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "createCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "682e44fb00000000",
+      "component": "openai",
+      "language": "python",
+      "openai.base_url": "https://api.openai.com/v1/",
+      "openai.request.client": "OpenAI",
+      "openai.request.endpoint": "/v1/completions",
+      "openai.request.max_tokens": "150",
+      "openai.request.method": "POST",
+      "openai.request.model": "curie",
+      "openai.request.n": "1",
+      "openai.request.prompt.0": "As Descartes said, I think, therefore",
+      "openai.request.stream": "True",
+      "openai.request.temperature": "0.8",
+      "openai.request.user": "ddtrace-test",
+      "openai.user.api_key": "sk-...key>",
+      "runtime-id": "4d7a9550c4664767af07584df0176dc2"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 24337
+    },
+    "duration": 845000,
+    "start": 1747862779488435000
+  }]]

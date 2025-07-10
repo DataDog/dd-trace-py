@@ -16,6 +16,7 @@ components:
     - ddtrace/contrib/internal/asgi/*
   asyncio:
     - ddtrace/contrib/_asyncio.py
+    - ddtrace/contrib/internal/asyncio/*
   avro:
     - ddtrace/contrib/_avro.py
     - ddtrace/contrib/internal/avro/*
@@ -26,6 +27,9 @@ components:
   azure_functions:
     - ddtrace/contrib/_azure_functions.py
     - ddtrace/contrib/internal/azure_functions/*
+  azure_servicebus:
+    - ddtrace/contrib/_azure_servicebus.py
+    - ddtrace/contrib/internal/azure_servicebus/*
   botocore:
     - ddtrace/contrib/_botocore.py
     - ddtrace/contrib/internal/botocore/*
@@ -126,6 +130,8 @@ components:
   httpx:
     - ddtrace/contrib/_httpx.py
     - ddtrace/contrib/internal/httpx/*
+  integration_registry:
+    - ddtrace/contrib/integration_registry/*
   jinja2:
     - ddtrace/contrib/_jinja2.py
     - ddtrace/contrib/internal/jinja2/*
@@ -417,6 +423,23 @@ suites:
     snapshot: true
     services:
       - azurite
+      - azureservicebusemulator
+      - azuresqledge
+  azure_servicebus:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@azure_servicebus'
+      - tests/contrib/azure_servicebus/*
+      - tests/snapshots/tests.contrib.azure_servicebus.*
+    runner: riot
+    snapshot: true
+    services:
+      - azureservicebusemulator
+      - azuresqledge
   botocore:
     parallelism: 11
     paths:
@@ -545,7 +568,7 @@ suites:
       - tests/contrib/django/*
       - tests/contrib/django_celery/*
       - tests/snapshots/tests.{suite}.*
-    pattern: django($|_celery)
+    pattern: ^(django|django:celery)$
     runner: riot
     services:
       - postgres
@@ -564,10 +587,10 @@ suites:
       - tests/snapshots/tests.{suite}.*
       - tests/contrib/django_hosts/*
       - tests/contrib/django_hosts/django_app/*
-    pattern: django_hosts$
+    pattern: django:django_hosts
     runner: riot
     snapshot: true
-  djangorestframework:
+  django:djangorestframework:
     parallelism: 2
     env:
       TEST_MEMCACHED_HOST: memcached
@@ -581,6 +604,7 @@ suites:
       - '@django'
       - tests/contrib/djangorestframework/*
       - tests/contrib/djangorestframework/app/*
+    pattern: django:djangorestframework
     runner: riot
     services:
       - memcached
@@ -611,6 +635,7 @@ suites:
     runner: riot
     services:
       - redis
+      - rabbitmq
     snapshot: true
   elasticsearch:
     env:
@@ -688,7 +713,7 @@ suites:
         - '@tracing'
         - '@freezegun'
         - tests/contrib/freezegun/*
-    runner: hatch
+    runner: riot
     snapshot: true
   gevent:
     paths:
@@ -700,7 +725,7 @@ suites:
       - tests/contrib/gevent/*
     runner: riot
     snapshot: false
-  graphene:
+  graphql:graphene:
     parallelism: 1
     paths:
       - '@bootstrap'
@@ -721,6 +746,7 @@ suites:
       - '@graphql'
       - tests/contrib/graphql/*
       - tests/snapshots/tests.contrib.graphql.*
+    pattern: graphql$
     runner: riot
     snapshot: true
   grpc:
@@ -773,6 +799,17 @@ suites:
     services:
       - httpbin_local
     snapshot: true
+  integration_registry:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@integration_registry'
+      - tests/contrib/integration_registry/*
+    runner: riot
+    snapshot: false
+    parallelism: 1
   jinja2:
     parallelism: 2
     paths:
@@ -1197,7 +1234,7 @@ suites:
       - '@appsec'
       - tests/contrib/subprocess/*
     runner: riot
-  test_logging:
+  logging:
     parallelism: 1
     paths:
       - '@bootstrap'

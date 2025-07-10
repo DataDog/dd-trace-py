@@ -14,6 +14,8 @@ from ddtrace.settings._config import config
 
 from ..constants import ENV_KEY
 from ..internal.constants import MAX_UINT_64BITS
+from ..internal.constants import SAMPLING_HASH_MODULO
+from ..internal.constants import SAMPLING_KNUTH_FACTOR
 from ..internal.constants import SamplingMechanism
 from ..internal.logger import get_logger
 from ..internal.rate_limiter import RateLimiter
@@ -26,9 +28,6 @@ PROVENANCE_ORDER = ["customer", "dynamic", "default"]
 
 
 log = get_logger(__name__)
-
-# Has to be the same factor and key as the Agent to allow chained sampling
-KNUTH_FACTOR = 1111111111111111111
 
 
 class RateSampler:
@@ -49,7 +48,7 @@ class RateSampler:
         self.sampling_id_threshold = self.sample_rate * MAX_UINT_64BITS
 
     def sample(self, span: Span) -> bool:
-        sampled = ((span._trace_id_64bits * KNUTH_FACTOR) % MAX_UINT_64BITS) <= self.sampling_id_threshold
+        sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 
 
@@ -76,7 +75,7 @@ class DatadogSampler:
         "limiter",
         "rules",
         "_rate_limit_always_on",
-        "_by_service_samplers",
+        "_agent_based_samplers",
     )
     _default_key = "service:,env:"
 
@@ -86,6 +85,7 @@ class DatadogSampler:
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
+        agent_based_samplers: Optional[Dict[str, RateSampler]] = None,
     ):
         """
         Constructor for DatadogSampler sampler
@@ -102,7 +102,7 @@ class DatadogSampler:
         else:
             self.rules: List[SamplingRule] = rules or []
         # Set Agent based samplers
-        self._by_service_samplers: Dict[str, RateSampler] = {}
+        self._agent_based_samplers = agent_based_samplers or {}
         # Set rate limiter
         self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
@@ -120,10 +120,10 @@ class DatadogSampler:
         samplers: Dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
-        self._by_service_samplers = samplers
+        self._agent_based_samplers = samplers
 
     def __str__(self):
-        rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
+        rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
         return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
             self.__class__.__name__,
             rates,
@@ -182,11 +182,11 @@ class DatadogSampler:
             sample_rate = matched_rule.sample_rate
         else:
             key = self._key(span.service, span.get_tag(ENV_KEY))
-            if key in self._by_service_samplers:
+            if key in self._agent_based_samplers:
                 # Agent service based sampling
                 agent_service_based = True
-                sampled = self._by_service_samplers[key].sample(span)
-                sample_rate = self._by_service_samplers[key].sample_rate
+                sampled = self._agent_based_samplers[key].sample(span)
+                sample_rate = self._agent_based_samplers[key].sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided

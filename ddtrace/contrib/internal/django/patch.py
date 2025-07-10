@@ -14,6 +14,7 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+from typing import Dict
 
 import wrapt
 from wrapt.importer import when_imported
@@ -68,8 +69,6 @@ config._add(
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
-        analytics_enabled=None,  # None allows the value to be overridden by the global config
-        analytics_sample_rate=None,
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
         include_user_email=asm_config._django_include_user_email,
@@ -81,6 +80,7 @@ config._add(
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 
@@ -102,6 +102,10 @@ def get_version():
     import django
 
     return django.__version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"django": ">=2.2.8"}
 
 
 def patch_conn(django, conn):
@@ -171,13 +175,11 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,  # global_config needed for analytics sample rate
+            config.django.global_config,
             "{}-{}".format("django", alias),  # name not used but set anyway
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
             trace_fetch_methods=config.django.trace_fetch_methods,
-            analytics_enabled=config.django.analytics_enabled,
-            analytics_sample_rate=config.django.analytics_sample_rate,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
@@ -713,9 +715,11 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
+    from ddtrace.internal.constants import COMPONENT
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 

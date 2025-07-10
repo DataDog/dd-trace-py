@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: fixes an infinite recursion from calling logging module when
+    lock profiler fails to delete ``_self_acquired_at`` attribute.
+

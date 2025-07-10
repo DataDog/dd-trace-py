@@ -30,7 +30,7 @@ def _rc_callback(payloads: t.Sequence[Payload]) -> None:
                 continue
 
         if (lib_config := t.cast(dict, content.get("lib_config"))) is not None:
-            dispatch("apm-tracing.rc", (lib_config,))
+            dispatch("apm-tracing.rc", (lib_config, config))
 
 
 class APMTracingAdapter(PubSub):

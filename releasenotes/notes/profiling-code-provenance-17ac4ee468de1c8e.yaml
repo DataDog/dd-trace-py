@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    profiling: reduces the overhead of code provenance reporting when stack v2
+    is enabled, the default stack sampler.
+    profiling: for CPython 3.10+, code provenance correctly classifies frozen
+    modules in Python stdlib when stack v2 is enabled, the default stack sampler.

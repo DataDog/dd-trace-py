@@ -16,7 +16,6 @@ from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
 from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.contrib.internal.trace_utils import set_http_meta
-from ddtrace.internal import core
 from ddtrace.internal.remoteconfig.client import AgentPayload
 from ddtrace.internal.remoteconfig.client import ConfigMetadata
 from ddtrace.internal.remoteconfig.client import TargetFile
@@ -27,6 +26,7 @@ from ddtrace.settings.asm import config as asm_config
 import tests.appsec.rules as rules
 from tests.appsec.utils import asm_context
 from tests.appsec.utils import build_payload
+from tests.appsec.utils import get_waf_addresses
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -120,7 +120,7 @@ def test_rc_activation_states_off(tracer, appsec_enabled, rc_value, remote_confi
 @pytest.mark.parametrize(
     "rc_enabled, appsec_enabled, capability",
     [
-        (True, "true", "L4HkA/w="),  # All capabilities except ASM_ACTIVATION
+        (True, "true", "DC+B5AP8"),  # All capabilities except ASM_ACTIVATION
         (False, "true", ""),
         (True, "false", "gAAAAA=="),
         (False, "false", ""),
@@ -144,7 +144,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
 @pytest.mark.parametrize(
     "env_rules, expected",
     [
-        ({}, "L4HkA/4="),  # All capabilities
+        ({}, "DC+B5AP+"),  # All capabilities
         ({"_asm_static_rule_file": DEFAULT.RULES}, "gAAAAg=="),  # Only ASM_FEATURES
     ],
 )
@@ -502,7 +502,7 @@ def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
                 rules.Config(),
             )
         assert get_triggers(span)
-        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
 
 
 def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
@@ -557,4 +557,4 @@ def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker
                 rules.Config(),
             )
         assert get_triggers(span)
-        assert core.get_item("http.request.remote_ip", span) == "8.8.4.4"
+        assert get_waf_addresses("http.request.remote_ip") == "8.8.4.4"
