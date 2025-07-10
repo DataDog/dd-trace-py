@@ -234,7 +234,6 @@ class IastSpanReporter(NotNoneDictable):
                         part["source"] = part["source"] + offset
             self.vulnerabilities.add(vuln)
 
-
     def _from_dict(self, data: Dict[str, Any]):
         """Initializes the IAST span reporter from a dictionary."""
         from ._taint_tracking import str_to_origin
