@@ -13,7 +13,7 @@ from ddtrace.llmobs._utils import _get_attr
 
 # google genai has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
-DEFAULT_MODEL_ROLE = "assistant"
+GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -40,7 +40,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
+def extract_provider_and_model_name_google_genai(kwargs: Dict[str, Any]) -> Tuple[str, str]:
     model_path = kwargs.get("model", "")
     model_name = model_path.split("/")[-1]
     for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
@@ -49,8 +49,24 @@ def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
             return provider_name, model_name
     return "custom", model_name if model_name else "custom"
 
+def _extract_content_google_genai(content):
+    """Helper function for normalize_contents below to extract content from a single content object"""
+    role = _get_attr(content, "role", None)
+    parts = _get_attr(content, "parts", None)
 
-def normalize_contents(contents) -> List[Dict[str, Any]]:
+    # if parts is missing and content itself is a PartUnion or list[PartUnion]
+    if parts is None:
+        if isinstance(content, list):
+            parts = content
+        else:
+            parts = [content]
+
+    elif not isinstance(parts, list):
+        parts = [parts]
+
+    return {"role": role, "parts": parts}
+
+def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -63,26 +79,9 @@ def normalize_contents(contents) -> List[Dict[str, Any]]:
 
     This function normalizes all these variants into a list of dicts with format{"role": role, "parts": parts}
     """
-
-    def extract_content(content):
-        role = _get_attr(content, "role", None)
-        parts = _get_attr(content, "parts", None)
-
-        # if parts is missing and content itself is a PartUnion or list[PartUnion]
-        if parts is None:
-            if isinstance(content, list):
-                parts = content
-            else:
-                parts = [content]
-
-        elif not isinstance(parts, list):
-            parts = [parts]
-
-        return {"role": role, "parts": parts}
-
     if isinstance(contents, list):
-        return [extract_content(c) for c in contents]
-    return [extract_content(contents)]
+        return [_extract_content_google_genai(c) for c in contents]
+    return [_extract_content_google_genai(contents)]
 
 
 def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
@@ -142,7 +141,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     returns a dict representing a message with format {"role": role, "content": content}
     """
     if role == "model":
-        role = DEFAULT_MODEL_ROLE
+        role = GENAI_DEFAULT_MODEL_ROLE
 
     message: Dict[str, Any] = {"role": role}
     if isinstance(part, str):
