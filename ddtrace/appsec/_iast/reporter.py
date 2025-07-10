@@ -194,7 +194,7 @@ class IastSpanReporter(NotNoneDictable):
         """
         other = IastSpanReporter()
         other.stacktrace_id = self.stacktrace_id
-        other._from_json(json_str)
+        other._from_dict(json.loads(json_str))
         self._merge(other)
         self.stacktrace_id = other.stacktrace_id
 
@@ -234,15 +234,6 @@ class IastSpanReporter(NotNoneDictable):
                         part["source"] = part["source"] + offset
             self.vulnerabilities.add(vuln)
 
-    def _from_json(self, json_str: str):
-        """
-        Initializes the IAST span reporter from a JSON string.
-
-        Args:
-        - json_str (str): JSON string.
-        """
-        data = json.loads(json_str)
-        self._from_dict(data)
 
     def _from_dict(self, data: Dict[str, Any]):
         """Initializes the IAST span reporter from a dictionary."""
