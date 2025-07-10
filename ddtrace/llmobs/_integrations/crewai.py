@@ -235,20 +235,6 @@ class CrewAIIntegration(BaseLLMIntegration):
             manifest["max_iterations"] = agent.max_iter
         if hasattr(agent, "tools"):
             manifest["tools"] = self._get_agent_tools(agent.tools)
-        if hasattr(agent, "crew"):
-            memory = {}
-            if hasattr(agent.crew, "_short_term_memory"):
-                memory["short_term_memory"] = agent.crew._short_term_memory
-            if hasattr(agent.crew, "_long_term_memory"):
-                memory["long_term_memory"] = agent.crew._long_term_memory
-            if hasattr(agent.crew, "_entity_memory"):
-                memory["entity_memory"] = agent.crew._entity_memory
-            if hasattr(agent.crew, "_user_memory"):
-                memory["user_memory"] = agent.crew._user_memory
-            if hasattr(agent.crew, "_external_memory"):
-                memory["external_memory"] = agent.crew._external_memory
-            if memory:
-                manifest["memory"] = memory
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
     
