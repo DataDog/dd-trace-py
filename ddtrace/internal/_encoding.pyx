@@ -60,7 +60,7 @@ cdef extern from "pack.h":
     int msgpack_pack_true(msgpack_packer* pk)
     int msgpack_pack_false(msgpack_packer* pk)
 
-from libc.limits cimport LONG_MAX
+from libc.limits cimport LONG_MAX, LLONG_MIN, LLONG_MAX, ULLONG_MAX
 
 
 cdef long long ITEM_LIMIT = (2**32)-1
@@ -124,10 +124,11 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
         return msgpack_pack_nil(pk)
 
     if PyLong_Check(n):
-        n = max(-1 * LONG_MAX, min(LONG_MAX, n))
         try:
             if n > 0:
+                n = min(ULLONG_MAX, n)
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
+            n = max(LLONG_MIN, min(LLONG_MAX, n))
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
             raise OverflowError("Integer value out of range")
