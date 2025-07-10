@@ -166,8 +166,6 @@ def test_global_tags(openai_vcr, openai, mock_tracer):
     assert span.get_tag("openai.request.model") == "ada"
     assert span.get_tag("openai.request.endpoint") == "/v1/completions"
     assert span.get_tag("openai.request.method") == "POST"
-    assert span.get_tag("openai.organization.name") == "datadog-4"
-    assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
 
 def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):

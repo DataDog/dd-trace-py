@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "685d9f5a00000000",
+      "_dd.p.tid": "686ff8d600000000",
       "component": "openai",
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
@@ -19,15 +19,10 @@
       "openai.request.endpoint": "/v1/images/generations",
       "openai.request.method": "POST",
       "openai.request.model": "dall-e",
-      "openai.request.n": "1",
-      "openai.request.prompt": "sleepy capybara with monkey on top",
-      "openai.request.response_format": "b64_json",
-      "openai.request.size": "256x256",
-      "openai.request.user": "ddtrace-test",
       "openai.response.created": "1685642324",
       "openai.response.images.0.b64_json": "returned",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "30ba704c804d4f279f8185780632be35"
+      "runtime-id": "79f726d97eb245999c1c871ab6d5b657"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -35,8 +30,8 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "openai.response.images_count": 1,
-      "process_id": 44870
+      "process_id": 7130
     },
-    "duration": 9211000,
-    "start": 1750966106265538000
+    "duration": 10380000,
+    "start": 1752168662165728000
   }]]

@@ -64,7 +64,7 @@ class _EndpointHook:
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
                     span.set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
-            elif kw_attr == "engine":  # Azure OpenAI requires using "engine" instead of "model"
+            elif kw_attr == "engine" or kw_attr == "model":  # Azure OpenAI requires using "engine" instead of "model"
                 span.set_tag_str("openai.request.model", str(kwargs[kw_attr]))
 
     def handle_request(self, pin, integration, instance, span, args, kwargs):
@@ -85,7 +85,7 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
 
     def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
         """Handle streamed response objects returned from completions/chat/response endpoint calls.
@@ -182,7 +182,7 @@ class _CompletionWithRawResponseHook(_CompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = (
         "model",
         "engine",
@@ -221,7 +221,7 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "request_id", "api_version", "organization")
+    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
     _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
     ENDPOINT_NAME = "embeddings"
@@ -241,7 +241,7 @@ class _ListHook(_EndpointHook):
     Hook for openai.ListableAPIResource, which is used by Model.list, File.list, and FineTune.list.
     """
 
-    _request_arg_params = ("api_key", "request_id", "api_version", "organization", "api_base", "api_type")
+    _request_arg_params = ("request_id", "api_version", "organization", "api_base", "api_type")
     _request_kwarg_params = ("user",)
     ENDPOINT_NAME = None
     HTTP_METHOD_TYPE = "GET"
@@ -284,7 +284,7 @@ class _FileListHook(_ListHook):
 class _RetrieveHook(_EndpointHook):
     """Hook for openai.APIResource, which is used by Model.retrieve, File.retrieve, and FineTune.retrieve."""
 
-    _request_arg_params = (None, "api_key", "request_id", "request_timeout")
+    _request_arg_params = (None, "request_id", "request_timeout")
     _request_kwarg_params = ("user",)
     _response_attrs = (
         "id",
