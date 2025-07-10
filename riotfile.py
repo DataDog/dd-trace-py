@@ -80,6 +80,37 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
+# Flask version matrix for appsec_threats_flask
+FLASK_THREATS_VENVS = [
+    Venv(
+        pys=["3.8", "3.9"],
+        pkgs={
+            "flask": "~=1.1",
+            "MarkupSafe": "~=1.1",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.9"],
+        pkgs={
+            "flask": "==2.1.3",
+            "Werkzeug": "<3.0",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.10", "3.13"],
+        pkgs={
+            "flask": "~=2.3",
+        },
+    ),
+    Venv(
+        pys=["3.8", "3.11", "3.13"],
+        pkgs={
+            "flask": "~=3.0",
+        },
+    ),
+]
+
+
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -446,7 +477,6 @@ venv = Venv(
         Venv(
             name="internal",
             env={
-                "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -2537,7 +2567,6 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.8"),
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
@@ -2545,14 +2574,37 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
-                "gevent": latest,
+                "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
             },
+            venvs=[
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+            ],
         ),
         Venv(
             name="asyncio",
@@ -3478,6 +3530,36 @@ venv = Venv(
                         "django": "~=5.1",
                     },
                     venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
+            pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+            },
+            venvs=[
+                Venv(
+                    name="appsec_threats_flask_no_iast",
+                    env={"DD_IAST_ENABLED": "false"},
+                    venvs=FLASK_THREATS_VENVS,
+                ),
+                Venv(
+                    name="appsec_threats_flask_iast",
+                    env={
+                        "DD_IAST_ENABLED": "true",
+                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    },
+                    venvs=FLASK_THREATS_VENVS,
                 ),
             ],
         ),
