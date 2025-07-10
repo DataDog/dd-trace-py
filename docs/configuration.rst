@@ -788,6 +788,17 @@ Logs
      type: string
      default: structured
      description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
+  
+  DD_LOGS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
+         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+     
+     version_added:
+       v3.11.0:
 
    DD_TRACE_DEBUG:
      type: Boolean

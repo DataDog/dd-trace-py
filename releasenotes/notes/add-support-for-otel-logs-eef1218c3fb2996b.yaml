@@ -1,4 +1,5 @@
 ---
 features:
   - |
-    otel: Add support for exporting OpenTelemetry logs.
+    opentelemetry: Adds experimental support for exporting logs using the OTLP protocol.
+    To enable this feature install the `opentelemetry-otlp-exporter` and set `DD_LOGS_OTEL_ENABLED=True`.
