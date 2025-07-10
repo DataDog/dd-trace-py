@@ -146,6 +146,7 @@ _appsec_threats_iast_variants = [
         env={
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_DEDUPLICATION_ENABLED": "false",
         },
     ),
 ]
@@ -3510,7 +3511,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
             },
@@ -3558,7 +3559,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
+            name="appsec_threats_flask",
+            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
                 "pytest": latest,
@@ -3573,17 +3575,34 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="appsec_threats_flask_no_iast",
-                    env={"DD_IAST_ENABLED": "false"},
-                    venvs=FLASK_THREATS_VENVS,
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "~=1.1",
+                        "MarkupSafe": "~=1.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    name="appsec_threats_flask_iast",
-                    env={
-                        "DD_IAST_ENABLED": "true",
-                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "==2.1.3",
+                        "Werkzeug": "<3.0",
                     },
-                    venvs=FLASK_THREATS_VENVS,
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "flask": "~=2.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),
@@ -3601,6 +3620,7 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
             venvs=[
                 Venv(
