@@ -181,7 +181,7 @@ class CIVisibility(Service):
             # This MIGHT be due to the shutdown the global tracer in tests (calling tracer.shutdown()
             # sets tracer.enabled to False and is meant to be an irreversible operation).
             # To avoid breaking CIVisibility, we continue to reset self.enabled here
-            # to match the global config. Although not deal, this is the safest way to refactor the Tracer class
+            # to match the global config. Although not ideal, this is the safest way to refactor the Tracer class
             # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
             self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
