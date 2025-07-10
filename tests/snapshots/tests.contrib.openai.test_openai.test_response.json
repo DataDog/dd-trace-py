@@ -10,7 +10,7 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "686ff93300000000",
+      "_dd.p.tid": "6870048e00000000",
       "component": "openai",
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
@@ -21,7 +21,7 @@
       "openai.request.model": "gpt-4.1",
       "openai.response.model": "gpt-4.1-2025-04-14",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "e9ad8b56eb4b4a79b3e45018779e0429"
+      "runtime-id": "84c4cdfa0985418fa79b5f7cb907f5fc"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -32,8 +32,8 @@
       "openai.organization.ratelimit.requests.remaining": 9999,
       "openai.organization.ratelimit.tokens.limit": 30000000,
       "openai.organization.ratelimit.tokens.remaining": 29999927,
-      "process_id": 7621
+      "process_id": 19226
     },
-    "duration": 16305000,
-    "start": 1752168755068856000
+    "duration": 16531000,
+    "start": 1752171662850215000
   }]]
