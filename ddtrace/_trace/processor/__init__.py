@@ -31,7 +31,6 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import create_trace_writer
-from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
