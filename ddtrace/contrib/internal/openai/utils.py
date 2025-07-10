@@ -315,7 +315,6 @@ def _set_token_metrics_from_streamed_response(span, integration, response, promp
     """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
-    estimated = False
     usage = None
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
@@ -330,8 +329,8 @@ def _set_token_metrics_from_streamed_response(span, integration, response, promp
         total_tokens = getattr(usage, "total_tokens", 0)
     else:
         model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-        estimated, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
-        estimated, completion_tokens = _compute_completion_tokens(response, model_name)
+        _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
+        _, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
 
     integration.llmobs_record_usage(
