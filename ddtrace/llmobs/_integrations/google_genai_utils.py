@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Tuple
 
+from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
@@ -22,6 +23,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
     "gemini": "google",
     "imagen": "google",
     "veo": "google",
+    "text-embedding": "google",
     "jamba": "ai21",
     "claude": "anthropic",
     "llama": "meta",
@@ -83,7 +85,7 @@ def normalize_contents(contents) -> List[Dict[str, Any]]:
     return [extract_content(contents)]
 
 
-def extract_metrics_google_genai(response) -> Dict[str, Any]:
+def extract_generation_metrics_google_genai(response) -> Dict[str, Any]:
     if not response:
         return {}
 
@@ -110,6 +112,26 @@ def extract_metrics_google_genai(response) -> Dict[str, Any]:
         usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
     if total_tokens is not None:
         usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+
+    return usage
+
+
+def extract_embedding_metrics_google_genai(response) -> Dict[str, Any]:
+    if not response:
+        return {}
+    usage = {}
+    metadata = _get_attr(response, "metadata", {})
+    billable_character_count = _get_attr(metadata, "billable_character_count", None)
+    input_tokens = 0
+    embeddings = _get_attr(response, "embeddings", [])
+    for embedding in embeddings if embeddings is not None else []:
+        statistics = _get_attr(embedding, "statistics", {})
+        input_tokens += _get_attr(statistics, "token_count", 0)
+
+    if billable_character_count is not None:
+        usage[BILLABLE_CHARACTER_COUNT_METRIC_KEY] = billable_character_count
+    if input_tokens:  # falsy value of 0 should not be set
+        usage[INPUT_TOKENS_METRIC_KEY] = int(input_tokens)
 
     return usage
 
