@@ -55,10 +55,16 @@ class MCPIntegration(BaseLLMIntegration):
             is_error = _get_attr(response, "isError", False)
             processed_content = []
             for item in content:
-                if _get_attr(item, "type", None) == "text" and hasattr(item, "model_dump"):
-                    processed_content.append(item.model_dump())
+                if _get_attr(item, "type", None) == "text":
+                    text_content = {
+                        field_name: field_value
+                        for field_name in ["type", "text", "annotations", "meta"]
+                        if (field_value := _get_attr(item, field_name, None)) is not None
+                    }
+                    processed_content.append(text_content)
+
             output_value = {"content": processed_content, "isError": is_error}
         else:
-            # On the server side, the function returns a raw tool result which has type `Any`
+            # Server side: Raw tool result serialized via safe_json
             output_value = safe_json(response)
         span._set_ctx_item(OUTPUT_VALUE, output_value)
