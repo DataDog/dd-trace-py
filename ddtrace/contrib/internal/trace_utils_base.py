@@ -12,7 +12,7 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
-from ddtrace.settings import IntegrationConfig
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
