@@ -394,6 +394,11 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
+                if spans is not None:
+                    for span in spans:
+                        if span.service:
+                            # report extra service name as it may have been set after the span creation by the customer
+                            config._add_extra_service(span.service)
                 self.writer.write(spans)
                 return
 
