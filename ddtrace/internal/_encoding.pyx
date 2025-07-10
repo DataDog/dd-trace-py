@@ -1051,13 +1051,15 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
         if ret != 0:
             return ret
 
-        _ = max(0, min(LONG_MAX, span.start_ns))
-        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
+        _ = span.start_ns
+        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
+        ret = msgpack_pack_int64(&self.pk, _)
         if ret != 0:
             return ret
 
-        _ = max(0, min(LONG_MAX, span.duration_ns))
-        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
+        _ = span.duration_ns
+        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
+        ret = msgpack_pack_int64(&self.pk, _)
         if ret != 0:
             return ret
 
