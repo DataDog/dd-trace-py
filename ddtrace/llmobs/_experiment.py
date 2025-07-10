@@ -35,9 +35,9 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[Dict[str, JSONType]], Any],
+        task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[Any, Any, Any], Any]],
+        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
         description: str = "",
         config: Optional[Dict[str, Any]] = None,
         _llmobs: Optional[Any] = None,  # LLMObs service (cannot import here due to circular dependency)

@@ -77,6 +77,7 @@ from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -580,9 +581,9 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[Dict[str, JSONType]], Any],
+        task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[JSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
         description: str = "",
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
