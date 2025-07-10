@@ -380,7 +380,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 elif param in ["max_tokens", "maxTokens", "max_completion_tokens"]:
                     max_tokens = val
 
-        metadata = {}
+        metadata: Dict[str, Any] = {}
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
         if temperature is not None and temperature != "None":
