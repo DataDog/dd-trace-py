@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
-from ddtrace.llmobs._integrations.utils import extract_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_model_name_google
 from ddtrace.trace import Pin
 
 

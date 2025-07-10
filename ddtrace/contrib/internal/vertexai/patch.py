@@ -14,7 +14,7 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
 from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
 from ddtrace.llmobs._integrations import VertexAIIntegration
-from ddtrace.llmobs._integrations.utils import extract_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_model_name_google
 from ddtrace.trace import Pin
 
 
