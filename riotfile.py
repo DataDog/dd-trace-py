@@ -111,28 +111,6 @@ FLASK_THREATS_VENVS = [
 ]
 
 
-# FastAPI version matrix for appsec_threats_fastapi
-FASTAPI_THREATS_VENVS = [
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "fastapi": "==0.86.0",
-            "anyio": "==3.7.1",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "fastapi": "==0.94.1",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "fastapi": "~=0.114.2",
-        },
-    ),
-]
 
 
 # Common venv configurations for appsec threats testing
@@ -3607,6 +3585,7 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="appsec_threats_fastapi",
             command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
             pys=["3.8", "3.10", "3.13"],
             pkgs={
@@ -3624,17 +3603,26 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="appsec_threats_fastapi_no_iast",
-                    env={"DD_IAST_ENABLED": "false"},
-                    venvs=FASTAPI_THREATS_VENVS,
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.86.0",
+                        "anyio": "==3.7.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    name="appsec_threats_fastapi_iast",
-                    env={
-                        "DD_IAST_ENABLED": "true",
-                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.94.1",
                     },
-                    venvs=FASTAPI_THREATS_VENVS,
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "~=0.114.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
         ),
