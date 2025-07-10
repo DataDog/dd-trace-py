@@ -102,6 +102,7 @@ suites:
       - '@bootstrap'
       - '@core'
       - '@profiling'
+      - tests/profiling/suitespec.yml
       - tests/profiling_v2/*
     pattern: profile-v2$
     retry: 2
