@@ -1,12 +1,18 @@
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import TypedDict
 from typing import Union
 
 from typing_extensions import NotRequired
+
+
+if TYPE_CHECKING:
+    from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
@@ -23,12 +29,30 @@ class DatasetRecord(TypedDict):
 class Dataset:
     name: str
     _id: str
-    _data: List[DatasetRecord]
+    _records: List[DatasetRecord]
+    _dne_client: Optional["LLMObsExperimentsClient"]
 
-    def __init__(self, name: str, dataset_id: str, data: List[DatasetRecord]) -> None:
+    def __init__(self, name: str, dataset_id: str, records: List[DatasetRecord]) -> None:
         self.name = name
         self._id = dataset_id
-        self._data = data
+        self._records = records
+        self._dne_client = None
+
+    def push(self) -> None:
+        if not self._id:
+            raise ValueError("Dataset ID is required to push data to Experiments")
+        if not self._dne_client:
+            raise ValueError("LLMObs client is required to push data to Experiments")
+        self._dne_client.dataset_batch_update(self._id, self._records)
+
+    def __getitem__(self, index: Union[int, slice]) -> DatasetRecord | List[DatasetRecord]:
+        return self._records.__getitem__(index)
+
+    def __len__(self) -> int:
+        return len(self._records)
+
+    def __iter__(self) -> Iterator[DatasetRecord]:
+        return iter(self._records)
 
 
 class Experiment:

@@ -75,6 +75,7 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._experiment import NonNoneJSONType
@@ -567,11 +568,12 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, name: str) -> Dataset:
-        return cls._instance._dne_client.dataset_pull(name)
+        ds = cls._instance._dne_client.dataset_with_records(name)
+        return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str) -> Dataset:
-        return cls._instance._dne_client.dataset_create(name, description)
+    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
