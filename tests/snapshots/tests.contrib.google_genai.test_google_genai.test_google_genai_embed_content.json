@@ -1,0 +1,28 @@
+[[
+  {
+    "name": "google_genai.request",
+    "service": "tests.contrib.google_genai",
+    "resource": "Models.embed_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "686d243300000000",
+      "google_genai.request.model": "text-embedding-004",
+      "google_genai.request.provider": "google",
+      "language": "python",
+      "runtime-id": "766445521958404b835a8acdb26d8311"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 30450
+    },
+    "duration": 415000,
+    "start": 1751983155494519000
+  }]]
