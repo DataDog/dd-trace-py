@@ -37,6 +37,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._agent import config as agent_config
@@ -296,7 +297,7 @@ class SpanAggregator(SpanProcessor):
         else:
             verify_url(agent_config.trace_agent_url)
             self.writer = AgentWriter(
-                agent_url=agent_config.trace_agent_url,
+                intake_url=agent_config.trace_agent_url,
                 dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"}
@@ -401,6 +402,11 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
+                if spans is not None:
+                    for span in spans:
+                        if span.service:
+                            # report extra service name as it may have been set after the span creation by the customer
+                            config._add_extra_service(span.service)
                 self.writer.write(spans)
                 return
 
@@ -528,7 +534,7 @@ class SpanAggregator(SpanProcessor):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        if isinstance(self.writer, AgentWriter) and appsec_enabled:
+        if isinstance(self.writer, AgentWriterInterface) and appsec_enabled:
             # Ensure AppSec metadata is encoded by setting the API version to v0.4.
             self.writer._api_version = "v0.4"
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
