@@ -130,7 +130,10 @@ class MemoryCollector(collector.PeriodicCollector):
             (frames, _, thread_id), size, in_use, count, reported = event
             
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                samples.append((size, count, in_use))
+                in_use_size = size if in_use else 0
+                alloc_size = size if (not in_use or not reported) else 0
+                
+                samples.append((frames, size, count, in_use, in_use_size, alloc_size, reported))
                 
         return tuple(samples)
 
