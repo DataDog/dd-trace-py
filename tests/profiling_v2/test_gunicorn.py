@@ -45,6 +45,7 @@ def _run_gunicorn(*args):
         + list(args)
         + ["tests.profiling.gunicorn-app:app"]
     )
+    debug_print("Running command:", " ".join(cmd))
     return subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
 
@@ -74,6 +75,14 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     time.sleep(5)
 
     if proc.poll() is not None:
+        # Capture the actual error output before failing
+        try:
+            output = proc.stdout.read().decode()
+            debug_print("Gunicorn failed to start. Output:")
+            debug_print(output)
+            debug_print("Return code:", proc.returncode)
+        except Exception as e:
+            debug_print("Failed to read output:", e)
         pytest.fail("Gunicorn failed to start")
 
     debug_print("Making request to gunicorn server")
