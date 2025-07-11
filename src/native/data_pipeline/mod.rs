@@ -1,6 +1,6 @@
 use data_pipeline::trace_exporter::{
-    TelemetryConfig, TraceExporter, TraceExporterBuilder, TraceExporterInputFormat,
-    TraceExporterOutputFormat,
+    agent_response::AgentResponse, TelemetryConfig, TraceExporter, TraceExporterBuilder,
+    TraceExporterInputFormat, TraceExporterOutputFormat,
 };
 use pyo3::{exceptions::PyValueError, prelude::*, pybacked::PyBackedBytes};
 use std::time::Duration;
@@ -199,7 +199,10 @@ impl TraceExporterPy {
                 ))?
                 .send(&data, trace_count)
             {
-                Ok(res) => Ok(res.body),
+                Ok(res) => match res {
+                    AgentResponse::Changed { body } => Ok(body),
+                    AgentResponse::Unchanged => Ok("".to_string()),
+                },
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })

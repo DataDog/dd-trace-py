@@ -190,8 +190,8 @@ checksum = "5c8214115b7bf84099f1309324e63141d4c5d7cc26862f97a0a857dbefe165bd"
 
 [[package]]
 name = "build_common"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "cbindgen",
  "serde",
@@ -227,12 +227,12 @@ dependencies = [
 
 [[package]]
 name = "cbindgen"
-version = "0.27.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fce8dd7fcfcbf3a0a87d8f515194b49d6135acab73e18bd380d1d93bb1a15eb"
+checksum = "975982cdb7ad6a142be15bdf84aea7ec6a9e5d4d797c004d43185b24cfe4e684"
 dependencies = [
  "clap",
- "heck 0.4.1",
+ "heck",
  "indexmap",
  "log",
  "proc-macro2",
@@ -405,8 +405,8 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "data-pipeline"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "arc-swap",
@@ -422,49 +422,54 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-util",
- "log",
  "rmp-serde",
  "serde",
  "serde_json",
  "tinybytes",
  "tokio",
  "tokio-util",
+ "tracing",
  "uuid",
 ]
 
 [[package]]
 name = "data-pipeline-ffi"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "build_common",
  "data-pipeline",
  "ddcommon-ffi",
  "tinybytes",
+ "tracing",
 ]
 
 [[package]]
 name = "datadog-ddsketch"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "datadog-library-config"
-version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "0.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
+ "memfd",
+ "rand",
+ "rmp",
+ "rmp-serde",
  "serde",
  "serde_yaml",
 ]
 
 [[package]]
 name = "datadog-trace-normalization"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "datadog-trace-protobuf",
@@ -472,8 +477,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-trace-protobuf"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "prost",
  "serde",
@@ -482,8 +487,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-trace-utils"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "bytes",
@@ -493,7 +498,6 @@ dependencies = [
  "futures",
  "http-body-util",
  "hyper",
- "log",
  "prost",
  "rand",
  "rmp",
@@ -503,12 +507,13 @@ dependencies = [
  "serde_json",
  "tinybytes",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
 name = "ddcommon"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "cc",
@@ -524,18 +529,14 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "libc",
- "log",
- "memfd",
  "nix",
  "pin-project",
- "rand",
  "regex",
- "rmp",
- "rmp-serde",
  "rustls",
  "rustls-native-certs",
  "serde",
  "static_assertions",
+ "thiserror",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -544,8 +545,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon-ffi"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "build_common",
@@ -558,8 +559,8 @@ dependencies = [
 
 [[package]]
 name = "ddtelemetry"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "base64",
@@ -596,8 +597,8 @@ dependencies = [
 
 [[package]]
 name = "dogstatsd-client"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "anyhow",
  "cadence",
@@ -793,12 +794,6 @@ dependencies = [
  "equivalent",
  "foldhash",
 ]
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -1303,7 +1298,7 @@ version = "0.24.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fd72da09cfa943b1080f621f024d2ef7e2773df7badd51aa30a2be1f8caa7c8e"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "pyo3-build-config",
  "quote",
@@ -1710,9 +1705,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "tinybytes"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=ad49ce7#ad49ce7a20c0dfbe70a63684b6ae273bd7d8ec92"
+version = "19.0.1"
+source = "git+https://github.com/DataDog/libdatadog?rev=ca19adc#ca19adc5c782be316210b69510ebb6c8dff12d87"
 dependencies = [
  "serde",
 ]

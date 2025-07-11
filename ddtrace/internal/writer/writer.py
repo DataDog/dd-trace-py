@@ -799,9 +799,11 @@ class NativeWriter(AgentWriterInterface):
             test_session_token=self._test_session_token,
         )
 
-    def _downgrade(self, response, client):
+    def _downgrade(self, status, client):
         if client.ENDPOINT == "v0.5/traces":
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
+            self._api_version = "v0.4"
+            self._exporter = self._create_exporter()
             # TODO: Rebuild the exporter
 
             # Since we have to change the encoding in this case, the payload
@@ -813,14 +815,13 @@ class NativeWriter(AgentWriterInterface):
                 "avoid this from happening in the future, either ensure that the Datadog agent has a v0.5/traces "
                 "endpoint available, or explicitly set the trace API version to, e.g., v0.4.",
                 client.ENDPOINT,
-                response.status,
+                status,
             )
-            self.recreate()
         else:
             log.error(
                 "unsupported endpoint '%s': received response %s from intake (%s)",
                 client.ENDPOINT,
-                response.status,
+                status,
                 self.intake_url,
             )
 
@@ -868,7 +869,19 @@ class NativeWriter(AgentWriterInterface):
 
         # TODO: Return agent response from send
         self.start_worker_thread()
-        response_body = self._exporter.send(payload, count)
+        try:
+            response_body = self._exporter.send(payload, count)
+        except native.RequestError as e:
+            try:
+                # Request errors are formatted as "Error code: {code}, Response: {response}"
+                code = int(str(e).split(",")[0].split(":",maxsplit=1)[1])
+            except:
+                raise e
+            if code == 404 or code == 415:
+                self._downgrade(code, client)
+            else:
+                raise e
+
         if self._response_cb:
             response = Response(body=response_body)
             raw_resp = response.get_json()

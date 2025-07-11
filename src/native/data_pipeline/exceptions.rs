@@ -46,12 +46,6 @@ create_exception!(
 );
 create_exception!(
     trace_exporter_exceptions,
-    HTTPError,
-    PyException,
-    "HTTP error code received"
-);
-create_exception!(
-    trace_exporter_exceptions,
     SerializationError,
     PyException,
     "Serialization error"
@@ -70,13 +64,15 @@ impl From<TraceExporterErrorPy> for PyErr {
             }
             TraceExporterError::Io(error) => IoError::new_err(error.to_string()),
             TraceExporterError::Network(error) => NetworkError::new_err(error.to_string()),
-            TraceExporterError::Request(error) => {
-                if error.status().as_u16() == 404 || error.status().as_u16() == 415 {
-                    HTTPError::new_err(error.status().to_string())
-                } else {
-                    RequestError::new_err(error.to_string())
-                }
-            }
+            // PyO3 doesn't properly support adding extra fields to an exception type
+            // see https://github.com/PyO3/pyo3/issues/295#issuecomment-2387253743.
+            // We manually create the error message here to make sure it can be parsed in the
+            // NativeWriter to access the error code.
+            TraceExporterError::Request(error) => RequestError::new_err(format!(
+                "Error code: {}, Response: {}",
+                error.status(),
+                error.msg()
+            )),
             TraceExporterError::Serialization(error) => {
                 SerializationError::new_err(error.to_string())
             }
