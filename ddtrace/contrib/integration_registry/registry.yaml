@@ -562,7 +562,7 @@ integrations:
   - mcp
   tested_versions_by_dependency:
     mcp:
-      min: 1.11.0
+      min: 1.10.0
       max: 1.11.0
 
 - integration_name: molten

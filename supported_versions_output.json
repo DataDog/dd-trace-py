@@ -406,14 +406,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "mako",
@@ -432,10 +432,9 @@
     {
         "dependency": "mcp",
         "integration": "mcp",
-        "minimum_tracer_supported": "1.9.4",
-        "max_tracer_supported": "1.10.1",
-        "pinned": "true",
-        "auto-instrumented": false
+        "minimum_tracer_supported": "1.10.0",
+        "max_tracer_supported": "1.11.0",
+        "auto-instrumented": true
     },
     {
         "dependency": "molten",
@@ -641,7 +640,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "tornado",
