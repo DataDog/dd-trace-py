@@ -29,6 +29,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 
+
 try:
     from tiktoken import encoding_for_model
 
@@ -1154,6 +1155,7 @@ def get_final_message_converse_stream_message(
 
 _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
+
 def _compute_prompt_tokens(model_name, prompts=None, messages=None):
     """Compute token span metrics on streamed chat/completion requests.
     Only required if token usage is not provided in the streamed response.
@@ -1233,7 +1235,6 @@ def get_token_metrics_from_streamed_response(span, response, prompts, messages, 
         _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
         _, completion_tokens = _compute_completion_tokens(response, model_name)
         total_tokens = prompt_tokens + completion_tokens
-
 
     return {
         INPUT_TOKENS_METRIC_KEY: prompt_tokens,

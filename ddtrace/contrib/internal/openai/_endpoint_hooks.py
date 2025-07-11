@@ -2,7 +2,6 @@ from openai.version import VERSION as OPENAI_VERSION
 
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
 from ddtrace.contrib.internal.openai.utils import TracedOpenAIStream
-from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.internal.openai.utils import _is_async_generator
 from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
@@ -77,7 +76,6 @@ class _EndpointHook:
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-
         for resp_attr in self._response_attrs:
             if hasattr(resp, resp_attr):
                 span.set_tag_str("openai.response.%s" % resp_attr, str(getattr(resp, resp_attr, "")))
@@ -637,9 +635,7 @@ class _FileDownloadHook(_BaseFileHook):
 class _ResponseHook(_BaseCompletionHook):
     _request_arg_params = ()
     # Collecting all kwargs for responses
-    _request_kwarg_params = (
-        "model",
-    )
+    _request_kwarg_params = ("model",)
     _response_attrs = ("model",)
     ENDPOINT_NAME = "responses"
     HTTP_METHOD_TYPE = "POST"

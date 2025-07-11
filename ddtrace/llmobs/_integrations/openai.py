@@ -18,11 +18,11 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import get_token_metrics_from_streamed_response
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
-from ddtrace.llmobs._integrations.utils import get_token_metrics_from_streamed_response
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -155,7 +155,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _extract_llmobs_metrics_tags(
+        span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]
+    ) -> Optional[Dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = _get_attr(resp, "usage", None)
         if token_usage is not None and span_kind != "workflow":
@@ -172,7 +174,9 @@ class OpenAIIntegration(BaseLLMIntegration):
                 TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
         elif kwargs.get("stream") and resp is not None:
-            return get_token_metrics_from_streamed_response(span, resp, kwargs.get("prompt", None), kwargs.get("messages", None), kwargs)
+            return get_token_metrics_from_streamed_response(
+                span, resp, kwargs.get("prompt", None), kwargs.get("messages", None), kwargs
+            )
         return None
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
@@ -180,4 +184,3 @@ class OpenAIIntegration(BaseLLMIntegration):
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
-

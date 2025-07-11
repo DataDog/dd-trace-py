@@ -6,7 +6,6 @@ from openai import version
 
 from ddtrace import config
 from ddtrace.contrib.internal.openai import _endpoint_hooks
-from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap

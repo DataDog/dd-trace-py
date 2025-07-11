@@ -1,4 +1,3 @@
-import re
 import sys
 from typing import AsyncGenerator
 from typing import Generator
@@ -8,9 +7,6 @@ import wrapt
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
-from ddtrace.llmobs._utils import _get_attr
-
-
 
 
 log = get_logger(__name__)
@@ -230,8 +226,6 @@ def _loop_handler(span, chunk, streamed_chunks):
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
-    prompts = kwargs.get("prompt", None)
-    request_messages = kwargs.get("messages", None)
     try:
         if operation_type == "response":
             formatted_completions = streamed_chunks[0][0]
