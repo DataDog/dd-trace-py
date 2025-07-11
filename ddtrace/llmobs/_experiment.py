@@ -1,7 +1,7 @@
+from typing import TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
