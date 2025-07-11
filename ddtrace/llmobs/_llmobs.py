@@ -568,7 +568,7 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, name: str) -> Dataset:
-        ds = cls._instance._dne_client.dataset_with_records(name)
+        ds = cls._instance._dne_client.dataset_get_with_records(name)
         return ds
 
     @classmethod

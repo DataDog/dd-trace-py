@@ -361,7 +361,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")
         return None
 
-    def dataset_with_records(self, name: str) -> Dataset:
+    def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
