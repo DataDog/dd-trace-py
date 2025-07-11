@@ -130,6 +130,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
+    prompts = get_argument_value(args, kwargs, 0, "prompts")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__module__, instance.__class__.__name__),
@@ -147,6 +148,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     try:
         integration.llmobs_set_metadata(span, instance._identifying_params)
         completions = func(*args, **kwargs)
+        core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -159,6 +161,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
+    prompts = get_argument_value(args, kwargs, 0, "prompts")
     integration = langchain._datadog_integration
     model = _extract_model_name(instance)
     span = integration.trace(
@@ -178,6 +181,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     try:
         integration.llmobs_set_metadata(span, instance._identifying_params)
         completions = await func(*args, **kwargs)
+        core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -190,6 +194,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -208,6 +213,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     try:
         integration.llmobs_set_metadata(span, instance._identifying_params)
         chat_completions = func(*args, **kwargs)
+        core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -220,6 +226,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type.split("-")[0]
+    chat_messages = get_argument_value(args, kwargs, 0, "messages")
     integration = langchain._datadog_integration
     span = integration.trace(
         pin,
@@ -238,6 +245,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     try:
         integration.llmobs_set_metadata(span, instance._identifying_params)
         chat_completions = await func(*args, **kwargs)
+        core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
