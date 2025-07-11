@@ -199,6 +199,7 @@ def _find_and_analyze_core_dump(proc_pid):
         "core",  # Default pattern from core_pattern
         "./core",  # Explicit current directory
         f"{cwd}/core",  # Full path to current directory
+        f"{cwd}/tests/profiling_v2/core.*",  # core file in tests/profiling_v2/
         "/tmp/core*",
         "./core*",
         f"core.{proc_pid}",
@@ -284,15 +285,51 @@ def _find_and_analyze_core_dump(proc_pid):
         # Search for core files in common locations
         find_locations = ["/tmp", cwd, "/"]
         for location in find_locations:
+            # Look for files named "core" or "core.NUMBER" but exclude .py, .pyc, etc.
             cmd = ["find", location, "-name", "core*", "-type", "f", "-mtime", "-1"]
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
             if result.stdout.strip():
-                debug_print(f"Found core files with find in {location}:")
+                debug_print(f"Found files with 'core' in name in {location}:")
                 debug_print(result.stdout)
-                # Take the first one found
-                core_file = result.stdout.strip().split("\n")[0]
-                debug_print(f"Using core file: {core_file}")
-                return core_file
+
+                # Filter to find actual core dump files
+                potential_cores = result.stdout.strip().split("\n")
+                actual_core_files = []
+
+                for file_path in potential_cores:
+                    file_path = file_path.strip()
+                    if not file_path:
+                        continue
+
+                    # Skip Python files, cache files, and other non-core-dump files
+                    if (
+                        file_path.endswith(".py")
+                        or file_path.endswith(".pyc")
+                        or file_path.endswith(".pyo")
+                        or "pycache" in file_path
+                        or "site-packages" in file_path
+                        or file_path.endswith(".yaml")
+                        or file_path.endswith(".so")
+                    ):
+                        continue
+
+                    # Look for files that match core dump patterns
+                    basename = os.path.basename(file_path)
+                    if (
+                        basename == "core"
+                        or (basename.startswith("core.") and basename.split(".")[-1].isdigit())
+                        or (basename.startswith("core-") and basename.split("-")[-1].isdigit())
+                    ):
+                        actual_core_files.append(file_path)
+
+                if actual_core_files:
+                    debug_print(f"Found actual core dump files: {actual_core_files}")
+                    # Take the most recent one
+                    core_file = max(actual_core_files, key=os.path.getmtime)
+                    debug_print(f"Using most recent core file: {core_file}")
+                    return core_file
+                else:
+                    debug_print("No actual core dump files found after filtering")
     except Exception as e:
         debug_print(f"Find command failed: {e}")
 
