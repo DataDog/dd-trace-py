@@ -435,6 +435,7 @@ class TraceMiddleware:
                             resource=f"websocket {scope.get('path', '')}",
                             span_type="websocket",
                             child_of=parent_span,
+                            activate=True,
                         ) as send_span:
                             send_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             send_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -489,6 +490,7 @@ class TraceMiddleware:
                             resource=f"websocket {scope.get('path', '')}",
                             span_type="websocket",
                             child_of=parent_span,
+                            activate=True,
                         ) as close_span:
                             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                             close_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
