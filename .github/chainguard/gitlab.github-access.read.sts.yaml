@@ -1,0 +1,13 @@
+issuer: https://gitlab.ddbuild.io
+
+subject_pattern: "project_path:DataDog/apm-reliability/dd-trace-py:ref_type:(branch|tag):ref:.*"
+
+claim_pattern:
+  project_path: "DataDog/dd-trace-py"
+  ref_type: "(branch|tag)"
+  pipeline_source: "(push|schedule)"
+
+permissions:
+  contents: read
+  actions: read
+  pull_requests: read
