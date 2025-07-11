@@ -329,7 +329,7 @@ class FunctionDiscovery(defaultdict):
     def _resolve_pair(self, pair: _FunctionCodePair, fullname: str) -> FullyNamedFunction:
         try:
             return pair.resolve()
-        except ValueError:
+        except ValueError as e:
             # We failed to lookup the function by its code object via the GC.
             # This should not happen, unless the target application is doing
             # something unusual with the GC. In this case we try our best to
@@ -341,17 +341,17 @@ class FunctionDiscovery(defaultdict):
                 try:
                     target = getattr(target, part)
                 except AttributeError:
-                    raise
+                    raise e
 
             if target is module:
                 # We didn't move from the module so we don't have a function.
-                raise
+                raise e
 
             code = pair.code
             assert code is not None  # nosec
             f = undecorated(cast(FunctionType, target), cast(str, part), Path(code.co_filename).resolve())
-            if not isinstance(target, FunctionType) and target.__code__ is not code:
-                raise
+            if not (isinstance(f, FunctionType) and f.__code__ is code):
+                raise e
 
             # Cache the lookup result
             pair.function = f
