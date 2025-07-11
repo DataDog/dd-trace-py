@@ -1,4 +1,5 @@
 # -*- encoding: utf-8 -*-
+from collections import namedtuple
 import logging
 from math import ceil
 import os
@@ -21,6 +22,8 @@ from ddtrace.settings.profiling import config
 
 
 LOG = logging.getLogger(__name__)
+
+MemorySample = namedtuple("MemorySample", ("frames", "size", "count", "in_use_size", "alloc_size"))
 
 
 class MemoryCollector(collector.PeriodicCollector):
@@ -133,7 +136,7 @@ class MemoryCollector(collector.PeriodicCollector):
                 in_use_size = size if in_use else 0
                 alloc_size = size if (not in_use or not reported) else 0
                 
-                samples.append((frames, size, count, in_use, in_use_size, alloc_size, reported))
+                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size))
                 
         return tuple(samples)
 

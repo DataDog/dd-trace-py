@@ -247,22 +247,20 @@ def test_unified_profiler_allocation_samples():
     
     assert len(samples) > 0, "Should have captured some samples"
     
-    allocation_samples = [s for s in samples if not s[3]]  # s[3] is in_use
-    heap_samples = [s for s in samples if s[3]]  # s[3] is in_use
+    allocation_samples = [s for s in samples if s.in_use_size == 0]
+    heap_samples = [s for s in samples if s.in_use_size > 0]
     
     print(f"Total samples: {len(samples)}")
-    print(f"Allocation samples (in_use=False): {len(allocation_samples)}")
-    print(f"Heap samples (in_use=True): {len(heap_samples)}")
+    print(f"Allocation samples (in_use_size=0): {len(allocation_samples)}")
+    print(f"Heap samples (in_use_size>0): {len(heap_samples)}")
     
     assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
     
-    for frames, size, count, in_use, in_use_size, alloc_size, reported in samples:
-        assert isinstance(size, int) and size > 0, f"Invalid size: {size}"
-        assert isinstance(count, int) and count > 0, f"Invalid count: {count}"
-        assert isinstance(in_use, bool), f"Invalid in_use: {in_use}"
-        assert isinstance(in_use_size, int) and in_use_size >= 0, f"Invalid in_use_size: {in_use_size}"
-        assert isinstance(alloc_size, int) and alloc_size >= 0, f"Invalid alloc_size: {alloc_size}"
-        assert isinstance(reported, bool), f"Invalid reported: {reported}"
+    for sample in samples:
+        assert isinstance(sample.size, int) and sample.size > 0, f"Invalid size: {sample.size}"
+        assert isinstance(sample.count, int) and sample.count > 0, f"Invalid count: {sample.count}"
+        assert isinstance(sample.in_use_size, int) and sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+        assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
 
 
 @pytest.mark.parametrize("sample_interval", (8, 512, 1024))
@@ -446,26 +444,25 @@ def test_unified_profiler_allocation_sampling_accuracy(sample_interval):
             if "_DD_MEMALLOC_DEBUG_RNG_SEED" in os.environ:
                 del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
-    allocation_samples = [s for s in samples if not s[3]]  # s[3] is in_use
-    heap_samples = [s for s in samples if s[3]]  # s[3] is in_use
+    allocation_samples = [s for s in samples if s.in_use_size == 0]
+    heap_samples = [s for s in samples if s.in_use_size > 0]
     
     print(f"Total samples: {len(samples)}")
-    print(f"Allocation samples (in_use=False): {len(allocation_samples)}")
-    print(f"Heap samples (in_use=True): {len(heap_samples)}")
+    print(f"Allocation samples (in_use_size=0): {len(allocation_samples)}")
+    print(f"Heap samples (in_use_size>0): {len(heap_samples)}")
     
     assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
     
     total_allocation_size = 0
     total_allocation_count = 0
-    for frames, size, count, in_use, in_use_size, alloc_size, reported in allocation_samples:
-        assert isinstance(size, int) and size > 0, f"Invalid allocation sample size: {size}"
-        assert isinstance(count, int) and count > 0, f"Invalid allocation sample count: {count}"
-        assert not in_use, f"Allocation sample should have in_use=False, got: {in_use}"
-        assert isinstance(in_use_size, int) and in_use_size >= 0, f"Invalid in_use_size: {in_use_size}"
-        assert isinstance(alloc_size, int) and alloc_size >= 0, f"Invalid alloc_size: {alloc_size}"
-        assert isinstance(reported, bool), f"Invalid reported: {reported}"
-        total_allocation_size += size
-        total_allocation_count += count
+    for sample in allocation_samples:
+        assert isinstance(sample.size, int) and sample.size > 0, f"Invalid allocation sample size: {sample.size}"
+        assert isinstance(sample.count, int) and sample.count > 0, f"Invalid allocation sample count: {sample.count}"
+        assert sample.in_use_size == 0, f"Allocation sample should have in_use_size=0, got: {sample.in_use_size}"
+        assert isinstance(sample.in_use_size, int) and sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+        assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
+        total_allocation_size += sample.size
+        total_allocation_count += sample.count
 
     avg_allocation_size = total_allocation_size // total_allocation_count if total_allocation_count > 0 else 0
     
@@ -489,9 +486,7 @@ def test_memory_collector_allocation_tracking_across_snapshots():
         initial_samples = mc.test_snapshot()
         initial_sample_count = len(initial_samples)
         
-        for sample in initial_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            assert reported is False, f"Initial snapshot should have reported=False, got {reported}"
+        assert all(sample.alloc_size > 0 for sample in initial_samples), "Initial snapshot should have alloc_size>0 (new allocations)"
         
         data_to_free = []
         for i in range(10):
@@ -505,53 +500,37 @@ def test_memory_collector_allocation_tracking_across_snapshots():
         
         second_samples = mc.test_snapshot()
         
-        freed_samples = [s for s in second_samples if not s[3]]  # in_use=False
-        live_samples = [s for s in second_samples if s[3]]       # in_use=True
+        freed_samples = [s for s in second_samples if s.in_use_size == 0]
+        live_samples = [s for s in second_samples if s.in_use_size > 0]
         
         assert len(freed_samples) > 0, "Should have some freed samples after deletion"
         
         assert len(live_samples) > 0, "Should have some live samples"
         
-        for sample in freed_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            assert not in_use, "Freed samples should have in_use=False"
-        
-        for sample in live_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            assert in_use, "Live samples should have in_use=True"
+        assert all(sample.in_use_size == 0 for sample in freed_samples), "Freed samples should have in_use_size=0"
+        assert all(sample.in_use_size > 0 for sample in live_samples), "Live samples should have in_use_size>0"
         
         for sample in second_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            assert isinstance(size, int) and size > 0, f"Invalid size: {size}"
-            assert isinstance(count, int) and count > 0, f"Invalid count: {count}"
-            assert isinstance(in_use, bool), f"Invalid in_use: {in_use}"
-            assert isinstance(in_use_size, int) and in_use_size >= 0, f"Invalid in_use_size: {in_use_size}"
-            assert isinstance(alloc_size, int) and alloc_size >= 0, f"Invalid alloc_size: {alloc_size}"
-            assert isinstance(reported, bool), f"Invalid reported: {reported}"
+            assert isinstance(sample.size, int) and sample.size > 0, f"Invalid size: {sample.size}"
+            assert isinstance(sample.count, int) and sample.count > 0, f"Invalid count: {sample.count}"
+            assert isinstance(sample.in_use_size, int) and sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+            assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
         
-        one_freed_samples = []
-        for sample in second_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "one") and not in_use:
-                one_freed_samples.append(sample)
+        one_freed_samples = [
+            sample for sample in second_samples
+            if has_function_in_traceback(sample.frames, "one") and sample.in_use_size == 0
+        ]
         
         assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
+        assert all(sample.in_use_size == 0 and sample.alloc_size > 0 for sample in one_freed_samples)
         
-        for frames, size, count, in_use, in_use_size, alloc_size, reported in one_freed_samples:
-            assert in_use_size == 0, f"Freed samples from 'one' should have in_use_size=0, got {in_use_size}"
-            assert alloc_size > 0, f"Freed samples from 'one' should have alloc_size>0, got {alloc_size}"
-        
-        two_live_samples = []
-        for sample in second_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "two") and in_use:
-                two_live_samples.append(sample)
+        two_live_samples = [
+            sample for sample in second_samples
+            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
+        ]
         
         assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
-        
-        for frames, size, count, in_use, in_use_size, alloc_size, reported in two_live_samples:
-            assert in_use_size > 0, f"Live samples from 'two' should have in_use_size>0, got {in_use_size}"
-            assert alloc_size > 0, f"Live samples from 'two' should have alloc_size>0, got {alloc_size}"
+        assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in two_live_samples)
         
         del data_to_keep
 
@@ -583,35 +562,25 @@ def test_memory_collector_python_interface_with_allocation_tracking():
         
         for samples in [initial_samples, after_first_batch, final_samples]:
             for sample in samples:
-                assert len(sample) == 7, f"Python interface should return 7-tuples, got {len(sample)}"
-                frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-                assert isinstance(size, int) and size > 0, f"Size should be positive int, got {size}"
-                assert isinstance(count, int) and count > 0, f"Count should be positive int, got {count}"
-                assert isinstance(in_use, bool), f"in_use should be bool, got {in_use}"
-                assert isinstance(in_use_size, int) and in_use_size >= 0, f"in_use_size should be non-negative int, got {in_use_size}"
-                assert isinstance(alloc_size, int) and alloc_size >= 0, f"alloc_size should be non-negative int, got {alloc_size}"
-                assert isinstance(reported, bool), f"reported should be bool, got {reported}"
+                assert isinstance(sample.size, int) and sample.size > 0, f"Size should be positive int, got {sample.size}"
+                assert isinstance(sample.count, int) and sample.count > 0, f"Count should be positive int, got {sample.count}"
+                assert isinstance(sample.in_use_size, int) and sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
+                assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
         
-        one_samples_in_final = []
-        for sample in final_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "one"):
-                one_samples_in_final.append(sample)
+        one_samples_in_final = [
+            sample for sample in final_samples
+            if has_function_in_traceback(sample.frames, "one")
+        ]
         
         assert len(one_samples_in_final) == 0, f"Should have no samples with 'one' in traceback in final_samples, got {len(one_samples_in_final)}"
         
-        batch_two_live_samples = []
-        for sample in final_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "two") and in_use:
-                batch_two_live_samples.append(sample)
+        batch_two_live_samples = [
+            sample for sample in final_samples
+            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
+        ]
         
         assert len(batch_two_live_samples) > 0, f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
-        
-        for frames, size, count, in_use, in_use_size, alloc_size, reported in batch_two_live_samples:
-            assert in_use, f"Live batch two samples should have in_use=True, got {in_use}"
-            assert in_use_size > 0, f"Live batch two samples should have in_use_size>0, got {in_use_size}"
-            assert alloc_size > 0, f"Live batch two samples should have alloc_size>0, got {alloc_size}"
+        assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
         
         del second_batch
 
@@ -641,39 +610,26 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
         
         for samples in [initial_samples, after_first_batch, final_samples]:
             for sample in samples:
-                assert len(sample) == 7, f"Python interface should return 7-tuples, got {len(sample)}"
-                frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-                assert isinstance(size, int) and size > 0, f"Size should be positive int, got {size}"
-                assert isinstance(count, int) and count > 0, f"Count should be positive int, got {count}"
-                assert isinstance(in_use, bool), f"in_use should be bool, got {in_use}"
-                assert isinstance(in_use_size, int) and in_use_size >= 0, f"in_use_size should be non-negative int, got {in_use_size}"
-                assert isinstance(alloc_size, int) and alloc_size >= 0, f"alloc_size should be non-negative int, got {alloc_size}"
-                assert isinstance(reported, bool), f"reported should be bool, got {reported}"
+                assert isinstance(sample.size, int) and sample.size > 0, f"Size should be positive int, got {sample.size}"
+                assert isinstance(sample.count, int) and sample.count > 0, f"Count should be positive int, got {sample.count}"
+                assert isinstance(sample.in_use_size, int) and sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
+                assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
         
-        batch_one_live_samples = []
-        for sample in final_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "one") and in_use:
-                batch_one_live_samples.append(sample)
+        batch_one_live_samples = [
+            sample for sample in final_samples
+            if has_function_in_traceback(sample.frames, "one") and sample.in_use_size > 0
+        ]
         
-        batch_two_live_samples = []
-        for sample in final_samples:
-            frames, size, count, in_use, in_use_size, alloc_size, reported = sample
-            if has_function_in_traceback(frames, "two") and in_use:
-                batch_two_live_samples.append(sample)
+        batch_two_live_samples = [
+            sample for sample in final_samples
+            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
+        ]
         
         assert len(batch_one_live_samples) > 0, f"Should have live samples from batch one, got {len(batch_one_live_samples)}"
         assert len(batch_two_live_samples) > 0, f"Should have live samples from batch two, got {len(batch_two_live_samples)}"
         
-        for frames, size, count, in_use, in_use_size, alloc_size, reported in batch_one_live_samples:
-            assert in_use, f"Batch one samples should have in_use=True, got {in_use}"
-            assert in_use_size > 0, f"Batch one samples should have in_use_size>0, got {in_use_size}"
-            assert alloc_size == 0, f"Batch one samples should have alloc_size=0 (not allocated since previous snapshot), got {alloc_size}"
-        
-        for frames, size, count, in_use, in_use_size, alloc_size, reported in batch_two_live_samples:
-            assert in_use, f"Batch two samples should have in_use=True, got {in_use}"
-            assert in_use_size > 0, f"Batch two samples should have in_use_size>0, got {in_use_size}"
-            assert alloc_size > 0, f"Batch two samples should have alloc_size>0, got {alloc_size}"
+        assert all(sample.in_use_size > 0 and sample.alloc_size == 0 for sample in batch_one_live_samples)
+        assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in batch_two_live_samples)
         
         del first_batch
         del second_batch
