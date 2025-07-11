@@ -337,10 +337,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         ds = self.dataset_create(name, description)
         if records:
             ds._records = records
-            self.dataset_batch_update(ds._id, records)
+            new_version = self.dataset_batch_update(ds._id, records)
+            ds._version = new_version
         return ds
 
-    def dataset_batch_update(self, dataset_id: str, records: List[DatasetRecord]) -> None:
+    def dataset_batch_update(self, dataset_id: str, records: List[DatasetRecord]) -> int:
         rs: JSONType = [
             {
                 "input": r["input_data"],
@@ -360,7 +361,12 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         resp = self.request("POST", path, body)
         if resp.status != 200:
             raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
-        return None
+        response_data = resp.get_json()
+        data = response_data["data"]
+        if not data:
+            raise ValueError(f"Failed to update dataset {dataset_id}, records not found")
+        new_version = data[0]["attributes"]["version"]
+        return new_version
 
     def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
