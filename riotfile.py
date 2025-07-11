@@ -9,7 +9,6 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-
 SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 8),
     (3, 9),
@@ -95,7 +94,6 @@ _appsec_threats_iast_variants = [
         },
     ),
 ]
-
 
 venv = Venv(
     pkgs={
@@ -3568,6 +3566,48 @@ venv = Venv(
                     pys=["3.8", "3.11", "3.13"],
                     pkgs={
                         "flask": "~=3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_fastapi",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
+            pys=["3.8", "3.10", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "httpx": "<0.28.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.86.0",
+                        "anyio": "==3.7.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.94.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "~=0.114.2",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),

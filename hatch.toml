@@ -225,42 +225,6 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 
 
-## ASM FastAPI
-
-[envs.appsec_threats_fastapi]
-template = "appsec_threats_fastapi"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "httpx<0.28.0",
-    "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
-]
-
-[envs.appsec_threats_fastapi.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 DD_IAST_DEDUPLICATION_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
-]
-
-# if you add or remove a version here, please also update the parallelism parameter
-# in .circleci/config.templ.yml
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["==0.86.0"]
-anyio = ["==3.7.1"]
-
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["==0.94.1"]
-
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["~=0.114.2"]
 
 ## ASM Appsec Aggregated Leak Testing
 
