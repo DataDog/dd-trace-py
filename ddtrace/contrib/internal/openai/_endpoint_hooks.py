@@ -85,7 +85,7 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    _request_arg_params = ("api_base", "api_type", "api_version")
+    _request_arg_params = ()
 
     def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
         """Handle streamed response objects returned from completions/chat/response endpoint calls.
@@ -181,7 +181,7 @@ class _CompletionWithRawResponseHook(_CompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_arg_params = ("api_base", "api_version")
+    _request_arg_params = ()
     _request_kwarg_params = (
         "model",
         "engine",
@@ -220,7 +220,7 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_arg_params = ("api_base", "api_version")
+    _request_arg_params = ()
     _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
     ENDPOINT_NAME = "embeddings"
