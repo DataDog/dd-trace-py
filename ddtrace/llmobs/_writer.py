@@ -330,7 +330,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
-        return Dataset(name, dataset_id, [])
+        curr_version = response_data["data"]["attributes"]["current_version"]
+        return Dataset(name, dataset_id, [], description, curr_version)
 
     def dataset_create_with_records(self, name: str, description: str, records: List[DatasetRecord]) -> Dataset:
         ds = self.dataset_create(name, description)
@@ -371,6 +372,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         data = response_data["data"]
         if not data:
             raise ValueError(f"Dataset '{name}' not found")
+
+        curr_version = data[0]["attributes"]["current_version"]
+        dataset_description = data[0]["attributes"]["description"]
         dataset_id = data[0]["id"]
 
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
@@ -390,7 +394,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "metadata": attrs.get("metadata", {}),
                 }
             )
-        return Dataset(name, dataset_id, class_records)
+        return Dataset(name, dataset_id, class_records, dataset_description, curr_version)
 
     def project_create(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"

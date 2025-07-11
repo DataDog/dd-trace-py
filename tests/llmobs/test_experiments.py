@@ -82,6 +82,9 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset, test_dataset_reco
     assert len(dataset) == 1
     assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
     assert dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert dataset.name == test_dataset.name
+    assert dataset.description == test_dataset.description
+    assert dataset._version == test_dataset._version
 
 
 def test_project_create(llmobs):

@@ -30,15 +30,19 @@ class DatasetRecord(TypedDict):
 
 class Dataset:
     name: str
+    description: str
     _id: str
     _records: List[DatasetRecord]
+    _version: int
     _dne_client: Optional["LLMObsExperimentsClient"]
 
-    def __init__(self, name: str, dataset_id: str, records: List[DatasetRecord]) -> None:
+    def __init__(self, name: str, dataset_id: str, records: List[DatasetRecord], description: str, version: int) -> None:
         self.name = name
+        self.description = description
         self._id = dataset_id
         self._records = records
         self._dne_client = None
+        self._version = version
 
     def push(self) -> None:
         if not self._id:
