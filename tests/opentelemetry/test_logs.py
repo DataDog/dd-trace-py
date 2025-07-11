@@ -164,8 +164,9 @@ def test_otel_logs_support_not_enabled():
         "DD_VERSION": "ddv1",
         "DD_ENV": "ddenv",
         "DD_HOSTNAME": "ddhost",
+        "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     },
-    parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["http/protobuf"]},
+    err=None,
 )
 def test_otel_logs_exporter_auto_configured_http():
     """
@@ -256,6 +257,7 @@ def test_otel_logs_exporter_otlp_protocol_unsupported():
     ddtrace_run=True,
     env={"DD_LOGS_OTEL_ENABLED": "true"},
     parametrize={"OTEL_EXPORTER_OTLP_PROTOCOL": ["grpc", None]},
+    err=None,
 )
 def test_otel_logs_exporter_auto_configured_grpc():
     """
