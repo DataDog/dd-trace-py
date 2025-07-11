@@ -399,9 +399,8 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
     log.error.assert_has_calls(calls)
 
 
-# TODO: check if it is fine to skip the test & may be done if we don't use mocking
-@skip_if_testagent
 @skip_if_native_writer
+@skip_if_testagent
 @parametrize_with_all_encodings(check_logs=False)
 def test_inode_entity_id_header_present():
     import mock
@@ -436,7 +435,6 @@ def test_inode_entity_id_header_present():
         t.shutdown()
 
 
-# TODO: check if it is fine to skip the test otherwise it can be used if we don't use mocking
 @skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings(check_logs=False)
@@ -457,6 +455,7 @@ def test_external_env_header_present():
     assert headers["Datadog-External-Env"] == mocked_external_env
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
@@ -473,6 +472,7 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
@@ -531,7 +531,6 @@ def test_trace_with_invalid_payload_generates_error_log():
                     "failed to send, dropping %d traces to intake at %s: %s",
                     0,
                     "http://localhost:8126/v0.5/traces",
-                    # TODO: Check if Mock can work without using str
                     "Invalid format: Unable to read payload len",
                 )
             ]
@@ -584,7 +583,6 @@ def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
         )
 
 
-# TODO: check if it is fine to skip the test & look for better way to detect config
 @skip_if_native_writer
 @skip_if_testagent
 @pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
