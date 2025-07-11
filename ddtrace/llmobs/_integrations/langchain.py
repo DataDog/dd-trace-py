@@ -353,7 +353,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         Deletes the references of steps in a chain from the instance id to span mapping.
 
-        The relevant instances will be recorded again if they are re-used in another chain when
+        The relevant instances will be recorded again if they are reused in another chain when
         the other chain is invoked.
 
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
@@ -487,7 +487,7 @@ class LangChainIntegration(BaseLLMIntegration):
             tokens_set_top_level = total_tokens > 0
 
         tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        for message_set in chat_completions.generations:
+        for message_set in getattr(chat_completions, "generations", []):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
@@ -502,6 +502,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 # do not append to the count, just set it once
                 if not is_workflow and not tokens_set_top_level:
                     tokens, run_id = self.check_token_usage_ai_message(chat_completion_msg)
+                    if run_id is None:
+                        continue
                     input_tokens, output_tokens, total_tokens = tokens
                     tokens_per_choice_run_id[run_id]["input_tokens"] = input_tokens
                     tokens_per_choice_run_id[run_id]["output_tokens"] = output_tokens
@@ -724,7 +726,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return input_tokens, output_tokens, total_tokens
 
-    def check_token_usage_ai_message(self, ai_message):
+    def check_token_usage_ai_message(self, ai_message) -> Tuple[Tuple[int, int, int], Optional[str]]:
         """Checks for token usage on an AI message object"""
         # depending on the provider + langchain-core version, the usage metadata can be in different places
         # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
@@ -733,10 +735,10 @@ class LangChainIntegration(BaseLLMIntegration):
         run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
         run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
-        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
-        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        response_metadata = getattr(ai_message, "response_metadata", {})
+        usage = usage or response_metadata.get("usage") or response_metadata.get("token_usage")
         if usage is None or not isinstance(usage, dict):  # in case it is explicitly set to None
-            return 0, 0, 0
+            return (0, 0, 0), run_id_base
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)

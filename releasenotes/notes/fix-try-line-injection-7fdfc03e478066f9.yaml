@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue that prevented line probes from
+    being instrumented on a line containing just the code ``try:`` for CPython
+    3.11 and later.
