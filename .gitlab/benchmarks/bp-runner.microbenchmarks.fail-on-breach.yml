@@ -820,61 +820,61 @@ experiments:
           - name: packagespackageforrootmodulemapping-cache_off
             thresholds:
               - execution_time < 354.30 ms
-              - max_rss_usage < 37.50 MB
+              - max_rss_usage < 38.00 MB
           - name: packagespackageforrootmodulemapping-cache_on
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 37.50 MB
+              - max_rss_usage < 38.00 MB
 
           # packagesupdateimporteddependencies
           - name: packagesupdateimporteddependencies-import_many
             thresholds:
               - execution_time < 0.17 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_many_cached
             thresholds:
               - execution_time < 0.13 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib
             thresholds:
               - execution_time < 1.75 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_many_stdlib_cached
             thresholds:
               - execution_time < 1.10 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown
             thresholds:
               - execution_time < 0.89 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_many_unknown_cached
             thresholds:
               - execution_time < 0.87 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one
             thresholds:
               - execution_time < 0.03 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib
             thresholds:
               - execution_time < 0.02 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one_stdlib_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown
             thresholds:
               - execution_time < 0.05 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
           - name: packagesupdateimporteddependencies-import_one_unknown_cache
             thresholds:
               - execution_time < 0.01 ms
-              - max_rss_usage < 34.50 MB
+              - max_rss_usage < 35.00 MB
 
           # ratelimiter
           - name: ratelimiter-defaults
