@@ -55,6 +55,19 @@ RUN apt-get update \
       zlib1g-dev \
       awscli
 
+# Install dd-octo-sts
+COPY --from=registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1@sha256:6f958fc9f929ee97cc84815021d3d80899fab0fac73636eebefdffad4830f790 /usr/local/bin/dd-octo-sts /usr/local/bin/dd-octo-sts
+
+# Install gh cli
+RUN mkdir -p -m 755 /etc/apt/keyrings \
+	  && out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	  && cat $out | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+	  && chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	  && mkdir -p -m 755 /etc/apt/sources.list.d \
+	  && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	  && apt-get update \
+	  && apt-get install -y --no-install-recommends gh
+
 # Allow running datadog-ci in CI with npx
 RUN apt-get install -y --no-install-recommends nodejs npm \
   && npm install -g @datadog/datadog-ci
