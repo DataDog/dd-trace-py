@@ -18,6 +18,7 @@ __all__ = [
     "DEFAULT_SMA_WINDOW",
     "HTTPWriter",
     "LogWriter",
+    "NativeWriter",
     "Response",
     "TraceWriter",
     "WriterClientBase",
