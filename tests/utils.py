@@ -592,7 +592,7 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
             kwargs["stats_opt_out"] = asm_config._apm_opt_out
             self._inner_writer = NativeWriter(*args, **kwargs)
         else:
-            if (dd_config._trace_compute_stats or asm_config._apm_opt_out):
+            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
                 kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
             self._inner_writer = AgentWriter(*args, **kwargs)
 

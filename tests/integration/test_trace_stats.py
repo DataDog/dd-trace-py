@@ -8,7 +8,8 @@ import pytest
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal.processor.stats import SpanStatsProcessorV06
-from tests.integration.utils import AGENT_VERSION, skip_if_native_writer
+from tests.integration.utils import AGENT_VERSION
+from tests.integration.utils import skip_if_native_writer
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
 
@@ -48,7 +49,6 @@ def send_once_stats_tracer(stats_tracer):
     """
     This is a variation on the tracer that has the SpanStatsProcessor disabled until we leave the tracer context.
     """
-    from ddtrace import config
 
     stats_tracer.trace = functools.partial(consistent_end_trace, stats_tracer.trace)
 

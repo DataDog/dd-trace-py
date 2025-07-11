@@ -874,8 +874,8 @@ class NativeWriter(AgentWriterInterface):
         except native.RequestError as e:
             try:
                 # Request errors are formatted as "Error code: {code}, Response: {response}"
-                code = int(str(e).split(",")[0].split(":",maxsplit=1)[1])
-            except:
+                code = int(str(e).split(",")[0].split(":", maxsplit=1)[1])
+            except:  # noqa:E722 if the error message is invalid we want to log the full error
                 raise e
             if code == 404 or code == 415:
                 self._downgrade(code, client)
