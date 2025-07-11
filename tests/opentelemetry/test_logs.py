@@ -175,11 +175,9 @@ def test_otel_logs_exporter_auto_configured_http():
     from logging import getLogger
     from unittest.mock import Mock
     from unittest.mock import patch
-    from urllib.parse import urlparse
 
     from opentelemetry._logs import get_logger_provider
 
-    from ddtrace.settings._agent import config as agent_config
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
 
@@ -196,7 +194,7 @@ def test_otel_logs_exporter_auto_configured_http():
         request_body = None
         for call in mock_request.call_args_list:
             method, url = call[0][:2]
-            if method == "POST" and url == f"http://{urlparse(agent_config.trace_agent_url).hostname}:4318/v1/logs":
+            if method == "POST" and url == f"http://localhost:4318/v1/logs":
                 request_body = call[1].get("data", None)
                 break
         assert request_body is not None, "Expected a request body to be present in the OpenTelemetry "

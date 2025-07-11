@@ -3,6 +3,8 @@ import os
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 
 
 log = get_logger(__name__)
@@ -33,6 +35,7 @@ def set_otel_logs_provider():
     if not _initialize_logging(exporter_class, protocol, resource):
         return
 
+    telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "logging_provider_configured", 1, (("type", "dd"),))
     global DD_LOGS_PROVIDER_CONFIGURED
     DD_LOGS_PROVIDER_CONFIGURED = True
 
@@ -87,6 +90,29 @@ def _build_resource():
         return None
 
 
+def _dd_logs_exporter(otel_exporter, protocol, encoding):
+    """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
+    class DDLogsExporter(otel_exporter):
+        """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
+
+        def export(self, batch, *args, **kwargs):
+            """Export logs and queues telemetry metrics."""
+            telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.TRACERS,
+                "otel.log_records",
+                len(batch),
+                (
+                    ("protocol", protocol),
+                    ("encoding", encoding),
+                ),
+            )
+            log.debug(
+                "Exporting %d OpenTelemetry Logs with %s protocol and %s encoding", len(batch), protocol, encoding
+            )
+            return super().export(batch, *args, **kwargs)
+    return DDLogsExporter
+
+
 def _import_exporter(protocol):
     """Import the appropriate OpenTelemetry Logs exporter based on the set protocol"""
     try:
@@ -113,7 +139,7 @@ def _import_exporter(protocol):
             )
             return None
 
-        return OTLPLogExporter
+        return _dd_logs_exporter(OTLPLogExporter, protocol, "protobuf")
 
     except ImportError as e:
         log.warning(
