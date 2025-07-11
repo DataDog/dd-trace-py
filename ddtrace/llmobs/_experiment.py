@@ -39,13 +39,19 @@ class Dataset:
         self._dne_client = None
 
     def push(self) -> None:
-        if not self._id or not self._dne_client:
+        if not self._id:
             raise ValueError(
-                "Dataset ID is required to push data to Experiments. Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
+                (
+                    "Dataset ID is required to push data to Experiments. "
+                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
+                )
             )
         if not self._dne_client:
             raise ValueError(
-                "LLMObs client is required to push data to Experiments. Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
+                (
+                    "LLMObs client is required to push data to Experiments. "
+                    "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
+                )
             )
         self._dne_client.dataset_batch_update(self._id, self._records)
 
