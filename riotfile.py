@@ -5,6 +5,7 @@ from typing import Tuple  # noqa
 
 from riot import Venv
 
+
 logger = logging.getLogger(__name__)
 latest = ""
 
@@ -3116,7 +3117,8 @@ venv = Venv(
         Venv(
             name="profile",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling",
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no "
+            "--benchmark-disable {cmdargs} tests/profiling",
             # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
@@ -3213,7 +3215,8 @@ venv = Venv(
         Venv(
             name="profile-v2",
             # NB riot commands that use this Venv must include --pass-env to work properly
-            command="python -m tests.profiling.run pytest -v --no-cov --capture=no --benchmark-disable {cmdargs} tests/profiling_v2",
+            command="python -m tests.profiling.run pytest -v --no-cov --capture=no "
+            "--benchmark-disable {cmdargs} tests/profiling_v2",
             # noqa: E501
             env={
                 "DD_PROFILING_ENABLE_ASSERTS": "1",
