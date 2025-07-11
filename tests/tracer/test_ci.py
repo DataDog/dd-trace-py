@@ -421,7 +421,11 @@ def test_extract_clone_defaultremotename():
 
 def test_build_git_packfiles(git_repo):
     found_rand = found_idx = found_pack = False
-    with git.build_git_packfiles("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as packfiles_path:
+    with git._build_git_packfiles_with_details("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as (
+        packfiles_path,
+        process_details,
+    ):
+        assert process_details.return_code == 0
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -444,7 +448,11 @@ def test_build_git_packfiles(git_repo):
 @mock.patch("ddtrace.ext.git._get_device_for_path", side_effect=[1, 2])
 def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
     found_rand = found_idx = found_pack = False
-    with git.build_git_packfiles("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as packfiles_path:
+    with git._build_git_packfiles_with_details("b3672ea5cbc584124728c48a443825d2940e0ddd\n", cwd=git_repo) as (
+        packfiles_path,
+        process_details,
+    ):
+        assert process_details.return_code == 0
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])

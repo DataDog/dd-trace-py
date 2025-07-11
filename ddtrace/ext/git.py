@@ -404,18 +404,3 @@ def _build_git_packfiles_with_details(revisions, cwd=None, use_tempdir=True):
         if isinstance(tempdir, TemporaryDirectory):
             log.debug("Cleaning up temporary directory: %s", basepath)
             tempdir.cleanup()
-
-
-@contextlib.contextmanager
-def build_git_packfiles(revisions, cwd=None):
-    # type: (str, Optional[str]) -> Generator
-    with _build_git_packfiles_with_details(revisions, cwd=cwd) as (prefix, process_details):
-        if process_details.returncode == 0:
-            yield prefix
-            return
-        log.debug(
-            "Failed to pack objects, command return code: %s, error: %s",
-            process_details.returncode,
-            process_details.stderr,
-        )
-        raise ValueError(process_details.stderr)
