@@ -5,6 +5,7 @@ FROM debian:bookworm-slim
 
 ARG TARGETARCH
 ARG HATCH_VERSION=1.12.0
+ARG RIOT_VERSION=0.20.1
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -17,6 +18,8 @@ ENV PYENV_ROOT=/root/.pyenv
 ENV CARGO_ROOT=/root/.cargo
 ENV PATH=${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
 ENV PYTHON_CONFIGURE_OPTS=--enable-shared
+
+WORKDIR /root/
 
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /root/
@@ -91,7 +94,6 @@ RUN curl https://sh.rustup.rs -sSf | \
 
 # Install pyenv and necessary Python versions
 RUN git clone --depth 1 --branch v2.4.22 https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
-  && cd /root \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
@@ -101,5 +103,7 @@ RUN if [ "$TARGETARCH" = "amd64" ]; \
     fi \
   && install -t /usr/local/bin hatch \
   && hatch -q
+
+RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}"
 
 CMD ["/bin/bash"]

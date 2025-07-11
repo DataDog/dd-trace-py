@@ -3,11 +3,14 @@ from collections import defaultdict
 from itertools import chain
 from os import environ
 from threading import RLock
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Union
 
 from ddtrace._trace.sampler import DatadogSampler
+from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
@@ -34,6 +37,7 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.internal.writer import TraceWriter
 from ddtrace.settings._agent import config as agent_config
@@ -139,18 +143,22 @@ class TraceSamplingProcessor(TraceProcessor):
         self._compute_stats_enabled = compute_stats_enabled
         self.single_span_rules = single_span_rules
         self.apm_opt_out = apm_opt_out
+
+        # If ASM is enabled but tracing is disabled,
+        # we need to set the rate limiting to 1 trace per minute
+        # for the backend to consider the service as alive.
+        sampler_kwargs: Dict[str, Any] = {
+            "agent_based_samplers": agent_based_samplers,
+        }
         if self.apm_opt_out:
-            # If ASM is enabled but tracing is disabled,
-            # we need to set the rate limiting to 1 trace per minute
-            # for the backend to consider the service as alive.
-            self.sampler = DatadogSampler(
-                rate_limit=1,
-                rate_limit_window=60e9,
-                rate_limit_always_on=True,
-                agent_based_samplers=agent_based_samplers,
+            sampler_kwargs.update(
+                {
+                    "rate_limit": 1,
+                    "rate_limit_window": 60e9,
+                    "rate_limit_always_on": True,
+                }
             )
-        else:
-            self.sampler = DatadogSampler(agent_based_samplers=agent_based_samplers)
+        self.sampler: Union[DatadogSampler, RateSampler] = DatadogSampler(**sampler_kwargs)
 
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
@@ -289,7 +297,7 @@ class SpanAggregator(SpanProcessor):
         else:
             verify_url(agent_config.trace_agent_url)
             self.writer = AgentWriter(
-                agent_url=agent_config.trace_agent_url,
+                intake_url=agent_config.trace_agent_url,
                 dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
                 sync_mode=SpanAggregator._use_sync_mode(),
                 headers={"Datadog-Client-Computed-Stats": "yes"}
@@ -394,6 +402,11 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
+                if spans is not None:
+                    for span in spans:
+                        if span.service:
+                            # report extra service name as it may have been set after the span creation by the customer
+                            config._add_extra_service(span.service)
                 self.writer.write(spans)
                 return
 
@@ -406,9 +419,10 @@ class SpanAggregator(SpanProcessor):
         The agent can return updated sample rates for the priority sampler.
         """
         try:
-            self.sampling_processor.sampler.update_rate_by_service_sample_rates(
-                resp.rate_by_service,
-            )
+            if isinstance(self.sampling_processor.sampler, DatadogSampler):
+                self.sampling_processor.sampler.update_rate_by_service_sample_rates(
+                    resp.rate_by_service,
+                )
         except ValueError as e:
             log.error("Failed to set agent service sample rates: %s", str(e))
 
@@ -520,7 +534,7 @@ class SpanAggregator(SpanProcessor):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        if isinstance(self.writer, AgentWriter) and appsec_enabled:
+        if isinstance(self.writer, AgentWriterInterface) and appsec_enabled:
             # Ensure AppSec metadata is encoded by setting the API version to v0.4.
             self.writer._api_version = "v0.4"
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
@@ -536,7 +550,9 @@ class SpanAggregator(SpanProcessor):
             compute_stats,
             get_span_sampling_rules(),
             apm_opt_out,
-            self.sampling_processor.sampler._agent_based_samplers,
+            self.sampling_processor.sampler._agent_based_samplers
+            if isinstance(self.sampling_processor.sampler, DatadogSampler)
+            else None,
         )
 
         # Update user processors if provided.
