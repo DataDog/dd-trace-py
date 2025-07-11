@@ -24,6 +24,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer as ddtracer
+from ddtrace import config
 from tests.contrib.config import KAFKA_CONFIG
 from tests.datastreams.test_public_api import MockedTracer
 from tests.utils import DummyTracer
@@ -94,7 +95,8 @@ def dummy_tracer():
     patch()
     t = DummyTracer()
     # disable backoff because it makes these tests less reliable
-    t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
+    if not config._trace_writer_native:
+        t._span_aggregator.writer._send_payload_with_backoff = t._span_aggregator.writer._send_payload
     yield t
     unpatch()
 
@@ -110,13 +112,15 @@ def tracer(should_filter_empty_polls):
     if should_filter_empty_polls:
         ddtracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    previous_backoff = ddtracer._span_aggregator.writer._send_payload_with_backoff
-    ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
+    if not config._trace_writer_native:
+        previous_backoff = ddtracer._span_aggregator.writer._send_payload_with_backoff
+        ddtracer._span_aggregator.writer._send_payload_with_backoff = ddtracer._span_aggregator.writer._send_payload
     try:
         yield ddtracer
     finally:
         ddtracer.flush()
-        ddtracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
+        if not config._trace_writer_native:
+            ddtracer._span_aggregator.writer._send_payload_with_backoff = previous_backoff
         unpatch()
 
 
@@ -552,9 +556,10 @@ def _generate_in_subprocess(random_topic):
 
     ddtrace.tracer.configure(trace_processors=[KafkaConsumerPollFilter()])
     # disable backoff because it makes these tests less reliable
-    ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
-        ddtrace.tracer._span_aggregator.writer._send_payload
-    )
+    if not config._trace_writer_native:
+        ddtrace.tracer._span_aggregator.writer._send_payload_with_backoff = (
+            ddtrace.tracer._span_aggregator.writer._send_payload
+        )
     patch()
 
     producer = confluent_kafka.Producer({"bootstrap.servers": BOOTSTRAP_SERVERS})
