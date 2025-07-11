@@ -11,7 +11,6 @@ from .writer import _human_size
 from .writer_client import WriterClientBase
 
 
-
 __all__ = [
     "AgentResponse",
     "AgentWriter",
