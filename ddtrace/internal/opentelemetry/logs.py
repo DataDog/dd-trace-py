@@ -14,7 +14,7 @@ MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 DD_LOGS_PROVIDER_CONFIGURED = False
 
 
-def set_otel_logs_exporter():
+def set_otel_logs_provider():
     """Set up the OpenTelemetry Logs exporter if not already configured."""
     if not _should_configure_logs_exporter():
         return

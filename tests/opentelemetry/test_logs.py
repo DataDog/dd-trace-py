@@ -118,10 +118,10 @@ def test_otel_logs_exporter_configured_twice():
     """
     Test that the OpenTelemetry logs exporter is automatically configured when DD_LOGS_OTEL_ENABLED is set.
     """
-    from ddtrace.internal.opentelemetry.logs import set_otel_logs_exporter
+    from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
 
-    set_otel_logs_exporter()
-    set_otel_logs_exporter()
+    set_otel_logs_provider()
+    set_otel_logs_provider()
 
     from opentelemetry._logs import get_logger_provider
 
@@ -173,7 +173,6 @@ def test_otel_logs_exporter_auto_configured_http():
     Test that the OpenTelemetry logs exporter is automatically configured for HTTP when DD_LOGS_OTEL_ENABLED is set.
     """
     from logging import getLogger
-    import time
     from unittest.mock import Mock
     from unittest.mock import patch
     from urllib.parse import urlparse
@@ -185,7 +184,6 @@ def test_otel_logs_exporter_auto_configured_http():
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
 
     log = getLogger()
-    log.warning("hi")
     with patch("requests.sessions.Session.request") as mock_request:
         mock_response = Mock(status_code=200)
         mock_request.return_value = mock_response
@@ -193,9 +191,7 @@ def test_otel_logs_exporter_auto_configured_http():
         log.error("test_otel_logs_exporter_auto_configured_http")
 
         lp = get_logger_provider()
-        time.sleep(1)
-        lp.force_flush()
-        time.sleep(1)
+        lp.shutdown()
 
         request_body = None
         for call in mock_request.call_args_list:
@@ -264,7 +260,6 @@ def test_otel_logs_exporter_auto_configured_grpc():
     Test that OpenTelemetry logs exporter sends data via gRPC to a mocked OTLP endpoint.
     """
     from logging import getLogger
-    import time
 
     from opentelemetry._logs import get_logger_provider
 
@@ -277,9 +272,7 @@ def test_otel_logs_exporter_auto_configured_grpc():
         logger.error("test_otel_logs_exporter_auto_configured_grpc")
 
         lp = get_logger_provider()
-        time.sleep(1)
-        lp.force_flush()
-        time.sleep(1)
+        lp.shutdown()
     finally:
         server.stop(0)
 
@@ -323,7 +316,6 @@ def test_ddtrace_log_correlation():
     """
     from logging import getLogger
     import os
-    import time
 
     from opentelemetry._logs import get_logger_provider
 
@@ -337,16 +329,13 @@ def test_ddtrace_log_correlation():
     ), f"Expected OTEL_PYTHON_CONTEXT to be set to ddcontextvars_context but found: {otel_context}"
 
     log = getLogger()
-
     mock_service, server = mock_grpc_exporter_connection()
     try:
         server.start()
         with tracer.trace("test_trace") as span:
             log.error("test_ddtrace_log_correlation")
-        time.sleep(2)
         lp = get_logger_provider()
-        lp.force_flush()
-        time.sleep(2)
+        lp.shutdown()
     finally:
         server.stop(0)
 
@@ -396,7 +385,6 @@ def test_otel_trace_log_correlation():
     """
     from logging import getLogger
     import os
-    import time
 
     from opentelemetry import trace
     from opentelemetry._logs import get_logger_provider
@@ -417,10 +405,8 @@ def test_otel_trace_log_correlation():
         oteltracer = trace.get_tracer(__name__)
         with oteltracer.start_as_current_span("test-otel-distributed-trace") as ot_span:
             log.error("test_otel_trace_log_correlation")
-        time.sleep(2)
         lp = get_logger_provider()
-        lp.force_flush()
-        time.sleep(2)
+        lp.shutdown()
     finally:
         server.stop(0)
 
