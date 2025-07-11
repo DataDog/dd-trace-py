@@ -41,7 +41,7 @@ class BaseTracedLiteLLMStream(wrapt.ObjectProxy):
                 formatted_completions = _process_finished_stream(
                     self._dd_integration, span, kwargs, self._streamed_chunks, span.resource
                 )
-            elif self._dd_integration.is_pc_sampled_llmobs(span):
+            else:
                 self._dd_integration.llmobs_set_tags(
                     span, args=[], kwargs=kwargs, response=formatted_completions, operation=span.resource
                 )
@@ -145,10 +145,7 @@ def _process_finished_stream(integration, span, kwargs, streamed_chunks, operati
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks.values()
             ]
-        if integration.is_pc_sampled_llmobs(span):
-            integration.llmobs_set_tags(
-                span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation
-            )
+        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
     return formatted_completions

@@ -6,6 +6,7 @@ from typing import Tuple
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -159,7 +160,13 @@ class OpenAIIntegration(BaseLLMIntegration):
         span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
-        token_usage = _get_attr(resp, "usage", None)
+        token_usage = None
+
+        # in the streamed responses case, `resp` is a list with `usage` being stored in the first element
+        if resp and isinstance(resp, list) and _get_attr(resp[0], "usage", None):
+            token_usage = resp[0].get("usage", {})
+        elif resp and getattr(resp, "usage", None):
+            token_usage = resp.usage
         if token_usage is not None and span_kind != "workflow":
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
@@ -168,11 +175,20 @@ class OpenAIIntegration(BaseLLMIntegration):
 
             input_tokens = prompt_tokens or input_tokens
             output_tokens = completion_tokens or output_tokens
-            return {
+
+            metrics = {
                 INPUT_TOKENS_METRIC_KEY: input_tokens,
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
+            # Chat completions returns `prompt_tokens_details` while responses api returns `input_tokens_details`
+            prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {}) or _get_attr(
+                token_usage, "input_tokens_details", {}
+            )
+            cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
+            if cached_tokens is not None:
+                metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            return metrics
         elif kwargs.get("stream") and resp is not None:
             return get_token_metrics_from_streamed_response(
                 span, resp, kwargs.get("prompt", None), kwargs.get("messages", None), kwargs

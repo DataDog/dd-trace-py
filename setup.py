@@ -81,7 +81,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.25.1"
+LIBDDWAF_VERSION = "1.26.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.

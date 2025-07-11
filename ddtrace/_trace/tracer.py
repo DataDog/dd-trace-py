@@ -35,6 +35,13 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import LOG_ATTR_ENV
+from ddtrace.internal.constants import LOG_ATTR_SERVICE
+from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+from ddtrace.internal.constants import LOG_ATTR_VALUE_EMPTY
+from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
+from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.core import dispatch
@@ -48,7 +55,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -217,12 +224,15 @@ class Tracer(object):
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     @property
-    def _agent_url(self):
-        return getattr(self._span_aggregator.writer, "intake_url", None)
+    def _agent_url(self) -> Optional[str]:
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
+            # For HTTPWriter, and AgentWriterInterface, we can return the intake_url directly
+            return self._span_aggregator.writer.intake_url
+        return None
 
     @_agent_url.setter
-    def _agent_url(self, value):
-        if isinstance(self._span_aggregator.writer, HTTPWriter):
+    def _agent_url(self, value: str):
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             self._span_aggregator.writer.intake_url = value
 
     def _atexit(self) -> None:
@@ -308,23 +318,17 @@ class Tracer(object):
         if active is None and (self.enabled or asm_config._apm_opt_out):
             active = self.context_provider.active()
 
-        if isinstance(active, Span) and active.service:
-            service = active.service
-        else:
-            service = config.service
-
-        span_id = "0"
-        trace_id = "0"
+        span_id = trace_id = LOG_ATTR_VALUE_ZERO
         if active:
             span_id = str(active.span_id) if active.span_id else span_id
             trace_id = format_trace_id(active.trace_id) if active.trace_id else trace_id
 
         return {
-            "trace_id": trace_id,
-            "span_id": span_id,
-            "service": service or "",
-            "version": config.version or "",
-            "env": config.env or "",
+            LOG_ATTR_TRACE_ID: trace_id,
+            LOG_ATTR_SPAN_ID: span_id,
+            LOG_ATTR_SERVICE: config.service or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_VERSION: config.version or LOG_ATTR_VALUE_EMPTY,
+            LOG_ATTR_ENV: config.env or LOG_ATTR_VALUE_EMPTY,
         }
 
     def configure(
@@ -332,6 +336,7 @@ class Tracer(object):
         context_provider: Optional[BaseContextProvider] = None,
         compute_stats_enabled: Optional[bool] = None,
         appsec_enabled: Optional[bool] = None,
+        appsec_enabled_origin: Optional[str] = "",
         iast_enabled: Optional[bool] = None,
         apm_tracing_disabled: Optional[bool] = None,
         trace_processors: Optional[List[TraceProcessor]] = None,
@@ -350,6 +355,8 @@ class Tracer(object):
 
         if appsec_enabled is not None:
             asm_config._asm_enabled = appsec_enabled
+        if appsec_enabled_origin:
+            asm_config._asm_enabled_origin = appsec_enabled_origin  # type: ignore[assignment]
 
         if iast_enabled is not None:
             asm_config._iast_enabled = iast_enabled
@@ -421,7 +428,6 @@ class Tracer(object):
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        self.enabled = config._tracing_enabled
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
@@ -741,8 +747,8 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
-            return self._span_aggregator.writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            return self._span_aggregator.writer.intake_url
 
         return None
 
@@ -775,7 +781,8 @@ class Tracer(object):
                 )
 
             with self.trace(span_name, service=service, resource=resource, span_type=span_type):
-                yield from f(*args, **kwargs)
+                return_value = yield from f(*args, **kwargs)
+                return return_value
 
         return func_wrapper
 
