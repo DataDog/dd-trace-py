@@ -162,7 +162,8 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.environ.get("DD_APP_KEY", "")
+    _app_key: str = os.getenv("DD_APP_KEY", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
 
     def __init__(
         self,
@@ -462,6 +463,7 @@ class LLMObs(Service):
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
+        project_name: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
@@ -478,6 +480,7 @@ class LLMObs(Service):
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str app_key: Your datadog application key.
+        :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
@@ -494,6 +497,7 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        cls._project_name = project_name or cls._project_name
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -587,6 +591,7 @@ class LLMObs(Service):
         dataset: Dataset,
         evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -596,6 +601,9 @@ class LLMObs(Service):
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
         :param description: A description of the experiment.
+        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
+                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
+                             or `LLMObs.enable(project_name=...)`.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -613,7 +621,17 @@ class LLMObs(Service):
             required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(required_params))
-        return Experiment(name, task, dataset, evaluators, description=description, _llmobs=cls)
+        if project_name is None:
+            project_name = cls._project_name
+        return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators,
+            project_name=project_name,
+            description=description,
+            _llmobs_instance=cls._instance,
+        )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:

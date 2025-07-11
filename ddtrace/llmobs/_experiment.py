@@ -12,7 +12,9 @@ from typing_extensions import NotRequired
 
 
 if TYPE_CHECKING:
+    from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
+
 
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
@@ -72,9 +74,10 @@ class Experiment:
         task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        project_name: str,
         description: str = "",
         config: Optional[Dict[str, Any]] = None,
-        _llmobs: Optional[Any] = None,  # LLMObs service (cannot import here due to circular dependency)
+        _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
         self.name = name
         self._task = task
@@ -82,7 +85,16 @@ class Experiment:
         self._evaluators = evaluators
         self._description = description
         self._config: Dict[str, Any] = config or {}
-        self._llmobs = _llmobs
+        self._llmobs_instance = _llmobs_instance
+
+        if not project_name:
+            raise ValueError(
+                "project_name must be provided for the experiment, either configured via the `DD_LLMOBS_PROJECT_NAME` "
+                "environment variable, or an argument to `LLMObs.enable(project_name=...)`, "
+                "or as an argument to `LLMObs.experiment(project_name=...)`."
+            )
+        self._project_name = project_name
+        self._project_id: Optional[str] = None
         self._id: Optional[str] = None
 
     def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
