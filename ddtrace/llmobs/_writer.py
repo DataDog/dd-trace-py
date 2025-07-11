@@ -363,6 +363,29 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records)
 
+    def project_create(self, name: str) -> str:
+        path = "/api/unstable/llm-obs/v1/projects"
+        resp = self.request(
+            "POST",
+            path,
+            body={"data": {"type": "projects", "attributes": {"name": name, "description": ""}}},
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        return response_data["data"]["id"]
+
+    def project_get(self, name: str) -> str:
+        path = f"/api/unstable/llm-obs/v1/projects?filter[name]={quote(name)}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get project {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        data = response_data["data"]
+        if not data:
+            raise ValueError(f"Project {name} not found")
+        return data[0]["id"]
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
