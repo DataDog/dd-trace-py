@@ -44,12 +44,10 @@ class Profile
     // These are initialized here as skeleton objects, but they cannot be used until
     // they're initialized by libdatadog
     ddog_prof_Profile cur_profile{};
-    ddog_prof_Profile last_profile{};
 
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
-    bool cycle_buffers();
     void reset();
     void postfork_child();
 
