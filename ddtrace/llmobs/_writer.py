@@ -4,7 +4,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
+from typing import cast
 from urllib.parse import quote
 
 
@@ -388,6 +390,43 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if not data:
             raise ValueError(f"Project {name} not found")
         return data[0]["id"]
+
+    def experiment_create(
+        self,
+        name: str,
+        dataset_id: str,
+        project_id: str,
+        dataset_version: int = 0,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        path = "/api/unstable/llm-obs/v1/experiments"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": {
+                        "name": name,
+                        "description": description or "",
+                        "dataset_id": dataset_id,
+                        "project_id": project_id,
+                        "dataset_version": dataset_version,
+                        "config": exp_config or {},
+                        "metadata": {"tags": cast(JSONType, tags or [])},
+                        "ensure_unique": True,
+                    },
+                }
+            },
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create experiment {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiment_id = response_data["data"]["id"]
+        experiment_name = response_data["data"]["attributes"]["name"]  # API may rename the experiment
+        return experiment_id, experiment_name
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
