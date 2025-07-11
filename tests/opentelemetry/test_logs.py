@@ -194,7 +194,7 @@ def test_otel_logs_exporter_auto_configured_http():
         request_body = None
         for call in mock_request.call_args_list:
             method, url = call[0][:2]
-            if method == "POST" and url == f"http://localhost:4318/v1/logs":
+            if method == "POST" and url == "http://localhost:4318/v1/logs":
                 request_body = call[1].get("data", None)
                 break
         assert request_body is not None, "Expected a request body to be present in the OpenTelemetry "

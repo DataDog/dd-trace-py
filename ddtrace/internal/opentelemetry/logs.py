@@ -92,6 +92,7 @@ def _build_resource():
 
 def _dd_logs_exporter(otel_exporter, protocol, encoding):
     """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
+
     class DDLogsExporter(otel_exporter):
         """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
 
@@ -110,6 +111,7 @@ def _dd_logs_exporter(otel_exporter, protocol, encoding):
                 "Exporting %d OpenTelemetry Logs with %s protocol and %s encoding", len(batch), protocol, encoding
             )
             return super().export(batch, *args, **kwargs)
+
     return DDLogsExporter
 
 

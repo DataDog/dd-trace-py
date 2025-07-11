@@ -638,6 +638,8 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
+        # Required by system-tests (TODO(Munir): Update system-tests to use otel_trace_enabled)
+        self._otel_enabled = self._otel_trace_enabled
         self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
