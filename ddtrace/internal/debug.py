@@ -11,7 +11,7 @@ from typing import Union  # noqa:F401
 import ddtrace
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
@@ -56,9 +56,9 @@ def collect(tracer):
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._span_aggregator.writer, AgentWriter):
+    elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
         writer = tracer._span_aggregator.writer
-        agent_url = writer.agent_url
+        agent_url = writer.intake_url
         try:
             writer.write([])
             writer.flush_queue(raise_exc=True)
