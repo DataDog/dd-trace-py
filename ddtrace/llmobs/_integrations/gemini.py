@@ -53,7 +53,6 @@ class GeminiIntegration(BaseLLMIntegration):
         if response is not None:
             output_messages = self._extract_output_message(response)
 
-        # extract metrcis below needs to be attached to the metrics thing here and then we are done
         span._set_ctx_items(
             {
                 SPAN_KIND: "llm",
@@ -122,13 +121,10 @@ class GeminiIntegration(BaseLLMIntegration):
             return
         input_tokens = token_counts.get("prompt_token_count", 0)
         output_tokens = token_counts.get("candidates_token_count", 0)
-        total_tokens = None
-        if input_tokens and output_tokens:
-            total_tokens = input_tokens + output_tokens
+        total_tokens = input_tokens + output_tokens
 
         usage = {}
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
         usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
-        if total_tokens is not None:
-            usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
         return usage
