@@ -84,6 +84,7 @@ config._add(
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
         _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
         _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 
@@ -718,9 +719,11 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
+    from ddtrace.internal.constants import COMPONENT
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 

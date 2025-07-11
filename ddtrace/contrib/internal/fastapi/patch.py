@@ -31,6 +31,7 @@ config._add(
         _trace_asgi_websocket_messages=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", False),
         _asgi_websockets_inherit_sampling=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", True, asbool),
         _websocket_messages_separate=_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", True, asbool),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 

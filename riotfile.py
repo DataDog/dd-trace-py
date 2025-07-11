@@ -9,7 +9,6 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-
 SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 8),
     (3, 9),
@@ -91,10 +90,10 @@ _appsec_threats_iast_variants = [
         env={
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_DEDUPLICATION_ENABLED": "false",
         },
     ),
 ]
-
 
 venv = Venv(
     pkgs={
@@ -446,7 +445,6 @@ venv = Venv(
         Venv(
             name="internal",
             env={
-                "DD_TRACE_AGENT_URL": "http://ddagent:8126",
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
@@ -1321,6 +1319,28 @@ venv = Venv(
                 Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
                 Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
+        ),
+        Venv(
+            name="appsec_integrations_pygoat",
+            pys=["3.10", "3.11", "3.12"],
+            pkgs={
+                "requests": latest,
+                "pyyaml": "==6.0.1",
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_DEBUG": "false",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_TRACE_AGENT_URL": "http://0.0.0.0:9126",
+                "DD_FAST_BUILD": "1",
+                "PYDONTWRITEBYTECODE": "1",
+                "PYTHONUNBUFFERED": "1",
+            },
+            command="bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh tests/appsec/integrations/pygoat_tests/",
         ),
         Venv(
             name="pynamodb",
@@ -2537,7 +2557,6 @@ venv = Venv(
         Venv(
             name="opentelemetry",
             command="pytest {cmdargs} tests/opentelemetry",
-            pys=select_pys(min_version="3.8"),
             # DD_TRACE_OTEL_ENABLED must be set to true before ddtrace is imported
             # and ddtrace (ddtrace.config specifically) must be imported before opentelemetry.
             # If this order is violated otel and datadog spans will not be interoperable.
@@ -2545,14 +2564,37 @@ venv = Venv(
             pkgs={
                 "pytest-randomly": latest,
                 "pytest-asyncio": "==0.21.1",
-                # Ensure we test against version of opentelemetry-api that broke compatibility with ddtrace
-                "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest],
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
                 "flask": latest,
-                "gevent": latest,
+                "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
             },
+            venvs=[
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-api": ["~=1.0.0", "~=1.15.0", "~=1.26.0", latest]},
+                ),
+                Venv(
+                    pys="3.8",
+                    # Ensure we test against versions of opentelemetry-api that broke compatibility with ddtrace
+                    # gevent>24.2.1 is not compatible with py3.8 so we pin it to the last compatible version
+                    pkgs={"gevent": "<=24.2.1", "opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9"),
+                    pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
+                    env={"SDK_EXPORTER_INSTALLED": "1"},
+                ),
+            ],
         ),
         Venv(
             name="asyncio",
@@ -3434,7 +3476,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
             },
@@ -3476,6 +3518,96 @@ venv = Venv(
                     pys=["3.10", "3.13"],
                     pkgs={
                         "django": "~=5.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_flask",
+            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
+            pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "~=1.1",
+                        "MarkupSafe": "~=1.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "==2.1.3",
+                        "Werkzeug": "<3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "flask": "~=2.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_threats_fastapi",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
+            pys=["3.8", "3.10", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "httpx": "<0.28.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.86.0",
+                        "anyio": "==3.7.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.94.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "~=0.114.2",
                     },
                     venvs=_appsec_threats_iast_variants,
                 ),

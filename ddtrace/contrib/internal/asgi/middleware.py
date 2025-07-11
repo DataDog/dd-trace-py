@@ -25,6 +25,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
@@ -42,6 +43,7 @@ config._add(
             os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         ),
         _websocket_messages_separate=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
     ),
 )
 
@@ -522,6 +524,9 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
+                    if self.integration_config.obfuscate_404_resource and status_code == 404:
+                        span.resource = " ".join((method, "404"))
+
                     trace_utils.set_http_meta(
                         span,
                         self.integration_config,
