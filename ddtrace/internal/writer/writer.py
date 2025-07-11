@@ -749,8 +749,6 @@ class NativeWriter(AgentWriterInterface):
         Create a new TraceExporter with the current configuration.
         :return: A configured TraceExporter instance.
         """
-        stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        bucket_size_ns = int(stats_interval * 1e9)  # type: int
         _, commit_sha, _ = get_git_tags()
 
         builder = (
@@ -770,6 +768,8 @@ class NativeWriter(AgentWriterInterface):
         if self._stats_opt_out:
             builder.set_client_computed_stats()
         elif self._compute_stats_enabled:
+            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            bucket_size_ns = int(stats_interval * 1e9)  # type: int
             builder.enable_stats(bucket_size_ns)
         return builder.build()
 
