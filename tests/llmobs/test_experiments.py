@@ -55,6 +55,16 @@ def test_dataset_pull(llmobs, test_dataset):
     assert dataset._id is not None
 
 
+def test_project_create(llmobs):
+    project_id = llmobs._instance._dne_client.project_create(name="test-project")
+    assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
+
+
+def test_project_get(llmobs):
+    project_id = llmobs._instance._dne_client.project_get(name="test-project")
+    assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
+
+
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset):
     with pytest.raises(TypeError, match="task must be a callable function."):
         llmobs.experiment("test_experiment", 123, test_dataset, [dummy_evaluator])
@@ -104,8 +114,23 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset):
 
 
 def test_experiment_create(llmobs, test_dataset):
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], description="lorem ipsum")
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset,
+        [dummy_evaluator],
+        description="lorem ipsum",
+        project_name="test-project",
+    )
     assert exp.name == "test_experiment"
     assert exp._task == dummy_task
     assert exp._dataset == test_dataset
     assert exp._evaluators == [dummy_evaluator]
+
+
+def test_experiment_create_no_project_name_raises(llmobs, test_dataset):
+    project_name = llmobs._project_name
+    llmobs._project_name = None
+    with pytest.raises(ValueError, match="project_name must be provided for the experiment"):
+        llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], project_name=None)
+    llmobs._project_name = project_name  # reset to original value for other tests
