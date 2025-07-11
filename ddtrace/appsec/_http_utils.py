@@ -57,7 +57,7 @@ def parse_http_body(
         elif content_type.startswith("multipart/form-data"):
             return http_utils.parse_form_multipart(body, normalized_headers)
         elif content_type == "text/plain":
-            return body
+            return None
         else:
             return None
 

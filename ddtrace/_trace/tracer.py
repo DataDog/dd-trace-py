@@ -225,12 +225,15 @@ class Tracer(object):
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     @property
-    def _agent_url(self):
-        return getattr(self._span_aggregator.writer, "intake_url", None)
+    def _agent_url(self) -> Optional[str]:
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
+            # For HTTPWriter, and AgentWriterInterface, we can return the intake_url directly
+            return self._span_aggregator.writer.intake_url
+        return None
 
     @_agent_url.setter
-    def _agent_url(self, value):
-        if isinstance(self._span_aggregator.writer, HTTPWriter):
+    def _agent_url(self, value: str):
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             self._span_aggregator.writer.intake_url = value
 
     def _atexit(self) -> None:
@@ -440,7 +443,6 @@ class Tracer(object):
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        self.enabled = config._tracing_enabled
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,

@@ -198,6 +198,14 @@ def _on_message_start_chunk(chunk, message):
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {"input_tokens": _get_attr(chunk_usage, "input_tokens", 0)}
+
+            cache_write_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+            cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+            if cache_write_tokens is not None:
+                message["usage"]["cache_creation_input_tokens"] = cache_write_tokens
+            if cache_read_tokens is not None:
+                message["usage"]["cache_read_input_tokens"] = cache_read_tokens
+
     return message
 
 
@@ -250,6 +258,14 @@ def _on_message_delta_chunk(chunk, message):
     if chunk_usage:
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
         message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
+
+        cache_creation_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+        if cache_creation_tokens is not None:
+            message_usage["cache_creation_input_tokens"] = cache_creation_tokens
+        if cache_read_tokens is not None:
+            message_usage["cache_read_input_tokens"] = cache_read_tokens
+
         message["usage"] = message_usage
 
     return message

@@ -190,7 +190,9 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
             return
 
         http_req = fn_args[0]
-        set_iast_request_endpoint(http_req.method, http_req.resolver_match.route)
+        resolver_match = getattr(http_req, "resolver_match", None)
+        if resolver_match is not None:
+            set_iast_request_endpoint(http_req.method, resolver_match.route)
 
         http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
         if (

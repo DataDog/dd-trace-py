@@ -62,6 +62,7 @@ def test_read_item_success(client, tracer, test_spans):
     assert request_span.service == "fastapi"
     assert request_span.name == "fastapi.request"
     assert request_span.resource == "GET /items/{item_id}"
+
     assert request_span.get_tag("http.route") == "/items/{item_id}"
     assert request_span.error == 0
     assert request_span.get_tag("http.method") == "GET"
@@ -250,6 +251,37 @@ def test_create_item_duplicate_item(client, tracer, test_spans):
     assert request_span.get_tag("http.query.string") is None
     assert request_span.get_tag("component") == "fastapi"
     assert request_span.get_tag("span.kind") == "server"
+
+
+@pytest.mark.subprocess(env=dict(DD_ASGI_OBFUSCATE_404_RESOURCE="true"))
+def test_invalid_path_with_obfuscation_enabled():
+    """
+    Test that 404 responses are obfuscated when DD_ASGI_OBFUSCATE_404_RESOURCE is enabled
+    """
+    import asyncio
+
+    from fastapi import FastAPI
+    import httpx
+
+    from ddtrace.contrib.internal.fastapi.patch import patch
+    from tests.utils import snapshot_context
+
+    patch()
+    app = FastAPI()
+
+    @app.get("/")
+    def read_root():
+        return {"Homepage Read": "Success"}
+
+    async def test():
+        token = "tests.contrib.fastapi.test_fastapi.test_invalid_path_with_obfuscation_enabled"
+        with snapshot_context(wait_for_num_traces=1, token=token):
+            async with httpx.AsyncClient(app=app, base_url="http://testserver") as client:
+                response = await client.get("/invalid_path")
+                assert response.status_code == 404
+                assert response.json() == {"detail": "Not Found"}
+
+    asyncio.run(test())
 
 
 def test_invalid_path(client, tracer, test_spans):

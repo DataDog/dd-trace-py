@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    logging: Fix issue when ``dd.*`` properties were not injected onto logging records unless ``DD_LOGS_ENABLED=true`` env var was set (default value is ``structured``).
+    This issue causes problems for non-structured loggers which set their own format string instead of having ``ddtrace`` set the logging format string for you.

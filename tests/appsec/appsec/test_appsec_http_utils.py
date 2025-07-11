@@ -23,13 +23,6 @@ def test_normalize_headers(input_headers, expected):
     [
         # Body is None
         ({}, None, False, None),
-        # Base64 encoded body - text/plain
-        (
-            {"content-type": "text/plain"},
-            "dGV4dCBib2R5",
-            True,
-            "text body",
-        ),
         # Base64 encoded body - application/json
         (
             {"content-type": "application/json"},
@@ -37,9 +30,9 @@ def test_normalize_headers(input_headers, expected):
             True,
             {"key": "value"},
         ),
-        # Base64 decoding failure - text/plain
+        # Base64 decoding failure - application/json
         (
-            {"content-type": "text/plain"},
+            {"content-type": "application/json"},
             "invalid_base64_string",
             True,
             None,
@@ -59,7 +52,7 @@ def test_normalize_headers(input_headers, expected):
         ({"content-type": "application/xml"}, "<root><key>value</key></root>", False, {"root": {"key": "value"}}),
         ({"content-type": "text/xml"}, "<root><key>value</key></root>", False, {"root": {"key": "value"}}),
         # Text plain
-        ({"content-type": "text/plain"}, "simple text body", False, "simple text body"),
+        ({"content-type": "text/plain"}, "simple text body", False, None),
         # Unsupported content type
         ({"content-type": "application/octet-stream"}, "binary data", False, None),
         # No content type provided

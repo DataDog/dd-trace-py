@@ -4,25 +4,28 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
+from ddtrace.llmobs._integrations.google_genai_utils import extract_embedding_metrics_google_genai
+from ddtrace.llmobs._integrations.google_genai_utils import extract_generation_metrics_google_genai
 from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_metrics_google_genai
 from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.utils import Document
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
-METADATA_PARAMS = [
+GENERATE_METADATA_PARAMS = [
     "temperature",
     "top_p",
     "top_k",
@@ -38,6 +41,14 @@ METADATA_PARAMS = [
     "safety_settings",
     "automatic_function_calling",
     "tools",
+]
+
+EMBED_METADATA_PARAMS = [
+    "task_type",
+    "title",
+    "output_dimensionality",
+    "mime_type",
+    "auto_truncate",
 ]
 
 
@@ -60,29 +71,49 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        config = get_argument_value(args, kwargs, -1, "config", optional=True)
         provider_name, model_name = extract_provider_and_model_name(kwargs)
-
         span._set_ctx_items(
             {
-                SPAN_KIND: "llm",
+                SPAN_KIND: operation,
                 MODEL_NAME: model_name,
                 MODEL_PROVIDER: provider_name,
-                METADATA: self._extract_metadata(config),
-                INPUT_MESSAGES: self._extract_input_message(args, kwargs, config),
+            }
+        )
+        if operation == "embedding":
+            self._llmobs_set_tags_from_embedding(span, args, kwargs, response)
+        elif operation == "llm":
+            self._llmobs_set_tags_from_llm(span, args, kwargs, response)
+
+    def _llmobs_set_tags_from_llm(self, span, args, kwargs, response):
+        config = kwargs.get("config")
+        span._set_ctx_items(
+            {
+                METADATA: self._extract_metadata(config, GENERATE_METADATA_PARAMS),
+                INPUT_MESSAGES: self._extract_input_messages(args, kwargs, config),
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
-                METRICS: extract_metrics_google_genai(response),
+                METRICS: extract_generation_metrics_google_genai(response),
             }
         )
 
-    def _extract_input_message(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
+    def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
+        config = kwargs.get("config")
+        span._set_ctx_items(
+            {
+                METADATA: self._extract_metadata(config, EMBED_METADATA_PARAMS),
+                INPUT_DOCUMENTS: self._extract_embedding_input_documents(args, kwargs, config),
+                OUTPUT_VALUE: self._extract_embedding_output_value(response),
+                METRICS: extract_embedding_metrics_google_genai(response),
+            }
+        )
+
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], config) -> List[Dict[str, Any]]:
         messages = []
 
         system_instruction = _get_attr(config, "system_instruction", None)
         if system_instruction is not None:
             messages.extend(self._extract_messages_from_contents(system_instruction, "system"))
 
-        contents = get_argument_value(args, kwargs, -1, "contents")
+        contents = kwargs.get("contents")
         messages.extend(self._extract_messages_from_contents(contents, "user"))
 
         return messages
@@ -111,10 +142,23 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 messages.append(message)
         return messages
 
-    def _extract_metadata(self, config) -> Dict[str, Any]:
+    def _extract_embedding_output_value(self, response) -> str:
+        embeddings = _get_attr(response, "embeddings", [])
+        if embeddings:
+            embedding_dim = len(embeddings[0].values)
+            return "[{} embedding(s) returned with size {}]".format(len(embeddings), embedding_dim)
+        return ""
+
+    def _extract_embedding_input_documents(self, args, kwargs, config) -> List[Document]:
+        contents = kwargs.get("contents")
+        messages = self._extract_messages_from_contents(contents, "user")
+        documents = [Document(text=str(message["content"])) for message in messages]
+        return documents
+
+    def _extract_metadata(self, config, params) -> Dict[str, Any]:
         if not config:
             return {}
         metadata = {}
-        for param in METADATA_PARAMS:
+        for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata

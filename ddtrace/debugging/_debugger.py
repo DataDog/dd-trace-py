@@ -1,6 +1,7 @@
 from collections import defaultdict
 from collections import deque
 from itertools import chain
+import json
 import linecache
 import os
 from pathlib import Path
@@ -37,6 +38,7 @@ from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
+from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
@@ -270,6 +272,8 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
+        self.probe_file = di_config.probe_file
+
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
@@ -281,7 +285,27 @@ class Debugger(Service):
             di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
             remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
+            # Load local probes from the probe file.
+            self._load_local_config()
+
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
+
+    def _load_local_config(self) -> None:
+        if self.probe_file is None:
+            return
+
+        # This is intentionally an all or nothing approach. If one probe is malformed, none of the
+        # local probes will be installed, that way waiting for the success log guarantees installation.
+        try:
+            raw_probes = json.loads(self.probe_file.read_text())
+
+            probes = [build_probe(p) for p in raw_probes]
+
+            self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
+            log.info("Successfully loaded probes from file %s: %s", self.probe_file, [p.probe_id for p in probes])
+
+        except Exception as e:
+            log.error("Failed to load probes from file %s: %s", self.probe_file, e)
 
     def _dd_debugger_hook(self, probe: Probe) -> None:
         """Debugger probe hook.

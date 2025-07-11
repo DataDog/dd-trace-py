@@ -1,56 +1,15 @@
 # Utility functions for testing crashtracker in subprocesses
+from contextlib import contextmanager
 import os
 import random
-import select
-import socket
+import time
+from typing import Generator
+from typing import List
 from typing import Optional
-from typing import Tuple
 
-import pytest
-
-
-def crashtracker_receiver_bind() -> Tuple[int, socket.socket]:
-    """Bind to a random port in the range 10000-19999"""
-    port = None
-    sock = None
-    for i in range(5):
-        port = 10000
-        port += random.randint(0, 9999)
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(("localhost", port))
-            sock.listen(1)
-            break
-        except Exception:
-            port = None
-            sock = None
-    return port, sock
-
-
-def listen_get_conn(sock: socket.socket) -> Optional[socket.socket]:
-    """Given a listening socket, wait for a connection and return it"""
-    if not sock:
-        return None
-    rlist, _, _ = select.select([sock], [], [], 5.0)  # 5 second timeout
-    if not rlist:
-        return None
-    conn, _ = sock.accept()
-    return conn
-
-
-def conn_to_bytes(conn: socket.socket) -> bytes:
-    """Read all data from a connection and return it"""
-    # Don't assume nonblocking socket, so go back up to select for everything
-    ret = b""
-    while True:
-        rlist, _, _ = select.select([conn], [], [], 1.0)
-        if not rlist:
-            break
-        msg = conn.recv(4096)
-        if not msg:
-            break
-        ret += msg
-    return ret
+import ddtrace
+from tests.utils import TestAgentClient
+from tests.utils import TestAgentRequest
 
 
 def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None) -> bool:
@@ -118,7 +77,7 @@ def set_cerulean_mollusk():
 class CrashtrackerWrapper:
     _seed = 0
 
-    def __init__(self, port: int, base_name=""):
+    def __init__(self, port: int = 9126, base_name=""):
         if CrashtrackerWrapper._seed == 0:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
 
@@ -145,23 +104,32 @@ class CrashtrackerWrapper:
         return read_files([self.stdout, self.stderr])
 
 
-def get_crash_report(sock: socket.socket) -> bytes:
+def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+    crash_reports = []
+    for _ in range(5):
+        crash_reports = test_agent_client.crash_reports()
+        if crash_reports:
+            return crash_reports
+        time.sleep(0.1)
+
+    return crash_reports
+
+
+def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
     """Wait for a crash report from the crashtracker listener socket."""
-    conn = listen_get_conn(sock)
-    assert conn
+    crash_reports = wait_for_crash_reports(test_agent_client)
+    assert len(crash_reports) == 1
+    return crash_reports[0]
 
+
+@contextmanager
+def with_test_agent() -> Generator[TestAgentClient, None, None]:
+    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
+    client = TestAgentClient(base_url=base_url, token=None)
     try:
-        for _ in range(5):
-            data = conn_to_bytes(conn)
-            assert data, "Expected data from crashreport listener, got empty response"
-
-            # Ignore any /info requests, which might occur before the crash report is sent
-            if data.startswith(b"GET /info"):
-                continue
-
-            return data
-
-        else:
-            pytest.fail("No crash report received after 5 attempts")
+        # Reset state before starting the test
+        client.clear()
+        yield client
     finally:
-        conn.close()
+        # Always reset state at the end of the test
+        client.clear()

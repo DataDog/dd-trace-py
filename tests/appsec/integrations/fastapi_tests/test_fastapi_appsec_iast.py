@@ -34,6 +34,7 @@ from ddtrace.contrib.internal.fastapi.patch import patch as patch_fastapi
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
 from tests.utils import override_env
 from tests.utils import override_global_config
@@ -697,7 +698,8 @@ def test_fastapi_sqli_path_param(fastapi_application, client, tracer, test_spans
         span = test_spans.pop_traces()[1][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(span.get_tag(IAST.JSON))
+        loaded = load_iast_report(span)
+        assert loaded is not None
 
         assert loaded["sources"] == [
             {"origin": "http.request.path.parameter", "name": "param_str", "value": "sqlite_master"}
@@ -758,7 +760,7 @@ def test_fastapi_insecure_cookie(fastapi_application, client, tracer, test_spans
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(span.get_tag(IAST.JSON))
+        loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_INSECURE_COOKIE
@@ -804,7 +806,7 @@ def test_fastapi_insecure_cookie_empty(fastapi_application, client, tracer, test
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = span.get_tag(IAST.JSON)
+        loaded = load_iast_report(span)
         assert loaded is None
 
 
@@ -843,7 +845,7 @@ def test_fastapi_no_http_only_cookie(fastapi_application, client, tracer, test_s
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(span.get_tag(IAST.JSON))
+        loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_HTTPONLY_COOKIE
@@ -887,7 +889,7 @@ def test_fastapi_no_http_only_cookie_empty(fastapi_application, client, tracer, 
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = span.get_tag(IAST.JSON)
+        loaded = load_iast_report(span)
         assert loaded is None
 
 
@@ -926,7 +928,7 @@ def test_fastapi_no_samesite_cookie(fastapi_application, client, tracer, test_sp
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(span.get_tag(IAST.JSON))
+        loaded = load_iast_report(span)
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_NO_SAMESITE_COOKIE
@@ -976,9 +978,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
             span = test_spans.pop_traces()[0][0]
             assert span.get_metric(IAST.ENABLED) == 1.0
 
-            assert span.get_tag(IAST.JSON) is None
-            iast_tag = span.get_tag(IAST.JSON)
-            assert iast_tag is None
+            assert load_iast_report(span) is None
     finally:
         _restore_request_validations(original_validate)
 
@@ -1014,7 +1014,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             span = test_spans.pop_traces()[0][0]
             assert span.get_metric(IAST.ENABLED) == 1.0
 
-            iast_tag = span.get_tag(IAST.JSON)
+            iast_tag = load_iast_report(span)
             assert iast_tag is None
     finally:
         _restore_request_validations(original_validate)
@@ -1039,9 +1039,8 @@ def test_fastapi_stacktrace_leak(fastapi_application, client, tracer, test_spans
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is not None
-        loaded = json.loads(iast_tag)
+        loaded = load_iast_report(span)
+        assert loaded is not None
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_STACKTRACE_LEAK
@@ -1070,9 +1069,8 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
         span = test_spans.pop_traces()[0][0]
         assert span.get_metric(IAST.ENABLED) == 1.0
 
-        iast_tag = span.get_tag(IAST.JSON)
-        assert iast_tag is not None
-        loaded = json.loads(iast_tag)
+        loaded = load_iast_report(span)
+        assert loaded is not None
         assert len(loaded["vulnerabilities"]) == 1
         vulnerability = loaded["vulnerabilities"][0]
         assert vulnerability["type"] == VULN_XSS
@@ -1096,7 +1094,7 @@ def test_fastapi_unvalidated_redirect(fastapi_application, client, tracer, test_
         root_span = test_spans.pop_traces()[0][0]
         assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        loaded = load_iast_report(root_span)
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
         ]
@@ -1127,7 +1125,7 @@ def test_fastapi_unvalidated_redirect_headers(fastapi_application, client, trace
         root_span = test_spans.pop_traces()[0][0]
         assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-        loaded = json.loads(root_span.get_tag(IAST.JSON))
+        loaded = load_iast_report(root_span)
         assert loaded["sources"] == [
             {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
         ]
@@ -1195,10 +1193,9 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
             span = traces[0][0]
             assert span.get_metric(IAST.ENABLED) == 1.0
 
-            iast_data = span.get_tag(IAST.JSON)
+            loaded = load_iast_report(span)
             if i < 8:
-                assert iast_data, f"No data({i}): {iast_data}"
-                loaded = json.loads(iast_data)
+                assert loaded, f"No data({i}): {loaded}"
                 assert len(loaded["vulnerabilities"]) == 2
                 assert loaded["sources"] == [
                     {"origin": "http.request.parameter", "name": "param", "redacted": True, "pattern": "abcdef"}
@@ -1207,7 +1204,7 @@ def test_fastapi_iast_sampling(fastapi_application, client, tracer, test_spans):
                     assert vuln["type"] == VULN_SQL_INJECTION
                     list_vulnerabilities.append(vuln["location"]["line"])
             else:
-                assert iast_data is None
+                assert loaded is None
         assert (
             len(list_vulnerabilities) == 16
         ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"

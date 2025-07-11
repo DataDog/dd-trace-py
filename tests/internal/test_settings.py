@@ -638,3 +638,60 @@ def test_config_public_properties_and_methods():
         "tags",
         "version",
     }, public_attrs
+
+
+@pytest.mark.subprocess()
+def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
+    import mock
+
+    with mock.patch("ddtrace._trace.product.log") as mock_log:
+        from ddtrace import config
+        import ddtrace.auto  # noqa: F401
+        from tests.internal.test_settings import _base_rc_config
+        from tests.internal.test_settings import call_apm_tracing_rc
+
+        call_apm_tracing_rc(
+            _base_rc_config(
+                {
+                    "log_injection_enabled": False,
+                    "tracing_sampling_rate": 0.3,
+                    "tracing_enabled": "false",
+                    "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+                    "tracing_tags": ["team:onboarding"],
+                }
+            ),
+            config,
+        )
+
+    assert mock_log.debug.call_args_list == [
+        mock.call(
+            "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
+            "dd tags, tracing enablement, and HTTP header tags.\nConfigs on startup: "
+            "sampling_rules: %s, logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
+            "",
+            "structured",
+            {},
+            True,
+            {},
+        ),
+        mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
+        mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
+        mock.call(
+            "Tracing disabled via remote_config. Config Items: %s",
+            ["_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags", "tags", "_tracing_enabled"],
+        ),
+        mock.call(
+            "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
+        ),
+        mock.call("Updated logs injection configuration via remote_config: %s", "false"),
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            {
+                "log_injection_enabled": False,
+                "tracing_sampling_rate": 0.3,
+                "tracing_enabled": "false",
+                "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+                "tracing_tags": ["team:onboarding"],
+            },
+        ),
+    ], mock_log.debug.call_args_list

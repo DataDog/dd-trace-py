@@ -69,7 +69,7 @@ class NoEncodableSpansError(Exception):
 DEFAULT_SMA_WINDOW = 10
 
 
-def _human_size(nbytes):
+def _human_size(nbytes: float) -> str:
     """Return a human-readable size."""
     i = 0
     suffixes = ["B", "KB", "MB", "GB", "TB"]
@@ -152,6 +152,8 @@ class LogWriter(TraceWriter):
 
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to an arbitrary HTTP intake endpoint."""
+
+    intake_url: str
 
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
@@ -286,7 +288,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
         headers = self._headers.copy()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         if hasattr(client, "_headers"):
@@ -451,6 +453,24 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 class AgentResponse(object):
     def __init__(self, rate_by_service: Dict[str, float]) -> None:
         self.rate_by_service = rate_by_service
+
+
+class AgentWriterInterface(metaclass=abc.ABCMeta):
+    intake_url: str
+    _api_version: str
+    _sync_mode: bool
+
+    @abc.abstractmethod
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        pass
+
+    @abc.abstractmethod
+    def before_fork(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        pass
 
 
 class AgentWriter(HTTPWriter, AgentWriterInterface):
@@ -629,7 +649,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers

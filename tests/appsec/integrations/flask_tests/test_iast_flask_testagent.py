@@ -1,5 +1,3 @@
-import json
-
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
@@ -7,6 +5,7 @@ from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
@@ -34,9 +33,9 @@ def test_iast_stacktrace_error():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -68,9 +67,9 @@ def test_iast_cmdi(server):
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -100,7 +99,7 @@ def test_iast_cmdi_secure(server):
     response_tracer = _get_span(token)
     for trace in response_tracer:
         for span in trace:
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
                 pytest.fail(f"There is iast vulnerabilities: {iast_data}")
     clear_session(token)
@@ -142,9 +141,9 @@ def test_iast_header_injection_secure(server):
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -169,9 +168,9 @@ def test_iast_header_injection(server):
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     if flask_version > (1, 2):
@@ -215,10 +214,10 @@ def test_iast_code_injection_with_stacktrace(server):
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
                 metastruct = span.get("meta_struct", {})
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2

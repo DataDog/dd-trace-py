@@ -24,7 +24,7 @@ class TestConfig(BaseTestCase):
             config = Config()
             self.assertEqual(config._logs_injection, LogInjectionState.STRUCTURED)
 
-        with self.override_env(dict(DD_LOGS_INJECTION="nonesense")):
+        with self.override_env(dict(DD_LOGS_INJECTION="nonsense")):
             # If the value is not recognized, it should default to DISABLED
             config = Config()
             self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)

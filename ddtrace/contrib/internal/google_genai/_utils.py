@@ -83,6 +83,7 @@ class TracedGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
                 args=self._self_args,
                 kwargs=self._self_kwargs,
                 response=_join_chunks(self._self_chunks),
+                operation="llm",
             )
             self._self_dd_span.finish()
             raise
@@ -107,6 +108,7 @@ class TracedAsyncGoogleGenAIStreamResponse(BaseTracedGoogleGenAIStreamResponse):
                 args=self._self_args,
                 kwargs=self._self_kwargs,
                 response=_join_chunks(self._self_chunks),
+                operation="llm",
             )
             self._self_dd_span.finish()
             raise

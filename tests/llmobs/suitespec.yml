@@ -123,6 +123,7 @@ suites:
       - '@llmobs'
       - tests/llmobs/*
     runner: riot
+    snapshot: true
   openai:
     parallelism: 10
     paths:
