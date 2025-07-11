@@ -425,7 +425,7 @@ def test_build_git_packfiles(git_repo):
         packfiles_path,
         process_details,
     ):
-        assert process_details.return_code == 0
+        assert process_details.returncode == 0
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
@@ -452,7 +452,7 @@ def test_build_git_packfiles_temp_dir_value_error(_temp_dir_mock, git_repo):
         packfiles_path,
         process_details,
     ):
-        assert process_details.return_code == 0
+        assert process_details.returncode == 0
         assert packfiles_path
         parts = packfiles_path.split("/")
         directory = "/".join(parts[:-1])
