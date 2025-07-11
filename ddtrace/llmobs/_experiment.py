@@ -55,7 +55,7 @@ class Dataset:
             )
         self._dne_client.dataset_batch_update(self._id, self._records)
 
-    def __getitem__(self, index: Union[int, slice]) -> DatasetRecord | List[DatasetRecord]:
+    def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, List[DatasetRecord]]:
         return self._records.__getitem__(index)
 
     def __len__(self) -> int:
