@@ -2,7 +2,7 @@
   {
     "name": "mcp.request",
     "service": "tests.contrib.mcp",
-    "resource": "execute_tool",
+    "resource": "server_tool_call",
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -31,7 +31,7 @@
   {
     "name": "mcp.request",
     "service": "tests.contrib.mcp",
-    "resource": "call_tool",
+    "resource": "client_tool_call",
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,

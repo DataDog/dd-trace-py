@@ -39,7 +39,9 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
         )
         return result
     except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME)
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
+        )
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -59,7 +61,9 @@ async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
         )
         return result
     except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation=SERVER_TOOL_CALL_OPERATION_NAME)
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=None, operation=SERVER_TOOL_CALL_OPERATION_NAME
+        )
         span.set_exc_info(*sys.exc_info())
         raise
     finally:

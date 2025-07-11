@@ -12,8 +12,8 @@ def _get_client_and_server_spans_and_events(mock_tracer, llmobs_events):
     assert len(traces) >= 1
 
     all_spans = [span for trace in traces for span in trace]
-    client_spans = [span for span in all_spans if span.resource == "call_tool"]
-    server_spans = [span for span in all_spans if span.resource == "execute_tool"]
+    client_spans = [span for span in all_spans if span.resource == "client_tool_call"]
+    server_spans = [span for span in all_spans if span.resource == "server_tool_call"]
     client_events = [event for event in llmobs_events if "MCP Client Tool Call" in event["name"]]
     server_events = [event for event in llmobs_events if "MCP Server Tool Execute" in event["name"]]
 
