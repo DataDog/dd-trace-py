@@ -1,4 +1,5 @@
 import importlib
+import json
 import re
 import types
 from typing import Any
@@ -141,3 +142,24 @@ def _end_iast_context_and_oce(span=None):
     end_iast_context(span)
     oce.release_request()
     _reset_global_limit()
+
+
+def load_iast_report(span):
+    """
+    Load the IAST report from the span.
+    This is used to ensure that the IAST report is available in the span for testing purposes.
+    """
+    if not hasattr(span, "get_tag"):
+        iast_report_json = span["meta"].get(IAST.JSON)
+        if iast_report_json is None:
+            iast_report = span.get("meta_struct", {}).get("iast")
+        else:
+            iast_report = json.loads(iast_report_json)
+
+    else:
+        iast_report_json = span.get_tag(IAST.JSON)
+        if iast_report_json is None:
+            iast_report = span.get_struct_tag(IAST.STRUCT)
+        else:
+            iast_report = json.loads(iast_report_json)
+    return iast_report

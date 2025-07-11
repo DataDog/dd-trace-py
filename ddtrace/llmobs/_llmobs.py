@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+import inspect
 import json
 import os
 import time
@@ -74,6 +75,9 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -573,6 +577,42 @@ class LLMObs(Service):
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
+
+    @classmethod
+    def experiment(
+        cls,
+        name: str,
+        task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
+        dataset: Dataset,
+        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        description: str = "",
+    ) -> Experiment:
+        """Initializes an Experiment to run a task on a Dataset and evaluators.
+
+        :param name: The name of the experiment.
+        :param task: The task function to run. Must accept a parameter ``input_data`` and optionally ``config``.
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions to evaluate the task output.
+                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param description: A description of the experiment.
+        """
+        if not callable(task):
+            raise TypeError("task must be a callable function.")
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if "input_data" not in params:
+            raise TypeError("Task function must have an 'input_data' parameter.")
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
+            raise TypeError("Evaluators must be a list of callable functions.")
+        for evaluator in evaluators:
+            sig = inspect.signature(evaluator)
+            params = sig.parameters
+            required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+        return Experiment(name, task, dataset, evaluators, description=description, _llmobs=cls)
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:

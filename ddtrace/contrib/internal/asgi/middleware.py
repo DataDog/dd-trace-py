@@ -22,6 +22,8 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
@@ -33,6 +35,7 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
+        obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
@@ -248,6 +251,9 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
+                    if self.integration_config.obfuscate_404_resource and status_code == 404:
+                        span.resource = " ".join((method, "404"))
+
                     trace_utils.set_http_meta(
                         span,
                         self.integration_config,
