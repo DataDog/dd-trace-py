@@ -588,8 +588,12 @@ class DummyWriter(DummyWriterMixin, AgentWriterInterface):
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
         if dd_config._trace_writer_native:
+            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+            kwargs["stats_opt_out"] = asm_config._apm_opt_out
             self._inner_writer = NativeWriter(*args, **kwargs)
         else:
+            if (dd_config._trace_compute_stats or asm_config._apm_opt_out):
+                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
             self._inner_writer = AgentWriter(*args, **kwargs)
 
         DummyWriterMixin.__init__(self, *args, **kwargs)
