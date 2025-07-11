@@ -53,6 +53,9 @@ def test_dataset_pull_non_existent(llmobs):
 def test_dataset_pull(llmobs, test_dataset):
     dataset = llmobs.pull_dataset(name=test_dataset.name)
     assert dataset._id is not None
+    assert dataset.name == test_dataset.name
+    assert dataset.description == test_dataset.description
+    assert dataset._version == test_dataset._version
 
 
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset):

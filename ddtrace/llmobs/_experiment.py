@@ -22,13 +22,17 @@ class DatasetRecord(TypedDict):
 
 class Dataset:
     name: str
+    description: str
     _id: str
     _data: List[DatasetRecord]
+    _version: int
 
-    def __init__(self, name: str, dataset_id: str, data: List[DatasetRecord]) -> None:
+    def __init__(self, name: str, dataset_id: str, data: List[DatasetRecord], description: str, version: int) -> None:
         self.name = name
+        self.description = description
         self._id = dataset_id
         self._data = data
+        self._version = version
 
 
 class Experiment:
