@@ -175,9 +175,30 @@ def _find_and_analyze_core_dump(proc_pid):
     """
     import glob
     import os
+    import time
+
+    # Give some time for the core dump to be written
+    debug_print("Waiting for core dump to be written...")
+    time.sleep(2)
+
+    # Show current working directory
+    cwd = os.getcwd()
+    debug_print(f"Current working directory: {cwd}")
+
+    # Show directory contents to see what files are there
+    files = os.listdir(cwd)
+    debug_print(f"Files in current directory: {files}")
+
+    # Also check /tmp directory
+    tmp_files = os.listdir("/tmp")
+    core_files_in_tmp = [f for f in tmp_files if f.startswith("core")]
+    debug_print(f"Core files in /tmp: {core_files_in_tmp}")
 
     # Common core dump locations and patterns
     core_patterns = [
+        "core",  # Default pattern from core_pattern
+        "./core",  # Explicit current directory
+        f"{cwd}/core",  # Full path to current directory
         "/tmp/core*",
         "./core*",
         f"core.{proc_pid}",
@@ -185,12 +206,13 @@ def _find_and_analyze_core_dump(proc_pid):
         f"core.*{proc_pid}*",
         "/tmp/core.*",
         "/cores/core*",
-        "core",
+        "core.*",
     ]
 
     debug_print("Looking for core dumps...")
 
     for pattern in core_patterns:
+        debug_print(f"Searching pattern: {pattern}")
         core_files = glob.glob(pattern)
         if core_files:
             # Sort by modification time, get the most recent
@@ -199,6 +221,7 @@ def _find_and_analyze_core_dump(proc_pid):
 
             debug_print(f"Found core dump: {core_file}")
             debug_print(f"Core file size: {os.path.getsize(core_file)} bytes")
+            debug_print(f"Core file modification time: {os.path.getmtime(core_file)}")
 
             # Get backtrace from core dump
             try:
@@ -254,6 +277,24 @@ def _find_and_analyze_core_dump(proc_pid):
                 debug_print(f"Failed to analyze core dump {core_file}: {e}")
 
             return core_file
+
+    # If no core dump found with glob, try using find command
+    debug_print("No core dumps found with glob, trying find command...")
+    try:
+        # Search for core files in common locations
+        find_locations = ["/tmp", cwd, "/"]
+        for location in find_locations:
+            cmd = ["find", location, "-name", "core*", "-type", "f", "-mtime", "-1"]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.stdout.strip():
+                debug_print(f"Found core files with find in {location}:")
+                debug_print(result.stdout)
+                # Take the first one found
+                core_file = result.stdout.strip().split("\n")[0]
+                debug_print(f"Using core file: {core_file}")
+                return core_file
+    except Exception as e:
+        debug_print(f"Find command failed: {e}")
 
     debug_print("No core dumps found")
     return None
