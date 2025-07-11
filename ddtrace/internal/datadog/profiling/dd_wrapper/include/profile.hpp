@@ -50,7 +50,6 @@ class Profile
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
     bool cycle_buffers();
-    void reset();
     void postfork_child();
 
     // Getters
