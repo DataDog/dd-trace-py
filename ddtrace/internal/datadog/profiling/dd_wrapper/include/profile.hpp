@@ -48,7 +48,7 @@ class Profile
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
-    void reset();
+    bool reset_profile();
     void postfork_child();
 
     // Getters

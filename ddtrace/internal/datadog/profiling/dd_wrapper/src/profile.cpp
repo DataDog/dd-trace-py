@@ -41,6 +41,27 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 
 }
 
+bool
+Datadog::Profile::reset_profile()
+{
+    const std::lock_guard<std::mutex> lock(profile_mtx);
+    static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
+
+    // Clear the profile before using it
+    auto res = ddog_prof_Profile_reset(&cur_profile);
+    if (!res.ok) {          // NOLINT (cppcoreguidelines-pro-type-union-access)
+        auto err = res.err; // NOLINT (cppcoreguidelines-pro-type-union-access)
+        if (!already_warned) {
+            already_warned = true;
+            const std::string errmsg = err_to_msg(&err, "Error resetting profile");
+            std::cerr << "Could not drop profile:" << errmsg << std::endl;
+        }
+        ddog_Error_drop(&err);
+        return false;
+    }
+    return true;
+}
+
 void
 Datadog::Profile::setup_samplers()
 {
@@ -201,4 +222,6 @@ void
 Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
+    // Reset the profile to clear any samples collected in the parent process
+    reset_profile();
 }
