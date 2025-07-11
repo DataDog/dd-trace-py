@@ -22,6 +22,7 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._integrations.utils import get_token_metrics_from_streamed_response
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Pin
@@ -85,7 +86,7 @@ class OpenAIIntegration(BaseLLMIntegration):
             client = "AzureOpenAI"
         elif self._is_provider(span, "deepseek"):
             client = "Deepseek"
-        span.set_tag_str("openai.request.client", client)
+        span.set_tag_str("openai.request.provider", client)
 
     @staticmethod
     def _is_provider(span, provider):
@@ -94,30 +95,6 @@ class OpenAIIntegration(BaseLLMIntegration):
         if not base_url or not isinstance(base_url, str):
             return False
         return provider.lower() in base_url.lower()
-
-    def llmobs_record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
-        if not usage:
-            return
-
-        prompt_tokens = _get_attr(usage, "prompt_tokens", 0)
-        completion_tokens = _get_attr(usage, "completion_tokens", 0)
-        input_tokens = _get_attr(usage, "input_tokens", 0)
-        output_tokens = _get_attr(usage, "output_tokens", 0)
-
-        input_tokens = prompt_tokens or input_tokens
-        output_tokens = completion_tokens or output_tokens
-
-        token_metrics = {
-            INPUT_TOKENS_METRIC_KEY: input_tokens,
-            OUTPUT_TOKENS_METRIC_KEY: output_tokens,
-            TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
-        }
-
-        span._set_ctx_items(
-            {
-                METRICS: token_metrics,
-            }
-        )
 
     def _llmobs_set_tags(
         self,
@@ -147,7 +124,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif operation == "response":
             openai_set_meta_tags_from_response(span, kwargs, response)
         update_proxy_workflow_input_output_value(span, span_kind)
-        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind) or span._get_ctx_item(METRICS)
+        metrics = self._extract_llmobs_metrics_tags(span, response, span_kind, kwargs)
         span._set_ctx_items(
             {SPAN_KIND: span_kind, MODEL_NAME: model_name or "", MODEL_PROVIDER: model_provider, METRICS: metrics}
         )
@@ -178,7 +155,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, "[{} embedding(s) returned]".format(len(resp.data)))
 
     @staticmethod
-    def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str) -> Optional[Dict[str, Any]]:
+    def _extract_llmobs_metrics_tags(span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
         token_usage = _get_attr(resp, "usage", None)
         if token_usage is not None and span_kind != "workflow":
@@ -189,12 +166,13 @@ class OpenAIIntegration(BaseLLMIntegration):
 
             input_tokens = prompt_tokens or input_tokens
             output_tokens = completion_tokens or output_tokens
-
             return {
                 INPUT_TOKENS_METRIC_KEY: input_tokens,
                 OUTPUT_TOKENS_METRIC_KEY: output_tokens,
                 TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
             }
+        elif kwargs.get("stream") and resp is not None:
+            return get_token_metrics_from_streamed_response(span, resp, kwargs.get("prompt", None), kwargs.get("messages", None), kwargs)
         return None
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
@@ -202,3 +180,4 @@ class OpenAIIntegration(BaseLLMIntegration):
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
+

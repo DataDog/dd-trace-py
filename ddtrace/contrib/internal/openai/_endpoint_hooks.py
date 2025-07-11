@@ -56,11 +56,10 @@ class _EndpointHook:
                     continue
                 if arg in self._base_level_tag_args:
                     span.set_tag_str("openai.%s" % arg, str(args[idx]))
-                elif arg == "organization":
-                    span.set_tag_str("openai.organization.id", args[idx])
         for kw_attr in self._request_kwarg_params:
             if kw_attr not in kwargs:
                 continue
+
             if isinstance(kwargs[kw_attr], dict):
                 for k, v in kwargs[kw_attr].items():
                     span.set_tag_str("openai.request.%s.%s" % (kw_attr, k), str(v))
@@ -78,6 +77,7 @@ class _EndpointHook:
         return self._record_response(pin, integration, span, args, kwargs, resp, error)
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
+
         for resp_attr in self._response_attrs:
             if hasattr(resp, resp_attr):
                 span.set_tag_str("openai.response.%s" % resp_attr, str(getattr(resp, resp_attr, "")))
@@ -85,7 +85,7 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
+    _request_arg_params = ("api_base", "api_type", "api_version")
 
     def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
         """Handle streamed response objects returned from completions/chat/response endpoint calls.
@@ -159,10 +159,8 @@ class _CompletionHook(_BaseCompletionHook):
         "model",
         "engine",
         "suffix",
-        "echo",
-        "user",
     )
-    _response_attrs = ("created", "id", "model")
+    _response_attrs = ("model",)
     ENDPOINT_NAME = "completions"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createCompletion"
@@ -183,13 +181,12 @@ class _CompletionWithRawResponseHook(_CompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
+    _request_arg_params = ("api_base", "api_version")
     _request_kwarg_params = (
         "model",
         "engine",
-        "user",
     )
-    _response_attrs = ("created", "id", "model")
+    _response_attrs = ("model",)
     ENDPOINT_NAME = "chat/completions"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createChatCompletion"
@@ -223,8 +220,8 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_arg_params = ("api_base", "api_type", "request_id", "api_version", "organization")
-    _request_kwarg_params = ("model", "engine", "user")
+    _request_arg_params = ("api_base", "api_version")
+    _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
     ENDPOINT_NAME = "embeddings"
     HTTP_METHOD_TYPE = "POST"
@@ -243,7 +240,7 @@ class _ListHook(_EndpointHook):
     Hook for openai.ListableAPIResource, which is used by Model.list, File.list, and FineTune.list.
     """
 
-    _request_arg_params = ("request_id", "api_version", "organization", "api_base", "api_type")
+    _request_arg_params = ("api_base", "api_version")
     _request_kwarg_params = ("user",)
     ENDPOINT_NAME = None
     HTTP_METHOD_TYPE = "GET"
@@ -642,13 +639,6 @@ class _ResponseHook(_BaseCompletionHook):
     # Collecting all kwargs for responses
     _request_kwarg_params = (
         "model",
-        "include",
-        "metadata",
-        "previous_response_id",
-        "service_tier",
-        "store",
-        "truncation",
-        "user",
     )
     _response_attrs = ("model",)
     ENDPOINT_NAME = "responses"

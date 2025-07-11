@@ -10,20 +10,18 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6870042700000000",
+      "_dd.p.tid": "687150ba00000000",
       "component": "openai",
       "language": "python",
       "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
-      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/completions",
       "openai.request.method": "POST",
       "openai.request.model": "ada",
-      "openai.response.created": "1681852797",
-      "openai.response.id": "cmpl-76n1xLvRKv3mfjx7hJ41UHrHy9ar6",
+      "openai.request.provider": "OpenAI",
       "openai.response.model": "ada",
       "openai.user.api_key": "sk-...key>",
-      "runtime-id": "c6904943bcb84a118c0be7a2fd8754c8"
+      "runtime-id": "0cd09769f8ca4b56a5bb731f2755663b"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -34,8 +32,8 @@
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.limit": 250000,
       "openai.organization.ratelimit.tokens.remaining": 249979,
-      "process_id": 18925
+      "process_id": 49681
     },
-    "duration": 15860000,
-    "start": 1752171559182181000
+    "duration": 16368000,
+    "start": 1752256698989118000
   }]]

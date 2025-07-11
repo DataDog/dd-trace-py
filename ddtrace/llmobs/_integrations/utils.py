@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
 from typing import Any
 from typing import Dict
 from typing import List
@@ -28,6 +29,12 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 
+try:
+    from tiktoken import encoding_for_model
+
+    tiktoken_available = True
+except ModuleNotFoundError:
+    tiktoken_available = False
 
 logger = get_logger(__name__)
 
@@ -1143,3 +1150,117 @@ def get_final_message_converse_stream_message(
         message_output["tool_calls"] = tool_calls
 
     return message_output
+
+
+_punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
+
+def _compute_prompt_tokens(model_name, prompts=None, messages=None):
+    """Compute token span metrics on streamed chat/completion requests.
+    Only required if token usage is not provided in the streamed response.
+    """
+    num_prompt_tokens = 0
+    estimated = False
+    if messages:
+        for m in messages:
+            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
+            num_prompt_tokens += prompt_tokens
+    elif prompts:
+        if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
+            prompts = [prompts]
+        for prompt in prompts:
+            estimated, prompt_tokens = _compute_token_count(prompt, model_name)
+            num_prompt_tokens += prompt_tokens
+    return estimated, num_prompt_tokens
+
+
+def _compute_completion_tokens(completions_or_messages, model_name):
+    """Compute/Estimate the completion token count from the streamed response."""
+    if not completions_or_messages:
+        return False, 0
+    estimated = False
+    num_completion_tokens = 0
+    for choice in completions_or_messages:
+        content = choice.get("content", "") or choice.get("text", "")
+        estimated, completion_tokens = _compute_token_count(content, model_name)
+        num_completion_tokens += completion_tokens
+    return estimated, num_completion_tokens
+
+
+def _compute_token_count(content, model):
+    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
+    """
+    Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
+    tokens was estimated, and the estimated/calculated prompt token count.
+    """
+    num_prompt_tokens = 0
+    estimated = False
+    if model is not None and tiktoken_available is True:
+        try:
+            enc = encoding_for_model(model)
+            if isinstance(content, str):
+                num_prompt_tokens += len(enc.encode(content))
+            elif content and isinstance(content, list) and isinstance(content[0], int):
+                num_prompt_tokens += len(content)
+            return estimated, num_prompt_tokens
+        except KeyError:
+            # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
+            estimated = True
+    else:
+        estimated = True
+
+    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
+    return estimated, _est_tokens(content)
+
+
+def get_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
+    """Set token span metrics on streamed chat/completion/response.
+    If token usage is not available in the response, compute/estimate the token counts.
+    """
+    usage = None
+    if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
+        usage = response[0].get("usage", {})
+    elif response and getattr(response, "usage", None):
+        usage = response.usage
+
+    if usage:
+        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
+            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
+        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
+            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
+        total_tokens = getattr(usage, "total_tokens", 0)
+    else:
+        model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
+        _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
+        _, completion_tokens = _compute_completion_tokens(response, model_name)
+        total_tokens = prompt_tokens + completion_tokens
+
+
+    return {
+        INPUT_TOKENS_METRIC_KEY: prompt_tokens,
+        OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
+        TOTAL_TOKENS_METRIC_KEY: total_tokens,
+    }
+
+
+def _est_tokens(prompt):
+    # type: (Union[str, List[int]]) -> int
+    """
+    Provide a very rough estimate of the number of tokens in a string prompt.
+    Note that if the prompt is passed in as a token array (list of ints), the token count
+    is just the length of the token array.
+    """
+    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
+    # Approximate using the following assumptions:
+    #    * English text
+    #    * 1 token ~= 4 chars
+    #    * 1 token ~= ¾ words
+    if not prompt:
+        return 0
+    est_tokens = 0
+    if isinstance(prompt, str):
+        est1 = len(prompt) / 4
+        est2 = len(_punc_regex.findall(prompt)) * 0.75
+        return round((1.5 * est1 + 0.5 * est2) / 2)
+    elif isinstance(prompt, list) and isinstance(prompt[0], int):
+        return len(prompt)
+    return est_tokens
