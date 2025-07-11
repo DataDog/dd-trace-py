@@ -356,7 +356,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             class_records.append(
                 {
                     "record_id": record["id"],
-                    "input": attrs["input"],
+                    "input_data": attrs["input"],
                     "expected_output": attrs["expected_output"],
                     "metadata": attrs.get("metadata", {}),
                 }

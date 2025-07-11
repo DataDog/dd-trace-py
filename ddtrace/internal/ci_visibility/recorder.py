@@ -276,7 +276,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
@@ -397,7 +397,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent_config.trace_agent_url if url is None else url,
+                intake_url=url or agent_config.trace_agent_url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
