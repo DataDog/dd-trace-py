@@ -11,23 +11,23 @@
     "meta": {
       "_dd.base_service": "tests.contrib.fastapi",
       "_dd.p.dm": "-1",
-      "_dd.p.tid": "684b30c400000000",
+      "_dd.p.tid": "68715a3e00000000",
       "component": "fastapi",
       "http.upgraded": "websocket",
       "http.url": "ws://testserver/ws",
       "http.useragent": "testclient",
       "language": "python",
-      "runtime-id": "a0af40e34deb4677b7d59473f6130f0d",
+      "runtime-id": "0c0d58a3c117451898114a1b0d6d7f02",
       "span.kind": "server"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 66817
+      "process_id": 43439
     },
-    "duration": 720000,
-    "start": 1749758148859452000
+    "duration": 996000,
+    "start": 1752259134982054000
   },
      {
        "name": "websocket.receive",
@@ -39,12 +39,10 @@
        "type": "websocket",
        "error": 0,
        "meta": {
-         "_dd.base_service": "tests.contrib.fastapi",
-         "component": "fastapi",
-         "span.kind": "consumer"
+         "_dd.base_service": "tests.contrib.fastapi"
        },
-       "duration": 27000,
-       "start": 1749758148859685000
+       "duration": 21000,
+       "start": 1752259134982321000
      },
      {
        "name": "websocket.send",
@@ -57,7 +55,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.span_links": "[{\"trace_id\": \"684b30c400000000eaf3564f6aa1451e\", \"span_id\": \"fd9b0301bc3412a3\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
          "out.host": "testclient",
          "span.kind": "producer"
@@ -65,8 +63,8 @@
        "metrics": {
          "websocket.message.frames": 1
        },
-       "duration": 72000,
-       "start": 1749758148859737000
+       "duration": 65000,
+       "start": 1752259134982374000
      },
      {
        "name": "websocket.send",
@@ -79,7 +77,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.span_links": "[{\"trace_id\": \"684b30c400000000eaf3564f6aa1451e\", \"span_id\": \"fd9b0301bc3412a3\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
          "out.host": "testclient",
          "span.kind": "producer",
@@ -89,8 +87,8 @@
          "websocket.message.frames": 1,
          "websocket.message.length": 27
        },
-       "duration": 33000,
-       "start": 1749758148859851000
+       "duration": 32000,
+       "start": 1752259134982543000
      },
      {
        "name": "websocket.receive",
@@ -103,6 +101,8 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"executed_by\"}}]",
+         "baggage.foo": "bar",
          "component": "fastapi",
          "span.kind": "consumer",
          "websocket.message.type": "text"
@@ -111,8 +111,8 @@
          "websocket.message.frames": 1,
          "websocket.message.length": 7
        },
-       "duration": 73000,
-       "start": 1749758148859905000
+       "duration": 111000,
+       "start": 1752259134982604000
      },
      {
        "name": "websocket.send",
@@ -125,7 +125,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.span_links": "[{\"trace_id\": \"684b30c400000000eaf3564f6aa1451e\", \"span_id\": \"fd9b0301bc3412a3\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
          "out.host": "testclient",
          "span.kind": "producer",
@@ -135,8 +135,8 @@
          "websocket.message.frames": 1,
          "websocket.message.length": 12
        },
-       "duration": 31000,
-       "start": 1749758148859999000
+       "duration": 37000,
+       "start": 1752259134982743000
      },
      {
        "name": "websocket.receive",
@@ -149,16 +149,18 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"executed_by\"}}]",
+         "baggage.foo": "bar",
          "component": "fastapi",
          "span.kind": "consumer",
          "websocket.message.type": "text"
        },
        "metrics": {
          "websocket.message.frames": 1,
-         "websocket.message.length": 5
+         "websocket.message.length": 7
        },
-       "duration": 27000,
-       "start": 1749758148860050000
+       "duration": 82000,
+       "start": 1752259134982813000
      },
      {
        "name": "websocket.send",
@@ -171,7 +173,7 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
-         "_dd.span_links": "[{\"trace_id\": \"684b30c400000000eaf3564f6aa1451e\", \"span_id\": \"fd9b0301bc3412a3\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
          "out.host": "testclient",
          "span.kind": "producer",
@@ -179,10 +181,10 @@
        },
        "metrics": {
          "websocket.message.frames": 1,
-         "websocket.message.length": 10
+         "websocket.message.length": 3
        },
-       "duration": 30000,
-       "start": 1749758148860096000
+       "duration": 28000,
+       "start": 1752259134982919000
      },
      {
        "name": "websocket.close",
@@ -195,13 +197,15 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.fastapi",
+         "_dd.span_links": "[{\"trace_id\": \"68715a3e0000000042cc27aac16f6b4e\", \"span_id\": \"781bbeb371f7ea7d\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
+         "baggage.foo": "bar",
          "component": "fastapi",
-         "span.kind": "consumer",
-         "websocket.message.type": "disconnect"
+         "out.host": "testclient",
+         "span.kind": "producer"
        },
        "metrics": {
          "websocket.close.code": 1000
        },
-       "duration": 38000,
-       "start": 1749758148860146000
+       "duration": 46000,
+       "start": 1752259134982980000
      }]]

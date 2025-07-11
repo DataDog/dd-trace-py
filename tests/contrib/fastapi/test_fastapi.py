@@ -603,6 +603,27 @@ def _run_websocket_test():
         fastapi_unpatch()
 
 
+def _run_websocket_send_only_test():
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            with client.websocket_connect("/ws") as websocket:
+                websocket.send_text("message1")
+                websocket.send_text("message2")
+                websocket.send_text("message3")
+                websocket.send_text("goodbye")
+    finally:
+        fastapi_unpatch()
+
+
 @pytest.mark.subprocess(
     env=dict(
         DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
@@ -613,6 +634,18 @@ def test_traced_websocket(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
 
     _run_websocket_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_only_sends(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_send_only_test
+
+    _run_websocket_send_only_test()
 
 
 @pytest.mark.subprocess(
@@ -654,7 +687,7 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
                 websocket.send_text(f"ping {i}")
                 response = websocket.receive_text()
                 assert f"pong {i}" in response
-                time.sleep(0.1)
+                time.sleep(1)
 
             websocket.send_text("goodbye")
             farewell = websocket.receive_text()
