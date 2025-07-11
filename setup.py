@@ -47,7 +47,7 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "Release"
+COMPILE_MODE = "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
