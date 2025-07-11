@@ -65,7 +65,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: hatch
+    runner: riot
   iast_aggregated_leak_testing:
     parallelism: 3
     paths:
