@@ -28,16 +28,6 @@ if sys.platform == "win32":
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
-def _is_gunicorn_port_bound() -> bool:
-    import socket
-
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        try:
-            return s.connect_ex(("127.0.0.1", 7644)) != 0
-        except Exception:
-            return False
-
-
 def _run_gunicorn(*args):
     cmd = (
         [
