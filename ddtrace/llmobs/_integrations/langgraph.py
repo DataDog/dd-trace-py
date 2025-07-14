@@ -166,20 +166,26 @@ class LangGraphIntegration(BaseLLMIntegration):
         model = get_argument_value(args, kwargs, 0, "model")
         model_name, model_provider, model_settings = _get_model_info(model)
 
-        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools", optional=False) or []
+        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools")
         system_prompt: Optional[str] = kwargs.get("prompt")
         name: Optional[str] = kwargs.get("name")
 
         tools = [{"name": tool.name, "description": tool.description} for tool in agent_tools]
 
-        self._react_agents_manifests[agent] = {
+        agent_manifest = {
             "model": model_name,
             "model_provider": model_provider,
             "model_settings": model_settings,
             "tools": tools,
-            "instructions": system_prompt,
-            "name": name,
         }
+
+        if system_prompt:
+            agent_manifest["instructions"] = system_prompt
+
+        if name:
+            agent_manifest["name"] = name
+
+        self._react_agents_manifests[agent] = agent_manifest
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
