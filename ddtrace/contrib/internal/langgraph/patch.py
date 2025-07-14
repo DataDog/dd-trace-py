@@ -401,27 +401,26 @@ def _patch_graph_modules(langgraph):
 
 
 def unpatch():
-    if not getattr(langgraph, "_datadog_patch", False):
-        return
+    if getattr(langgraph, "_datadog_patch", False):
+        langgraph._datadog_patch = False
 
-    langgraph._datadog_patch = False
-    langgraph.prebuilt._datadog_patch = False
+        from langgraph import prebuilt
+        from langgraph.pregel import Pregel
+        from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
 
-    from langgraph.prebuilt import chat_agent_executor
-    from langgraph.pregel import Pregel
-    from langgraph.pregel.loop import PregelLoop
-    from langgraph.utils.runnable import RunnableSeq
+        unwrap(RunnableSeq, "invoke")
+        unwrap(RunnableSeq, "ainvoke")
+        unwrap(RunnableSeq, "astream")
+        unwrap(Pregel, "stream")
+        unwrap(Pregel, "astream")
+        unwrap(PregelLoop, "tick")
 
-    unwrap(RunnableSeq, "invoke")
-    unwrap(RunnableSeq, "ainvoke")
-    unwrap(RunnableSeq, "astream")
-    unwrap(Pregel, "stream")
-    unwrap(Pregel, "astream")
-    unwrap(PregelLoop, "tick")
+        if LANGGRAPH_VERSION >= (0, 3, 29):
+            unwrap(langgraph.utils.runnable, "_consume_aiter")
 
-    if LANGGRAPH_VERSION >= (0, 3, 29):
-        unwrap(langgraph.utils.runnable, "_consume_aiter")
+        delattr(langgraph, "_datadog_integration")
 
-    unwrap(chat_agent_executor, "create_react_agent")
-
-    delattr(langgraph, "_datadog_integration")
+    if hasattr(langgraph, "prebuilt") and getattr(langgraph.prebuilt, "_datadog_patch", False):
+        langgraph.prebuilt._datadog_patch = False
+        unwrap(prebuilt, "create_react_agent")
