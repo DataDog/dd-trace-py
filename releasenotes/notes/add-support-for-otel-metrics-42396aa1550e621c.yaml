@@ -1,0 +1,3 @@
+features:
+  - |
+    otel: Adds experimental support for exporting OTLP metrics via the OpenTelemetry Metrics API. To enable, the environment variable ``DD_METRICS_OTEL_ENABLED`` must be set to ``true`` and the application must include its own OTLP metrics exporter.

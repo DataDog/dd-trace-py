@@ -273,7 +273,7 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return str(message)
 
 
-def get_messages_from_converse_content(role: str, content: list):
+def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]):
     """
     Extracts out a list of messages from a converse `content` field.
 
@@ -285,10 +285,11 @@ def get_messages_from_converse_content(role: str, content: list):
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     content_blocks = []
     tool_calls_info = []
-    unsupported_content_messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
+    tool_messages: List[Dict[str, Any]] = []
+    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -301,6 +302,24 @@ def get_messages_from_converse_content(role: str, content: list):
                     "tool_id": str(toolUse.get("toolUseId", "")),
                 }
             )
+        elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
+            tool_message: Dict[str, Any] = content_block.get("toolResult", {})
+            tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
+            tool_message_id: str = tool_message.get("toolUseId", "")
+
+            for tool_message_content in tool_message_contents:
+                tool_message_content_text: Optional[str] = tool_message_content.get("text")
+                tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
+
+                tool_messages.append(
+                    {
+                        "content": tool_message_content_text
+                        or (tool_message_content_json and safe_json(tool_message_content_json))
+                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                        "role": "tool",
+                        "tool_id": tool_message_id,
+                    }
+                )
         else:
             content_type = ",".join(content_block.keys())
             unsupported_content_messages.append(
@@ -315,6 +334,8 @@ def get_messages_from_converse_content(role: str, content: list):
         messages.append(message)
     if unsupported_content_messages:
         messages.extend(unsupported_content_messages)
+    if tool_messages:
+        messages.extend(tool_messages)
     return messages
 
 

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
+import inspect
 import json
 import os
 import time
@@ -73,6 +74,11 @@ from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
+from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -85,6 +91,7 @@ from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
+from ddtrace.llmobs._writer import LLMObsExperimentsClient
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.llmobs._writer import LLMObsSpanWriter
 from ddtrace.llmobs._writer import should_use_agentless
@@ -155,6 +162,8 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
+    _app_key: str = os.getenv("DD_APP_KEY", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
 
     def __init__(
         self,
@@ -179,6 +188,12 @@ class LLMObs(Service):
         self._evaluator_runner = EvaluatorRunner(
             interval=float(os.getenv("_DD_LLMOBS_EVALUATOR_INTERVAL", 1.0)),
             llmobs_service=self,
+        )
+        self._dne_client = LLMObsExperimentsClient(
+            interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
+            timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
+            _app_key=self._app_key,
+            is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
         forksafe.register(self._child_after_fork)
@@ -447,6 +462,8 @@ class LLMObs(Service):
         instrumented_proxy_urls: Optional[Set[str]] = None,
         site: Optional[str] = None,
         api_key: Optional[str] = None,
+        app_key: Optional[str] = None,
+        project_name: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
@@ -462,6 +479,8 @@ class LLMObs(Service):
         :param set[str] instrumented_proxy_urls: A set of instrumented proxy URLs to help detect when to emit LLM spans.
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
+        :param str app_key: Your datadog application key.
+        :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
@@ -477,6 +496,8 @@ class LLMObs(Service):
         # grab required values for LLMObs
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
+        cls._app_key = app_key or cls._app_key
+        cls._project_name = project_name or cls._project_name
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -548,6 +569,69 @@ class LLMObs(Service):
                 config._llmobs_instrumented_proxy_urls,
                 config._llmobs_ml_app,
             )
+
+    @classmethod
+    def pull_dataset(cls, name: str) -> Dataset:
+        ds = cls._instance._dne_client.dataset_get_with_records(name)
+        return ds
+
+    @classmethod
+    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
+
+    @classmethod
+    def _delete_dataset(cls, dataset_id: str) -> None:
+        return cls._instance._dne_client.dataset_delete(dataset_id)
+
+    @classmethod
+    def experiment(
+        cls,
+        name: str,
+        task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
+        dataset: Dataset,
+        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        description: str = "",
+        project_name: Optional[str] = None,
+    ) -> Experiment:
+        """Initializes an Experiment to run a task on a Dataset and evaluators.
+
+        :param name: The name of the experiment.
+        :param task: The task function to run. Must accept a parameter ``input_data`` and optionally ``config``.
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions to evaluate the task output.
+                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param description: A description of the experiment.
+        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
+                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
+                             or `LLMObs.enable(project_name=...)`.
+        """
+        if not callable(task):
+            raise TypeError("task must be a callable function.")
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if "input_data" not in params:
+            raise TypeError("Task function must have an 'input_data' parameter.")
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
+            raise TypeError("Evaluators must be a list of callable functions.")
+        for evaluator in evaluators:
+            sig = inspect.signature(evaluator)
+            params = sig.parameters
+            required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+        if project_name is None:
+            project_name = cls._project_name
+        return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators,
+            project_name=project_name,
+            description=description,
+            _llmobs_instance=cls._instance,
+        )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:

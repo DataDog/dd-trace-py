@@ -24,7 +24,14 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
+        filter_headers=[
+            "authorization",
+            "OpenAI-Organization",
+            "api-key",
+            "x-api-key",
+            ("DD-API-KEY", "XXXXXX"),
+            ("DD-APPLICATION-KEY", "XXXXXX"),
+        ],
         # Ignore requests to the agent
         ignore_localhost=True,
     )

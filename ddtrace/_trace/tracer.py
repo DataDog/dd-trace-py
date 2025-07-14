@@ -8,13 +8,14 @@ import os
 from os import getpid
 from threading import RLock
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypeVar
 from typing import Union
+from typing import cast
 
 from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
@@ -55,7 +56,7 @@ from ddtrace.internal.runtime import get_runtime_id
 from ddtrace.internal.schema.processor import BaseServiceProcessor
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.formats import format_trace_id
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import HTTPWriter
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -66,7 +67,7 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-AnyCallable = Callable[..., Any]
+AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 if TYPE_CHECKING:
     from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -224,12 +225,15 @@ class Tracer(object):
             log.debug("Failed to store the configuration on disk", extra=dict(error=e))
 
     @property
-    def _agent_url(self):
-        return getattr(self._span_aggregator.writer, "intake_url", None)
+    def _agent_url(self) -> Optional[str]:
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
+            # For HTTPWriter, and AgentWriterInterface, we can return the intake_url directly
+            return self._span_aggregator.writer.intake_url
+        return None
 
     @_agent_url.setter
-    def _agent_url(self, value):
-        if isinstance(self._span_aggregator.writer, HTTPWriter):
+    def _agent_url(self, value: str):
+        if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             self._span_aggregator.writer.intake_url = value
 
     def _atexit(self) -> None:
@@ -425,7 +429,6 @@ class Tracer(object):
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        self.enabled = config._tracing_enabled
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
@@ -745,8 +748,8 @@ class Tracer(object):
     @property
     def agent_trace_url(self) -> Optional[str]:
         """Trace agent url"""
-        if isinstance(self._span_aggregator.writer, AgentWriter):
-            return self._span_aggregator.writer.agent_url
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            return self._span_aggregator.writer.intake_url
 
         return None
 
@@ -782,7 +785,7 @@ class Tracer(object):
                 return_value = yield from f(*args, **kwargs)
                 return return_value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def _wrap_generator_async(
         self,
@@ -800,7 +803,7 @@ class Tracer(object):
                 async for value in f(*args, **kwargs):
                     yield value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def wrap(
         self,
