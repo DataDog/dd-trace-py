@@ -9,7 +9,7 @@
 This library powers [Distributed Tracing](https://docs.datadoghq.com/tracing/),
  [Continuous Profiling](https://docs.datadoghq.com/tracing/profiler/),
  [Error Tracking](https://docs.datadoghq.com/tracing/error_tracking/),
- [Continuous Integration Visibility](https://docs.datadoghq.com/continuous_integration/),
+ [Test Optimization](https://docs.datadoghq.com/tests/),
  [Deployment Tracking](https://docs.datadoghq.com/tracing/deployment_tracking/),
  [Code Hotspots](https://docs.datadoghq.com/tracing/profiler/connect_traces_and_profiles/),
  [Dynamic Instrumentation](https://docs.datadoghq.com/dynamic_instrumentation/),

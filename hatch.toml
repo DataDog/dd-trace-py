@@ -5,7 +5,7 @@ dependencies = [
     "black==23.10.1",
     "click==8.1.7",
     "cython-lint==0.15.0",
-    "codespell==2.3.0",
+    "codespell==2.4.1",
     "bandit==1.7.5",
     "mypy==1.15.0",
     "coverage==7.3.0",
@@ -161,48 +161,6 @@ CMAKE_BUILD_PARALLEL_LEVEL = "12"
 CARGO_BUILD_JOBS = "12"
 DD_FAST_BUILD = "1"
 
-## ASM Flask
-
-[envs.appsec_threats_flask]
-template = "appsec_threats_flask"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "MarkupSafe{matrix:markupsafe:}",
-    "Werkzeug{matrix:werkzeug:}",
-    "flask{matrix:flask}"
-]
-
-[envs.appsec_threats_flask.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_flask.py {args}"
-]
-
-# if you add or remove a version here, please also update the parallelism parameter
-# in .circleci/config.templ.yml
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.9"]
-flask = ["~=1.1"]
-markupsafe = ["~=1.1"]
-
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.9"]
-flask = ["==2.1.3"]
-werkzeug = ["<3.0"]
-
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.10", "3.13"]
-flask = ["~=2.3"]
-
-[[envs.appsec_threats_flask.matrix]]
-python = ["3.8", "3.11", "3.13"]
-flask = ["~=3.0"]
-
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -267,42 +225,6 @@ python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 
 
-## ASM FastAPI
-
-[envs.appsec_threats_fastapi]
-template = "appsec_threats_fastapi"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "httpx<0.28.0",
-    "anyio{matrix:anyio:}",
-    "fastapi{matrix:fastapi}"
-]
-
-[envs.appsec_threats_fastapi.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "DD_IAST_ENABLED=false python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}",
-    "DD_IAST_ENABLED=true DD_IAST_REQUEST_SAMPLING=100 python -m pytest tests/appsec/contrib_appsec/test_fastapi.py {args}"
-]
-
-# if you add or remove a version here, please also update the parallelism parameter
-# in .circleci/config.templ.yml
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["==0.86.0"]
-anyio = ["==3.7.1"]
-
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["==0.94.1"]
-
-[[envs.appsec_threats_fastapi.matrix]]
-python = ["3.8", "3.10", "3.13"]
-fastapi = ["~=0.114.2"]
 
 ## ASM Appsec Aggregated Leak Testing
 
@@ -393,24 +315,6 @@ test = [
 [[envs.multiple_os_tests.matrix]]
 python = ["3.13", "3.12", "3.10", "3.8"]
 
-[envs.errortracking]
-template = "errortracking"
-dependencies = [
-    "flask",
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-]
-
-[envs.errortracking.scripts]
-test = [
-    "pip freeze",
-    "pytest tests/internal/errortracking",
-]
-
-[[envs.errortracking.matrix]]
-python = ["3.10", "3.11", "3.12", "3.13"]
-
 [envs.pytest_plugin_v2]
 template = "pytest_plugin_v2"
 dependencies = [
@@ -450,35 +354,3 @@ view = [
     "python scripts/ci_visibility/view_snapshot.py {args:}",
 ]
 
-[envs.appsec_integrations_pygoat]
-template = "appsec_integrations_pygoat"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "requests",
-    "hypothesis",
-    "pyyaml==6.0.1",
-]
-
-[envs.appsec_integrations_pygoat.env-vars]
-DD_CIVISIBILITY_ITR_ENABLED = "0"
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_ENABLED = "true"
-_DD_IAST_DEBUG = "false"
-DD_IAST_VULNERABILITIES_PER_REQUEST = "100"
-DD_REMOTE_CONFIGURATION_ENABLED = "true"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-DD_TRACE_AGENT_URL = "http://0.0.0.0:9126"
-DD_FAST_BUILD = "1"
-PYTHONDONTWRITEBYTECODE = "1"
-PYTHONUNBUFFERED = "1"
-
-[envs.appsec_integrations_pygoat.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh {args:tests/appsec/integrations/pygoat_tests/}",
-]
-
-[[envs.appsec_integrations_pygoat.matrix]]
-python = ["3.10", "3.11", "3.12"]

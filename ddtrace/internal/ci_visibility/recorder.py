@@ -176,6 +176,14 @@ class CIVisibility(Service):
             # assume that a tracer is already configured if it's been passed in.
             self.tracer._span_aggregator.partial_flush_enabled = True
             self.tracer._span_aggregator.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            # Tracer.configure(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value
+            # (in Tracer._reset(...)). Removing this side-effect causes some CIVisibility tests to fail.
+            # This MIGHT be due to the shutdown the global tracer in tests (calling tracer.shutdown()
+            # sets tracer.enabled to False and is meant to be an irreversible operation).
+            # To avoid breaking CIVisibility, we continue to reset self.enabled here
+            # to match the global config. Although not ideal, this is the safest way to refactor the Tracer class
+            # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
+            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
@@ -268,7 +276,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
@@ -389,7 +397,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent_config.trace_agent_url if url is None else url,
+                intake_url=url or agent_config.trace_agent_url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
