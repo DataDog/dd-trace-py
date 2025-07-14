@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"name": "test-dataset-2",
-      "description": "A second test dataset"}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["9f402769-5b27-4b40-9e02-31caaeaf701b"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -11,27 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '112'
+      - '119'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":{"id":"98b29e25-135f-40b1-9a71-276153e738a2","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-11T02:28:04.763251007Z","current_version":0,"description":"A
-        second test dataset","name":"test-dataset-2","updated_at":"2025-07-11T02:28:04.763251007Z"}}}'
+      string: '{"data":[{"id":"9f402769-5b27-4b40-9e02-31caaeaf701b","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-11T02:28:25.345438Z","current_version":0,"deleted_at":"2025-07-11T02:28:27.507714Z","description":"A
+        test dataset","name":"test-dataset-test_experiment_create","updated_at":"2025-07-11T02:28:25.345438Z"}}]}'
     headers:
       content-length:
-      - '316'
+      - '369'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Fri, 11 Jul 2025 02:28:04 GMT
+      - Fri, 11 Jul 2025 02:28:27 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
