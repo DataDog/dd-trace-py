@@ -121,7 +121,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - postgres
       - mysql

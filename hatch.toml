@@ -187,45 +187,6 @@ test = [
 [[envs.appsec_iast_native.matrix]]
 python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
-## IAST packages integrations
-
-[envs.appsec_integrations_packages]
-template = "appsec_integrations_packages"
-dependencies = [
-    "pytest",
-    "pytest-cov",
-    "pytest-xdist",
-    "hypothesis",
-    "requests",
-    "SQLAlchemy",
-    "psycopg2-binary~=2.9.9",
-    "pymysql",
-    "mysqlclient==2.1.1",
-    "mysql-connector-python",
-    "MarkupSafe~=2.1.1",
-    "Werkzeug~=3.0.6",
-]
-
-[envs.appsec_integrations_packages.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-
-[envs.appsec_integrations_packages.scripts]
-test = [
-    "uname -a",
-    "pip freeze",
-    "python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace {args:tests/appsec/integrations/packages_tests/}",
-]
-
-[[envs.appsec_integrations_packages.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-
-
-
-
 ## ASM Appsec Aggregated Leak Testing
 
 [envs.iast_aggregated_leak_testing]
