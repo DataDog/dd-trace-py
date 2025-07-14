@@ -50,7 +50,7 @@ def parse_model_id(model_id: str):
 
 def normalize_input_tokens(usage_metrics: dict) -> None:
     """
-    `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
+    `input_tokens` in bedrock's response usage metadata is the number of non-cached tokens. We normalize it to mean
     the total tokens sent to the model to be consistent with other model providers.
 
     Args:
