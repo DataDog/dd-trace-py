@@ -119,6 +119,12 @@ def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_recor
             pass
 
         llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        def my_task(input_data, not_config):
+            pass
+
+        llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
 
 
 def test_experiment_invalid_dataset_raises(llmobs):
