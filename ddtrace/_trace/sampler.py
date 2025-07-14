@@ -56,7 +56,6 @@ class DatadogSampler:
     """
     The DatadogSampler samples traces based on the following (in order of precedence):
        - A list of sampling rules, applied in the order they are provided. The first matching rule is used.
-       - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
        - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
        - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
        - By default, spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing
@@ -91,9 +90,13 @@ class DatadogSampler:
         Constructor for DatadogSampler sampler
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
-        :param default_sample_rate: The default sample rate to apply if no rules matched
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
+        :param rate_limit_window: The time window in nanoseconds for the rate limit, default is 1 second
+        :param rate_limit_always_on: If set to `True`, the rate limit is always applied, even if no sampling rules
+            are provided.
+        :param agent_based_samplers: A dictionary of service-based samplers, mapping a key in the format
+            `service:<service>,env:<env>` to a :class:`RateSampler` instance.
         """
         # Set sampling rules
         global_sampling_rules = config._trace_sampling_rules
