@@ -899,6 +899,13 @@ class _BaggageHeader:
         try:
             if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
+                # Record telemetry for baggage item count exceeding limit
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header_style.max_items_exceeded",
+                    value=1,
+                    tags=(("header_style", "baggage"),),
+                )
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
             encoded_items: List[str] = []
@@ -908,6 +915,13 @@ class _BaggageHeader:
                 item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
+                    # Record telemetry for baggage header size exceeding limit
+                    telemetry_writer.add_count_metric(
+                        namespace=TELEMETRY_NAMESPACE.TRACERS,
+                        name="context_header_style.max_bytes_exceeded",
+                        value=1,
+                        tags=(("header_style", "baggage"),),
+                    )
                     break  # stop adding items when size limit is reached
                 encoded_items.append(item)
                 total_size += item_size
@@ -915,8 +929,27 @@ class _BaggageHeader:
             header_value = ",".join(encoded_items)
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
+            # Record telemetry for successful baggage injection
+            telemetry_writer.add_count_metric(
+                namespace=TELEMETRY_NAMESPACE.TRACERS,
+                name="context_header_style.injected",
+                value=1,
+                tags=(("header_style", "baggage"),),
+            )
+
         except Exception:
             log.warning("Failed to encode and inject baggage header")
+
+    @staticmethod
+    def _record_malformed_and_return_empty() -> Context:
+        """Record telemetry for malformed baggage header and return empty context."""
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.TRACERS,
+            name="context_header_style.malformed",
+            value=1,
+            tags=(("header_style", "baggage"),),
+        )
+        return Context(baggage={})
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
@@ -929,12 +962,12 @@ class _BaggageHeader:
         baggages = header_value.split(",")
         for key_value in baggages:
             if "=" not in key_value:
-                return Context(baggage={})
+                return _BaggageHeader._record_malformed_and_return_empty()
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
-                return Context(baggage={})
+                return _BaggageHeader._record_malformed_and_return_empty()
             baggage[key] = value
 
         return Context(baggage=baggage)
