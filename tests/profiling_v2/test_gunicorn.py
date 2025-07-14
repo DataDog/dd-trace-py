@@ -227,11 +227,12 @@ def _find_and_analyze_core_dump(proc_pid):
             # Get backtrace from core dump
             try:
                 # Try to find the exact executable path
+                # The current Python interpreter is the most likely candidate
+                current_python = sys.executable
+                debug_print(f"Current Python executable: {current_python}")
+
                 executable_candidates = [
-                    "/usr/bin/python3",
-                    "/usr/bin/python",
-                    "python3",
-                    "python",
+                    current_python,  # The Python interpreter running this test
                     "gunicorn",
                 ]
 
