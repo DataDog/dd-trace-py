@@ -495,15 +495,15 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # - we know we don't need to finish the suite if the next item is in the same suite
     # - we know we don't need to finish the module if the next item is in the same module
     # - we trust that the next item is in the same module if it is in the same suite
-    # next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
-    # if next_test_id is None or next_test_id.parent_id != suite_id:
-    #     if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_itr_forced_run(suite_id):
-    #         InternalTestSuite.mark_itr_skipped(suite_id)
-    #     else:
-    #         _handle_coverage_dependencies(suite_id)
-    #     InternalTestSuite.finish(suite_id)
-    #     if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
-    #         InternalTestModule.finish(module_id)
+    next_test_id = _get_test_id_from_item(nextitem) if nextitem else None
+    if next_test_id is None or next_test_id.parent_id != suite_id:
+        if InternalTestSuite.is_itr_skippable(suite_id) and not InternalTestSuite.was_itr_forced_run(suite_id):
+            InternalTestSuite.mark_itr_skipped(suite_id)
+        else:
+            _handle_coverage_dependencies(suite_id)
+        InternalTestSuite.finish(suite_id)
+        if nextitem is None or (next_test_id is not None and next_test_id.parent_id.parent_id != module_id):
+            InternalTestModule.finish(module_id)
 
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
