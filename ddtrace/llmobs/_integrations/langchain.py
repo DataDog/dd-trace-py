@@ -703,7 +703,6 @@ class LangChainIntegration(BaseLLMIntegration):
         **kwargs,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
         if provider is not None:
             span.set_tag_str(PROVIDER, provider)
         if model is not None:

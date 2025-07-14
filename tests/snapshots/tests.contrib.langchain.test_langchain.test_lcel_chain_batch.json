@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68700fb400000000",
-      "langchain.request.type": "chain",
+      "_dd.p.tid": "687509d000000000",
       "language": "python",
-      "runtime-id": "5abd28be46464877a8cefb70c254e928"
+      "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 31734
+      "process_id": 23889
     },
-    "duration": 5140000,
-    "start": 1752174516018729000
+    "duration": 5653000,
+    "start": 1752500688309771000
   },
      {
        "name": "langchain.request",
@@ -36,12 +35,11 @@
        "error": 0,
        "meta": {
          "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model"
+         "langchain.request.provider": "openai"
        },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 2704000,
-       "start": 1752174516020930000
+       "duration": 2902000,
+       "start": 1752500688312251000
      }]]

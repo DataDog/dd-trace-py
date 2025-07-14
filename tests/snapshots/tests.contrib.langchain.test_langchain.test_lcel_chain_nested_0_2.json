@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "68700fb400000000",
-      "langchain.request.type": "chain",
+      "_dd.p.tid": "687509d100000000",
       "language": "python",
-      "runtime-id": "5abd28be46464877a8cefb70c254e928"
+      "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 31734
+      "process_id": 23889
     },
-    "duration": 12572000,
-    "start": 1752174516094228000
+    "duration": 12833000,
+    "start": 1752500689056515000
   },
      {
        "name": "langchain.request",
@@ -34,14 +33,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "langchain.request.type": "chain"
-       },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 5353000,
-       "start": 1752174516097328000
+       "duration": 5319000,
+       "start": 1752500689059867000
      },
         {
           "name": "langchain.request",
@@ -54,14 +50,13 @@
           "error": 0,
           "meta": {
             "langchain.request.model": "gpt-3.5-turbo",
-            "langchain.request.provider": "openai",
-            "langchain.request.type": "chat_model"
+            "langchain.request.provider": "openai"
           },
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 3581000,
-          "start": 1752174516098855000
+          "duration": 3491000,
+          "start": 1752500689061425000
         },
      {
        "name": "langchain.request",
@@ -74,12 +69,11 @@
        "error": 0,
        "meta": {
          "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model"
+         "langchain.request.provider": "openai"
        },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 3268000,
-       "start": 1752174516103299000
+       "duration": 3232000,
+       "start": 1752500689065903000
      }]]

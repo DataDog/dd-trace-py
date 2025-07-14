@@ -10,20 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6870101c00000000",
-      "langchain.request.type": "chain",
+      "_dd.p.tid": "68750a4200000000",
       "language": "python",
-      "runtime-id": "3e92a9f622a74c8a8ea8603d642bfd85"
+      "runtime-id": "002a3e69fe434d77a16c16974b6980d0"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 32301
+      "process_id": 24341
     },
-    "duration": 14859000,
-    "start": 1752174620795957000
+    "duration": 10788000,
+    "start": 1752500802274986000
   },
      {
        "name": "langchain.request",
@@ -34,14 +33,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "langchain.request.type": "chain"
-       },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 9775000,
-       "start": 1752174620796438000
+       "duration": 4778000,
+       "start": 1752500802275461000
      },
         {
           "name": "langchain.request",
@@ -54,14 +50,13 @@
           "error": 0,
           "meta": {
             "langchain.request.model": "gpt-3.5-turbo",
-            "langchain.request.provider": "openai",
-            "langchain.request.type": "chat_model"
+            "langchain.request.provider": "openai"
           },
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 8641000,
-          "start": 1752174620797118000
+          "duration": 3965000,
+          "start": 1752500802276118000
         },
      {
        "name": "langchain.request",
@@ -74,12 +69,39 @@
        "error": 0,
        "meta": {
          "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model"
+         "langchain.request.provider": "openai"
        },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 3827000,
-       "start": 1752174620806828000
-     }]]
+       "duration": 4068000,
+       "start": 1752500802281438000
+     }],
+[
+  {
+    "name": "langchain.request",
+    "service": "tests.contrib.langchain",
+    "resource": "langchain_openai.chat_models.base.ChatOpenAI",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "llm",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68750a4100000000",
+      "langchain.request.model": "gpt-3.5-turbo",
+      "langchain.request.provider": "openai",
+      "language": "python",
+      "runtime-id": "002a3e69fe434d77a16c16974b6980d0"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 24341
+    },
+    "duration": 3770000,
+    "start": 1752500801271495000
+  }]]
