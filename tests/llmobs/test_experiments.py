@@ -145,7 +145,7 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset):
         llmobs.experiment("test_experiment", dummy_task, test_dataset, [my_evaluator_missing_output])
 
 
-def test_experiment_create(llmobs, test_dataset):
+def test_experiment_init(llmobs, test_dataset):
     exp = llmobs.experiment(
         "test_experiment",
         dummy_task,
@@ -158,6 +158,11 @@ def test_experiment_create(llmobs, test_dataset):
     assert exp._task == dummy_task
     assert exp._dataset == test_dataset
     assert exp._evaluators == [dummy_evaluator]
+    assert exp._project_name == "test-project"
+    assert exp._description == "lorem ipsum"
+    assert exp._project_id is None
+    assert exp._run_name is None
+    assert exp._id is None
 
 
 def test_experiment_create_no_project_name_raises(llmobs, test_dataset):
@@ -166,3 +171,18 @@ def test_experiment_create_no_project_name_raises(llmobs, test_dataset):
     with pytest.raises(ValueError, match="project_name must be provided for the experiment"):
         llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], project_name=None)
     llmobs._project_name = project_name  # reset to original value for other tests
+
+
+def test_experiment_create(llmobs, test_dataset):
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset,
+        [dummy_evaluator],
+        project_name="test-project",
+    )
+    exp_id, exp_run_name = llmobs._instance._create_experiment(
+        exp.name, exp._dataset._id, "test-project", exp._dataset._version, exp._config
+    )
+    assert exp_id is not None
+    assert exp_run_name.startswith("test_experiment")
