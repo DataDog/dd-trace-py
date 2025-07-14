@@ -13,6 +13,8 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+import os
+
 from typing_extensions import NotRequired
 
 import ddtrace
@@ -21,6 +23,7 @@ from ddtrace.internal import agent
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import PeriodicService
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
@@ -450,10 +453,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payloads = []
+        for event in events:
+            data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
+            if asbool(os.getenv("DD_EXPERIMENTS_RUNNER_ENABLED")):
+                data["_dd.scope"] = "experiments"
+            payloads.append(data)
+        return payloads
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:

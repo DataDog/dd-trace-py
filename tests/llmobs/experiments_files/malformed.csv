@@ -1,0 +1,6 @@
+head1,head2,head3
+val1,"unclosed quote,val2
+val3,val4
+missing_columns
+too,many,columns,here,extra
+"another,bad"quote",here 
