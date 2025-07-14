@@ -44,7 +44,7 @@ class Profile
     // These are initialized here as skeleton objects, but they cannot be used until
     // they're initialized by libdatadog
     ddog_prof_Profile cur_profile{};
-    ddog_prof_Profile last_profile{};
+    ddog_prof_Profile prev_profile{};
 
   public:
     // State management
