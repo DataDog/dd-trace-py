@@ -331,8 +331,34 @@ class CustomBuildExt(build_ext):
             self.build_extension(ext)
 
     def build_rust(self):
+        is_release = True
+        build_crate(NATIVE_CRATE, is_release, native_features)
 
-        build_crate(NATIVE_CRATE, True, native_features)
+        target_dir = None
+        if is_release:
+            target_dir = NATIVE_CRATE / "target" / "release"
+        else:
+            target_dir = NATIVE_CRATE / "target" / "debug"
+
+        if sys.platform == "win32":
+            library = next(profile_dir.glob("_native.dll"))
+        elif sys.platform == "darwin":
+            library = next(profile_dir.glob("lib_native.dylib"))
+        else:
+            library = next(target_dir.glob("lib_native.so"))
+
+
+        print(f"Library: {library}")
+
+        if not library:
+            raise RuntimeError("Not able to find native library")
+
+        suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        destination = output_dir / f"_native{suffix}"
+        print(f"Output path: {destination}")
+        shutil.copy2(library, destination)
 
     @staticmethod
     def try_strip_symbols(so_file):
