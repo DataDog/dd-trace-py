@@ -70,9 +70,9 @@ class SamplingRule(object):
             {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
         )
         self.tags = tags
-        self.service = self.choose_matcher(service)
-        self.name = self.choose_matcher(name)
-        self.resource = self.choose_matcher(resource)
+        self.service = self._choose_matcher(service)
+        self.name = self._choose_matcher(name)
+        self.resource = self._choose_matcher(resource)
         self.provenance = provenance
 
     @property
@@ -183,12 +183,14 @@ class SamplingRule(object):
         else:
             return val
 
-    def choose_matcher(self, prop):
-        # Name and Resource will never be None, but service can be, since we str()
-        #  whatever we pass into the GlobMatcher, we can just use its matching
-        if prop is None:
-            prop = "None"
-        return SamplingRule.NO_RULE if prop == SamplingRule.NO_RULE else GlobMatcher(prop)
+    def _choose_matcher(self, prop):
+        if prop is SamplingRule.NO_RULE:
+            return SamplingRule.NO_RULE
+        elif prop is None:
+            # Name and Resource will never be None, but service can be, since we str()
+            #  whatever we pass into the GlobMatcher, we can just use its matching
+            return GlobMatcher("None")
+        return GlobMatcher(prop)
 
     def __repr__(self):
         return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
