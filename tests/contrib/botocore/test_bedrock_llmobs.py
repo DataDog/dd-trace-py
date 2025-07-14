@@ -595,6 +595,43 @@ class TestLLMObsBedrock:
             {"content": '{"result": "bar"}', "role": "tool", "tool_id": "foo"}
         ]
 
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_json_non_text_or_json(
+        self, bedrock_client, request_vcr, mock_tracer, llmobs_events
+    ):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "toolResult": {
+                                    "toolUseId": "foo",
+                                    "content": [
+                                        {
+                                            "image": {
+                                                "format": "png",
+                                                "source": {"s3Location": {"uri": "s3://bucket/key"}},
+                                            }
+                                        }
+                                    ],
+                                }
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+            {"content": "[Unsupported content type(s): image]", "role": "tool", "tool_id": "foo"}
+        ]
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",

@@ -308,12 +308,14 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             tool_message_id: str = tool_message.get("toolUseId", "")
 
             for tool_message_content in tool_message_contents:
-                tool_message_content_text: str = tool_message_content.get("text", "")
-                tool_message_content_json: str = safe_json(tool_message_content.get("json", {}))
+                tool_message_content_text: Optional[str] = tool_message_content.get("text")
+                tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
 
                 tool_messages.append(
                     {
-                        "content": tool_message_content_text or tool_message_content_json,
+                        "content": tool_message_content_text
+                        or (tool_message_content_json and safe_json(tool_message_content_json))
+                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
                         "role": "tool",
                         "tool_id": tool_message_id,
                     }
