@@ -19,7 +19,11 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import _compute_completion_tokens, _compute_prompt_tokens, get_token_metrics_from_streamed_response
+from ddtrace.llmobs._integrations.utils import (
+    _compute_completion_tokens,
+    _compute_prompt_tokens,
+    get_token_metrics_from_streamed_response,
+)
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
@@ -191,7 +195,9 @@ class OpenAIIntegration(BaseLLMIntegration):
             return metrics
         elif kwargs.get("stream") and resp is not None:
             model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-            _, prompt_tokens = _compute_prompt_tokens(model_name, kwargs.get("prompt", None), kwargs.get("messages", None))
+            _, prompt_tokens = _compute_prompt_tokens(
+                model_name, kwargs.get("prompt", None), kwargs.get("messages", None)
+            )
             _, completion_tokens = _compute_completion_tokens(resp, model_name)
             total_tokens = prompt_tokens + completion_tokens
 

@@ -1249,22 +1249,6 @@ def _compute_token_count(content, model):
     return estimated, _est_tokens(content)
 
 
-def get_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
-    """Set token span metrics on streamed chat/completion/response.
-    If token usage is not available in the response, compute/estimate the token counts.
-    """
-    model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-    _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
-    _, completion_tokens = _compute_completion_tokens(response, model_name)
-    total_tokens = prompt_tokens + completion_tokens
-
-    return {
-        INPUT_TOKENS_METRIC_KEY: prompt_tokens,
-        OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
-        TOTAL_TOKENS_METRIC_KEY: total_tokens,
-    }
-
-
 def _est_tokens(prompt):
     # type: (Union[str, List[int]]) -> int
     """
