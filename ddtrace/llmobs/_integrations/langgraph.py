@@ -49,7 +49,15 @@ class LangGraphIntegration(BaseLLMIntegration):
     _react_agents_manifests: WeakKeyDictionary[Any, Dict[str, Any]] = WeakKeyDictionary()
     _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
 
-    def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, is_graph: bool = False, instance=None, **kwargs) -> Span:
+    def trace(
+        self,
+        pin: Pin,
+        operation_id: str,
+        submit_to_llmobs: bool = False,
+        is_graph: bool = False,
+        instance=None,
+        **kwargs,
+    ) -> Span:
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
         if instance and is_graph:
@@ -161,8 +169,6 @@ class LangGraphIntegration(BaseLLMIntegration):
         agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools", optional=False) or []
         system_prompt: Optional[str] = kwargs.get("prompt")
         name: Optional[str] = kwargs.get("name")
-
-        # TODO(sabrenner): model_settings (!), handoffs (??)
 
         tools = [{"name": tool.name, "description": tool.description} for tool in agent_tools]
 
@@ -319,45 +325,69 @@ def _get_agent_handoffs(agent, agent_parent) -> List[Union[str, Dict[str, Any]]]
     if builder is None:
         return handoffs
 
+    agent_name = getattr(agent, "name", None)
+    if agent_name is None:
+        return handoffs
+
     branches: Dict[str, Dict[str, Any]] = getattr(builder, "branches", None) or {}
     edges: Set[Tuple[str, str]] = getattr(builder, "edges", None) or set()
 
-    if edges:
-        for from_node, to_node in edges:
-            if from_node == agent.name and to_node not in disallowed_handoff_nodes:
-                handoffs.append(to_node)
+    edges_handoffs = _get_handoffs_from_edges(edges, agent_name, disallowed_handoff_nodes)
+    handoffs.extend(edges_handoffs)
 
-    if branches:
-        branches = dict(branches)
+    branches_handoffs = _get_handoffs_from_branches(branches, agent_name, disallowed_handoff_nodes, agent_parent)
+    handoffs.extend(branches_handoffs)
 
-        for node in branches.keys():
-            if node != agent.name:
-                continue
+    return handoffs
 
-            for routing_func, branch in branches[node].items():
-                path = getattr(branch, "path", None)
 
-                if path is None:
-                    continue
+def _get_handoffs_from_edges(
+    edges: Optional[Set[Tuple[str, str]]], agent_name: str, disallowed_handoff_nodes: List[str]
+) -> List[Union[str, Dict[str, Any]]]:
+    handoffs: List[Union[str, Dict[str, Any]]] = []
+    if edges is None:
+        return handoffs
 
-                parent_nodes_dict = getattr(agent_parent, "nodes", {}) or {}
-                node_ends_from_handoff_dict = getattr(branch, "ends", {}) or {}
+    for from_node, to_node in edges:
+        if from_node == agent_name and to_node not in disallowed_handoff_nodes:
+            handoffs.append(to_node)
+    return handoffs
 
-                parent_nodes = parent_nodes_dict.keys()
-                node_ends_from_handoff = node_ends_from_handoff_dict.values()
 
-                possible_handoff_nodes = node_ends_from_handoff or parent_nodes
-                if not possible_handoff_nodes:
-                    continue
+def _get_handoffs_from_branches(
+    branches: Optional[Dict[str, Dict[str, Any]]],
+    agent_name: str,
+    disallowed_handoff_nodes: List[str],
+    agent_parent,
+) -> List[Union[str, Dict[str, Any]]]:
+    handoffs: List[Union[str, Dict[str, Any]]] = []
 
-                possible_handoff_nodes = [
-                    node for node in possible_handoff_nodes if node not in disallowed_handoff_nodes
-                ]
-                if not possible_handoff_nodes:
-                    handoffs.append({"tool_name": routing_func})
-                else:
-                    for node in possible_handoff_nodes:
-                        handoffs.append({"tool_name": routing_func, "agent_name": node})
+    if branches is None:
+        return handoffs
+
+    conditional_edges = dict(branches)
+    conditional_edge = conditional_edges.get(agent_name, {})
+
+    parent_nodes_dict = getattr(agent_parent, "nodes", {}) or {}
+    parent_nodes = parent_nodes_dict.keys()
+
+    if not conditional_edge:
+        return handoffs
+
+    for routing_func, branch in conditional_edge.items():
+        node_ends_from_handoff_dict = getattr(branch, "ends", {}) or {}
+        node_ends_from_handoff = node_ends_from_handoff_dict.values()
+
+        possible_handoff_nodes = node_ends_from_handoff or parent_nodes
+        if not possible_handoff_nodes:
+            continue
+
+        possible_handoff_nodes = [node for node in possible_handoff_nodes if node not in disallowed_handoff_nodes]
+        if not possible_handoff_nodes:
+            handoffs.append({"tool_name": routing_func})
+        else:
+            for node in possible_handoff_nodes:
+                handoffs.append({"tool_name": routing_func, "agent_name": node})
 
     return handoffs
 
@@ -376,7 +406,7 @@ def _get_model_provider(model) -> Optional[str]:
     if model_provider_info_fn is None or not callable(model_provider_info_fn):
         return None
 
-    model_provider_info = model_provider_info_fn()
+    model_provider_info: Dict[str, Any] = model_provider_info_fn()
     return model_provider_info.get("ls_provider", None)
 
 
@@ -392,17 +422,17 @@ def _get_model_settings(model) -> Dict[str, Any]:
 
 def _get_tools_from_tool_nodes(agent) -> List[str]:
     """Get the tools from the ToolNode(s) of an agent/graph"""
-    tool_names = set()
+    tool_names: Set[str] = set()
     if agent is None:
-        return tool_names
+        return list(tool_names)
 
     builder = getattr(agent, "builder", None)
     if builder is None:
-        return tool_names
+        return list(tool_names)
 
     nodes: Optional[Dict[str, Any]] = getattr(builder, "nodes", None)
     if nodes is None:
-        return tool_names
+        return list(tool_names)
 
     for node in nodes.values():
         runnable = getattr(node, "runnable", None)
