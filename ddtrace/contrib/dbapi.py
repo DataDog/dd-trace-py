@@ -9,7 +9,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.settings.asm import config as asm_config
 
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
@@ -100,10 +99,9 @@ class TracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            if asm_config._iast_enabled:
-                from ddtrace.appsec._iast.taint_sinks.sql_injection import check_and_report_sqli
+            # Security and IAST validations
+            core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
-                check_and_report_sqli(args, kwargs, self._self_config.integration_name, method)
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation

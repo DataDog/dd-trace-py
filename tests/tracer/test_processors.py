@@ -24,11 +24,17 @@ from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounter
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.writer import AgentWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
 from tests.utils import override_global_config
+
+
+class DummyProcessor(TraceProcessor):
+    def process_trace(self, trace):
+        return trace
 
 
 def test_no_impl():
@@ -67,12 +73,12 @@ def test_aggregator_single_span():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
-        trace_processors=[
+        dd_processors=[
             mock_proc1,
             mock_proc2,
         ],
-        writer=writer,
     )
+    aggr.writer = writer
 
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
@@ -81,6 +87,111 @@ def test_aggregator_single_span():
     mock_proc1.process_trace.assert_called_with([span])
     mock_proc2.process_trace.assert_called_with([span])
     assert writer.pop() == [span]
+
+
+def test_aggregator_user_processors():
+    """Test that user processors are called after dd processors and can override tags"""
+
+    class Proc(TraceProcessor):
+        def process_trace(self, trace):
+            assert len(trace) == 1
+            trace[0].set_tag("dd_processor")
+            trace[0].set_tag("final_processor", "dd")
+            return trace
+
+    class UserProc(TraceProcessor):
+        def process_trace(self, trace):
+            assert len(trace) == 1
+            trace[0].set_tag("user_processor")
+            trace[0].set_tag("final_processor", "user")
+            return trace
+
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=0,
+        dd_processors=[Proc()],
+        user_processors=[UserProc()],
+    )
+
+    with Span("span", on_finish=[aggr.on_span_finish]) as span:
+        aggr.on_span_start(span)
+
+    assert span.get_tag("dd_processor")
+    assert span.get_tag("user_processor")
+    assert span.get_tag("final_processor") == "user"
+
+
+def test_aggregator_reset_default_args():
+    """
+    Test that on reset, the aggregator recreates the sampling processor and trace writer.
+    Processors and trace buffers should be reset not reset.
+    """
+    dd_proc = DummyProcessor()
+    user_proc = DummyProcessor()
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=1,
+        dd_processors=[dd_proc],
+        user_processors=[user_proc],
+    )
+    sampling_proc = aggr.sampling_processor
+    dm_writer = DummyWriter()
+    aggr.writer = dm_writer
+    # Generate a span to init _traces and _span_metrics
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+    # Expect SpanAggregator to have the processors and span in _traces
+    assert dd_proc in aggr.dd_processors
+    assert user_proc in aggr.user_processors
+    assert span.trace_id in aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 1
+    # Expect TraceWriter to be recreated and trace buffers to be reset but not the trace processors
+    aggr.reset()
+    assert dd_proc in aggr.dd_processors
+    assert user_proc in aggr.user_processors
+    assert aggr.writer is not dm_writer
+    assert sampling_proc is not aggr.sampling_processor
+    assert not aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 0
+
+
+def test_aggregator_reset_with_args():
+    """
+    Validates that the span aggregator can reset trace buffers, sampling processor,
+    user processors/filters and trace api version (when ASM is enabled)
+    """
+
+    dd_proc = DummyProcessor()
+    user_proc = DummyProcessor()
+    aggr = SpanAggregator(
+        partial_flush_enabled=False,
+        partial_flush_min_spans=1,
+        dd_processors=[dd_proc],
+        user_processors=[user_proc],
+    )
+
+    aggr.writer = AgentWriter("", api_version="v0.5")
+    span = Span("span", on_finish=[aggr.on_span_finish])
+    aggr.on_span_start(span)
+
+    # Expect SpanAggregator to have the expected processors, api_version and span in _traces
+    assert dd_proc in aggr.dd_processors
+    assert user_proc in aggr.user_processors
+    assert span.trace_id in aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 1
+    assert aggr.writer._api_version == "v0.5"
+    # Expect the default value of apm_opt_out and compute_stats to be False
+    assert aggr.sampling_processor.apm_opt_out is False
+    assert aggr.sampling_processor._compute_stats_enabled is False
+    # Reset the aggregator with new args and new user processors and expect the new values to be set
+    aggr.reset(user_processors=[], compute_stats=True, apm_opt_out=True, appsec_enabled=True, reset_buffer=False)
+    assert aggr.user_processors == []
+    assert dd_proc in aggr.dd_processors
+    assert aggr.sampling_processor.apm_opt_out is True
+    assert aggr.sampling_processor._compute_stats_enabled is True
+    assert aggr.writer._api_version == "v0.4"
+    assert span.trace_id in aggr._traces
+    assert len(aggr._span_metrics["spans_created"]) == 1
 
 
 def test_aggregator_bad_processor():
@@ -99,13 +210,13 @@ def test_aggregator_bad_processor():
     aggr = SpanAggregator(
         partial_flush_enabled=False,
         partial_flush_min_spans=0,
-        trace_processors=[
+        dd_processors=[
             mock_good_before,
             mock_bad,
             mock_good_after,
         ],
-        writer=writer,
     )
+    aggr.writer = writer
 
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
@@ -119,7 +230,8 @@ def test_aggregator_bad_processor():
 
 def test_aggregator_multi_span():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, dd_processors=[])
+    aggr.writer = writer
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -152,7 +264,8 @@ def test_aggregator_multi_span():
 
 def test_aggregator_partial_flush_0_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0, trace_processors=[], writer=writer)
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=0)
+    aggr.writer = writer
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -187,7 +300,8 @@ def test_aggregator_partial_flush_0_spans():
 
 def test_aggregator_partial_flush_2_spans():
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2, trace_processors=[], writer=writer)
+    aggr = SpanAggregator(partial_flush_enabled=True, partial_flush_min_spans=2)
+    aggr.writer = writer
 
     # Normal usage
     parent = Span("parent", on_finish=[aggr.on_span_finish])
@@ -331,7 +445,8 @@ def test_trace_128bit_processor(trace_id):
 def test_span_creation_metrics():
     """Test that telemetry metrics are queued in batches of 100 and the remainder is sent on shutdown"""
     writer = DummyWriter()
-    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0, trace_processors=[], writer=writer)
+    aggr = SpanAggregator(partial_flush_enabled=False, partial_flush_min_spans=0)
+    aggr.writer = writer
 
     with override_global_config(dict(_telemetry_enabled=True)):
         with mock.patch("ddtrace.internal.telemetry.telemetry_writer.add_count_metric") as mock_tm:
@@ -342,6 +457,7 @@ def test_span_creation_metrics():
 
             span = Span("span", on_finish=[aggr.on_span_finish])
             aggr.on_span_start(span)
+            span.set_tag("component", "custom")
             span.finish()
 
             mock_tm.assert_has_calls(
@@ -368,12 +484,11 @@ def test_span_creation_metrics():
             )
             mock_tm.reset_mock()
             aggr.shutdown(None)
+            # On span finished the span has a different integration name:
             mock_tm.assert_has_calls(
                 [
                     mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_created", 1, tags=(("integration_name", "datadog"),)),
-                    mock.call(
-                        TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "datadog"),)
-                    ),
+                    mock.call(TELEMETRY_NAMESPACE.TRACERS, "spans_finished", 1, tags=(("integration_name", "custom"),)),
                 ]
             )
 

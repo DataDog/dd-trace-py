@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
 from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
@@ -16,10 +15,10 @@ from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import get_user_property
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 from ddtrace.internal.test_visibility.api import InternalTestSession
 
@@ -48,7 +47,7 @@ _FINAL_OUTCOMES: t.Dict[EFDTestStatus, str] = {
 
 
 def efd_handle_retries(
-    test_id: InternalTestId,
+    test_id: TestId,
     item: pytest.Item,
     test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
@@ -129,8 +128,7 @@ def _efd_do_retries(item: pytest.Item) -> EFDTestStatus:
     while InternalTest.efd_should_retry(test_id):
         retry_num = InternalTest.efd_add_retry(test_id, start_immediately=True)
 
-        with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _get_outcome_from_retry(item, outcomes)
+        retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
         InternalTest.efd_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
@@ -323,19 +321,19 @@ def efd_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_PASSED,
             "r",
-            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report)}PASSED", {"green": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED:
         return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_FAILED,
             "R",
-            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report)}FAILED", {"yellow": True}),
         )
     if report.outcome == _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED:
         return (
             _EFD_RETRY_OUTCOMES.EFD_ATTEMPT_SKIPPED,
             "s",
-            (f"EFD RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"EFD RETRY {_get_retry_attempt_string(report)}SKIPPED", {"yellow": True}),
         )
 
     if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.EARLY_FLAKE_DETECTION:

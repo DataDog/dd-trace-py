@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the new ATO SDK track_user was reporting differently email, name, scope and role of the tracked user.

@@ -23,6 +23,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -31,6 +32,11 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
+from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
+from ddtrace.internal.constants import MESSAGING_OPERATION
+from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
@@ -655,6 +661,8 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
     integration = ctx["bedrock_integration"]
+    integration._tag_proxy_request(ctx)
+
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
     for k, v in request_params.items():
@@ -831,7 +839,7 @@ def _set_azure_function_tags(span, azure_functions_config, function_name, trigge
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
     span.resource = f"{req.method} {path}"
@@ -847,7 +855,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
@@ -858,8 +866,29 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
 
 
 def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
-    span = ctx.get_item("trigger_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+
+
+def _on_azure_functions_service_bus_trigger_span_modifier(
+    ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
+):
+    span = ctx.span
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+    span.set_tag_str(MESSAGING_OPERATION, "receive")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+
+def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+    span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
 def listen():
@@ -916,6 +945,8 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
+    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -970,6 +1001,7 @@ def listen():
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
+        "azure.servicebus.patched_producer",
     ):
         core.on(f"context.started.start_span.{context_name}", _start_span)
 

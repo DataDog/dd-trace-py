@@ -10,8 +10,9 @@ import typing as t
 from uuid import uuid4
 
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_API_KEY_HEADER_NAME
 from ddtrace.internal.ci_visibility.constants import AGENTLESS_DEFAULT_SITE
 from ddtrace.internal.ci_visibility.constants import EVP_PROXY_AGENT_BASE_PATH
@@ -40,7 +41,6 @@ from ddtrace.internal.ci_visibility.telemetry.test_management import TEST_MANAGE
 from ddtrace.internal.ci_visibility.telemetry.test_management import record_test_management_tests_count
 from ddtrace.internal.ci_visibility.utils import combine_url_path
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.http import ConnectionType
@@ -66,9 +66,9 @@ _BASE_HEADERS: t.Dict[str, str] = {
     "Content-Type": "application/json",
 }
 
-_SKIPPABLE_ITEM_ID_TYPE = t.Union[InternalTestId, TestSuiteId]
+_SKIPPABLE_ITEM_ID_TYPE = t.Union[TestId, TestSuiteId]
 _CONFIGURATIONS_TYPE = t.Dict[str, t.Union[str, t.Dict[str, str]]]
-_KNOWN_TESTS_TYPE = t.Set[InternalTestId]
+_KNOWN_TESTS_TYPE = t.Set[TestId]
 
 _NETWORK_ERRORS = (TimeoutError, socket.timeout, RemoteDisconnected)
 
@@ -127,7 +127,7 @@ class TestVisibilityAPISettings:
 class ITRData:
     correlation_id: t.Optional[str] = None
     covered_files: t.Optional[t.Dict[str, CoverageLines]] = None
-    skippable_items: t.Set[t.Union[InternalTestId, TestSuiteId]] = dataclasses.field(default_factory=set)
+    skippable_items: t.Set[t.Union[TestId, TestSuiteId]] = dataclasses.field(default_factory=set)
 
 
 class _SkippableResponseMeta(TypedDict):
@@ -152,9 +152,7 @@ class _SkippableResponse(TypedDict):
     meta: _SkippableResponseMeta
 
 
-def _get_test_id_from_skippable_test(
-    skippable_test: _SkippableResponseDataItem, ignore_parameters: bool
-) -> InternalTestId:
+def _get_test_id_from_skippable_test(skippable_test: _SkippableResponseDataItem, ignore_parameters: bool) -> TestId:
     test_type = skippable_test["type"]
     if test_type != TEST:
         raise ValueError(f"Test type {test_type} is not expected test type {TEST}")
@@ -162,7 +160,7 @@ def _get_test_id_from_skippable_test(
     suite_id = TestSuiteId(module_id, skippable_test["attributes"]["suite"])
     test_name = skippable_test["attributes"]["name"]
     test_parameters = None if ignore_parameters else skippable_test["attributes"].get("parameters")
-    return InternalTestId(suite_id, test_name, test_parameters)
+    return TestId(suite_id, test_name, test_parameters)
 
 
 def _get_suite_id_from_skippable_suite(skippable_suite: _SkippableResponseDataItem) -> TestSuiteId:
@@ -519,7 +517,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             skippable_items=items_to_skip,
         )
 
-    def fetch_known_tests(self) -> t.Optional[t.Set[InternalTestId]]:
+    def fetch_known_tests(self) -> t.Optional[t.Set[TestId]]:
         metric_names = APIRequestMetricNames(
             count=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST.value,
             duration=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_MS.value,
@@ -527,7 +525,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=EARLY_FLAKE_DETECTION_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        known_test_ids: t.Set[InternalTestId] = set()
+        known_test_ids: t.Set[TestId] = set()
 
         payload = {
             "data": {
@@ -566,7 +564,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                 for suite, tests in suites.items():
                     suite_id = TestSuiteId(module_id, suite)
                     for test in tests:
-                        known_test_ids.add(InternalTestId(suite_id, test))
+                        known_test_ids.add(TestId(suite_id, test))
         except Exception:  # noqa: E722
             log.debug("Failed to parse unique tests data", exc_info=True)
             record_api_request_error(metric_names.error, ERROR_TYPES.UNKNOWN)
@@ -576,7 +574,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
 
         return known_test_ids
 
-    def fetch_test_management_tests(self) -> t.Optional[t.Dict[InternalTestId, TestProperties]]:
+    def fetch_test_management_tests(self) -> t.Optional[t.Dict[TestId, TestProperties]]:
         metric_names = APIRequestMetricNames(
             count=TEST_MANAGEMENT_TELEMETRY.REQUEST.value,
             duration=TEST_MANAGEMENT_TELEMETRY.REQUEST_MS.value,
@@ -584,7 +582,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
             error=TEST_MANAGEMENT_TELEMETRY.REQUEST_ERRORS.value,
         )
 
-        test_properties: t.Dict[InternalTestId, TestProperties] = {}
+        test_properties: t.Dict[TestId, TestProperties] = {}
         payload = {
             "data": {
                 "id": str(uuid4()),
@@ -623,7 +621,7 @@ class _TestVisibilityAPIClientBase(abc.ABC):
                     suite_id = TestSuiteId(module_id, suite_name)
                     tests = suite_data["tests"]
                     for test_name, test_data in tests.items():
-                        test_id = InternalTestId(suite_id, test_name)
+                        test_id = TestId(suite_id, test_name)
                         properties = test_data.get("properties", {})
                         test_properties[test_id] = TestProperties(
                             quarantined=properties.get("quarantined", False),

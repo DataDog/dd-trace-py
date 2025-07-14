@@ -1,16 +1,13 @@
-import os
-
 import pytest
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
+from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.iast_utils import _iast_patched_module
-from tests.appsec.iast.taint_sinks.conftest import _get_iast_data
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
 
 
@@ -162,6 +159,6 @@ def test_code_injection_literal_eval(iast_context_defaults):
     )
     mod.pt_literal_eval(tainted_string)
 
-    data = _get_span_report()
+    data = get_iast_reporter()
 
     assert data is None

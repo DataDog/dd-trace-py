@@ -1,6 +1,8 @@
 import os
 from types import ModuleType
 
+from _config import ExplorationConfig
+
 from ddtrace.internal.compat import Path
 from ddtrace.internal.module import origin
 
@@ -33,9 +35,9 @@ def from_editable_install(module: ModuleType, config) -> bool:
     )
 
 
-def is_included(module: ModuleType, config) -> bool:
+def is_included(module: ModuleType, config: ExplorationConfig) -> bool:
     segments = module.__name__.split(".")
-    for i in config.include:
+    for i in config.includes:
         if i == segments[: len(i)]:
             return True
     return False

@@ -1,0 +1,35 @@
+build_base_venvs:
+  extends: .cached_testrunner
+  stage: setup
+  needs: []
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    CMAKE_BUILD_PARALLEL_LEVEL: '12'
+    PIP_VERBOSE: '0'
+    DD_PROFILING_NATIVE_TESTS: '1'
+    DD_USE_SCCACHE: '1'
+    DD_FAST_BUILD: '1'
+  rules:
+    - if: '$CI_COMMIT_REF_NAME == "main"'
+      variables:
+        DD_FAST_BUILD: '0'
+    - when: always
+  script: |
+    set -e -o pipefail
+    apt update && apt install -y sccache
+    pip install riot==0.20.1
+    riot -P -v generate --python=$PYTHON_VERSION
+    echo "Running smoke tests"
+    riot -v run -s --python=$PYTHON_VERSION smoke_test
+  artifacts:
+    name: venv_$PYTHON_VERSION
+    paths:
+      - scripts/restore-ext-cache.sh
+      - scripts/save-ext-cache.sh
+      - .riot/venv_*
+      - ddtrace/_version.py
+      - ddtrace/**/*.so*
+      - ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
+      - ddtrace/internal/datadog/profiling/test/test_*

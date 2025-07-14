@@ -1,0 +1,5 @@
+---
+upgrade:
+  - |
+    CI Visibility: Code coverage collection for Test Impact Analysis with ``pytest`` does not require ``coverage.py`` as
+    a dependency anymore.

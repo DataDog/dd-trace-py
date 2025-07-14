@@ -7,7 +7,6 @@ import socket
 import textwrap
 import time
 from typing import Set
-from unittest.mock import Mock
 
 import mock
 import msgpack
@@ -32,7 +31,7 @@ from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClient
 from ddtrace.internal.ci_visibility.git_client import CIVisibilityGitClientSerializerV1
 from ddtrace.internal.ci_visibility.recorder import CIVisibilityTracer
 from ddtrace.internal.ci_visibility.recorder import _extract_repository_name_from_url
-import ddtrace.internal.test_visibility._internal_item_ids
+from ddtrace.internal.ci_visibility.recorder import _is_item_itr_skippable
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.http import Response
 from ddtrace.settings._config import Config
@@ -130,7 +129,7 @@ def test_ci_visibility_service_enable():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_processors
+                for tracer_filter in dummy_tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
@@ -160,7 +159,7 @@ def test_ci_visibility_service_enable_without_service():
             assert ci_visibility_instance._api_settings.skipping_enabled is False
             assert any(
                 isinstance(tracer_filter, TraceCiVisibilityFilter)
-                for tracer_filter in dummy_tracer._user_trace_processors
+                for tracer_filter in dummy_tracer._span_aggregator.user_processors
             )
             CIVisibility.disable()
 
@@ -1258,9 +1257,7 @@ class TestIsITRSkippable:
     No tests should be skippable in suite-level skipping mode, and vice versa.
     """
 
-    test_level_tests_to_skip: Set[
-        ddtrace.internal.test_visibility._internal_item_ids.InternalTestId
-    ] = _make_fqdn_test_ids(
+    test_level_tests_to_skip: Set[ext_api.TestId] = _make_fqdn_test_ids(
         [
             ("module_1", "module_1_suite_1.py", "test_1"),
             ("module_1", "module_1_suite_1.py", "test_2"),
@@ -1290,90 +1287,66 @@ class TestIsITRSkippable:
     m1 = ext_api.TestModuleId("module_1")
     # Module 1 Suite 1
     m1_s1 = ext_api.TestSuiteId(m1, "module_1_suite_1.py")
-    m1_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_1")
-    m1_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_2")
-    m1_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_3")
-    m1_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_4[param1]")
-    m1_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}'
-    )
-    m1_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}'
-    )
-    m1_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s1, "test_6[param3]")
+    m1_s1_t1 = ext_api.TestId(m1_s1, "test_1")
+    m1_s1_t2 = ext_api.TestId(m1_s1, "test_2")
+    m1_s1_t3 = ext_api.TestId(m1_s1, "test_3")
+    m1_s1_t4 = ext_api.TestId(m1_s1, "test_4[param1]")
+    m1_s1_t5 = ext_api.TestId(m1_s1, "test_5[param2]", parameters='{"arg1": "param_arg_1"}')
+    m1_s1_t6 = ext_api.TestId(m1_s1, "test_6[param3]", parameters='{"arg2": "param_arg_2"}')
+    m1_s1_t7 = ext_api.TestId(m1_s1, "test_6[param3]")
 
     # Module 1 Suite 2
     m1_s2 = ext_api.TestSuiteId(m1, "module_1_suite_2.py")
-    m1_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_1")
-    m1_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_2")
-    m1_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_3")
-    m1_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_4[param1]")
-    m1_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}'
-    )
-    m1_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}'
-    )
-    m1_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m1_s2, "test_6[param3]")
+    m1_s2_t1 = ext_api.TestId(m1_s2, "test_1")
+    m1_s2_t2 = ext_api.TestId(m1_s2, "test_2")
+    m1_s2_t3 = ext_api.TestId(m1_s2, "test_3")
+    m1_s2_t4 = ext_api.TestId(m1_s2, "test_4[param1]")
+    m1_s2_t5 = ext_api.TestId(m1_s2, "test_5[param2]", parameters='{"arg3": "param_arg_3"}')
+    m1_s2_t6 = ext_api.TestId(m1_s2, "test_6[param3]", parameters='{"arg4": "param_arg_4"}')
+    m1_s2_t7 = ext_api.TestId(m1_s2, "test_6[param3]")
 
     # Module 2
     m2 = ext_api.TestModuleId("module_2")
 
     # Module 2 Suite 1
     m2_s1 = ext_api.TestSuiteId(m2, "module_2_suite_1.py")
-    m2_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_1")
-    m2_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_2")
-    m2_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_3")
-    m2_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_4[param1]")
-    m2_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}'
-    )
-    m2_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}'
-    )
-    m2_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s1, "test_6[param3]")
+    m2_s1_t1 = ext_api.TestId(m2_s1, "test_1")
+    m2_s1_t2 = ext_api.TestId(m2_s1, "test_2")
+    m2_s1_t3 = ext_api.TestId(m2_s1, "test_3")
+    m2_s1_t4 = ext_api.TestId(m2_s1, "test_4[param1]")
+    m2_s1_t5 = ext_api.TestId(m2_s1, "test_5[param2]", parameters='{"arg5": "param_arg_5"}')
+    m2_s1_t6 = ext_api.TestId(m2_s1, "test_6[param3]", parameters='{"arg6": "param_arg_6"}')
+    m2_s1_t7 = ext_api.TestId(m2_s1, "test_6[param3]")
 
     # Module 2 Suite 2
     m2_s2 = ext_api.TestSuiteId(m2, "module_2_suite_2.py")
-    m2_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_1")
-    m2_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_2")
-    m2_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_3")
-    m2_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_4[param1]")
-    m2_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}'
-    )
-    m2_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}'
-    )
-    m2_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m2_s2, "test_6[param3]")
+    m2_s2_t1 = ext_api.TestId(m2_s2, "test_1")
+    m2_s2_t2 = ext_api.TestId(m2_s2, "test_2")
+    m2_s2_t3 = ext_api.TestId(m2_s2, "test_3")
+    m2_s2_t4 = ext_api.TestId(m2_s2, "test_4[param1]")
+    m2_s2_t5 = ext_api.TestId(m2_s2, "test_5[param2]", parameters='{"arg7": "param_arg_7"}')
+    m2_s2_t6 = ext_api.TestId(m2_s2, "test_6[param3]", parameters='{"arg8": "param_arg_8"}')
+    m2_s2_t7 = ext_api.TestId(m2_s2, "test_6[param3]")
 
     # Module 3
     m3 = ext_api.TestModuleId("")
     m3_s1 = ext_api.TestSuiteId(m3, "no_module_suite_1.py")
-    m3_s1_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_1")
-    m3_s1_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_2")
-    m3_s1_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_3")
-    m3_s1_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_4[param1]")
-    m3_s1_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}'
-    )
-    m3_s1_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}'
-    )
-    m3_s1_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s1, "test_6[param3]")
+    m3_s1_t1 = ext_api.TestId(m3_s1, "test_1")
+    m3_s1_t2 = ext_api.TestId(m3_s1, "test_2")
+    m3_s1_t3 = ext_api.TestId(m3_s1, "test_3")
+    m3_s1_t4 = ext_api.TestId(m3_s1, "test_4[param1]")
+    m3_s1_t5 = ext_api.TestId(m3_s1, "test_5[param2]", parameters='{"arg9": "param_arg_9"}')
+    m3_s1_t6 = ext_api.TestId(m3_s1, "test_6[param3]", parameters='{"arg10": "param_arg_10"}')
+    m3_s1_t7 = ext_api.TestId(m3_s1, "test_6[param3]")
 
     m3_s2 = ext_api.TestSuiteId(m3, "no_module_suite_2.py")
-    m3_s2_t1 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_1")
-    m3_s2_t2 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_2")
-    m3_s2_t3 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_3")
-    m3_s2_t4 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_4[param1]")
-    m3_s2_t5 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}'
-    )
-    m3_s2_t6 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(
-        m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}'
-    )
-    m3_s2_t7 = ddtrace.internal.test_visibility._internal_item_ids.InternalTestId(m3_s2, "test_6[param3]")
+    m3_s2_t1 = ext_api.TestId(m3_s2, "test_1")
+    m3_s2_t2 = ext_api.TestId(m3_s2, "test_2")
+    m3_s2_t3 = ext_api.TestId(m3_s2, "test_3")
+    m3_s2_t4 = ext_api.TestId(m3_s2, "test_4[param1]")
+    m3_s2_t5 = ext_api.TestId(m3_s2, "test_5[param2]", parameters='{"arg11": "param_arg_11"}')
+    m3_s2_t6 = ext_api.TestId(m3_s2, "test_6[param3]", parameters='{"arg12": "param_arg_12"}')
+    m3_s2_t7 = ext_api.TestId(m3_s2, "test_6[param3]")
 
     def _get_all_suite_ids(self):
         return {getattr(self, suite_id) for suite_id in vars(self.__class__) if re.match(r"^m\d_s\d$", suite_id)}
@@ -1382,65 +1355,54 @@ class TestIsITRSkippable:
         return {getattr(self, test_id) for test_id in vars(self.__class__) if re.match(r"^m\d_s\d_t\d$", test_id)}
 
     def test_is_item_itr_skippable_test_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
-            mock_instance._suite_skipping_mode = False
+        expected_skippable_test_ids = {
+            self.m1_s1_t1,
+            self.m1_s1_t2,
+            self.m1_s1_t5,
+            self.m2_s1_t3,
+            self.m2_s2_t2,
+            self.m2_s2_t4,
+            self.m2_s2_t6,
+            self.m2_s2_t7,
+            self.m3_s1_t5,
+            self.m3_s2_t1,
+            self.m3_s2_t6,
+            self.m3_s2_t7,
+        }
+        expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        itr_data = ITRData(skippable_items=self.test_level_tests_to_skip)
+        suite_skipping_mode = False
 
-            expected_skippable_test_ids = {
-                self.m1_s1_t1,
-                self.m1_s1_t2,
-                self.m1_s1_t5,
-                self.m2_s1_t3,
-                self.m2_s2_t2,
-                self.m2_s2_t4,
-                self.m2_s2_t6,
-                self.m2_s2_t7,
-                self.m3_s1_t5,
-                self.m3_s2_t1,
-                self.m3_s2_t6,
-                self.m3_s2_t7,
-            }
-            expected_non_skippable_test_ids = self._get_all_test_ids() - expected_skippable_test_ids
+        # Check skippable tests are correct
+        for test_id in expected_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is True
 
-            assert CIVisibility._instance is not None
+        # Check non-skippable tests are correct
+        for test_id in expected_non_skippable_test_ids:
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
-            # Check skippable tests are correct
-            for test_id in expected_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is True
-
-            # Check non-skippable tests are correct
-            for test_id in expected_non_skippable_test_ids:
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
-
-            # Check all suites are not skippable
-            for suite_id in self._get_all_suite_ids():
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
+        # Check all suites are not skippable
+        for suite_id in self._get_all_suite_ids():
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
     def test_is_item_itr_skippable_suite_level(self):
-        with mock.patch.object(CIVisibility, "enabled", True), mock.patch.object(
-            CIVisibility, "_instance", Mock()
-        ) as mock_instance:
-            mock_instance._itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
-            mock_instance._suite_skipping_mode = True
+        itr_data = ITRData(skippable_items=self.suite_level_test_suites_to_skip)
+        suite_skipping_mode = True
 
-            expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
-            expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
+        expected_skippable_suite_ids = {self.m1_s1, self.m2_s1, self.m2_s2, self.m3_s1}
+        expected_non_skippable_suite_ids = self._get_all_suite_ids() - set(expected_skippable_suite_ids)
 
-            assert CIVisibility._instance is not None
+        # Check skippable suites are correct
+        for suite_id in expected_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is True
 
-            # Check skippable suites are correct
-            for suite_id in expected_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is True
+        # Check non-skippable suites are correct
+        for suite_id in expected_non_skippable_suite_ids:
+            assert _is_item_itr_skippable(suite_id, suite_skipping_mode, itr_data) is False
 
-            # Check non-skippable suites are correct
-            for suite_id in expected_non_skippable_suite_ids:
-                assert CIVisibility.is_item_itr_skippable(suite_id) is False
-
-            # Check all tests are not skippable
-            for test_id in self._get_all_test_ids():
-                assert CIVisibility.is_item_itr_skippable(test_id) is False
+        # Check all tests are not skippable
+        for test_id in self._get_all_test_ids():
+            assert _is_item_itr_skippable(test_id, suite_skipping_mode, itr_data) is False
 
 
 class TestCIVisibilitySetTestSessionName(TracerTestCase):
@@ -1468,7 +1430,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
         """
         with _ci_override_env(dict()), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var(self):
@@ -1479,7 +1441,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
     def test_set_test_session_name_from_job_name_and_command(self):
@@ -1493,7 +1455,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_job-some_command")
 
     def test_set_test_session_name_from_dd_test_session_name_env_var_priority(self):
@@ -1506,7 +1468,7 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
             )
         ), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_test_session_name(test_command="some_command")
+            CIVisibility._instance.set_test_session_name(test_command="some_command")
         self.assert_test_session_name("the_name")
 
 
@@ -1522,7 +1484,7 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
     def test_set_library_capabilities(self):
         with _ci_override_env(), set_up_mock_civisibility(), _patch_dummy_writer():
             CIVisibility.enable()
-            CIVisibility.set_library_capabilities(
+            CIVisibility._instance.set_library_capabilities(
                 LibraryCapabilities(
                     early_flake_detection="1",
                     auto_test_retries=None,

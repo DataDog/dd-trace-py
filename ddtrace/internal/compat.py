@@ -2,7 +2,6 @@ import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
-from typing import AnyStr
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
@@ -46,23 +45,12 @@ def is_integer(obj: Any) -> bool:
     return isinstance(obj, int) and not isinstance(obj, bool)
 
 
-# DEV: There is `six.u()` which does something similar, but doesn't have the guard around `hasattr(s, 'decode')`
-def to_unicode(s: AnyStr) -> Text:
+def to_unicode(s: Union[str, bytes, bytearray]) -> str:
     """Return a unicode string for the given bytes or string instance."""
-    # No reason to decode if we already have the unicode compatible object we expect
-    # DEV: `six.text_type` will be a `str` for python 3 and `unicode` for python 2
-    # DEV: Double decoding a `unicode` can cause a `UnicodeEncodeError`
-    #   e.g. `'\xc3\xbf'.decode('utf-8').decode('utf-8')`
     if isinstance(s, str):
         return s
-
-    # If the object has a `decode` method, then decode into `utf-8`
-    #   e.g. Python 2 `str`, Python 2/3 `bytearray`, etc
     if hasattr(s, "decode"):
         return s.decode("utf-8", errors="ignore")
-
-    # Always try to coerce the object into the `six.text_type` object we expect
-    #   e.g. `to_unicode(1)`, `to_unicode(dict(key='value'))`
     return str(s)
 
 

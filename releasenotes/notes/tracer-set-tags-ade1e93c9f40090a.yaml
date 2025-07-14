@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    ddtrace-api: Adds patching of ``ddtrace_api.tracer.set_tags`` to the ``ddtrace_api`` integration

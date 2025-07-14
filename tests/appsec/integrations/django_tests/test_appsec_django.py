@@ -13,6 +13,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
+from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 import tests.appsec.rules as rules
 from tests.utils import override_global_config
 
@@ -33,35 +34,6 @@ def update_django_config():
         config.django.include_user_login,
         config.django.include_user_realname,
     ) = initial_settings
-
-
-def _aux_appsec_get_root_span(
-    client,
-    test_spans,
-    tracer,
-    payload=None,
-    url="/",
-    content_type="text/plain",
-    headers=None,
-    cookies=None,
-):
-    if cookies is None:
-        cookies = {}
-    # Hack: need to pass an argument to configure so that the processors are recreated
-    tracer._recreate()
-    # Set cookies
-    client.cookies.load(cookies)
-    if payload is None:
-        if headers:
-            response = client.get(url, **headers)
-        else:
-            response = client.get(url)
-    else:
-        if headers:
-            response = client.post(url, payload, content_type=content_type, **headers)
-        else:
-            response = client.post(url, payload, content_type=content_type)
-    return test_spans.spans[0], response
 
 
 def test_django_client_ip_nothing(client, test_spans, tracer):

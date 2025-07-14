@@ -11,6 +11,18 @@ from ddtrace.appsec._iast._taint_tracking import set_ranges
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
+NON_TEXT_TYPES_TEST_DATA = [
+    (123, "integer"),
+    (123.45, "float"),
+    (True, "boolean"),
+    (None, "NoneType"),
+    ([1, 2, 3], "list"),
+    ({"key": "value"}, "dict"),
+    ((1, 2, 3), "tuple"),
+    ({1, 2, 3}, "set"),
+    (1 + 2j, "complex"),
+]
+
 
 def get_parametrize(vuln_type, ignore_list=None):
     fixtures_filename = os.path.join(ROOT_DIR, "redaction_fixtures", "evidence-redaction-suite.json")

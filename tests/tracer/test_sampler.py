@@ -820,7 +820,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
     # It's important to also test in reverse mode for we want to make sure key deletion
@@ -829,7 +829,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
 

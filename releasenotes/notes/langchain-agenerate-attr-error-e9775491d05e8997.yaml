@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    langchain: Resolved an AttributeError that could occur when async tasks are cancelled during agenerate calls.

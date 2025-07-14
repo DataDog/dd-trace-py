@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: This introduces the ability to track the number of tokens read and written to the cache for Bedrock Converse prompt caching.

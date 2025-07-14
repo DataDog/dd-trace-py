@@ -5,9 +5,9 @@ from Crypto.Cipher import ARC4
 from flask import Flask
 from flask import request
 
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.trace import tracer
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
 
 
 class ResultResponse:
@@ -45,7 +45,7 @@ def create_app():
         crypt_obj.encrypt(data)
 
         response = ResultResponse(param)
-        report = _get_span_report()
+        report = get_iast_reporter()
         if report:
             response.sources = report.sources[0].value
             response.vulnerabilities = list(report.vulnerabilities)[0].type
@@ -62,7 +62,7 @@ def create_app():
         crypt_obj.encrypt(data)
 
         response = ResultResponse(param)
-        report = _get_span_report()
+        report = get_iast_reporter()
         if report:
             response.sources = report.sources[0].value if report.sources else ""
             response.vulnerabilities = list(report.vulnerabilities)[0].type

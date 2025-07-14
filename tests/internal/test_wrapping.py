@@ -1,6 +1,5 @@
 import asyncio
 from contextlib import asynccontextmanager
-import gc
 import inspect
 import sys
 from types import CoroutineType
@@ -808,7 +807,43 @@ async def test_wrapping_context_async_concurrent() -> None:
     assert set(values) == {(n, n) for n in range(0, N)}
 
 
+# DEV: Since this test relies on `gc`, run this test as a subprocess and avoid over-importing
+# too many modules to avoid outside impact on `gc` causing flakiness
+@pytest.mark.subprocess()
 def test_wrapping_context_method_leaks():
+    import gc
+
+    from ddtrace.internal.wrapping.context import WrappingContext
+
+    NOTSET = object()
+
+    # DEV: Redefine this module level class to avoid importing `tests.internal.test_wrapping`
+    # to help reduce flakiness caused by outside impact on `gc`
+    class DummyWrappingContext(WrappingContext):
+        def __init__(self, f):
+            super().__init__(f)
+
+            self.entered = False
+            self.exited = False
+            self.return_value = NOTSET
+            self.exc_info = None
+            self.frame = None
+
+        def __enter__(self):
+            self.entered = True
+            self.frame = self.__frame__
+            return super().__enter__()
+
+        def __exit__(self, exc_type, exc_value, traceback):
+            self.exited = True
+            if exc_value is not None:
+                self.exc_info = (exc_type, exc_value, traceback)
+            super().__exit__(exc_type, exc_value, traceback)
+
+        def __return__(self, value):
+            self.return_value = value
+            return super().__return__(value)
+
     def foo():
         return 42
 

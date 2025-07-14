@@ -96,7 +96,9 @@ def test_pytest_sessionstart_extracts_context_from_valid_workerinput():
 
         # Verify that start was called with the expected context
         mock_start.assert_called_once()
-        context = mock_start.call_args[0][0]
+        distributed_children = mock_start.call_args[0][0]
+        assert distributed_children is False  # No distributed children expected
+        context = mock_start.call_args[0][1]
         assert context is not None
         assert context.span_id == 54321
         assert context.trace_id == 1
@@ -122,17 +124,28 @@ def test_pytest_sessionstart_handles_invalid_span_id_gracefully():
     ):
         pytest_sessionstart(mock_session)
 
-        # Verify that start was called with None (no context extracted)
-        mock_start.assert_called_once_with(None)
+        # Verify that start was called with False, None (no distributed children, no context extracted)
+        mock_start.assert_called_once_with(False, None)
 
 
 def test_pytest_sessionstart_handles_missing_workerinput():
     """Test that pytest_sessionstart handles missing workerinput (main process)."""
+    import pytest
+
     from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
 
     # Mock session config without workerinput (simulates main process)
     mock_session = MagicMock()
     del mock_session.config.workerinput
+
+    # Store original hasattr function
+    original_hasattr = hasattr
+
+    def mock_hasattr(obj, name):
+        # Mock the specific check for pytest.global_worker_itr_results to return False
+        if obj is pytest and name == "global_worker_itr_results":
+            return False
+        return original_hasattr(obj, name)
 
     # Mock all the dependencies
     with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
@@ -143,11 +156,53 @@ def test_pytest_sessionstart_handles_missing_workerinput():
         "ddtrace.internal.test_visibility.api.InternalTestSession.start"
     ) as mock_start, patch(
         "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
+    ), patch(
+        "builtins.hasattr", side_effect=mock_hasattr
     ):
         pytest_sessionstart(mock_session)
 
-        # Verify that start was called with None (no context for main process)
-        mock_start.assert_called_once_with(None)
+        # Verify that start was called with False (no distributed children), None (no context for main process)
+        mock_start.assert_called_once_with(False, None)
+
+
+def test_pytest_sessionstart_handles_missing_workerinput_with_global_worker_results():
+    """
+    Test that pytest_sessionstart handles missing workerinput when global_worker_itr_results exists
+    """
+    import pytest
+
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart
+
+    # Mock session config without workerinput (simulates main process)
+    mock_session = MagicMock()
+    del mock_session.config.workerinput
+
+    # Store original hasattr function
+    original_hasattr = hasattr
+
+    def mock_hasattr(obj, name):
+        # Mock the specific check for pytest.global_worker_itr_results to return True (simulating CI environment)
+        if obj is pytest and name == "global_worker_itr_results":
+            return True
+        return original_hasattr(obj, name)
+
+    # Mock all the dependencies
+    with patch("ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled", return_value=True), patch(
+        "ddtrace.contrib.internal.pytest._utils._get_session_command", return_value="pytest"
+    ), patch("ddtrace.internal.test_visibility.api.InternalTestSession.discover"), patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_library_capabilities"
+    ), patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.start"
+    ) as mock_start, patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.efd_enabled", return_value=False
+    ), patch(
+        "builtins.hasattr", side_effect=mock_hasattr
+    ):
+        pytest_sessionstart(mock_session)
+
+        # This demonstrates the original bug: when global_worker_itr_results exists,
+        # distributed_children gets set to True instead of False
+        mock_start.assert_called_once_with(True, None)
 
 
 def test_xdist_hooks_class_has_required_hookimpl():

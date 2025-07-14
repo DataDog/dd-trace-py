@@ -6,7 +6,7 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast.constants import VULN_SQL_INJECTION
-from ddtrace.appsec._iast.taint_sinks.sql_injection import check_and_report_sqli
+from ddtrace.appsec._iast.taint_sinks.sql_injection import _on_report_sqli
 
 
 def test_checked_tainted_args(iast_context_deduplication_enabled):
@@ -21,45 +21,24 @@ def test_checked_tainted_args(iast_context_deduplication_enabled):
     untainted_arg = "gallahad the pure"
 
     # Returns False: Untainted first argument
-    assert not check_and_report_sqli(
-        args=(untainted_arg,), kwargs=None, integration_name="sqlite", method=cursor.execute
-    )
+    assert not _on_report_sqli((untainted_arg,), None, "sqlite", cursor.execute)
 
     # Returns False: Untainted first argument
-    assert not check_and_report_sqli(
-        args=(untainted_arg, tainted_arg), kwargs=None, integration_name="sqlite", method=cursor.execute
-    )
-
+    assert not _on_report_sqli((untainted_arg, tainted_arg), None, "sqlite", cursor.execute)
     # Returns False: Integration name not in list
-    assert not check_and_report_sqli(
-        args=(tainted_arg,),
-        kwargs=None,
-        integration_name="nosqlite",
-        method=cursor.execute,
-    )
+    assert not _on_report_sqli((tainted_arg,), None, "nosqlite", cursor.execute)
 
     # Returns False: Wrong function name
-    assert not check_and_report_sqli(
-        args=(tainted_arg,),
-        kwargs=None,
-        integration_name="sqlite",
-        method=cursor.executemany,
-    )
+    assert not _on_report_sqli((tainted_arg,), None, "sqlite", cursor.executemany)
 
     # Returns True:
-    assert check_and_report_sqli(
-        args=(tainted_arg, untainted_arg), kwargs=None, integration_name="sqlite", method=cursor.execute
-    )
+    assert _on_report_sqli((tainted_arg, untainted_arg), None, "sqlite", cursor.execute)
 
     # Returns True:
-    assert check_and_report_sqli(
-        args=(tainted_arg, untainted_arg), kwargs=None, integration_name="mysql", method=cursor.execute
-    )
+    assert _on_report_sqli((tainted_arg, untainted_arg), None, "mysql", cursor.execute)
 
     # Returns False: No more QUOTA
-    assert not check_and_report_sqli(
-        args=(tainted_arg, untainted_arg), kwargs=None, integration_name="psycopg", method=cursor.execute
-    )
+    assert not _on_report_sqli((tainted_arg, untainted_arg), None, "psycopg", cursor.execute)
 
 
 @pytest.mark.parametrize(
@@ -116,7 +95,7 @@ def test_check_and_report_sqli_metrics(args, integration_name, expected_result, 
         "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
     ) as mock_set_metric:
         # Call with tainted argument that should trigger metrics
-        result = check_and_report_sqli(args=args, kwargs={}, integration_name=integration_name, method=cursor.execute)
+        result = _on_report_sqli(args, {}, integration_name, cursor.execute)
 
         assert result is expected_result
         mock_increment.assert_called_once()
@@ -154,7 +133,7 @@ def test_check_and_report_sqli_no_metrics(args, integration_name, iast_context_d
         "ddtrace.appsec._iast.taint_sinks.sql_injection._set_metric_iast_executed_sink"
     ) as mock_set_metric:
         # Call with untainted argument that should not trigger metrics
-        result = check_and_report_sqli(args=args, kwargs={}, integration_name=integration_name, method=cursor.execute)
+        result = _on_report_sqli(args, {}, integration_name, cursor.execute)
 
         assert result is False
         mock_increment.assert_not_called()

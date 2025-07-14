@@ -6,8 +6,8 @@ from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqlalchemy_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sqlalchemy_unpatch
 from ddtrace.contrib.internal.sqlite3.patch import patch as sqli_sqlite_patch
 from ddtrace.contrib.internal.sqlite3.patch import unpatch as sqli_sqlite_unpatch
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_global_config
 
 

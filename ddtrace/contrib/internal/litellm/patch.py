@@ -39,7 +39,8 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
+        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None
@@ -54,8 +55,7 @@ def traced_completion(litellm, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
@@ -70,7 +70,8 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
-        submit_to_llmobs=integration.should_submit_to_llmobs(kwargs, model),
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
+        submit_to_llmobs=not integration._has_downstream_openai_span(kwargs, model),
     )
     stream = kwargs.get("stream", False)
     resp = None
@@ -85,8 +86,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
@@ -101,6 +101,7 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
@@ -115,9 +116,8 @@ def traced_router_completion(litellm, pin, func, instance, args, kwargs):
         raise
     finally:
         if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 
@@ -132,6 +132,7 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
         operation,
         model=model,
         host=host,
+        base_url=kwargs.get("base_url", None) or kwargs.get("api_base", None),
         submit_to_llmobs=True,
     )
     stream = kwargs.get("stream", False)
@@ -146,9 +147,8 @@ async def traced_router_acompletion(litellm, pin, func, instance, args, kwargs):
         raise
     finally:
         if not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
+            kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp, operation=operation)
             span.finish()
 
 

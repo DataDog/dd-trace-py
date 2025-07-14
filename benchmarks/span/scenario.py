@@ -22,6 +22,8 @@ class Span(Scenario):
     set_status: bool
     update_name: bool
 
+    cprofile_loops: int = 200
+
     def run(self):
         # run scenario to also set tags on spans
         tags = utils.gen_tags(self)

@@ -218,6 +218,41 @@ class PytestTestCase(PytestTestCaseBase):
 
         assert len(spans) == 4
 
+    def test_pytest_addopts_env_var(self):
+        """Test enabling ddtrace via the PYTEST_ADDOPTS environment variable."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_trace(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name, extra_env={"PYTEST_ADDOPTS": "--ddtrace"})
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
+    def test_pytest_addopts_ini(self):
+        """Test enabling ddtrace via the `addopts` option in the ini file."""
+        self.testdir.makefile(".ini", pytest="[pytest]\naddopts = --ddtrace\n")
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_ini(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
     def test_pytest_command(self):
         """Test that the pytest run command is stored on a test span."""
         py_file = self.testdir.makepyfile(

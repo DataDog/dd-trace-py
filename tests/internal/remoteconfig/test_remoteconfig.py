@@ -9,7 +9,7 @@ from time import sleep
 import mock
 import pytest
 
-from ddtrace import config
+from ddtrace._trace.product import _convert_rc_trace_sampling_rules
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -620,7 +620,7 @@ def test_rc_default_products_registered():
     ],
 )
 def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
-    trace_sampling_rules = config._convert_rc_trace_sampling_rules(rc_rules, None)
+    trace_sampling_rules = _convert_rc_trace_sampling_rules(rc_rules, None)
 
     assert trace_sampling_rules == expected_config_rules
     if trace_sampling_rules is not None:

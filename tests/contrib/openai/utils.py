@@ -1,13 +1,68 @@
 import os
 
+import openai
 import vcr
 
 
+mock_openai_completions_response = openai.types.Completion(
+    id="chatcmpl-B7PuLoKEQgMd5DQzzN9i4mBJ7OwwO",
+    choices=[
+        openai.types.CompletionChoice(
+            finish_reason="stop", index=0, logprobs=None, text="Hello! How can I assist you today?"
+        ),
+        openai.types.CompletionChoice(
+            finish_reason="stop", index=1, logprobs=None, text="Hello! How can I assist you today?"
+        ),
+    ],
+    created=1741107585,
+    model="gpt-3.5-turbo",
+    object="text_completion",
+    system_fingerprint=None,
+)
+mock_openai_chat_completions_response = openai.types.chat.ChatCompletion(
+    id="chatcmpl-B7RpFsUAXS7aCZlt6jCshVym5yLhN",
+    choices=[
+        openai.types.chat.chat_completion.Choice(
+            finish_reason="stop",
+            index=0,
+            logprobs=None,
+            message=openai.types.chat.ChatCompletionMessage(
+                content="The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                refusal=None,
+                role="assistant",
+                audio=None,
+                function_call=None,
+                tool_calls=None,
+            ),
+        ),
+        openai.types.chat.chat_completion.Choice(
+            finish_reason="stop",
+            index=1,
+            logprobs=None,
+            message=openai.types.chat.ChatCompletionMessage(
+                content="The 2020 World Series was played at Globe Life Field in Arlington, Texas.",
+                refusal=None,
+                role="assistant",
+                audio=None,
+                function_call=None,
+                tool_calls=None,
+            ),
+        ),
+    ],
+    created=1741114957,
+    model="gpt-3.5-turbo",
+    object="chat.completion",
+    service_tier="default",
+    system_fingerprint=None,
+)
 multi_message_input = [
-    {"role": "system", "content": "You are a helpful assistant."},
-    {"role": "user", "content": "Who won the world series in 2020?"},
-    {"role": "assistant", "content": "The Los Angeles Dodgers won the World Series in 2020."},
-    {"role": "user", "content": "Where was it played?"},
+    {
+        "content": "You are a helpful assistant.",
+        "role": "system",
+    },
+    {"content": "Who won the world series in 2020?", "role": "user"},
+    {"content": "The Los Angeles Dodgers won the World Series in 2020.", "role": "assistant"},
+    {"content": "Where was it played?", "role": "user"},
 ]
 
 chat_completion_input_description = """
@@ -58,6 +113,49 @@ tool_call_expected_output = function_call_expected_output.copy()
 tool_call_expected_output["tool_calls"][0]["tool_id"] = "call_FJStsEjxdODw9tBmQRRkm6vY"
 tool_call_expected_output["tool_calls"][0]["type"] = "function"
 
+response_tool_function = [
+    {
+        "type": "function",
+        "name": "get_current_weather",
+        "description": "Get the current weather in a given location",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {
+                    "type": "string",
+                    "description": "The city and state, e.g. San Francisco, CA",
+                },
+                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+            },
+            "required": ["location", "unit"],
+        },
+    }
+]
+response_tool_function_expected_output = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "type": "function_call",
+                "tool_id": "call_tjEzTywkXuBUO42ugPFnQYqi",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+    }
+]
+
+response_tool_function_expected_output_streamed = [
+    {
+        "tool_calls": [
+            {
+                "name": "get_current_weather",
+                "type": "function_call",
+                "tool_id": "call_lGe2JKQEBSP15opZ3KfxtEUC",
+                "arguments": {"location": "Boston, MA", "unit": "celsius"},
+            }
+        ],
+    }
+]
 
 # VCR is used to capture and store network requests made to OpenAI.
 # This is done to avoid making real calls to the API which could introduce

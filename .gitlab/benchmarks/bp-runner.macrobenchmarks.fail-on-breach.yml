@@ -1,0 +1,55 @@
+# Example of measurements can be seen here: https://benchmarking.us1.prod.dog/benchmarks?benchmarkGroupPipelineId=66629462&benchmarkGroupSha=16054515e292a66c5eaf79b9ea62df6f348cd67e&page=1&ciJobDateStart=1746309551994&ciJobDateEnd=1748901551994&benchmarkId=14167634
+
+# Thresholds set based on guidance in https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates#How-to-choose-thresholds-for-pre-release-gates%3F
+
+experiments:
+  - name: Run SLO breach check
+    steps:
+      - name: SLO breach check
+        run: fail_on_breach
+        warning_range: 7
+        scenarios:
+          # Tracing
+          - name: normal_operation/tracing-runtime-metrics-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 75 ms
+              - agg_http_req_duration_p95 < 100 ms
+          - name: normal_operation/tracing-rc-disabled-telemetry-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 80 ms
+              - agg_http_req_duration_p95 < 100 ms
+          - name: normal_operation/tracing-rc-enabled-telemetry-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 80 ms
+              - agg_http_req_duration_p95 < 100 ms
+          - name: high_load/tracing-rc-enabled-telemetry-enabled
+            thresholds:
+              - throughput > 45.0 op/s
+              - agg_http_req_duration_p99 < 100 ms
+          # Appsec
+          - name: normal_operation/appsec-enabled-iast-disabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 85 ms
+              - agg_http_req_duration_p95 < 105 ms
+          - name: normal_operation/appsec-enabled-iast-enabled-ep-disabled
+            thresholds:
+              - agg_http_req_duration_p50 < 95 ms
+              - agg_http_req_duration_p95 < 110 ms
+          # Profiling
+          - name: normal_operation/tracing-profiling-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 85 ms
+              - agg_http_req_duration_p95 < 95 ms
+          - name: high_load/tracing-profiling-enabled
+            thresholds:
+              - throughput > 30.0 op/s
+              - agg_http_req_duration_p99 < 110 ms
+          # Multi-product
+          - name: normal_operation/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
+            thresholds:
+              - agg_http_req_duration_p50 < 125 ms
+              - agg_http_req_duration_p95 < 155 ms
+          - name: high_load/vuln-appsec-disabled-iast-enabled-ep-disabled-profiling-enabled
+            thresholds:
+              - throughput > 35.0 op/s
+              - agg_http_req_duration_p99 < 160 ms

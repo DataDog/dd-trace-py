@@ -40,7 +40,7 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
     t.flush()
 
     sampler_key = "service:{},env:".format(service)
-    while sampler_key not in t._span_aggregator.sampling_processor.sampler._by_service_samplers:
+    while sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers:
         time.sleep(1)
         s = t.trace("operation", service=service)
         s.finish()
@@ -69,9 +69,9 @@ def test_priority_sampling_rate_honored():
 
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
     sampler_key = "service:{},env:".format(service)
-    assert sampler_key in t._span_aggregator.sampling_processor.sampler._by_service_samplers
+    assert sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
 
-    rate_from_agent = t._span_aggregator.sampling_processor.sampler._by_service_samplers[sampler_key].sample_rate
+    rate_from_agent = t._span_aggregator.sampling_processor.sampler._agent_based_samplers[sampler_key].sample_rate
     assert 0 < rate_from_agent < 1
 
     _turn_tracer_into_dummy(t)
@@ -102,10 +102,10 @@ def test_priority_sampling_response():
     _id = time.time()
     service = "my-svc-{}".format(_id)
     sampler_key = "service:{},env:".format(service)
-    assert sampler_key not in t._span_aggregator.sampling_processor.sampler._by_service_samplers
+    assert sampler_key not in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
     assert (
-        sampler_key in t._span_aggregator.sampling_processor.sampler._by_service_samplers
+        sampler_key in t._span_aggregator.sampling_processor.sampler._agent_based_samplers
     ), "after fetching priority sample rates from the agent, the tracer should hold those rates"
     t.shutdown()
 
@@ -130,8 +130,13 @@ def test_agent_sample_rate_keep():
 
 
 @skip_if_testagent
-@parametrize_with_all_encodings()
-def test_sampling_rate_honored_tracer_configure():
+@parametrize_with_all_encodings(
+    env={
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0.1, "service": "moon"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"xyz", "sample_rate":0.23}]',
+    }
+)
+def test_sampling_configurations_are_not_reset_on_tracer_configure():
     import time
 
     from ddtrace.trace import TraceFilter
@@ -149,7 +154,13 @@ def test_sampling_rate_honored_tracer_configure():
 
     _prime_tracer_with_priority_sample_rate_from_agent(t, service)
 
-    assert len(t._span_aggregator.sampling_processor.sampler._by_service_samplers)
+    agent_based_samplers = t._span_aggregator.sampling_processor.sampler._agent_based_samplers
+    trace_sampling_rules = t._span_aggregator.sampling_processor.sampler.rules
+    single_span_sampling_rules = t._span_aggregator.sampling_processor.single_span_rules
+    assert (
+        agent_based_samplers and trace_sampling_rules and single_span_sampling_rules
+    ), "Expected agent sampling rules, span sampling rules, trace sampling rules to be set"
+    f", got {agent_based_samplers}, {trace_sampling_rules}, {single_span_sampling_rules}"
 
     class CustomFilter(TraceFilter):
         def process_trace(self, trace):
@@ -159,7 +170,20 @@ def test_sampling_rate_honored_tracer_configure():
             return trace
 
     t.configure(trace_processors=[CustomFilter()])  # Triggers AgentWriter recreate
-    assert len(t._span_aggregator.sampling_processor.sampler._by_service_samplers)
+    assert (
+        t._span_aggregator.sampling_processor.sampler._agent_based_samplers == agent_based_samplers
+    ), f"Expected agent sampling rules to be set to {agent_based_samplers}, "
+    f"got {t._span_aggregator.sampling_processor.sampler._agent_based_samplers}"
+
+    assert (
+        t._span_aggregator.sampling_processor.sampler.rules == trace_sampling_rules
+    ), f"Expected trace sampling rules to be set to {trace_sampling_rules}, "
+    f"got {t._span_aggregator.sampling_processor.sampler.rules}"
+
+    assert len(t._span_aggregator.sampling_processor.single_span_rules) == len(
+        single_span_sampling_rules
+    ), f"Expected single span sampling rules to be set to {single_span_sampling_rules}, "
+    f"got {t._span_aggregator.sampling_processor.single_span_rules}"
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")

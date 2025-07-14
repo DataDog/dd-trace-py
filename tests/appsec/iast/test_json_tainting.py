@@ -3,19 +3,11 @@ import json
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_utils import LazyTaintDict
 from ddtrace.appsec._iast._taint_utils import LazyTaintList
 from tests.utils import override_global_config
-
-
-def setup():
-    create_context()
-
-
-FIXTURES_PATH = "tests/appsec/iast/fixtures/weak_algorithms.py"
 
 
 def is_fully_tainted(obj):
@@ -39,7 +31,6 @@ TEST_INPUTS = [
 
 @pytest.mark.parametrize("input_jsonstr, res_type, tainted_type", TEST_INPUTS)
 def test_taint_json(iast_context_defaults, input_jsonstr, res_type, tainted_type):
-    assert json._datadog_json_tainting_patch
     with override_global_config(dict(_iast_enabled=True)):
         input_str = taint_pyobject(
             pyobject=input_jsonstr,

@@ -94,7 +94,13 @@ class UnittestSnapshotTestCase(TracerTestCase):
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=_get_default_ci_env_vars(dict(DD_API_KEY="foobar.baz", DD_CIVISIBILITY_AGENTLESS_ENABLED="false")),
+            env=_get_default_ci_env_vars(
+                dict(
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                )
+            ),
         )
 
     @snapshot(ignores=SNAPSHOT_IGNORES + SNAPSHOT_IGNORES_ITR_COVERAGE + SNAPSHOT_IGNORES_GITLAB)
@@ -136,7 +142,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             text=True,
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -177,7 +186,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
         with override_env(
             _get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
             replace_os_env=True,
@@ -236,7 +248,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -299,7 +314,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -363,7 +381,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -431,7 +452,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -504,7 +528,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -581,7 +608,10 @@ class UnittestSnapshotTestCase(TracerTestCase):
             ["ddtrace-run", "python", "-m", "unittest"],
             env=_get_default_ci_env_vars(
                 dict(
-                    DD_API_KEY="foobar.baz", DD_CIVISIBILITY_ITR_ENABLED="1", DD_CIVISIBILITY_AGENTLESS_ENABLED="false"
+                    DD_API_KEY="foobar.baz",
+                    DD_CIVISIBILITY_ITR_ENABLED="1",
+                    DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -648,6 +678,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                     DD_TAGS="test.configuration.custom_key:some_value",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )
@@ -689,6 +720,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_PATCH_MODULES="sqlite3:false",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
         )

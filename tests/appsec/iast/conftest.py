@@ -8,26 +8,21 @@ import pytest
 from ddtrace.appsec._common_module_patches import patch_common_modules
 from ddtrace.appsec._common_module_patches import unpatch_common_modules
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
-from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast._patch_modules import _testing_unpatch_iast
 from ddtrace.appsec._iast._patches.json_tainting import patch as json_patch
-from ddtrace.appsec._iast._patches.json_tainting import unpatch_iast as json_unpatch
-from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-from ddtrace.appsec._iast.taint_sinks.code_injection import unpatch as code_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as cmdi_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import unpatch as cmdi_unpatch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
-from ddtrace.appsec._iast.taint_sinks.header_injection import unpatch as header_injection_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
-from ddtrace.appsec._iast.taint_sinks.weak_cipher import unpatch_iast as weak_cipher_unpatch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import unpatch_iast as weak_hash_unpatch
 from ddtrace.internal.utils.http import Response
 from ddtrace.internal.utils.http import get_connection
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import override_env
 from tests.utils import override_global_config
 
@@ -47,22 +42,6 @@ def no_request_sampling(tracer):
         yield
 
 
-def _start_iast_context_and_oce(span=None):
-    oce.reconfigure()
-    request_iast_enabled = False
-    if oce.acquire_request(span):
-        start_iast_context()
-        request_iast_enabled = True
-
-    set_iast_request_enabled(request_iast_enabled)
-
-
-def _end_iast_context_and_oce(span=None):
-    end_iast_context(span)
-    oce.release_request()
-    _reset_global_limit()
-
-
 def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=False, vulnerabilities_per_requests=100):
     class MockSpan:
         _trace_id_64bits = 17577308072598193742
@@ -72,6 +51,7 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         dict(
             _asm_enabled=asm_enabled,
             _iast_enabled=True,
+            _iast_is_testing=True,
             _iast_deduplication_enabled=deduplication,
             _iast_max_vulnerabilities_per_requests=vulnerabilities_per_requests,
             _iast_request_sampling=request_sampling,
@@ -86,15 +66,14 @@ def iast_context(env, request_sampling=100.0, deduplication=False, asm_enabled=F
         header_injection_patch()
         code_injection_patch()
         patch_common_modules()
-        yield
-        unpatch_common_modules()
-        weak_hash_unpatch()
-        weak_cipher_unpatch()
-        json_unpatch()
-        cmdi_unpatch()
-        header_injection_unpatch()
-        code_injection_unpatch()
-        _end_iast_context_and_oce(span)
+        try:
+            yield
+        finally:
+            unpatch_common_modules()
+            cmdi_unpatch()
+            weak_hash_unpatch()
+            _testing_unpatch_iast()
+            _end_iast_context_and_oce(span)
 
 
 @pytest.fixture
@@ -138,7 +117,7 @@ def check_native_code_exception_in_each_python_aspect_test(request, caplog):
             yield
 
         for record in caplog.get_records("call"):
-            if IAST_VALID_LOG.search(record.message):
+            if hasattr(record, "message") and IAST_VALID_LOG.search(record.message):
                 import traceback
 
                 formatted_trace = "".join(traceback.format_exception(*record.exc_info))

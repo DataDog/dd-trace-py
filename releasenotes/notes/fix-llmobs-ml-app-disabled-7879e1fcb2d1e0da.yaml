@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Resolved an issue where manual instrumentation would raise ``DD_LLMOBS_ML_APP`` missing errors when LLM Observability was disabled.

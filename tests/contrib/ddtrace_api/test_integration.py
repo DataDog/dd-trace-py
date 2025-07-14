@@ -128,3 +128,11 @@ class DDTraceAPITestCase(TracerTestCase):
         spans = self._assert_real_spans()
         assert spans[0]._meta["tag1"] == "value1", "Tag set via API should be applied to the real spans"
         assert spans[0]._meta["tag2"] == "value2", "Tag set via API should be applied to the real spans"
+
+    @pytest.mark.snapshot()
+    def test_tracer_set_tags(self):
+        ddtrace_api.tracer.set_tags({"tag1": "value1", "tag2": "value2"})
+        ddtrace_api.tracer.trace("web.request").finish()
+        spans = self._assert_real_spans()
+        assert spans[0]._meta["tag1"] == "value1", "Tag set via API should be applied to the real spans"
+        assert spans[0]._meta["tag2"] == "value2", "Tag set via API should be applied to the real spans"

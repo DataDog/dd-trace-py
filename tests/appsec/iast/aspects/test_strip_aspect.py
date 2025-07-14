@@ -1,5 +1,3 @@
-from hypothesis import given
-from hypothesis.strategies import one_of
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -7,20 +5,20 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
-from tests.appsec.iast.iast_utils import string_strategies
+from tests.appsec.iast.iast_utils import iast_hypothesis_test
 
 
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_strip_aspect(text):
     assert ddtrace_aspects.strip_aspect(None, 1, text) == text.strip()
 
 
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_rstrip_aspect(text):
     assert ddtrace_aspects.rstrip_aspect(None, 1, text) == text.rstrip()
 
 
-@given(one_of(string_strategies))
+@iast_hypothesis_test
 def test_lstrip_aspect(text):
     assert ddtrace_aspects.lstrip_aspect(None, 1, text) == text.lstrip()
 

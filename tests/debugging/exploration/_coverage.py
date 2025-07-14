@@ -1,6 +1,6 @@
 from collections import defaultdict
 from pathlib import Path
-import sys
+from random import random
 from types import ModuleType
 import typing as t
 
@@ -12,7 +12,6 @@ from debugger import status
 from debugging.utils import create_snapshot_line_probe
 from output import log
 from utils import COLS
-from utils import CWD
 
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._probe.model import LogLineProbe
@@ -22,27 +21,40 @@ from ddtrace.internal.module import origin
 
 
 # Track all the covered modules and its lines. Indexed by module origin.
-_tracked_modules: t.Dict[str, t.Tuple[ModuleType, t.Set[int]]] = {}
+_tracked_modules: t.Dict[Path, t.Tuple[ModuleType, t.Set[int]]] = {}
 
 
 class LineCollector(ModuleCollector):
     def on_collect(self, discovery: FunctionDiscovery) -> None:
         o = origin(discovery._module)
+        if o is None:
+            status("[coverage] cannot collect lines from %s, no origin found" % discovery._module.__name__)
+            return
+
         status("[coverage] collecting lines from %s" % o)
         _tracked_modules[o] = (discovery._module, {_ for _ in discovery.keys()})
-        LineCoverage.add_probes(
-            [
-                create_snapshot_line_probe(
-                    probe_id="@".join([str(hash(f)), str(line)]),
-                    source_file=origin(sys.modules[f.__module__]),
-                    line=line,
-                    rate=0.0,
-                    limits=expl_config.limits,
+        probes = []
+        for line, fcps in discovery.items():
+            for fcp in fcps:
+                if random() >= config.coverage.instrumentation_rate:
+                    continue
+                try:
+                    fcp.resolve()
+                except ValueError:
+                    # This function-code pair is not from a function, e.g. a
+                    # class.
+                    continue
+                probe_id = f"{o}:{line}"
+                probes.append(
+                    create_snapshot_line_probe(
+                        probe_id=probe_id,
+                        source_file=o,
+                        line=line,
+                        rate=0.0,
+                        limits=expl_config.limits,
+                    )
                 )
-                for line, functions in discovery.items()
-                for f in functions
-            ]
-        )
+        LineCoverage.add_probes(probes)
 
 
 class LineCoverage(ExplorationDebugger):
@@ -55,7 +67,7 @@ class LineCoverage(ExplorationDebugger):
             seen_lines_map[t.cast(LogLineProbe, probe).resolved_source_file].add(probe.line)
 
         try:
-            w = max(len(str(o.relative_to(CWD))) for o in _tracked_modules)
+            w = max(len(str(o)) for o in _tracked_modules)
         except ValueError:
             w = int(COLS * 0.75)
         log(("{:=^%ds}" % COLS).format(" Line coverage "))
@@ -72,7 +84,7 @@ class LineCoverage(ExplorationDebugger):
             total_covered += len(seen_lines)
             log(
                 ("{:<%d} {:>5} {: 6.0f}%%" % w).format(
-                    str(o.relative_to(CWD)),
+                    str(o),
                     len(lines),
                     len(seen_lines) * 100.0 / len(lines) if lines else 0,
                 )

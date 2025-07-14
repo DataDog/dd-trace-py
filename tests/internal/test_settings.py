@@ -74,7 +74,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         {
             "expected": {
                 "_trace_sampling_rules": "",
-                "_logs_injection": False,
+                "_logs_injection": "structured",
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
@@ -117,13 +117,13 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"_logs_injection": True},
+            "expected": {"_logs_injection": "true"},
             "expected_source": {"_logs_injection": "env_var"},
         },
         {
             "env": {"DD_LOGS_INJECTION": "true"},
-            "code": {"_logs_injection": False},
-            "expected": {"_logs_injection": False},
+            "code": {"_logs_injection": "false"},
+            "expected": {"_logs_injection": "false"},
             "expected_source": {"_logs_injection": "code"},
         },
         {
@@ -539,6 +539,38 @@ with tracer.trace("test") as span:
     assert "dd.trace_id" not in log_disabled
 
 
+def test_remoteconfig_logs_injection_std_logger(ddtrace_run_python_code_in_subprocess):
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        """
+import logging
+from ddtrace import config, tracer
+from ddtrace._logger import DD_LOG_FORMAT
+from tests.internal.test_settings import _base_rc_config, call_apm_tracing_rc
+
+logging.basicConfig(format=DD_LOG_FORMAT, level=logging.CRITICAL)
+log = logging.getLogger()
+# Enable logs injection
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": True}), config)
+# Generate a new log
+log.critical("Hello, World!")
+# Disable logs injection
+call_apm_tracing_rc(_base_rc_config({"log_injection_enabled": False}), config)
+# Unset the DD_LOG_FORMAT formatter
+for handler in logging.root.handlers:
+    handler.setFormatter(logging.Formatter())
+# Generate a new log
+log.critical("Hi Friend!")
+"""
+    )
+
+    assert status == 0, err
+    err_str = err.decode("utf-8").splitlines()
+    assert len(err_str) == 2, err_str
+    for val in ("dd.service=", "dd.env=", "dd.version=", "dd.trace_id=", "dd.span_id="):
+        assert val in err_str[0], f"log injection should be enabled here: {val} is in {err_str[0]}"
+        assert val not in err_str[1], f"log injection should NOT be enabled: {val} is not in {err_str[1]}"
+
+
 def test_remoteconfig_header_tags(ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update({"DD_TRACE_HEADER_TAGS": "X-Header-Tag-419:env_set_tag_name"})
@@ -606,3 +638,60 @@ def test_config_public_properties_and_methods():
         "tags",
         "version",
     }, public_attrs
+
+
+@pytest.mark.subprocess()
+def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
+    import mock
+
+    with mock.patch("ddtrace._trace.product.log") as mock_log:
+        from ddtrace import config
+        import ddtrace.auto  # noqa: F401
+        from tests.internal.test_settings import _base_rc_config
+        from tests.internal.test_settings import call_apm_tracing_rc
+
+        call_apm_tracing_rc(
+            _base_rc_config(
+                {
+                    "log_injection_enabled": False,
+                    "tracing_sampling_rate": 0.3,
+                    "tracing_enabled": "false",
+                    "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+                    "tracing_tags": ["team:onboarding"],
+                }
+            ),
+            config,
+        )
+
+    assert mock_log.debug.call_args_list == [
+        mock.call(
+            "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
+            "dd tags, tracing enablement, and HTTP header tags.\nConfigs on startup: "
+            "sampling_rules: %s, logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
+            "",
+            "structured",
+            {},
+            True,
+            {},
+        ),
+        mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
+        mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
+        mock.call(
+            "Tracing disabled via remote_config. Config Items: %s",
+            ["_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags", "tags", "_tracing_enabled"],
+        ),
+        mock.call(
+            "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
+        ),
+        mock.call("Updated logs injection configuration via remote_config: %s", "false"),
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            {
+                "log_injection_enabled": False,
+                "tracing_sampling_rate": 0.3,
+                "tracing_enabled": "false",
+                "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+                "tracing_tags": ["team:onboarding"],
+            },
+        ),
+    ], mock_log.debug.call_args_list

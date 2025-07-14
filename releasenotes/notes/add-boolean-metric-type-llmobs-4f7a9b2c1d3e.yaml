@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: Added support to ``submit_evaluation_for()`` for submitting
+    boolean metrics in LLMObs evaluation metrics, using ``metric_type="boolean"``.
+    This enables tracking binary evaluation results such as toxicity detection and content
+    appropriateness in your LLM application workflow. 
