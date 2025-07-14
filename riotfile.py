@@ -157,6 +157,7 @@ venv = Venv(
             command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/appsec_integrations_packages/",
             pkgs={
                 "pytest-xdist": latest,
+                "pytest-asyncio": latest,
                 "requests": latest,
                 "SQLAlchemy": latest,
                 "psycopg2-binary": "~=2.9.9",
