@@ -626,7 +626,6 @@ class Tracer(object):
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
-            breakpoint()
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)

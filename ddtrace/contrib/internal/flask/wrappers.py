@@ -44,7 +44,6 @@ def _wrap_call(
         span_type=span_type,
         tags=tags,
     ) as ctx, ctx.span:
-        breakpoint()
         if do_dispatch:
             dispatch = core.dispatch_with_results("flask.wrapped_view", (kwargs,))
 

@@ -184,7 +184,7 @@ class TestVisibilityItemBase(abc.ABC):
         parent_span: Optional[Union[Span, Context]] = None
         if context is not None:
             parent_span = context
-        elif isinstance(self, TestVisibilityParentItem):
+        else:
             parent_span = self.get_parent_span()
 
         self._span = self._tracer._start_span(
