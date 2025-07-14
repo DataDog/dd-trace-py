@@ -28,6 +28,16 @@ if sys.platform == "win32":
 TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 
 
+def _is_gunicorn_port_bound() -> bool:
+    import socket
+
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        try:
+            return s.connect_ex(("127.0.0.1", 7644)) != 0
+        except Exception:
+            return False
+
+
 def _run_gunicorn(*args):
     cmd = (
         [
@@ -69,11 +79,25 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     debug_print("Creating gunicorn workers")
     # DEV: We only start 1 worker to simplify the test
-    proc = gunicorn("-w", "1", *args)
-    # Wait for the workers to start
-    time.sleep(5)
+    for i in range(5):
+        proc = gunicorn("-w", "1", *args)
 
-    if proc.poll() is not None:
+        for i in range(100):
+            if _is_gunicorn_port_bound():
+                debug_print("Gunicorn port is bound, exiting loop")
+                break
+            time.sleep(0.1)
+
+        if proc.poll() is not None:
+            debug_print(f"Gunicorn process exited prematurely (return code: {proc.returncode}), retrying ({i + 1}/5)")
+            debug_print(f"Output from gunicorn process:\n{proc.stdout.read().decode()}")
+
+            # Try again
+            proc.kill()
+            continue
+
+        break
+    else:
         pytest.fail("Gunicorn failed to start")
 
     debug_print("Making request to gunicorn server")
