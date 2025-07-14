@@ -89,6 +89,38 @@ def test_dataset_create_delete(llmobs):
 
     llmobs._delete_dataset(dataset_id=dataset._id)
 
+def test_dataset_as_dataframe(llmobs):
+    dataset = llmobs.create_dataset(name="test-dataset-3", description="A third test dataset")
+    dataset._records = [
+        DatasetRecord(input_data=[{"role" : "system", "content": "i am machine"}, {"role" : "user", "content": "hello"}], expected_output="label")
+    ]
+    df = dataset.as_dataframe()
+    llmobs._delete_dataset(dataset_id=dataset._id)
+
+def test_dataset_csv(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset = llmobs.create_dataset_from_csv(csv_path=csv_path, dataset_name="test-dataset-good-csv", description="A good csv dataset", input_data_columns=["in0", "in1", "in2"], expected_output_columns=["out0", "out1"])
+    assert len(dataset) == 2
+    assert len(dataset[0]["input_data"]) == 3
+    assert dataset[0]["input_data"]["in0"] == "r0v1"
+    assert dataset[0]["input_data"]["in1"] == "r0v2"
+    assert dataset[0]["input_data"]["in2"] == "r0v3"
+    assert dataset[1]["input_data"]["in0"] == "r1v1"
+    assert dataset[1]["input_data"]["in1"] == "r1v2"
+    assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+    assert len(dataset[0]["expected_output"]) == 2
+    assert dataset[0]["expected_output"]["out0"] == "r0v4"
+    assert dataset[0]["expected_output"]["out1"] == "r0v5"
+    assert dataset[1]["expected_output"]["out0"] == "r1v4"
+    assert dataset[1]["expected_output"]["out1"] == "r1v5"
+
+    assert len(dataset[0]["metadata"]) == 1
+    assert dataset[0]["metadata"]["m0"] == "r0v6"
+    assert dataset[1]["metadata"]["m0"] == "r1v6"
+
+    llmobs._delete_dataset(dataset_id=dataset._id)
 
 def test_dataset_pull_non_existent(llmobs):
     with pytest.raises(ValueError):

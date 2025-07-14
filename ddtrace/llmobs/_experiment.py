@@ -161,6 +161,49 @@ class Dataset:
     def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._records)
 
+    def as_dataframe(self):
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert dataset to DataFrame. " "Please install it with `pip install pandas`"
+            ) from e
+
+        column_tuples = set()
+        data_rows = []
+        for record in self._records:
+            flat_record = {}
+
+            input_data = record.get("input_data", {})
+            if isinstance(input_data, dict):
+                for k, v in input_data.items():
+                    flat_record[("input_data", k)] = v
+                    column_tuples.add(("input_data", k))
+            else:
+                flat_record[("input_data", "")] = input_data  # Use empty string for single input
+                column_tuples.add(("input_data", ""))
+
+            expected_output = record.get("expected_output", {})
+            if isinstance(expected_output, dict):
+                for k, v in expected_output.items():
+                    flat_record[("expected_output", k)] = v
+                    column_tuples.add(("expected_output", k))
+            else:
+                flat_record[("expected_output", "")] = expected_output  # Use empty string for single output
+                column_tuples.add(("expected_output", ""))
+
+            for k, v in record.get("metadata", {}):
+                flat_record[("metadata", k)] = v
+                column_tuples.add(("metadata", k))
+
+            data_rows.append(flat_record)
+
+        records_list = []
+        for flat_record in data_rows:
+            row = [flat_record.get(col, None) for col in column_tuples]
+            records_list.append(row)
+
+        return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
 
 class Experiment:
     def __init__(
