@@ -372,6 +372,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         total_traces = len(client.encoder)
+        encoded_traces = total_traces  # Declare the variable in case encode() fails
         sent_traces = 0
         while total_traces > sent_traces:
             try:
