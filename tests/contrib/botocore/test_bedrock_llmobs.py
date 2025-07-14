@@ -595,6 +595,7 @@ class TestLLMObsBedrock:
             {"content": '{"result": "bar"}', "role": "tool", "tool_id": "foo"}
         ]
 
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [
