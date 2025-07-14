@@ -240,20 +240,14 @@ def _find_and_analyze_core_dump(proc_pid):
                     try:
                         cmd = [
                             "gdb",
+                            "-q",
                             "-batch",
-                            "-quiet",
                             "-ex",
-                            "set confirm off",
-                            "-ex",
-                            "bt",
+                            "set auto-load safe-path /",
                             "-ex",
                             "bt full",
                             "-ex",
-                            "info registers",
-                            "-ex",
-                            "thread apply all bt",
-                            "-ex",
-                            "quit",
+                            "q",
                             exe,
                             core_file,
                         ]
