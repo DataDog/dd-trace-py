@@ -329,22 +329,21 @@ def _get_agent_handoffs(agent, agent_parent) -> List[Union[str, Dict[str, Any]]]
     if agent_name is None:
         return handoffs
 
-    branches: Dict[str, Dict[str, Any]] = getattr(builder, "branches", None) or {}
-    edges: Set[Tuple[str, str]] = getattr(builder, "edges", None) or set()
-
-    edges_handoffs = _get_handoffs_from_edges(edges, agent_name, disallowed_handoff_nodes)
+    edges_handoffs = _get_handoffs_from_edges(builder, agent_name, disallowed_handoff_nodes)
     handoffs.extend(edges_handoffs)
 
-    branches_handoffs = _get_handoffs_from_branches(branches, agent_name, disallowed_handoff_nodes, agent_parent)
+    branches_handoffs = _get_handoffs_from_branches(builder, agent_name, disallowed_handoff_nodes, agent_parent)
     handoffs.extend(branches_handoffs)
 
     return handoffs
 
 
 def _get_handoffs_from_edges(
-    edges: Optional[Set[Tuple[str, str]]], agent_name: str, disallowed_handoff_nodes: List[str]
+    builder, agent_name: str, disallowed_handoff_nodes: List[str]
 ) -> List[Union[str, Dict[str, Any]]]:
     handoffs: List[Union[str, Dict[str, Any]]] = []
+
+    edges: Optional[Set[Tuple[str, str]]] = getattr(builder, "edges", None)
     if edges is None:
         return handoffs
 
@@ -355,13 +354,14 @@ def _get_handoffs_from_edges(
 
 
 def _get_handoffs_from_branches(
-    branches: Optional[Dict[str, Dict[str, Any]]],
+    builder,
     agent_name: str,
     disallowed_handoff_nodes: List[str],
     agent_parent,
 ) -> List[Union[str, Dict[str, Any]]]:
     handoffs: List[Union[str, Dict[str, Any]]] = []
 
+    branches: Optional[Dict[str, Dict[str, Any]]] = getattr(builder, "branches", None)
     if branches is None:
         return handoffs
 
