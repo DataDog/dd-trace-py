@@ -100,24 +100,6 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
 
-class AgentWriterInterface(periodic.PeriodicService, TraceWriter, metaclass=abc.ABCMeta):
-    intake_url: str
-    _api_version: str
-    _sync_mode: bool
-
-    @abc.abstractmethod
-    def set_test_session_token(self, token: Optional[str]) -> None:
-        pass
-
-    @abc.abstractmethod
-    def before_fork(self) -> None:
-        pass
-
-    @abc.abstractmethod
-    def flush_queue(self, raise_exc: bool = False) -> None:
-        pass
-
-
 class LogWriter(TraceWriter):
     def __init__(
         self,
@@ -148,6 +130,24 @@ class LogWriter(TraceWriter):
         self.out.flush()
 
     def flush_queue(self) -> None:
+        pass
+
+
+class AgentWriterInterface(metaclass=abc.ABCMeta):
+    intake_url: str
+    _api_version: str
+    _sync_mode: bool
+
+    @abc.abstractmethod
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        pass
+
+    @abc.abstractmethod
+    def before_fork(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def flush_queue(self, raise_exc: bool = False) -> None:
         pass
 
 
@@ -644,7 +644,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
 
 
-class NativeWriter(AgentWriterInterface):
+class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     """Writer to an arbitrary HTTP intake endpoint."""
 
     RETRY_ATTEMPTS = 3

@@ -29,6 +29,16 @@ _soft = True
 _forked = False
 
 
+def set_forked():
+    global _forked
+
+    _forked = True
+
+
+def has_forked():
+    return _forked
+
+
 def run_hooks(registry):
     # type: (typing.List[typing.Callable[[], None]]) -> None
     for hook in list(registry):
@@ -42,16 +52,6 @@ def run_hooks(registry):
 ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
 ddtrace_after_in_child = functools.partial(run_hooks, _registry)
 ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
-
-
-def set_forked():
-    global _forked
-
-    _forked = True
-
-
-def has_forked():
-    return _forked
 
 
 def register_hook(registry, hook):
@@ -74,8 +74,7 @@ def unregister(after_in_child):
         log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
 
-def unregister_parent(after_in_parent):
-    # type: (typing.Callable[[], None]) -> None
+def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
     try:
         _registry.remove(after_in_parent)
     except ValueError:
