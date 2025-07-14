@@ -8,13 +8,14 @@ import os
 from os import getpid
 from threading import RLock
 from typing import TYPE_CHECKING
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypeVar
 from typing import Union
+from typing import cast
 
 from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
@@ -66,7 +67,7 @@ from ddtrace.version import get_version
 log = get_logger(__name__)
 
 
-AnyCallable = Callable[..., Any]
+AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 if TYPE_CHECKING:
     from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -426,7 +427,6 @@ class Tracer(object):
         """Re-initialize the tracer's processors and trace writer"""
         # Stop the writer.
         # This will stop the periodic thread in HTTPWriters, preventing memory leaks and unnecessary I/O.
-        self.enabled = config._tracing_enabled
         self._span_aggregator.reset(
             user_processors=trace_processors,
             compute_stats=compute_stats_enabled,
@@ -783,7 +783,7 @@ class Tracer(object):
                 return_value = yield from f(*args, **kwargs)
                 return return_value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def _wrap_generator_async(
         self,
@@ -801,7 +801,7 @@ class Tracer(object):
                 async for value in f(*args, **kwargs):
                     yield value
 
-        return func_wrapper
+        return cast(AnyCallable, func_wrapper)
 
     def wrap(
         self,
