@@ -82,11 +82,8 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
     for i in range(5):
         proc = gunicorn("-w", "1", *args)
 
-        for i in range(100):
-            if _is_gunicorn_port_bound():
-                debug_print("Gunicorn port is bound, exiting loop")
-                break
-            time.sleep(0.1)
+        # Wait for the workers to start
+        time.sleep(10)
 
         if proc.poll() is not None:
             debug_print(f"Gunicorn process exited prematurely (return code: {proc.returncode}), retrying ({i + 1}/5)")
