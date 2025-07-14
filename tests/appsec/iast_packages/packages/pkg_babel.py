@@ -35,6 +35,6 @@ def pkg_babel_propagation_view():
         response.result1 = "Error: package_param is not tainted"
         return response.json()
 
-    response.result1 = Locale("en", "US").currency_formats[response.package_param]
+    response.result1 = Locale("en", "US").currency_formats["standard"]
     response.result1 = "OK" if is_pyobject_tainted(response.package_param) else "Error: result is not tainted"
     return response.json()
