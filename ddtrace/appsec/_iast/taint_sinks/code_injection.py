@@ -32,7 +32,6 @@ def patch():
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
     # iast_funcs.wrap_function("builtins", "exec", _iast_coi)
-
     iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
@@ -57,6 +56,7 @@ def _iast_coi(wrapped, instance, args, kwargs):
         caller_frame = frames.f_back
         func_globals = caller_frame.f_globals
 
+    func_locals_copy_to_check = None
     if len(args) > 2:
         func_locals = args[2]
     elif kwargs.get("locals"):
@@ -66,8 +66,22 @@ def _iast_coi(wrapped, instance, args, kwargs):
             frames = inspect.currentframe()
             caller_frame = frames.f_back
         func_locals = caller_frame.f_locals
+        func_locals_copy_to_check = func_locals.copy()
 
-    return wrapped(args[0], func_globals, func_locals)
+    res = wrapped(args[0], func_globals, func_locals)
+
+    # We need to perform this `func_locals_copy_to_check` check because of how Python handles `eval()` depending
+    # on whether `locals` is provided. If we have code like `def evaluate(n): return n` and we call
+    # `eval(code, my_globals)`, the new function will be stored in `my_globals["evaluate"]`. However, if we call
+    # `eval(code, my_globals, my_locals)`, then the function will be stored in `my_locals["evaluate"]`. So, if `eval()`
+    # is called without a `locals` argument, we need to transfer the newly created code from the local
+    # context to the global one.
+    if func_locals_copy_to_check is not None:
+        diff_keys = set(func_locals) - set(func_locals_copy_to_check)
+        for key in diff_keys:
+            func_globals[key] = func_locals[key]
+
+    return res
 
 
 def _iast_report_code_injection(code_string: Text):

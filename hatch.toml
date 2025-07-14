@@ -197,6 +197,7 @@ dependencies = [
     "pytest-xdist",
     "hypothesis",
     "requests",
+    "babel",
     "SQLAlchemy",
     "psycopg2-binary~=2.9.9",
     "pymysql",
