@@ -1392,7 +1392,7 @@ venv = Venv(
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"]},
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
