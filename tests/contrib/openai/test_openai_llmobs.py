@@ -754,7 +754,12 @@ class TestLLMObsOpenaiV1:
                             }
                         ],
                         metadata={"user": "ddtrace-test"},
-                        token_metrics={"input_tokens": 143, "output_tokens": 36, "total_tokens": 179},
+                        token_metrics={
+                            "input_tokens": 143,
+                            "output_tokens": 36,
+                            "total_tokens": 179,
+                            "cache_read_input_tokens": 0,
+                        },
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
@@ -852,6 +857,70 @@ class TestLLMObsOpenaiV1:
                 error_stack=span.get_tag("error.stack"),
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    def test_chat_completion_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that prompt caching metrics are properly captured"""
+        model = "gpt-4o"
+        client = openai.OpenAI()
+        base_messages = [{"role": "system", "content": "You are an expert software engineer " * 200}]
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_write.yaml"):
+            resp1 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_prompt_caching_cache_read.yaml"):
+            resp2 = client.chat.completions.create(
+                model=model,
+                messages=base_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+                max_tokens=100,
+                temperature=0.1,
+            )
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp1.model,
+                        model_provider="openai",
+                        input_messages=base_messages
+                        + [{"role": "user", "content": "What are the best practices for API design?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={"max_tokens": 100, "temperature": 0.1},
+                        token_metrics={
+                            "input_tokens": 1221,
+                            "output_tokens": 100,
+                            "total_tokens": 1321,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp2.model,
+                        model_provider="openai",
+                        input_messages=base_messages
+                        + [{"role": "user", "content": "How should I structure my database schema?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={"max_tokens": 100, "temperature": 0.1},
+                        token_metrics={
+                            "input_tokens": 1220,
+                            "output_tokens": 100,
+                            "total_tokens": 1320,
+                            "cache_read_input_tokens": 1152,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ]
         )
 
     def test_embedding_string(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
@@ -1012,6 +1081,102 @@ class TestLLMObsOpenaiV1:
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
     )
+    def test_chat_completion_stream_prompt_caching(
+        self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        client = openai.OpenAI()
+        """Test that prompt caching metrics are properly captured for streamed chat completions."""
+        input_messages = [
+            {
+                "role": "system",
+                "content": "you are not an expert software engineer " * 200,
+            },
+        ]
+        request_args = {
+            "model": "gpt-4o",
+            "max_tokens": 100,
+            "temperature": 0.1,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette(
+            "chat_completion_stream_prompt_caching_cache_write.yaml"
+        ):
+            resp1 = client.chat.completions.create(
+                messages=input_messages + [{"role": "user", "content": "What are the best practices for API design?"}],
+                **request_args,
+            )
+            for chunk in resp1:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette(
+            "chat_completion_stream_prompt_caching_cache_read.yaml"
+        ):
+            resp2 = client.chat.completions.create(
+                messages=input_messages + [{"role": "user", "content": "How should I structure my database schema?"}],
+                **request_args,
+            )
+            for chunk in resp2:
+                if hasattr(chunk, "model"):
+                    resp_model = chunk.model
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=input_messages
+                        + [{"role": "user", "content": "What are the best practices for API design?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_tokens": 100,
+                            "temperature": 0.1,
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                        token_metrics={
+                            "input_tokens": 1421,
+                            "output_tokens": 100,
+                            "total_tokens": 1521,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=input_messages
+                        + [{"role": "user", "content": "How should I structure my database schema?"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_tokens": 100,
+                            "temperature": 0.1,
+                            "stream": True,
+                            "stream_options": {"include_usage": True},
+                        },
+                        token_metrics={
+                            "input_tokens": 1420,
+                            "output_tokens": 100,
+                            "total_tokens": 1520,
+                            "cache_read_input_tokens": 1280,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ]
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
+    )
     def test_chat_stream_no_resp(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         """Test that None responses from streamed chat completions results in a finished span regardless."""
         client = openai.OpenAI()
@@ -1076,7 +1241,12 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
+                token_metrics={
+                    "input_tokens": 53,
+                    "output_tokens": 40,
+                    "total_tokens": 93,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1115,7 +1285,12 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 9, "output_tokens": 12, "total_tokens": 21},
+                token_metrics={
+                    "input_tokens": 9,
+                    "output_tokens": 12,
+                    "total_tokens": 21,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1166,7 +1341,7 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                token_metrics={"input_tokens": 0, "output_tokens": 0, "total_tokens": 0, "cache_read_input_tokens": 0},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1219,7 +1394,12 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
+                token_metrics={
+                    "input_tokens": 75,
+                    "output_tokens": 23,
+                    "total_tokens": 98,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1281,7 +1461,12 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 75, "output_tokens": 23, "total_tokens": 98},
+                token_metrics={
+                    "input_tokens": 75,
+                    "output_tokens": 23,
+                    "total_tokens": 98,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1346,9 +1531,193 @@ class TestLLMObsOpenaiV1:
                     "user": "ddtrace-test",
                     "reasoning_tokens": 0,
                 },
-                token_metrics={"input_tokens": 53, "output_tokens": 40, "total_tokens": 93},
+                token_metrics={
+                    "input_tokens": 53,
+                    "output_tokens": 40,
+                    "total_tokens": 93,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_responses_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI()
+        """Test that prompt caching metrics are properly captured for responses API"""
+        model = "gpt-4o"
+        base_input = "hello " * 1500
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_cache_write.yaml"):
+            resp1 = client.responses.create(
+                model=model,
+                input=base_input + " count from 1 to 3",
+                max_output_tokens=100,
+                temperature=0.1,
+                user="ddtrace-test",
+            )
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_prompt_caching_cache_read.yaml"):
+            resp2 = client.responses.create(
+                model=model,
+                input=base_input + " count from 2 to 4",
+                max_output_tokens=100,
+                temperature=0.1,
+                user="ddtrace-test",
+            )
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp1.model,
+                        model_provider="openai",
+                        input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_output_tokens": 100,
+                            "temperature": 0.1,
+                            "top_p": 1.0,
+                            "tools": [],
+                            "tool_choice": "auto",
+                            "truncation": "disabled",
+                            "text": {"format": {"type": "text"}},
+                            "reasoning_tokens": 0,
+                            "user": "ddtrace-test",
+                        },
+                        token_metrics={
+                            "input_tokens": 1515,
+                            "output_tokens": 14,
+                            "total_tokens": 1529,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp2.model,
+                        model_provider="openai",
+                        input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_output_tokens": 100,
+                            "temperature": 0.1,
+                            "top_p": 1.0,
+                            "tools": [],
+                            "tool_choice": "auto",
+                            "truncation": "disabled",
+                            "text": {"format": {"type": "text"}},
+                            "reasoning_tokens": 0,
+                            "user": "ddtrace-test",
+                        },
+                        token_metrics={
+                            "input_tokens": 1515,
+                            "output_tokens": 8,
+                            "total_tokens": 1523,
+                            "cache_read_input_tokens": 1390,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ],
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_responses_stream_prompt_caching(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI()
+        """Test that prompt caching metrics are properly captured for streamed responses API"""
+        base_input = "hello " * 1500
+        request_args = {
+            "model": "gpt-4o",
+            "max_output_tokens": 100,
+            "temperature": 0.1,
+            "stream": True,
+        }
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_stream_prompt_caching_cache_write.yaml"):
+            resp1 = client.responses.create(
+                input=base_input + " count from 1 to 3",
+                **request_args,
+            )
+            for chunk in resp1:
+                if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                    resp_model = chunk.response.model
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("responses_stream_prompt_caching_cache_read.yaml"):
+            resp2 = client.responses.create(
+                input=base_input + " count from 2 to 4",
+                **request_args,
+            )
+            for chunk in resp2:
+                if hasattr(chunk, "response") and hasattr(chunk.response, "model"):
+                    resp_model = chunk.response.model
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=[{"role": "user", "content": base_input + " count from 1 to 3"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_output_tokens": 100,
+                            "temperature": 0.1,
+                            "top_p": 1.0,
+                            "tools": [],
+                            "tool_choice": "auto",
+                            "truncation": "disabled",
+                            "text": {"format": {"type": "text"}},
+                            "reasoning_tokens": 0,
+                            "stream": True,
+                        },
+                        token_metrics={
+                            "input_tokens": 1515,
+                            "output_tokens": 14,
+                            "total_tokens": 1529,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name=resp_model,
+                        model_provider="openai",
+                        input_messages=[{"role": "user", "content": base_input + " count from 2 to 4"}],
+                        output_messages=[{"role": "assistant", "content": mock.ANY}],
+                        metadata={
+                            "max_output_tokens": 100,
+                            "temperature": 0.1,
+                            "top_p": 1.0,
+                            "tools": [],
+                            "tool_choice": "auto",
+                            "truncation": "disabled",
+                            "text": {"format": {"type": "text"}},
+                            "reasoning_tokens": 0,
+                            "stream": True,
+                        },
+                        token_metrics={
+                            "input_tokens": 1515,
+                            "output_tokens": 8,
+                            "total_tokens": 1523,
+                            "cache_read_input_tokens": 1390,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+                    )
+                ),
+            ],
         )
 
 
