@@ -63,25 +63,7 @@ class OpenAIIntegration(BaseLLMIntegration):
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-        if self._user_api_key is not None:
-            span.set_tag_str("openai.user.api_key", self._user_api_key)
 
-        # Do these dynamically as openai users can set these at any point
-        # not necessarily before patch() time.
-        # organization_id is only returned by a few endpoints, grab it when we can.
-        if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
-            source = self._client
-            base_attrs: Tuple[str, ...] = ("base_url", "organization")
-        else:
-            source = self._openai
-            base_attrs = ("api_base", "api_version", "api_type", "organization")
-        for attr in base_attrs:
-            v = getattr(source, attr, None)
-            if v is not None:
-                if attr == "organization":
-                    span.set_tag_str("openai.organization.id", v or "")
-                else:
-                    span.set_tag_str("openai.%s" % attr, str(v))
         client = "OpenAI"
         if self._is_provider(span, "azure"):
             client = "AzureOpenAI"
@@ -89,10 +71,14 @@ class OpenAIIntegration(BaseLLMIntegration):
             client = "Deepseek"
         span.set_tag_str("openai.request.provider", client)
 
-    @staticmethod
-    def _is_provider(span, provider):
+    def _is_provider(self, span, provider):
         """Check if the traced operation is from the given provider."""
-        base_url = span.get_tag("openai.base_url") or span.get_tag("openai.api_base")
+        base_url = None
+        if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
+            base_url = self._client._base_url
+        else:
+            base_url = self._openai.api_base
+        base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
         return provider.lower() in base_url.lower()

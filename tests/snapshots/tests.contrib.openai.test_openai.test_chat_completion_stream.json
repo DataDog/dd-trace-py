@@ -10,18 +10,16 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "687150da00000000",
+      "_dd.p.tid": "68757a6c00000000",
       "component": "openai",
       "language": "python",
-      "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
       "openai.request.endpoint": "/v1/chat/completions",
       "openai.request.method": "POST",
       "openai.request.model": "gpt-3.5-turbo",
       "openai.request.provider": "OpenAI",
       "openai.response.model": "gpt-3.5-turbo-0301",
-      "openai.user.api_key": "sk-...key>",
-      "runtime-id": "cb1f521137c84e8d9fdc554f6ba1124c"
+      "runtime-id": "cd491575fdcf4d64b516d2c93d3d0ec7"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -32,8 +30,8 @@
       "openai.organization.ratelimit.requests.remaining": 2999,
       "openai.organization.ratelimit.tokens.limit": 250000,
       "openai.organization.ratelimit.tokens.remaining": 249979,
-      "process_id": 49729
+      "process_id": 88935
     },
-    "duration": 17434000,
-    "start": 1752256730794712000
+    "duration": 16445000,
+    "start": 1752529516265190000
   }]]
