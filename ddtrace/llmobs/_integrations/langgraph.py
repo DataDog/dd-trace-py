@@ -166,7 +166,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         model = get_argument_value(args, kwargs, 0, "model")
         model_name, model_provider, model_settings = _get_model_info(model)
 
-        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools")
+        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools") or []
         system_prompt: Optional[str] = kwargs.get("prompt")
         name: Optional[str] = kwargs.get("name")
 
