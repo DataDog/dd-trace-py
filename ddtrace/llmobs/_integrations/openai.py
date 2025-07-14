@@ -2,7 +2,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
@@ -19,7 +18,8 @@ from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import _compute_completion_tokens, _compute_prompt_tokens
+from ddtrace.llmobs._integrations.utils import _compute_completion_tokens
+from ddtrace.llmobs._integrations.utils import _compute_prompt_tokens
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_chat
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_completion
 from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_response
