@@ -366,53 +366,55 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def flush_queue(self, raise_exc: bool = False):
         try:
             for client in self._clients:
-                while len(client.encoder) > 0:
-                    self._flush_queue_with_client(client, raise_exc=raise_exc)
+                self._flush_queue_with_client(client, raise_exc=raise_exc)
         finally:
             self._set_drop_rate()
 
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
-        n_traces = len(client.encoder)
-        try:
-            encoded, n_traces = client.encoder.encode()
+        total_traces = len(client.encoder)
+        sent_traces = 0
+        while total_traces > sent_traces:
+            try:
+                encoded, encoded_traces = client.encoder.encode()
 
-            if encoded is None:
+                if encoded is None:
+                    return
+
+                # Should gzip the payload if intake accepts it
+                if self._intake_accepts_gzip:
+                    original_size = len(encoded)
+                    # Replace the value to send with the gzipped the value
+                    encoded = gzip.compress(encoded, compresslevel=6)
+                    log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+
+                    # And add the header
+                    self._headers["Content-Encoding"] = "gzip"
+
+            except Exception:
+                # FIXME(munir): if client.encoder raises an Exception encoded_traces may not be accurate due to race conditions
+                log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", encoded_traces)
                 return
 
-            # Should gzip the payload if intake accepts it
-            if self._intake_accepts_gzip:
-                original_size = len(encoded)
-                # Replace the value to send with the gzipped the value
-                encoded = gzip.compress(encoded, compresslevel=6)
-                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
-
-                # And add the header
-                self._headers["Content-Encoding"] = "gzip"
-
-        except Exception:
-            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", n_traces)
-            return
-
-        try:
-            self._send_payload_with_backoff(encoded, n_traces, client)
-        except Exception:
-            self._metrics_dist("http.errors", tags=["type:err"])
-            self._metrics_dist("http.dropped.bytes", len(encoded))
-            self._metrics_dist("http.dropped.traces", n_traces)
-            if raise_exc:
-                raise
-            else:
-                log.error(
-                    "failed to send, dropping %d traces to intake at %s after %d retries",
-                    n_traces,
-                    self._intake_endpoint(client),
-                    self.RETRY_ATTEMPTS,
-                )
-        finally:
-            self._metrics_dist("http.sent.bytes", len(encoded))
-            self._metrics_dist("http.sent.traces", n_traces)
+            try:
+                self._send_payload_with_backoff(encoded, encoded_traces, client)
+                sent_traces += encoded_traces
+            except Exception:
+                self._metrics_dist("http.errors", tags=["type:err"])
+                self._metrics_dist("http.dropped.bytes", len(encoded))
+                self._metrics_dist("http.dropped.traces", encoded_traces)
+                if raise_exc:
+                    raise
+                else:
+                    log.error(
+                        "failed to send, dropping %d traces to intake at %s after %d retries",
+                        encoded_traces,
+                        self._intake_endpoint(client),
+                        self.RETRY_ATTEMPTS,
+                    )
+            finally:
+                self._metrics_dist("http.sent.bytes", len(encoded))
+                self._metrics_dist("http.sent.traces", encoded_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
