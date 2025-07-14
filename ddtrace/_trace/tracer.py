@@ -626,6 +626,7 @@ class Tracer(object):
         # Debug check: if the finishing span has a parent and its parent
         # is not the next active span then this is an error in synchronous tracing.
         if span._parent is not None and active is not span._parent:
+            breakpoint()
             log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
@@ -637,9 +638,9 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         dispatch("trace.span_finish", (span,))
-
+        import traceback
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+            log.debug("finishing span %s (enabled:%s) \n%s", span._pprint(), self.enabled, '\n'.join(traceback.format_stack()))
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
