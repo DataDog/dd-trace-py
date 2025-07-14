@@ -391,7 +391,8 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     self._headers["Content-Encoding"] = "gzip"
 
             except Exception:
-                # FIXME(munir): if client.encoder raises an Exception encoded_traces may not be accurate due to race conditions
+                # FIXME(munir): if client.encoder raises an Exception encoded_traces may not be accurate
+                # due to race conditions
                 log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
                 self._metrics_dist("encoder.dropped.traces", encoded_traces)
                 return
