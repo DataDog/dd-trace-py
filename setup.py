@@ -55,7 +55,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "RelWithDebInfo")
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
