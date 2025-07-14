@@ -789,7 +789,7 @@ Logs
      default: structured
      description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
   
-  DD_LOGS_OTEL_ENABLED:
+   DD_LOGS_OTEL_ENABLED:
      type: Boolean
      default: False
 
