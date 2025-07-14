@@ -1253,23 +1253,10 @@ def get_token_metrics_from_streamed_response(span, response, prompts, messages, 
     """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
-    usage = None
-    if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
-        usage = response[0].get("usage", {})
-    elif response and getattr(response, "usage", None):
-        usage = response.usage
-
-    if usage:
-        if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
-            prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
-        if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):
-            completion_tokens = getattr(usage, "output_tokens", 0) or getattr(usage, "completion_tokens", 0)
-        total_tokens = getattr(usage, "total_tokens", 0)
-    else:
-        model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
-        _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
-        _, completion_tokens = _compute_completion_tokens(response, model_name)
-        total_tokens = prompt_tokens + completion_tokens
+    model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
+    _, prompt_tokens = _compute_prompt_tokens(model_name, prompts, messages)
+    _, completion_tokens = _compute_completion_tokens(response, model_name)
+    total_tokens = prompt_tokens + completion_tokens
 
     return {
         INPUT_TOKENS_METRIC_KEY: prompt_tokens,
