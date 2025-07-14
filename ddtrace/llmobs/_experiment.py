@@ -1,9 +1,8 @@
-from typing import TYPE_CHECKING
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import sys
 import time
-import traceback
+from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -19,7 +18,6 @@ from typing_extensions import NotRequired
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT_KEY
 
 
 if TYPE_CHECKING:
@@ -29,12 +27,10 @@ if TYPE_CHECKING:
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
-API_PROCESSING_TIME_SLEEP = 6  # median events processor processing time in seconds
-FLUSH_EVERY = 10  # default number of records to process before flushing
 
 
 class DatasetRecord(TypedDict):
-    input_data: NonNoneJSONType
+    input_data: Dict[str, NonNoneJSONType]
     expected_output: JSONType
     metadata: Dict[str, Any]
     record_id: NotRequired[Optional[str]]
@@ -96,7 +92,7 @@ class Experiment:
         project_name: str,
         description: str = "",
         tags: Optional[List[str]] = None,
-        config: Optional[Dict[str, Any]] = None,
+        config: Optional[Dict[str, JSONType]] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
         self.name = name
@@ -105,7 +101,7 @@ class Experiment:
         self._evaluators = evaluators
         self._description = description
         self._tags = tags or []
-        self._config: Dict[str, Any] = config or {}
+        self._config: Dict[str, JSONType] = config or {}
         self._llmobs_instance = _llmobs_instance
 
         if not project_name:
@@ -141,24 +137,27 @@ class Experiment:
         self._run_evaluators(task_results, raise_errors=raise_errors)
         return
 
-    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Dict[str, Any]:
+    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Dict[str, JSONType]:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return {}
         idx, record = idx_record
         start_ns = time.time_ns()
         with self._llmobs_instance._experiment(name=self._task.__name__, experiment_id=self._id) as span:
             span_context = self._llmobs_instance.export_span(span=span)
-            span_id = span_context.get("span_id", "")
-            trace_id = span_context.get("trace_id", "")
+            if span_context:
+                span_id = span_context.get("span_id", "")
+                trace_id = span_context.get("trace_id", "")
+            else:
+                span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            expected_output = record["expected_output"]
             tags = {"dataset_id": self._dataset._id, "dataset_record_id": record_id, "experiment_id": self._id}
             output_data = None
             try:
-                output_data = self._task(input_data)  # FIXME: support config?
+                output_data = self._task(input_data, self._config)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT_KEY, expected_output)  # FIXME: should we be doing this here?
             return {
                 "idx": idx,
                 "output": output_data,
@@ -178,11 +177,21 @@ class Experiment:
                 },
             }
 
-    def _run_task(self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[Any]:
+    def _run_task(
+        self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None
+    ) -> List[Dict[str, JSONType]]:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return []
         if sample_size is not None and sample_size < len(self._dataset):
-            subset_data = [deepcopy(record) for record in self._dataset._data[:sample_size]]
+            subset_records = [deepcopy(record) for record in self._dataset._records[:sample_size]]
             subset_name = "[Test subset of {} records] {}".format(sample_size, self._dataset.name)
-            subset_dataset = Dataset(name=subset_name, dataset_id=self._dataset._id, data=subset_data)
+            subset_dataset = Dataset(
+                name=subset_name,
+                dataset_id=self._dataset._id,
+                records=subset_records,
+                description=self._dataset.description,
+                version=self._dataset._version,
+            )
         else:
             subset_dataset = self._dataset
         task_results = []
@@ -191,8 +200,7 @@ class Experiment:
                 task_results.append(result)
                 if raise_errors and result["error"]["message"]:
                     raise RuntimeError("Error on record {}: {}".format(result["idx"], result["error"]["message"]))
-        self._llmobs_instance.flush()
-        time.sleep(API_PROCESSING_TIME_SLEEP)
+        self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
     def _run_evaluators(self, task_results, raise_errors: bool = False) -> None:

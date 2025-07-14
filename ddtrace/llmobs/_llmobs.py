@@ -630,8 +630,8 @@ class LLMObs(Service):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
         params = sig.parameters
-        if "input_data" not in params:
-            raise TypeError("Task function must have an 'input_data' parameter.")
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
