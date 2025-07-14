@@ -333,7 +333,42 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version)
 
-    def dataset_pull(self, name: str) -> Dataset:
+    def dataset_create_with_records(self, name: str, description: str, records: List[DatasetRecord]) -> Dataset:
+        ds = self.dataset_create(name, description)
+        if records:
+            ds._records = records
+            new_version = self.dataset_batch_update(ds._id, records)
+            ds._version = new_version
+        return ds
+
+    def dataset_batch_update(self, dataset_id: str, records: List[DatasetRecord]) -> int:
+        rs: JSONType = [
+            {
+                "input": r["input_data"],
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+                "record_id": r.get("record_id", None),
+            }
+            for r in records
+        ]
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        body: JSONType = {
+            "data": {
+                "type": "datasets",
+                "attributes": {"insert_records": rs},
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+        response_data = resp.get_json()
+        data = response_data["data"]
+        if not data:
+            raise ValueError(f"Failed to update dataset {dataset_id}, records not found")  # nosec
+        new_version = data[0]["attributes"]["version"]
+        return new_version
+
+    def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
@@ -347,10 +382,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = data[0]["attributes"]["current_version"]
         dataset_description = data[0]["attributes"]["description"]
         dataset_id = data[0]["id"]
-        url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = self.request("GET", url)
-        if resp.status == 404:
-            raise ValueError(f"Dataset '{name}' not found")
+
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
         records_data = resp.get_json()
 
         class_records: List[DatasetRecord] = []
