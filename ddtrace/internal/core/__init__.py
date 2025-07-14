@@ -129,6 +129,8 @@ if typing.TYPE_CHECKING:
 import contextvars
 
 
+_MISSING = object()
+
 tracer = None
 
 log = logging.getLogger(__name__)
@@ -161,6 +163,8 @@ def _deprecate_span_kwarg(span):
 
 
 class ExecutionContext(AbstractContextManager):
+    __slots__ = ("identifier", "_data", "_span", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+
     def __init__(
         self, identifier: str, parent: Optional["ExecutionContext"] = None, span: Optional["Span"] = None, **kwargs
     ) -> None:
@@ -224,9 +228,10 @@ class ExecutionContext(AbstractContextManager):
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
-            if data_key in current._data:
-                return current._data.get(data_key)
-            current = current.parent
+            value = self._data.get(data_key, _MISSING)
+            if value is not _MISSING:
+                return value
+            current = current._parent
         return default
 
     def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
@@ -260,7 +265,7 @@ class ExecutionContext(AbstractContextManager):
             if data_key in current._data:
                 del current._data[data_key]
                 return
-            current = current.parent
+            current = current._parent
 
     def discard_local_item(self, data_key: str) -> None:
         self._data.pop(data_key, None)
@@ -269,8 +274,8 @@ class ExecutionContext(AbstractContextManager):
         if self.identifier == ROOT_CONTEXT_ID:
             return self
         current = self
-        while current.parent is not None:
-            current = current.parent
+        while current._parent is not None:
+            current = current._parent
         return current
 
     @property
@@ -365,7 +370,7 @@ def get_span() -> Optional["Span"]:
     while current is not None:
         if current._inner_span is not None:
             return current._inner_span
-        current = current.parent
+        current = current._parent
     return None
 
 
