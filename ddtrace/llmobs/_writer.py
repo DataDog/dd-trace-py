@@ -382,7 +382,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Dataset '{name}' not found")
 
         curr_version = data[0]["attributes"]["current_version"]
-        dataset_description = data[0]["attributes"]["description"]
+        dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
@@ -461,8 +461,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create experiment {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         experiment_id = response_data["data"]["id"]
-        experiment_name = response_data["data"]["attributes"]["name"]  # API may rename the experiment
-        return experiment_id, experiment_name
+        experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
+        return experiment_id, experiment_run_name
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

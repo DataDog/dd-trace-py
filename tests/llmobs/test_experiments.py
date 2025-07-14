@@ -158,6 +158,11 @@ def test_experiment_init(llmobs, test_dataset):
     assert exp._task == dummy_task
     assert exp._dataset == test_dataset
     assert exp._evaluators == [dummy_evaluator]
+    assert exp._project_name == "test-project"
+    assert exp._description == "lorem ipsum"
+    assert exp._project_id is None
+    assert exp._run_name is None
+    assert exp._id is None
 
 
 def test_experiment_create_no_project_name_raises(llmobs, test_dataset):
@@ -176,8 +181,8 @@ def test_experiment_create(llmobs, test_dataset):
         [dummy_evaluator],
         project_name="test-project",
     )
-    exp_id, exp_name = llmobs._instance._create_experiment(
+    exp_id, exp_run_name = llmobs._instance._create_experiment(
         exp.name, exp._dataset._id, "test-project", exp._dataset._version, exp._config
     )
     assert exp_id is not None
-    assert exp_name == "test_experiment-1752269251727"  # Note: duplicate exp names may be renamed from the API
+    assert exp_run_name.startswith("test_experiment")
