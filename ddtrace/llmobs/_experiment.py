@@ -118,7 +118,7 @@ class Experiment:
         self._id: Optional[str] = None
         self._run_name: Optional[str] = None
 
-    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
+    def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[Dict[str, Any]]:
         if not self._llmobs_instance:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
@@ -142,8 +142,9 @@ class Experiment:
         self._id = experiment_id
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
-        self._run_evaluators(task_results, raise_errors=raise_errors)
-        return
+        evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
+        experiment_results = self._merge_results(task_results, evaluations)
+        return experiment_results
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Dict[str, JSONType]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -212,5 +213,49 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
-    def _run_evaluators(self, task_results, raise_errors: bool = False) -> None:
-        pass
+    def _run_evaluators(
+        self, task_results: List[Dict[str, JSONType]], raise_errors: bool = False
+    ) -> List[Dict[str, JSONType]]:
+        if not task_results:
+            raise ValueError("No task results to evaluate.")
+        evaluations = []
+        for idx, task_result in enumerate(task_results):
+            output_data = task_result["output"]
+            record = self._dataset[idx]
+            input_data = record["input_data"]
+            expected_output = record["expected_output"]
+            evals_dict = {}
+            for evaluator in self._evaluators:
+                eval_result, eval_err = None, None
+                try:
+                    eval_result = evaluator(input_data, output_data, expected_output)
+                except Exception:
+                    exc_type, exc_value, exc_tb = sys.exc_info()
+                    eval_err = {"message": str(exc_value), "type": exc_type.__name__, "stack": traceback.format_exc()}
+                    if raise_errors:
+                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}")
+                evals_dict[evaluator.__name__] = {"value": eval_result, "error": eval_err}
+            evaluations.append({"idx": idx, "evaluations": evals_dict})
+        return evaluations
+
+    def _merge_results(self, task_results: List[Dict[str, Any]], evaluations: List[Dict[str, Any]]):
+        experiment_results = []
+        for idx, task_result in enumerate(task_results):
+            output_data = task_result["output"]
+            evals = evaluations[idx]["evaluations"]
+            record = self._dataset[idx]
+
+            metadata = output_data.get("metadata", {})
+            metadata["tags"] = self._tags
+            exp_result = {
+                "idx": idx,
+                "record_id": record.get("record_id", ""),
+                "input": record["input_data"],
+                "expected_output": record["expected_output"],
+                "output": output_data,
+                "evaluations": evals,
+                "metadata": metadata,
+                "error": output_data.get("error")
+            }
+            experiment_results.append(exp_result)
+        return experiment_results

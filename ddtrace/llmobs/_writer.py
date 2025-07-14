@@ -486,13 +486,19 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
             truncated_event_size = len(safe_json(event))
         telemetry.record_span_event_raw_size(event, raw_event_size)
         telemetry.record_span_event_size(event, truncated_event_size or raw_event_size)
+        scope = event["_dd"].pop("scope", None)
+        if scope == "experiments":
+            self.periodic()
+            self._enqueue(event, truncated_event_size or raw_event_size)
+            self.periodic()  # This only works for non-distributed cases though
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
+        payload = [
             {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
             for event in events
         ]
+        return payload
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
