@@ -12,8 +12,13 @@ eg. VCR_CASSETTES_DIRECTORY=tests/cassettes ddapm-test-agent ...
 
 import os
 import re
+from typing import Generator
+from typing import List
 
 import pytest
+
+from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
 
 
 def dummy_task(input_data):
@@ -25,11 +30,21 @@ def dummy_evaluator(input_data, output_data, expected_output):
 
 
 @pytest.fixture
-def test_dataset(llmobs):
-    ds = llmobs.create_dataset(name="test-dataset", description="A test dataset")
+def test_dataset_records() -> List[DatasetRecord]:
+    return []
+
+
+@pytest.fixture
+def test_dataset_name(request) -> str:
+    return f"test-dataset-{request.node.name}"
+
+
+@pytest.fixture
+def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[Dataset, None, None]:
+    ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=test_dataset_records)
 
     # When recording the requests, we need to wait for the dataset to be queryable.
-    if os.environ.get("RECORD_REQUESTS"):
+    if os.environ.get("RECORD_REQUESTS", "0") != "0":
         import time
 
         time.sleep(2)
@@ -42,6 +57,7 @@ def test_dataset(llmobs):
 def test_dataset_create_delete(llmobs):
     dataset = llmobs.create_dataset(name="test-dataset-2", description="A second test dataset")
     assert dataset._id is not None
+
     llmobs._delete_dataset(dataset_id=dataset._id)
 
 
@@ -50,12 +66,25 @@ def test_dataset_pull_non_existent(llmobs):
         llmobs.pull_dataset(name="test-dataset-non-existent")
 
 
-def test_dataset_pull(llmobs, test_dataset):
+@pytest.mark.parametrize("test_dataset_records", [[]])
+def test_dataset_pull_exists_but_no_records(llmobs, test_dataset, test_dataset_records, test_dataset_name):
     dataset = llmobs.pull_dataset(name=test_dataset.name)
     assert dataset._id is not None
+    assert len(dataset) == 0
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_pull_exists_with_record(llmobs, test_dataset, test_dataset_records):
+    dataset = llmobs.pull_dataset(name=test_dataset.name)
+    assert len(dataset) == 1
+    assert dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert dataset[0]["expected_output"] == {"answer": "Paris"}
     assert dataset.name == test_dataset.name
     assert dataset.description == test_dataset.description
-    assert dataset._version == test_dataset._version
+    assert dataset._version == test_dataset._version == 1
 
 
 def test_project_create(llmobs):
