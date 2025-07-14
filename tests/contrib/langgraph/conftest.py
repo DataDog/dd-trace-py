@@ -1,4 +1,5 @@
 import operator
+import os
 from typing import Annotated
 from typing import TypedDict
 
@@ -261,7 +262,12 @@ def agent_from_create_react_agent(langgraph):
         """Adds two numbers together"""
         return a + b
 
-    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5, base_url="http://127.0.0.1:9126/vcr/openai")
+    model = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.5,
+        base_url="http://127.0.0.1:9126/vcr/openai",
+        api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+    )
 
     agent = create_react_agent(
         model=model,
