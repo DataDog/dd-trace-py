@@ -1410,7 +1410,7 @@ venv = Venv(
                 ),
                 Venv(
                     pys="3.12",
-                    pkgs={"starlette": latest, "httpx": latest},
+                    pkgs={"starlette": latest, "httpx": "~=0.27.0"},
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8", max_version="3.11"),
