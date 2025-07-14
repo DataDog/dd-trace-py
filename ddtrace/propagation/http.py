@@ -19,6 +19,8 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
@@ -1150,6 +1152,13 @@ class HTTPPropagator(object):
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
+                    # Record telemetry for successful baggage extraction
+                    telemetry_writer.add_count_metric(
+                        namespace=TELEMETRY_NAMESPACE.TRACERS,
+                        name="context_header_style.extracted",
+                        value=1,
+                        tags=(("header_style", "baggage"),),
+                    )
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
