@@ -1,3 +1,5 @@
+import ddtrace.auto  # noqa: F401, I001
+
 import os
 import threading
 

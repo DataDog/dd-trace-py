@@ -31,7 +31,6 @@ TESTING_GEVENT = os.getenv("DD_PROFILE_TEST_GEVENT", False)
 def _run_gunicorn(*args):
     cmd = (
         [
-            "ddtrace-run",
             "gunicorn",
             "--bind",
             "127.0.0.1:7644",
@@ -228,7 +227,6 @@ def _find_and_analyze_core_dump(proc_pid):
             try:
                 # Try to find the exact executable path
                 executable_candidates = [
-                    "ddtrace-run",
                     "/usr/bin/python3",
                     "/usr/bin/python",
                     "python3",
