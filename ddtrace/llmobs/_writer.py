@@ -364,7 +364,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
-            raise ValueError(f"Failed to update dataset {dataset_id}, records not found")
+            raise ValueError(f"Failed to update dataset {dataset_id}, records not found")  # nosec
         new_version = data[0]["attributes"]["version"]
         return new_version
 
