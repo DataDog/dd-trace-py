@@ -1,5 +1,9 @@
 import json
+import random
 
+import pytest
+
+from ddtrace.contrib.internal.langgraph.patch import LANGGRAPH_VERSION
 from tests.llmobs._utils import _assert_span_link
 
 
@@ -286,3 +290,70 @@ class TestLangGraphLLMObs:
 
         assert a_span["meta"]["output"]["value"] is not None
         assert b_span["meta"]["output"]["value"] is not None
+
+    @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
+    def test_agent_manifest_simple_graph(self, llmobs_events, agentic_graph_with_conditional_and_definitive_edges):
+        agentic_graph_with_conditional_and_definitive_edges.invoke(
+            {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}
+        )
+
+        agent_a_span = _find_span_by_name(llmobs_events, "agent_a")
+        try:
+            conditional_agent_span = _find_span_by_name(llmobs_events, "agent_b")
+            conditional_agent_name = "agent_b"
+        except AssertionError:
+            conditional_agent_span = _find_span_by_name(llmobs_events, "agent_c")
+            conditional_agent_name = "agent_c"
+
+        agent_d_span = _find_span_by_name(llmobs_events, "agent_d")
+
+        expected_agent_a_manifest = {
+            "name": "agent_a",
+            "handoffs": [
+                {"agent_name": "agent_b", "tool_name": "which"},
+                {"agent_name": "agent_c", "tool_name": "which"},
+            ],
+            "tools": [],
+        }
+
+        expected_conditional_agent_manifest = {
+            "name": conditional_agent_name,
+            "handoffs": ["agent_d"],
+            "tools": [],
+        }
+
+        expected_agent_d_manifest = {
+            "name": "agent_d",
+            "handoffs": [],
+            "tools": [],
+        }
+
+        assert agent_a_span["meta"]["metadata"]["agent_manifest"] == expected_agent_a_manifest
+        assert conditional_agent_span["meta"]["metadata"]["agent_manifest"] == expected_conditional_agent_manifest
+        assert agent_d_span["meta"]["metadata"]["agent_manifest"] == expected_agent_d_manifest
+
+    @pytest.mark.skipif(
+        LANGGRAPH_VERSION < (0, 3, 21), reason="create_react_agent has full support after LangGraph 0.3.21"
+    )
+    def test_agent_manifest_from_create_react_agent(self, llmobs_events, agent_from_create_react_agent):
+        agent_from_create_react_agent.invoke({"messages": [{"role": "user", "content": "What is 2 + 2?"}]})
+
+        react_agent_span = _find_span_by_name(llmobs_events, "not_your_average_bostonian")
+
+        expected_agent_manifest = {
+            "name": "not_your_average_bostonian",
+            "tools": [
+                {
+                    "name": "add",
+                    "description": "Adds two numbers together",
+                }
+            ],
+            "model": "gpt-4o-mini",
+            "model_provider": "openai",
+            "model_settings": {
+                "temperature": 0.5,
+            },
+            "instructions": "You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
+        }
+
+        assert react_agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest

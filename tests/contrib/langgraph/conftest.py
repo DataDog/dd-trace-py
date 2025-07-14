@@ -2,6 +2,8 @@ import operator
 from typing import Annotated
 from typing import TypedDict
 
+from langchain_core.tools import tool
+from langchain_openai import ChatOpenAI
 from langgraph.constants import Send
 from langgraph.graph import END
 from langgraph.graph import START
@@ -26,6 +28,7 @@ def mock_tracer():
 def langgraph(monkeypatch, mock_tracer):
     patch()
     import langgraph
+    import langgraph.prebuilt
 
     pin = Pin.get_from(langgraph)
     pin._override(langgraph, tracer=mock_tracer)
@@ -220,3 +223,51 @@ def graph_with_uneven_sides(langgraph):
     graph = graph_builder.compile()
 
     yield graph
+
+
+@pytest.fixture
+def agentic_graph_with_conditional_and_definitive_edges(langgraph):
+    def which(state):
+        if state["which"] not in ("agent_b", "agent_c"):
+            return "agent_b"
+        return state["which"]
+
+    agent_a = StateGraph(State).add_node("a", _do_op("a")).set_entry_point("a").compile(name="agent_a")
+    agent_b = StateGraph(State).add_node("b", _do_op("b")).set_entry_point("b").compile(name="agent_b")
+    agent_c = StateGraph(State).add_node("c", _do_op("c")).set_entry_point("c").compile(name="agent_c")
+    agent_d = StateGraph(State).add_node("d", _do_op("d")).set_entry_point("d").compile(name="agent_d")
+
+    graph_builder = StateGraph(State)
+    graph_builder.add_node(agent_a)
+    graph_builder.add_node(agent_b)
+    graph_builder.add_node(agent_c)
+    graph_builder.add_node(agent_d)
+    graph_builder.set_entry_point("agent_a")
+    graph_builder.add_conditional_edges("agent_a", which, {"agent_b": "agent_b", "agent_c": "agent_c"})
+    graph_builder.add_edge("agent_b", "agent_d")
+    graph_builder.add_edge("agent_c", "agent_d")
+    graph_builder.add_edge("agent_d", END)
+    graph = graph_builder.compile(name="agent")
+
+    yield graph
+
+
+@pytest.fixture
+def agent_from_create_react_agent(langgraph):
+    from langgraph.prebuilt import create_react_agent
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds two numbers together"""
+        return a + b
+
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.5, base_url="http://127.0.0.1:9126/vcr/openai")
+
+    agent = create_react_agent(
+        model=model,
+        tools=[add],
+        prompt="You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
+        name="not_your_average_bostonian",
+    )
+
+    yield agent
