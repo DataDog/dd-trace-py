@@ -41,16 +41,14 @@ class Profile
     // Configuration for the pprof exporter
     std::vector<ddog_prof_ValueType> samplers{};
 
-    // These are initialized here as skeleton objects, but they cannot be used until
-    // they're initialized by libdatadog
+    // The profile object is initialized here as a skeleton object, but it
+    // cannot be used until it's initialized by libdatadog
     ddog_prof_Profile cur_profile{};
-    ddog_prof_Profile last_profile{};
 
   public:
     // State management
     void one_time_init(SampleType type, unsigned int _max_nframes);
-    bool cycle_buffers();
-    void reset();
+    bool reset_profile();
     void postfork_child();
 
     // Getters
