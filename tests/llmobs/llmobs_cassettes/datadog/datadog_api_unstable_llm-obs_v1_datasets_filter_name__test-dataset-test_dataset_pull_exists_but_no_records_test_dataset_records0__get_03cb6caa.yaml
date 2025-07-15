@@ -4,19 +4,19 @@ interactions:
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Length
       : - '0'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.4
     method: GET
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter%5Bname%5D=test-dataset-test_dataset_pull_exists_but_no_records%5Btest_dataset_records0%5D
   response:
