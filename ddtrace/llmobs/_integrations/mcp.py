@@ -13,11 +13,15 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
+
+SERVER_TOOL_CALL_OPERATION_NAME = "server_tool_call"
+CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 
 
 class MCPIntegration(BaseLLMIntegration):
@@ -25,10 +29,10 @@ class MCPIntegration(BaseLLMIntegration):
 
     def get_span_name(self, operation: str, args: List[Any], kwargs: Dict[str, Any]) -> str:
         """Generate span name for MCP operations."""
-        if operation == "call_tool":
+        if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
             tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
             return f"MCP Client Tool Call: {tool_name}"
-        elif operation == "execute_tool":
+        elif operation == SERVER_TOOL_CALL_OPERATION_NAME:
             tool_name = args[0] if len(args) > 0 else "unknown_tool"
             return f"MCP Server Tool Execute: {tool_name}"
         return f"MCP {operation}"
@@ -93,6 +97,14 @@ class MCPIntegration(BaseLLMIntegration):
         except Exception:
             log.error("Error extracting distributed tracing headers from MCP request context", exc_info=True)
 
+    def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
+        """Parse MCP TextContent fields, extracting only non-None values."""
+        return {
+            field_name: field_value
+            for field_name in ["type", "text", "annotations", "meta"]
+            if (field_value := _get_attr(item, field_name, None)) is not None
+        }
+
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -103,57 +115,55 @@ class MCPIntegration(BaseLLMIntegration):
     ) -> None:
         span._set_ctx_item(SPAN_KIND, "tool")
 
-        if operation == "call_tool":
-            self._llmobs_set_tags_client_call(span, args, kwargs, response)
-        elif operation == "execute_tool":
-            self._llmobs_set_tags_server_execute(span, args, kwargs, response)
+        if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
+            self._llmobs_set_tags_client(span, args, kwargs, response)
+        elif operation == SERVER_TOOL_CALL_OPERATION_NAME:
+            self._llmobs_set_tags_server(span, args, kwargs, response)
 
-    def _llmobs_set_tags_client_call(
-        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
-    ):
+    def _llmobs_set_tags_client(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
+        span_name = self.get_span_name(CLIENT_TOOL_CALL_OPERATION_NAME, args, kwargs)
+
         span._set_ctx_items(
             {
-                NAME: self.get_span_name("call_tool", args, kwargs),
-                METADATA: {"mcp.operation": "call_tool"},
+                NAME: span_name,
+                METADATA: {"mcp.operation": CLIENT_TOOL_CALL_OPERATION_NAME},
                 INPUT_VALUE: tool_arguments,
             }
         )
-        if span.error:
+
+        if span.error or response is None:
             return
-        output_value = None
-        if response:
-            if hasattr(response, "content"):
-                output_value = getattr(response, "content", None)
-            elif hasattr(response, "result"):
-                output_value = getattr(response, "result", None)
-            else:
-                output_value = str(response)
+
+        # Tool response is `mcp.types.CallToolResult` type
+        content = _get_attr(response, "content", [])
+        is_error = _get_attr(response, "isError", False)
+        processed_content = [
+            self._parse_mcp_text_content(item) for item in content if _get_attr(item, "type", None) == "text"
+        ]
+        output_value = {"content": processed_content, "isError": is_error}
         span._set_ctx_item(OUTPUT_VALUE, output_value)
 
-    def _llmobs_set_tags_server_execute(
-        self,
-        span: Span,
-        args: List[Any],
-        kwargs: Dict[str, Any],
-        response: Optional[Any],
-    ):
+    def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
+        span_name = self.get_span_name(SERVER_TOOL_CALL_OPERATION_NAME, args, kwargs)
+
         span._set_ctx_items(
             {
-                NAME: self.get_span_name("execute_tool", args, kwargs),
-                METADATA: {"mcp.operation": "execute_tool"},
+                NAME: span_name,
+                METADATA: {"mcp.operation": SERVER_TOOL_CALL_OPERATION_NAME},
                 INPUT_VALUE: tool_arguments,
             }
         )
 
-        if span.error:
+        if span.error or response is None:
             return
 
-        output_value = response
-        if hasattr(response, "content"):
-            output_value = getattr(response, "content", None)
-        elif hasattr(response, "result"):
-            output_value = getattr(response, "result", None)
+        # As of mcp 1.10.0, the response object is list of `mcp.types.TextContent` objects since `run_tool` is called
+        # with convert_result=True. Before this, the response was the raw tool result.
+        if isinstance(response, list) and len(response) > 0 and _get_attr(response[0], "type", None) == "text":
+            output_value = [self._parse_mcp_text_content(item) for item in response]
+        else:
+            output_value = safe_json(response)
 
         span._set_ctx_item(OUTPUT_VALUE, output_value)

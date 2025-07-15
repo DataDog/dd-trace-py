@@ -1,5 +1,4 @@
 from copy import deepcopy
-import json
 import os
 import re
 import sys
@@ -101,6 +100,7 @@ INTEGRATION_CONFIGS = frozenset(
         "dramatiq",
         "flask",
         "google_generativeai",
+        "google_genai",
         "urllib3",
         "subprocess",
         "kafka",
@@ -120,6 +120,7 @@ INTEGRATION_CONFIGS = frozenset(
         "snowflake",
         "pymemcache",
         "azure_functions",
+        "azure_servicebus",
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",
@@ -173,6 +174,7 @@ INTEGRATION_CONFIGS = frozenset(
         "genai",
         "openai",
         "crewai",
+        "pydantic_ai",
         "logging",
         "cassandra",
         "boto",
@@ -630,6 +632,7 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
@@ -649,6 +652,9 @@ class Config(object):
         self._llmobs_sample_rate = _get_config("DD_LLMOBS_SAMPLE_RATE", 1.0, float)
         self._llmobs_ml_app = _get_config("DD_LLMOBS_ML_APP")
         self._llmobs_agentless_enabled = _get_config("DD_LLMOBS_AGENTLESS_ENABLED", None, asbool)
+        self._llmobs_instrumented_proxy_urls = _get_config(
+            "DD_LLMOBS_INSTRUMENTED_PROXY_URLS", None, lambda x: set(x.strip().split(","))
+        )
 
         self._inject_force = _get_config("DD_INJECT_FORCE", None, asbool)
         # Telemetry for whether ssi instrumented an app is tracked by the `instrumentation_source` config
@@ -806,71 +812,6 @@ class Config(object):
         else:
             pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
         return {k: v for k, v in pairs}
-
-    def _remove_invalid_rules(self, rc_rules: List) -> List:
-        """Remove invalid sampling rules from the given list"""
-        # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
-        for rule in rc_rules:
-            if (
-                ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
-                or "sample_rate" not in rule
-                or "provenance" not in rule
-            ):
-                log.debug("Invalid sampling rule from remoteconfig found, rule will be removed: %s", rule)
-                rc_rules.remove(rule)
-
-        return rc_rules
-
-    def _tags_to_dict(self, tags: List[Dict]):
-        """
-        Converts a list of tag dictionaries to a single dictionary.
-        """
-        if isinstance(tags, list):
-            return {tag["key"]: tag["value_glob"] for tag in tags}
-        return tags
-
-    def _convert_rc_trace_sampling_rules(
-        self, rc_rules: List[Dict[str, Any]], global_sample_rate: Optional[float]
-    ) -> Optional[str]:
-        """Example of an incoming rule:
-        [
-          {
-            "service": "my-service",
-            "name": "web.request",
-            "resource": "*",
-            "provenance": "customer",
-            "sample_rate": 1.0,
-            "tags": [
-              {
-                "key": "care_about",
-                "value_glob": "yes"
-              },
-              {
-                "key": "region",
-                "value_glob": "us-*"
-              }
-            ]
-          }
-        ]
-
-                Example of a converted rule:
-                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
-        """
-        rc_rules = self._remove_invalid_rules(rc_rules)
-        for rule in rc_rules:
-            if "tags" in rule:
-                # Remote config provides sampling rule tags as a list,
-                # but DD_TRACE_SAMPLING_RULES expects them as a dict.
-                # Here we convert tags to a dict to ensure a consistent format.
-                rule["tags"] = self._tags_to_dict(rule["tags"])
-
-        if global_sample_rate is not None:
-            rc_rules.append({"sample_rate": global_sample_rate})
-
-        if rc_rules:
-            return json.dumps(rc_rules)
-        else:
-            return None
 
     def _lower(self, value):
         return value.lower()

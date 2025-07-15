@@ -7,6 +7,8 @@ from ddtrace import config
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
+from ddtrace.llmobs._integrations.mcp import CLIENT_TOOL_CALL_OPERATION_NAME
+from ddtrace.llmobs._integrations.mcp import SERVER_TOOL_CALL_OPERATION_NAME
 from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.trace import Pin
 
@@ -41,14 +43,18 @@ def traced_send_request(mcp, pin, func, instance, args, kwargs):
 async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
 
-    span = integration.trace(pin, "call_tool", submit_to_llmobs=True)
+    span = integration.trace(pin, CLIENT_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="call_tool")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation=CLIENT_TOOL_CALL_OPERATION_NAME
+        )
         return result
     except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="call_tool")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=None, operation=CLIENT_TOOL_CALL_OPERATION_NAME
+        )
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
@@ -60,14 +66,18 @@ async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
     integration.extract_and_activate_distributed_headers(kwargs)
 
-    span = integration.trace(pin, "execute_tool", submit_to_llmobs=True)
+    span = integration.trace(pin, SERVER_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
     try:
         result = await func(*args, **kwargs)
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="execute_tool")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=result, operation=SERVER_TOOL_CALL_OPERATION_NAME
+        )
         return result
     except Exception:
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="execute_tool")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs=kwargs, response=None, operation=SERVER_TOOL_CALL_OPERATION_NAME
+        )
         span.set_exc_info(*sys.exc_info())
         raise
     finally:

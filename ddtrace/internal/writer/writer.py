@@ -67,7 +67,7 @@ class NoEncodableSpansError(Exception):
 DEFAULT_SMA_WINDOW = 10
 
 
-def _human_size(nbytes):
+def _human_size(nbytes: float) -> str:
     """Return a human-readable size."""
     i = 0
     suffixes = ["B", "KB", "MB", "GB", "TB"]
@@ -133,6 +133,8 @@ class LogWriter(TraceWriter):
 
 class HTTPWriter(periodic.PeriodicService, TraceWriter):
     """Writer to an arbitrary HTTP intake endpoint."""
+
+    intake_url: str
 
     RETRY_ATTEMPTS = 3
     HTTP_METHOD = "PUT"
@@ -267,7 +269,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 if not self._reuse_connections:
                     self._reset_connection()
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
         headers = self._headers.copy()
         headers.update({"Content-Type": client.encoder.content_type})  # type: ignore[attr-defined]
         if hasattr(client, "_headers"):
@@ -434,7 +436,25 @@ class AgentResponse(object):
         self.rate_by_service = rate_by_service
 
 
-class AgentWriter(HTTPWriter):
+class AgentWriterInterface(metaclass=abc.ABCMeta):
+    intake_url: str
+    _api_version: str
+    _sync_mode: bool
+
+    @abc.abstractmethod
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        pass
+
+    @abc.abstractmethod
+    def before_fork(self) -> None:
+        pass
+
+    @abc.abstractmethod
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        pass
+
+
+class AgentWriter(HTTPWriter, AgentWriterInterface):
     """
     The Datadog Agent supports (at the time of writing this) receiving trace
     payloads up to 50MB. A trace payload is just a list of traces and the agent
@@ -448,7 +468,7 @@ class AgentWriter(HTTPWriter):
 
     def __init__(
         self,
-        agent_url: str,
+        intake_url: str,
         processing_interval: Optional[float] = None,
         # Match the payload size since there is no functionality
         # to flush dynamically.
@@ -528,7 +548,7 @@ class AgentWriter(HTTPWriter):
         self._response_cb = response_callback
         self._report_metrics = report_metrics
         super(AgentWriter, self).__init__(
-            intake_url=agent_url,
+            intake_url=intake_url,
             clients=[client],
             processing_interval=processing_interval,
             buffer_size=buffer_size,
@@ -543,7 +563,7 @@ class AgentWriter(HTTPWriter):
 
     def recreate(self) -> HTTPWriter:
         new_instance = self.__class__(
-            agent_url=self.agent_url,
+            intake_url=self.intake_url,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
@@ -553,12 +573,9 @@ class AgentWriter(HTTPWriter):
             api_version=self._api_version,
             headers=self._headers,
             report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
         )
         return new_instance
-
-    @property
-    def agent_url(self):
-        return self.intake_url
 
     @property
     def _agent_endpoint(self):
@@ -613,7 +630,13 @@ class AgentWriter(HTTPWriter):
         except service.ServiceStatusError:
             pass
 
-    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> dict:
+    def _get_finalized_headers(self, count: int, client: WriterClientBase) -> Dict[str, str]:
         headers = super(AgentWriter, self)._get_finalized_headers(count, client)
         headers["X-Datadog-Trace-Count"] = str(count)
         return headers
+
+    def before_fork(self) -> None:
+        pass
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        self._headers["X-Datadog-Test-Session-Token"] = token or ""

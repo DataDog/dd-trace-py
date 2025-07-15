@@ -2,7 +2,11 @@
   {
     "name": "mcp.request",
     "service": "tests.contrib.mcp",
+<<<<<<< HEAD
     "resource": "execute_tool",
+=======
+    "resource": "server_tool_call",
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
@@ -10,25 +14,42 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+<<<<<<< HEAD
       "_dd.p.tid": "686df62100000000",
       "language": "python",
       "runtime-id": "96a9b88f8ae04ca58da8f561cdad2045"
+=======
+      "_dd.p.tid": "686ea1b300000000",
+      "language": "python",
+      "runtime-id": "6fb44f703a2f4c36a7fe5f64ffdc4c42"
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+<<<<<<< HEAD
       "process_id": 16747
     },
     "duration": 107000,
     "start": 1752036897071345000
+=======
+      "process_id": 80721
+    },
+    "duration": 65000,
+    "start": 1752080819604325000
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
   }],
 [
   {
     "name": "mcp.request",
     "service": "tests.contrib.mcp",
+<<<<<<< HEAD
     "resource": "call_tool",
+=======
+    "resource": "client_tool_call",
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
     "trace_id": 1,
     "span_id": 1,
     "parent_id": 0,
@@ -36,17 +57,30 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+<<<<<<< HEAD
       "_dd.p.tid": "686df62100000000",
       "language": "python",
       "runtime-id": "96a9b88f8ae04ca58da8f561cdad2045"
+=======
+      "_dd.p.tid": "686ea1b300000000",
+      "language": "python",
+      "runtime-id": "6fb44f703a2f4c36a7fe5f64ffdc4c42"
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
+<<<<<<< HEAD
       "process_id": 16747
     },
     "duration": 2008000,
     "start": 1752036897070559000
+=======
+      "process_id": 80721
+    },
+    "duration": 1741000,
+    "start": 1752080819603659000
+>>>>>>> 8264131e028df6a474f737a4ed0a1186ed52cea1
   }]]

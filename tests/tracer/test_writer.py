@@ -705,7 +705,7 @@ def test_additional_headers():
 
 def test_additional_headers_constructor():
     writer = AgentWriter(
-        agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+        intake_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
     )
     assert writer._headers["additional-header"] == "additional-value"
     assert writer._headers["header2"] == "value2"
@@ -746,6 +746,17 @@ def test_writer_recreate_keeps_headers():
     writer = writer.recreate()
     assert "Datadog-Client-Computed-Stats" in writer._headers
     assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
+
+
+def test_writer_recreate_keeps_response_callback():
+    def response_callback(response):
+        pass
+
+    writer = AgentWriter("http://dne:1234", response_callback=response_callback)
+    assert writer._response_cb is response_callback
+    writer = writer.recreate()
+    assert isinstance(writer, AgentWriter)
+    assert writer._response_cb is response_callback
 
 
 @pytest.mark.parametrize(

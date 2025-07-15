@@ -1,5 +1,3 @@
-import os
-
 import pytest
 
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
@@ -15,9 +13,6 @@ from ddtrace.appsec._iast.taint_sinks.ssrf import SSRF
 from tests.appsec.iast.iast_utils import _get_iast_data
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import _taint_pyobject_multiranges
 from tests.appsec.iast.taint_sinks._taint_sinks_utils import get_parametrize
-
-
-ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 @pytest.mark.parametrize(

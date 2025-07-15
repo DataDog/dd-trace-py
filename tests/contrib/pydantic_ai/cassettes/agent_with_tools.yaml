@@ -1,0 +1,209 @@
+interactions:
+- request:
+    body: '{"messages":[{"role":"user","content":"What is the square of 2?"}],"model":"gpt-4o","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"calculate_square_tool","description":"","parameters":{"additionalProperties":false,"properties":{"x":{"type":"integer"}},"required":["x"],"type":"object"},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '340'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=UsE3K0ak.TkAc4AIcGBeJ1fNR3.x9vUikOup4esw64M-1750869816-1.0.1.1-yo93C2pET3WkHJAz.FUk7bMUMXIVX.50nalbhumwHnn__Vp13EylfJXa9MLnzE9DZM3BH7WU1PqJXRNZY9sDxIrmT50M2Rp3A5jNcLaKevE;
+        _cfuvid=7yprwreREaQe1ApoE3CUHN.9GZrN53KIrD0S10.M5g0-1750870032909-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - pydantic-ai/0.3.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.91.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFPBbtswDL37KwSek8HxnMT1McDQIofuMATbsBaCItOOUlnSJHloFuTf
+        B9mJ7aQtMB8MgY98fHyUjhEhIArICfAd87w2crqqH182B7Xe3G+yzCTVCh+r/V31XWQ/ViVMQoXe
+        7pH7S9Unrmsj0QutOphbZB4D62w5j7NlvPyctkCtC5ShrDJ+muppEifpNM6m8eJcuNOCo4Oc/IoI
+        IeTY/oNEVeAr5CSeXCI1OscqhLxPIgSsliECzDnhPFMeJgPItfKogmrVSDkCvNaScibl0Lj7jqPz
+        4BOTkkq2Lzdf7h9+Jov91/VhXXx7KOZ/t27Ur6M+mFZQ2Sje+zPC+3h+04wQUKzGc0PeSOaRut8N
+        s0iD3hsiQoDZqqlR+TAEHJ/g9Qny5ARXaafovfPzyAuLZeOYfGsSU0p7FrS2Lj2fkVO/EKkrY/XW
+        3ZRCKZRwO2qRuXbOsd3RRUgrAZqrjYKxujaeev2CbdN00ZHCcN8GcDY/g157Jof4YjZ5h40W6Jlo
+        F97fMc74DouhcrhrrCmEHgHRaPK3Yt7j7qYXqvof+gHgHI3HghqLheDXAw9pFsNr/Cit97gVDA7t
+        H8GReoE2bKPAkjWyeyjgDs5jTUuhKrTGiva1QGkoS7LsLltu0xSiU/QPAAD//wMAKea01jYEAAA=
+    headers:
+      CF-RAY:
+      - 955603280d8755d0-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Jun 2025 16:58:55 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=2p7.3ZkWkVz7e1Pe0Cc3jHbM6YTv2fbTDnab7aySocI-1750870735-1.0.1.1-DG3FKHYfWBNRaHzMAfEUyVYU9E9DvRbOHZTdQ6lOj0A7hOi3BD.HkFHkTxluuQ7Revdi2IlRcIEdLaQxVK9wc.ovHOJJWDZ9JrBn.SCKbj0;
+        path=/; expires=Wed, 25-Jun-25 17:28:55 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '498'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '504'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999991'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_2a64969b726df6c477cf91dac8b02cb2
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"role":"user","content":"What is the square of 2?"},{"role":"assistant","tool_calls":[{"id":"call_lajfUEGHY26jOJyJdSHd5zbs","type":"function","function":{"name":"calculate_square_tool","arguments":"{\"x\":2}"}}]},{"role":"tool","tool_call_id":"call_lajfUEGHY26jOJyJdSHd5zbs","content":"4"}],"model":"gpt-4o","stream":false,"tool_choice":"auto","tools":[{"type":"function","function":{"name":"calculate_square_tool","description":"","parameters":{"additionalProperties":false,"properties":{"x":{"type":"integer"}},"required":["x"],"type":"object"},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '578'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=2p7.3ZkWkVz7e1Pe0Cc3jHbM6YTv2fbTDnab7aySocI-1750870735-1.0.1.1-DG3FKHYfWBNRaHzMAfEUyVYU9E9DvRbOHZTdQ6lOj0A7hOi3BD.HkFHkTxluuQ7Revdi2IlRcIEdLaQxVK9wc.ovHOJJWDZ9JrBn.SCKbj0;
+        _cfuvid=7yprwreREaQe1ApoE3CUHN.9GZrN53KIrD0S10.M5g0-1750870032909-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - pydantic-ai/0.3.3
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.91.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFLBTtwwFLznK6x33qBsyDZhjxy4IKEWVb0gFHntl8Tg2MZ+qSho/71y
+        srvJliJxyeHNm8nM+L0njIGSsGUgOk6idzq97u+ef8m3782t6m7uX1QlrnJzQ5sfStw/wSoy7O4J
+        BR1ZF8L2TiMpayZYeOSEUXVdbrKqzMrLzQj0VqKOtNZRWtg0z/Iizao0+3YgdlYJDLBlDwljjL2P
+        32jRSHyFLctWx0mPIfAWYXtaYgy81XECPAQViBuC1QwKawjN6Ppnhyy8DNwjsw3LmQqsuFjuemyG
+        wKNVM2i9ALgxlniMOrp8PCD7ky9tW+ftLvxDhUYZFbraIw/WRA+BrIMR3SeMPY75h7NI4LztHdVk
+        n3H8Xbme5GAufAbXh26ALHE9z6sj6Uytlkhc6bDoDwQXHcqZOZfNB6nsAkgWmT+a+Z/2lFuZ9ivy
+        MyAEOkJZO49SifPA85rHeI6frZ06Hg1DQP9bCaxJoY/vILHhg54uBcKfQNjXjTIteufVdC6Nq3le
+        VVdVuSsKSPbJXwAAAP//AwBDYxEuNwMAAA==
+    headers:
+      CF-RAY:
+      - 95560330bb2155d0-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 25 Jun 2025 16:58:55 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '287'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '289'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999989'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_9f66d508c2606b497f47b6e6765fc6da
+    status:
+      code: 200
+      message: OK
+version: 1

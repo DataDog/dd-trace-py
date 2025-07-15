@@ -1,4 +1,6 @@
 import atexit
+import linecache
+import os
 import sys
 from types import ModuleType
 import typing as t
@@ -45,7 +47,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
     def _on_new_module(self, module):
         try:
             if not is_ddtrace(module):
-                if config.include:
+                if config.includes:
                     if not is_included(module, config):
                         return
                 elif not from_editable_install(module, config):
@@ -55,7 +57,7 @@ class ModuleCollector(DebuggerModuleWatchdog):
                     return
 
                 try:
-                    return self.on_collect(FunctionDiscovery(module))
+                    return self.on_collect(FunctionDiscovery.from_module(module))
                 except Exception as e:
                     status("Error collecting functions from %s: %s" % (module.__name__, e))
                     raise e
@@ -175,6 +177,11 @@ class NoopLogsIntakeUploader(LogsIntakeUploaderV1):
             cls._instance = None
 
 
+class LightProbeRegistry(_debugger.ProbeRegistry):
+    def set_emitting(self, probe: Probe) -> None:
+        pass
+
+
 class ExplorationDebugger(Debugger):
     __rc__ = NoopDebuggerRC
     __uploader__ = NoopLogsIntakeUploader
@@ -197,11 +204,15 @@ class ExplorationDebugger(Debugger):
 
         super(ExplorationDebugger, cls).enable()
 
+        cls._instance._probe_registry = LightProbeRegistry(cls._instance._status_logger)
+
         cls._instance.__uploader__.get_collector().on_snapshot = cls.on_snapshot
 
         # Register the debugger to be disabled at exit manually because we are
         # not being managed by the product manager.
         atexit.register(cls.disable)
+
+        cls.__watchdog__.install()
 
     @classmethod
     def disable(cls, join: bool = True) -> None:
@@ -218,37 +229,63 @@ class ExplorationDebugger(Debugger):
 
         cls.on_disable()
 
-        snapshots = cls.get_snapshots()
-        if snapshots and snapshots[-1] is not None:
-            import json
-            from pprint import pprint
+        cls.__watchdog__.uninstall()
 
-            pprint(json.loads(snapshots[-1].decode()), stream=config.output_stream)
+        failed = False
+        if not nprobes:
+            failed = True
+            log(f"Exploration testing failed: no probes were installed for {cls.__name__}")
+        elif nokprobes != nprobes:
+            failed = True
+            log(
+                "Exploration testing failed: "
+                f"only {nokprobes} out of {nprobes} probes were installed for {cls.__name__}"
+            )
+            for e in cls.get_failed_probes():
+                probe_id = e.probe.probe_id
+                file, _, line = probe_id.partition(":")
+                log(f"  - {e.error_type}: {e.message}, in {probe_id}")
+                log(f"    >>> {linecache.getline(file, int(line))}")
 
         super(ExplorationDebugger, cls).disable(join=join)
+
+        if failed:
+            os._exit(2)
 
     @classmethod
     def get_snapshots(cls) -> t.List[t.Optional[bytes]]:
         if cls._instance is None:
-            return None
+            raise RuntimeError("ExplorationDebugger is not enabled")
         return cls._instance.__uploader__.get_collector().snapshots
 
     @classmethod
     def get_triggered_probes(cls) -> t.List[Probe]:
         if cls._instance is None:
-            return None
+            raise RuntimeError("ExplorationDebugger is not enabled")
         return cls._instance.__uploader__.get_collector().probes
 
     @classmethod
+    def get_failed_probes(cls) -> t.List[Probe]:
+        if cls._instance is None:
+            raise RuntimeError("ExplorationDebugger is not enabled")
+        return [e for e in cls._instance._probe_registry.values() if e.error_type is not None]
+
+    @classmethod
     def add_probe(cls, probe: Probe) -> None:
+        if cls._instance is None:
+            raise RuntimeError("ExplorationDebugger is not enabled")
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, [probe])
 
     @classmethod
     def add_probes(cls, probes: t.List[Probe]) -> None:
+        if cls._instance is None:
+            raise RuntimeError("ExplorationDebugger is not enabled")
         cls._instance._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
 
     @classmethod
     def delete_probe(cls, probe: Probe) -> None:
+        if cls._instance is None:
+            raise RuntimeError("ExplorationDebugger is not enabled")
         cls._instance._on_configuration(ProbePollerEvent.DELETED_PROBES, [probe])
 
 

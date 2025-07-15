@@ -51,7 +51,6 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
-from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -68,7 +67,6 @@ from ddtrace.internal.codeowners import Codeowners
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
@@ -210,8 +208,8 @@ class CIVisibility(Service):
         self._should_upload_git_metadata = True
         self._itr_meta: Dict[str, Any] = {}
         self._itr_data: Optional[ITRData] = None
-        self._known_test_ids: Set[InternalTestId] = set()
-        self._test_properties: Dict[InternalTestId, TestProperties] = {}
+        self._known_test_ids: Set[TestId] = set()
+        self._test_properties: Dict[TestId, TestProperties] = {}
 
         self._session: Optional[TestVisibilitySession] = None
 
@@ -270,7 +268,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
@@ -324,12 +322,6 @@ class CIVisibility(Service):
         if not coverage_enabled_by_api and not asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
-            return False
-        if not is_coverage_available():
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
             return False
         return True
 
@@ -397,7 +389,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent_config.trace_agent_url if url is None else url,
+                intake_url=url or agent_config.trace_agent_url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
@@ -409,6 +401,9 @@ class CIVisibility(Service):
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
+        if asbool(os.getenv("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
+            return None
+
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:
@@ -525,7 +520,7 @@ class CIVisibility(Service):
         except Exception:  # noqa: E722
             log.debug("Error fetching skippable items", exc_info=True)
 
-    def _fetch_known_tests(self) -> Optional[Set[InternalTestId]]:
+    def _fetch_known_tests(self) -> Optional[Set[TestId]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_known_tests()
@@ -534,7 +529,7 @@ class CIVisibility(Service):
             log.debug("Error fetching unique tests", exc_info=True)
         return None
 
-    def _fetch_test_management_tests(self) -> Optional[Dict[InternalTestId, TestProperties]]:
+    def _fetch_test_management_tests(self) -> Optional[Dict[TestId, TestProperties]]:
         try:
             if self._api_client is not None:
                 return self._api_client.fetch_test_management_tests()
@@ -546,7 +541,7 @@ class CIVisibility(Service):
     def _should_skip_path(self, path: str, name: str, test_skipping_mode: Optional[str] = None) -> bool:
         """This method supports legacy usage of the CIVisibility service and should be removed
 
-        The conversion of path to InternalTestId or SuiteId is redundant and absent from the new way of getting item
+        The conversion of path to TestId or SuiteId is redundant and absent from the new way of getting item
         skipping status. This method has been updated to look for item_ids in a way that matches the previous behavior,
         including questionable use of os.path.relpath.
 
@@ -563,7 +558,7 @@ class CIVisibility(Service):
         module_name = module_path.replace("/", ".")
         suite_id = TestSuiteId(TestModuleId(module_name), suite_name)
 
-        item_id = suite_id if _test_skipping_mode == SUITE else InternalTestId(suite_id, name)
+        item_id = suite_id if _test_skipping_mode == SUITE else TestId(suite_id, name)
 
         return item_id in self._itr_data.skippable_items
 
@@ -635,7 +630,7 @@ class CIVisibility(Service):
         log.debug("%s disabled", cls.__name__)
 
     def _start_service(self) -> None:
-        tracer_filters = self.tracer._user_trace_processors
+        tracer_filters = self.tracer._span_aggregator.user_processors
         if not any(isinstance(tracer_filter, TraceCiVisibilityFilter) for tracer_filter in tracer_filters):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)
@@ -919,7 +914,7 @@ class CIVisibility(Service):
     def get_dd_env(self):
         return self._dd_env
 
-    def is_known_test(self, test_id: Union[TestId, InternalTestId]) -> bool:
+    def is_known_test(self, test_id: Union[TestId, TestId]) -> bool:
         # The assumption that we were not able to fetch unique tests properly if the length is 0 is acceptable
         # because the current EFD usage would cause the session to be faulty even if the query was successful but
         # not unique tests exist. In this case, we assume all tests are unique.
@@ -928,7 +923,7 @@ class CIVisibility(Service):
 
         return test_id in self._known_test_ids
 
-    def get_test_properties(self, test_id: Union[TestId, InternalTestId]) -> Optional[TestProperties]:
+    def get_test_properties(self, test_id: TestId) -> Optional[TestProperties]:
         return self._test_properties.get(test_id)
 
 

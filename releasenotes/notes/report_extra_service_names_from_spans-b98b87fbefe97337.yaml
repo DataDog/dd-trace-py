@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Tracer: This fix resolves an issue where programmatically set span services names would not get reported to Remote Configuration.
