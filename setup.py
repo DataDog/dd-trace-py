@@ -429,21 +429,18 @@ class CustomBuildExt(build_ext):
         else:
             library = next(target_dir.glob("lib_native.so"))
 
-
-        print(f"Library: {library}")
-
         if not library:
             raise RuntimeError("Not able to find native library")
 
-        suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
 
         if self.inplace:
-            output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
+            self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
         else:
-            output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
+            self.output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
 
-        output_dir.mkdir(parents=True, exist_ok=True)
-        destination = output_dir / f"_native{suffix}"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        destination = self.output_dir / f"_native{self.suffix}"
         print(f"Output path: {destination}")
         shutil.copy2(library, destination)
 
@@ -549,6 +546,8 @@ class CustomBuildExt(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
+            "-DEXTENSION_SUFFIX={}".format(self.suffix),
+            "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
         ]
 
         if BUILD_PROFILING_NATIVE_TESTS:

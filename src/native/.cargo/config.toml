@@ -1,16 +1,6 @@
 [build]
 rustflags = ["-C", "relocation-model=pic"]
 
-[target.'cfg(target_os = "linux")']
-rustflags = [
-    "-C", "link-arg=-Wl,-soname,lib_native.so"
-]
-
-[target.'cfg(target_os = "macos")']
-rustflags = [
-    "-C", "link-arg=-Wl,-install_name,@rpath/lib_native.dylib"
-]
-
 [target.'cfg(target_os = "windows")']
 rustflags = [
     "-C", "target-feature=+crt-static"
