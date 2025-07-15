@@ -290,14 +290,6 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     assert task_results[0]["error"]["type"] == "builtins.ValueError"
 
 
-def test_experiment_evaluations_no_results_raises(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"
-    )
-    with pytest.raises(ValueError, match="No task results to evaluate."):
-        exp._run_evaluators([], raise_errors=False)
-
-
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"

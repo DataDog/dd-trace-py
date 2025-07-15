@@ -32,23 +32,25 @@ logger = get_logger(__name__)
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
+ExperimentConfigType = Dict[str, JSONType]
+DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
 class DatasetRecord(TypedDict):
-    input_data: Dict[str, NonNoneJSONType]
+    input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
     record_id: NotRequired[Optional[str]]
 
 
-class _TaskResult(TypedDict):
+class TaskResult(TypedDict):
     idx: int
     output: JSONType
-    metadata: Dict[str, Optional[Union[str, int]]]
+    metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
 
 
-class _EvaluationResult(TypedDict):
+class EvaluationResult(TypedDict):
     idx: int
     evaluations: Dict[str, Dict[str, JSONType]]
 
@@ -122,13 +124,13 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[Dict[str, NonNoneJSONType], JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
         tags: Optional[List[str]] = None,
-        config: Optional[Dict[str, JSONType]] = None,
+        config: Optional[ExperimentConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
         self.name = name
@@ -182,7 +184,7 @@ class Experiment:
         experiment_results = self._merge_results(task_results, evaluations)
         return experiment_results
 
-    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[_TaskResult]:
+    def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
         idx, record = idx_record
@@ -221,7 +223,7 @@ class Experiment:
                 },
             }
 
-    def _run_task(self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[_TaskResult]:
+    def _run_task(self, jobs: int, raise_errors: bool = False, sample_size: Optional[int] = None) -> List[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return []
         if sample_size is not None and sample_size < len(self._dataset):
@@ -249,10 +251,8 @@ class Experiment:
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
-    def _run_evaluators(self, task_results: List[_TaskResult], raise_errors: bool = False) -> List[_EvaluationResult]:
-        if not task_results:
-            raise ValueError("No task results to evaluate.")
-        evaluations: List[_EvaluationResult] = []
+    def _run_evaluators(self, task_results: List[TaskResult], raise_errors: bool = False) -> List[EvaluationResult]:
+        evaluations: List[EvaluationResult] = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
             record: DatasetRecord = self._dataset[idx]
@@ -270,22 +270,20 @@ class Experiment:
                     exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
                     eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
                     if raise_errors:
-                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}")
+                        raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}") from e
                 evals_dict[evaluator.__name__] = {"value": eval_result, "error": eval_err}
-            evaluation: _EvaluationResult = {"idx": idx, "evaluations": evals_dict}
+            evaluation: EvaluationResult = {"idx": idx, "evaluations": evals_dict}
             evaluations.append(evaluation)
         return evaluations
 
     def _merge_results(
-        self, task_results: List[_TaskResult], evaluations: List[_EvaluationResult]
+        self, task_results: List[TaskResult], evaluations: List[EvaluationResult]
     ) -> List[ExperimentResult]:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
             metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], self._tags)}
-            _metadata = task_result.get("metadata") or {}
-            if isinstance(_metadata, dict):
-                metadata.update(_metadata)
+            metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
             exp_result: ExperimentResult = {
