@@ -833,7 +833,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 0.39.2
+      max: 0.47.1
 
 - integration_name: structlog
   is_external_package: true
