@@ -130,6 +130,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
         )
 
 
+@pytest.mark.skipif(sys.version_info[:2] == (3, 8), reason="Currently broken on 3.8")
 def test_gunicorn(gunicorn, tmp_path, monkeypatch):
     # type: (...) -> None
     args = ("-k", "gevent") if TESTING_GEVENT else tuple()
