@@ -81,12 +81,10 @@ message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
 
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
-    find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
+    find_package(Python3 COMPONENTS Interpreter REQUIRED)
     # Legacy variables expected elsewhere in the project/tests
     set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
     set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
-    set(PYTHON_LIBRARIES    ${Python3_LIBRARIES})
-    set(PYTHON_LIBRARY      ${Python3_LIBRARIES})
 
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
