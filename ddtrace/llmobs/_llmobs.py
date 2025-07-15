@@ -578,7 +578,9 @@ class LLMObs(Service):
 
     @classmethod
     def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
-        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
+        ds = cls._instance._dne_client.dataset_create_with_records(name, description, records)
+        ds._dne_client = cls._instance._dne_client
+        return ds
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
