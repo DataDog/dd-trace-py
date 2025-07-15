@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    grpc: This fix resolves an issue where the gRPC tracing implementation leaked the span context to the caller when using the future interface.
