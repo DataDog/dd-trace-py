@@ -35,6 +35,7 @@ from ..serverless import has_aws_lambda_agent_extension
 from ..serverless import in_aws_lambda
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
+from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
 from ..utils.formats import parse_tags_str
 from ..utils.http import Response
@@ -565,9 +566,17 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> HTTPWriter:
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+        try:
+            # Stop the writer to ensure it is not running while we reconfigure it.
+            self.stop()
+        except ServiceStatusError:
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            pass
+
         api_version = "v0.4" if appsec_enabled else self._api_version
 
-        new_instance = self.__class__(
+        return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
@@ -580,7 +589,6 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
         )
-        return new_instance
 
     @property
     def _agent_endpoint(self):

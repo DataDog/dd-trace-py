@@ -25,7 +25,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling import is_single_span_sampled
-from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
@@ -465,16 +464,6 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
-        try:
-            # Stop the writer to ensure it is not running while we reconfigure it.
-            self.writer.stop()
-        except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
-            pass
-        if isinstance(self.writer, AgentWriterInterface) and appsec_enabled:
-            # Ensure AppSec metadata is encoded by setting the API version to v0.4.
-            self.writer._api_version = "v0.4"
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
