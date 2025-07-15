@@ -70,7 +70,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
-            
+
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
