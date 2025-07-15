@@ -346,7 +346,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def dataset_batch_update(self, dataset_id: str, records: List[DatasetRecord]) -> int:
         rs: JSONType = [
             {
-                "input": r["input_data"],
+                "input": cast(Dict[str, JSONType], r["input_data"]),
                 "expected_output": r["expected_output"],
                 "metadata": r.get("metadata", {}),
                 "record_id": r.get("record_id", None),
