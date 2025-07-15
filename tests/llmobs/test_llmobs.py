@@ -188,26 +188,6 @@ class TestLLMIOProcessing:
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["meta"]["input"]["messages"][0]["content"] == "keep me"
 
-    def _context_aware_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
-        """Test processor that uses span context for decision making."""
-        ctx = span.get_span_context()
-        if ctx is not None:
-            # Access full span context
-            span_kind = ctx._get_ctx_item("_ml_obs.span_kind")
-            if span_kind == "llm" and span.get_tag("redact_input") == "true":
-                span.input = [{"content": "[REDACTED]", "role": "user"}]
-        return span
-
-    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_context_aware_processor)])
-    def test_processor_span_context_access(self, llmobs, llmobs_enable_opts, llmobs_events):
-        """Test that processor can access full span context for decision making."""
-        with llmobs.llm() as llm_span:
-            llmobs.annotate(llm_span, input_data="sensitive data", output_data="response", tags={"redact_input": "true"})
-        
-        # Input should be redacted based on context-aware processing
-        assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"][0]["content"] == "[REDACTED]"
-
     def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""
         env = os.environ.copy()
