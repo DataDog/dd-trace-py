@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: improve support for function probes with frameworks
+    and applications that interact with the Python garbage collector (e.g.
+    synapse).
