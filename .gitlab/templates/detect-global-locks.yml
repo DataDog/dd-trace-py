@@ -15,6 +15,7 @@ detect-global-locks:
     DD_RUNTIME_METRICS_ENABLED: '1'
     DD_PROFILING_ENABLED: '1'
     DD_PROFILING_LOCK_ENABLED: '0' # This patches the lock class
+    DD_REMOTE_CONFIGURATION_ENABLED: '1'
   script: |
     set -e -o pipefail
     echo "Installing the client library"
