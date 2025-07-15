@@ -918,6 +918,15 @@ _PACKAGES = [
         import_name="annotated_types",
         skip_python_version=[(3, 8)],
     ),
+    PackageForTesting(
+        "babel",
+        "2.17.0",
+        "15",
+        "other",
+        "",
+        test_import=False,
+        test_propagation=True,
+    ),
 ]
 
 # Sort by name so it's easier to infer the progress of the tests
