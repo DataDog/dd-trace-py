@@ -76,26 +76,37 @@ def test_fork(tmp_path):
     assert exitcode == 0
     child_pid = stdout.decode().strip()
     profile = pprof_utils.parse_profile(filename + "." + str(pid))
+    parent_expected_acquire_events = [
+        pprof_utils.LockAcquireEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
+            lock_name="lock",
+        ),
+    ]
+    parent_expected_release_events = [
+        pprof_utils.LockReleaseEvent(
+            caller_name="<module>",
+            filename="simple_program_fork.py",
+            linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
+            lock_name="lock",
+        ),
+    ]
     pprof_utils.assert_lock_events(
         profile,
-        expected_acquire_events=[
-            pprof_utils.LockAcquireEvent(
-                caller_name="<module>",
-                filename="simple_program_fork.py",
-                linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
-                lock_name="lock",
-            ),
-        ],
-        expected_release_events=[
-            pprof_utils.LockReleaseEvent(
-                caller_name="<module>",
-                filename="simple_program_fork.py",
-                linenos=lock_utils.LineNo(create=11, acquire=12, release=28),
-                lock_name="lock",
-            ),
-        ],
+        expected_acquire_events=parent_expected_acquire_events,
+        expected_release_events=parent_expected_release_events,
     )
     child_profile = pprof_utils.parse_profile(filename + "." + str(child_pid))
+    # We expect the child profile to not have lock events from the parent process
+    # Note that assert_lock_events function only checks that the given events
+    # exists, and doesn't assert that other events don't exist.
+    with pytest.raises(AssertionError):
+        pprof_utils.assert_lock_events(
+            child_profile,
+            expected_acquire_events=parent_expected_acquire_events,
+            expected_release_events=parent_expected_release_events,
+        )
     pprof_utils.assert_lock_events(
         child_profile,
         expected_acquire_events=[
