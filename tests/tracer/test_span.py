@@ -603,7 +603,7 @@ class SpanTestCase(TracerTestCase):
         )
         expected_calls = [
             mock.call("record_exception: Attribute %s must be a string, number, or boolean: %s.", "tutu", {"a": "b"}),
-            mock.call("record_exception: Attribute %s array must be homogenous: %s.", "toto", ["titi", 1]),
+            mock.call("record_exception: Attribute %s array must be homogeneous: %s.", "toto", ["titi", 1]),
             mock.call("record_exception: List values %s must be string, number, or boolean: %s.", "tata", [[1]]),
             mock.call(
                 "record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.",

@@ -65,7 +65,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: hatch
+    runner: riot
   iast_aggregated_leak_testing:
     parallelism: 3
     paths:
@@ -104,7 +104,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_packages:
     env:
@@ -214,7 +214,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_flask:
     parallelism: 10
     paths:
@@ -230,7 +230,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'

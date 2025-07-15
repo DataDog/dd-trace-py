@@ -53,7 +53,7 @@ impl PyConfigurator {
                 Ok(list.into())
             }
             Err(e) => {
-                let err_msg = format!("Failed to get configuration: {:?}", e);
+                let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }
         }
@@ -116,7 +116,7 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
     match res {
         Ok(handle) => Ok(PyAnonymousFileHandle { internal: handle }),
         Err(e) => {
-            let err_msg = format!("Failed to store the tracer configuration: {:?}", e);
+            let err_msg = format!("Failed to store the tracer configuration: {e:?}");
             Err(PyException::new_err(err_msg))
         }
     }
