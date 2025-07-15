@@ -171,7 +171,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
         span_links = []
         if span_kind == "agent":
-            for tool_span_id in self._running_agents[span.span_id]:
+            for tool_span_id in self._running_agents.pop(span.span_id, []):
                 span_links.append(
                     {
                         "span_id": str(tool_span_id),
