@@ -204,7 +204,8 @@ check-slo-breaches:
   stage: gate
   when: always
   tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  # TODO: Testing image
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu-emit-metrics-to-datadog_679f38c2:latest
   artifacts:
     name: "artifacts"
     when: always
