@@ -7,7 +7,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
@@ -118,7 +117,6 @@ class MCPIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 NAME: span_name,
-                METADATA: {"mcp.operation": CLIENT_TOOL_CALL_OPERATION_NAME},
                 INPUT_VALUE: tool_arguments,
             }
         )
@@ -143,7 +141,6 @@ class MCPIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 NAME: span_name,
-                METADATA: {"mcp.operation": SERVER_TOOL_CALL_OPERATION_NAME},
                 INPUT_VALUE: tool_arguments,
             }
         )

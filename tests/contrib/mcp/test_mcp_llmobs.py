@@ -45,7 +45,6 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         span_kind="tool",
         input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
         output_value=json.dumps({"content": [{"type": "text", "text": '{\n  "result": 42\n}'}], "isError": False}),
-        metadata={"mcp.operation": "client_tool_call"},
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
@@ -53,7 +52,6 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
         span_kind="tool",
         input_value=json.dumps({"operation": "add", "a": 20, "b": 22}),
         output_value=json.dumps([{"type": "text", "text": '{\n  "result": 42\n}'}]),
-        metadata={"mcp.operation": "server_tool_call"},
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
 
@@ -91,14 +89,12 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
                 "isError": True,
             }
         ),
-        metadata={"mcp.operation": "client_tool_call"},
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
     )
     assert server_events[0] == _expected_llmobs_non_llm_span_event(
         server_span,
         span_kind="tool",
         input_value=json.dumps({"param": "value"}),
-        metadata={"mcp.operation": "server_tool_call"},
         tags={"service": "mcptest", "ml_app": "<ml-app-name>"},
         error="mcp.server.fastmcp.exceptions.ToolError",
         error_message="Error executing tool failing_tool: Tool execution failed",
