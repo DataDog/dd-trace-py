@@ -959,5 +959,5 @@ class Tracer(object):
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
-                forksafe.unregister(self._parent_after_fork)
+                forksafe.unregister_parent(self._parent_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
