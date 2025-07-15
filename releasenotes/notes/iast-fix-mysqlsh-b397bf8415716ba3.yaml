@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Code Security: AST analysis may fail or behave unexpectedly in cases where code overrides Python built-ins or 
+    globals at runtime, e.g., ``mysqlsh`` (MySQL Shell) reassigns globals with a custom object. 
+    This can interfere with analysis or instrumentation logic.
