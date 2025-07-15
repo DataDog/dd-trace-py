@@ -82,6 +82,7 @@ class Experiment:
         evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
+        tags: Optional[List[str]] = None,
         config: Optional[Dict[str, Any]] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
@@ -90,6 +91,7 @@ class Experiment:
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
+        self._tags = tags or []
         self._config: Dict[str, Any] = config or {}
         self._llmobs_instance = _llmobs_instance
 
@@ -100,10 +102,28 @@ class Experiment:
                 "or as an argument to `LLMObs.experiment(project_name=...)`."
             )
         self._project_name = project_name
+        # Below values are set at experiment creation time
         self._project_id: Optional[str] = None
         self._id: Optional[str] = None
+        self._run_name: Optional[str] = None
 
     def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            raise ValueError(
+                "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
+            )
+        experiment_id, experiment_run_name = self._llmobs_instance._create_experiment(
+            name=self.name,
+            dataset_id=self._dataset._id,
+            project_name=self._project_name,
+            dataset_version=self._dataset._version,
+            exp_config=self._config,
+            tags=self._tags,
+            description=self._description,
+        )
+        self._id = experiment_id
+        self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         self._run_evaluators(task_results, raise_errors=raise_errors)
         return

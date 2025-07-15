@@ -583,6 +583,24 @@ class LLMObs(Service):
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
+    def _create_experiment(
+        self,
+        name: str,
+        dataset_id: str,
+        project_name: str,
+        dataset_version: int = 0,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        project_id = self._dne_client.project_get(project_name)
+        if not project_id:
+            project_id = self._dne_client.project_create(project_name)
+        experiment_id, experiment_run_name = self._dne_client.experiment_create(
+            name, dataset_id, project_id, dataset_version, exp_config, tags, description
+        )
+        return experiment_id, experiment_run_name
+
     @classmethod
     def experiment(
         cls,
@@ -592,6 +610,7 @@ class LLMObs(Service):
         evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
         description: str = "",
         project_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -604,6 +623,7 @@ class LLMObs(Service):
         :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
                              configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
                              or `LLMObs.enable(project_name=...)`.
+        :param tags: A list of string tags to associate with the experiment.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -629,6 +649,7 @@ class LLMObs(Service):
             dataset,
             evaluators,
             project_name=project_name,
+            tags=tags,
             description=description,
             _llmobs_instance=cls._instance,
         )
