@@ -84,6 +84,8 @@ def _human_size(nbytes: float) -> str:
 
 
 class TraceWriter(metaclass=abc.ABCMeta):
+    # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
+    #       Find an alternative way to do this without having to pass the parameter/recreating the writer
     @abc.abstractmethod
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
         pass
