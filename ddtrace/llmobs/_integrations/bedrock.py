@@ -9,6 +9,8 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -24,6 +26,7 @@ from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
+from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
@@ -78,6 +81,8 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["stop_reason"] = ctx["llmobs.stop_reason"]
         if ctx.get_item("llmobs.usage"):
             usage_metrics = ctx["llmobs.usage"]
+
+        normalize_input_tokens(usage_metrics)
 
         if "total_tokens" not in usage_metrics and (
             "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
@@ -259,6 +264,18 @@ class BedrockIntegration(BaseLLMIntegration):
                     if "{}Tokens".format(token_type) in usage:
                         usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
 
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
+                if cache_read_tokens is not None:
+                    usage_metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+                if cache_write_tokens is not None:
+                    usage_metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+
             if "messageStart" in chunk:
                 message_data = chunk["messageStart"]
                 current_message = {"role": message_data.get("role", "assistant"), "content_block_indicies": []}
@@ -310,6 +327,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not messages:
             messages.append({"role": "assistant", "content": ""})
 
+        normalize_input_tokens(usage_metrics)
         return messages, metadata, usage_metrics
 
     @staticmethod

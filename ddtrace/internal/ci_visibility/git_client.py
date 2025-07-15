@@ -93,7 +93,9 @@ class CIVisibilityGitClient(object):
         self._metadata_upload_status = Value(c_int, METADATA_UPLOAD_STATUS.PENDING, lock=True)
 
         if self._requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
-            tracer_url = agent_config.trace_agent_url if tracer is None else tracer._agent_url
+            tracer_url = agent_config.trace_agent_url
+            if tracer:
+                tracer_url = tracer._agent_url or tracer_url
             self._base_url = urljoin(tracer_url, EVP_PROXY_AGENT_BASE_PATH + GIT_API_BASE_PATH)
         elif self._requests_mode == REQUESTS_MODE.AGENTLESS_EVENTS:
             self._base_url = urljoin(

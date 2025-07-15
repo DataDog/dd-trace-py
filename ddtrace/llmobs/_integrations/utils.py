@@ -74,56 +74,6 @@ def get_generation_config_google(instance, kwargs):
     return generation_config or _get_attr(instance, "_generation_config", {})
 
 
-def tag_request_content_part_google(tag_prefix, span, integration, part, part_idx, content_idx):
-    """Tag the generation span with request content parts."""
-    text = _get_attr(part, "text", "")
-    function_call = _get_attr(part, "function_call", None)
-    function_response = _get_attr(part, "function_response", None)
-    span.set_tag_str(
-        "%s.request.contents.%d.parts.%d.text" % (tag_prefix, content_idx, part_idx), integration.trunc(str(text))
-    )
-    if function_call:
-        function_call_dict = type(function_call).to_dict(function_call)
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_call.name" % (tag_prefix, content_idx, part_idx),
-            function_call_dict.get("name", ""),
-        )
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_call.args" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(function_call_dict.get("args", {}))),
-        )
-    if function_response:
-        function_response_dict = type(function_response).to_dict(function_response)
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_response.name" % (tag_prefix, content_idx, part_idx),
-            function_response_dict.get("name", ""),
-        )
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_response.response" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(function_response_dict.get("response", {}))),
-        )
-
-
-def tag_response_part_google(tag_prefix, span, integration, part, part_idx, candidate_idx):
-    """Tag the generation span with response part text and function calls."""
-    text = _get_attr(part, "text", "")
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.text" % (tag_prefix, candidate_idx, part_idx),
-        integration.trunc(str(text)),
-    )
-    function_call = _get_attr(part, "function_call", None)
-    if not function_call:
-        return
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.function_call.name" % (tag_prefix, candidate_idx, part_idx),
-        _get_attr(function_call, "name", ""),
-    )
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.function_call.args" % (tag_prefix, candidate_idx, part_idx),
-        integration.trunc(str(_get_attr(function_call, "args", {}))),
-    )
-
-
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
@@ -273,7 +223,7 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return str(message)
 
 
-def get_messages_from_converse_content(role: str, content: list):
+def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]):
     """
     Extracts out a list of messages from a converse `content` field.
 
@@ -285,9 +235,11 @@ def get_messages_from_converse_content(role: str, content: list):
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     content_blocks = []
     tool_calls_info = []
+    tool_messages: List[Dict[str, Any]] = []
+    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -300,9 +252,29 @@ def get_messages_from_converse_content(role: str, content: list):
                     "tool_id": str(toolUse.get("toolUseId", "")),
                 }
             )
+        elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
+            tool_message: Dict[str, Any] = content_block.get("toolResult", {})
+            tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
+            tool_message_id: str = tool_message.get("toolUseId", "")
+
+            for tool_message_content in tool_message_contents:
+                tool_message_content_text: Optional[str] = tool_message_content.get("text")
+                tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
+
+                tool_messages.append(
+                    {
+                        "content": tool_message_content_text
+                        or (tool_message_content_json and safe_json(tool_message_content_json))
+                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                        "role": "tool",
+                        "tool_id": tool_message_id,
+                    }
+                )
         else:
             content_type = ",".join(content_block.keys())
-            messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
+            unsupported_content_messages.append(
+                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
+            )
     message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
@@ -310,6 +282,10 @@ def get_messages_from_converse_content(role: str, content: list):
         message.update({"content": " ".join(content_blocks), "role": role})
     if message:
         messages.append(message)
+    if unsupported_content_messages:
+        messages.extend(unsupported_content_messages)
+    if tool_messages:
+        messages.extend(tool_messages)
     return messages
 
 
@@ -336,10 +312,26 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        tool_call_id = m.get("tool_call_id")
+        processed_message = {
+            "content": str(_get_attr(m, "content", "")),
+            "role": str(_get_attr(m, "role", "")),
+        }  # type: dict[str, Union[str, list[dict[str, dict]]]]
+        tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-        input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
+            processed_message["tool_id"] = tool_call_id
+        tool_calls = _get_attr(m, "tool_calls", [])
+        if tool_calls:
+            processed_message["tool_calls"] = [
+                {
+                    "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                    "arguments": _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
+                    "tool_id": _get_attr(tool_call, "id", ""),
+                    "type": _get_attr(tool_call, "type", ""),
+                }
+                for tool_call in tool_calls
+            ]
+        input_messages.append(processed_message)
     parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 

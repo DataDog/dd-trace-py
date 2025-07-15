@@ -1,9 +1,8 @@
-import json
-
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.internal.logger import get_logger
 from tests.appsec.appsec_utils import django_server
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
@@ -39,9 +38,9 @@ def test_iast_cmdi():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"
@@ -89,9 +88,9 @@ def test_iast_header_injection():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2, f"Invalid number of spans ({len(spans_with_iast)}):\n{spans_with_iast}"

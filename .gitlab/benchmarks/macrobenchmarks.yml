@@ -66,9 +66,6 @@ variables:
     K6_OPTIONS_HIGH_LOAD_PRE_ALLOCATED_VUS: 4
     K6_OPTIONS_HIGH_LOAD_MAX_VUS: 4
 
-    # Gitlab and BP specific env vars. Do not modify.
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
-
   # Workaround: Currently we're not running the benchmarks on every PR, but GitHub still shows them as pending.
   # By marking the benchmarks as allow_failure, this should go away. (This workaround should be removed once the
   # benchmarks get changed to run on every PR)
@@ -383,7 +380,7 @@ check-slo-breaches:
     expire_in: 3 months
   script:
     - export ARTIFACTS_DIR="$(pwd)/platform/artifacts/"
-    - bp-runner .gitlab/benchmarks/bp-runner.fail-on-breach.yml
+    - bp-runner .gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml
 
 notify-slo-breaches:
   extends: .notify-slo-breaches

@@ -1,4 +1,5 @@
 import importlib
+import json
 import re
 import types
 from typing import Any
@@ -8,8 +9,12 @@ from typing import Text
 from typing import Union
 import zlib
 
+from hypothesis import given
+from hypothesis import seed
+from hypothesis import settings
 from hypothesis.strategies import binary
 from hypothesis.strategies import builds
+from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
 from ddtrace.appsec._constants import IAST
@@ -94,8 +99,8 @@ class CustomBytearray(bytearray):
     pass
 
 
-non_empty_text = text().filter(lambda x: x not in ("",))
-non_empty_binary = binary().filter(lambda x: x not in (b"",))
+non_empty_text = text().filter(lambda x: x not in ("",) and not x.startswith("\x00"))
+non_empty_binary = binary().filter(lambda x: x not in (b"",) and not x.startswith(b"\x00"))
 
 string_strategies: List[Any] = [
     text(),  # regular str
@@ -111,6 +116,10 @@ string_valid_to_taint_strategies: List[Any] = [
     non_empty_binary,  # regular bytes
     builds(bytearray, non_empty_binary),  # regular bytearray
 ]
+
+
+def iast_hypothesis_test(func):
+    return seed(42)(settings(max_examples=1000)(given(one_of(*string_strategies))(func)))
 
 
 def _get_iast_data():
@@ -133,3 +142,24 @@ def _end_iast_context_and_oce(span=None):
     end_iast_context(span)
     oce.release_request()
     _reset_global_limit()
+
+
+def load_iast_report(span):
+    """
+    Load the IAST report from the span.
+    This is used to ensure that the IAST report is available in the span for testing purposes.
+    """
+    if not hasattr(span, "get_tag"):
+        iast_report_json = span["meta"].get(IAST.JSON)
+        if iast_report_json is None:
+            iast_report = span.get("meta_struct", {}).get("iast")
+        else:
+            iast_report = json.loads(iast_report_json)
+
+    else:
+        iast_report_json = span.get_tag(IAST.JSON)
+        if iast_report_json is None:
+            iast_report = span.get_struct_tag(IAST.STRUCT)
+        else:
+            iast_report = json.loads(iast_report_json)
+    return iast_report

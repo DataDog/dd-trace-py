@@ -1,6 +1,6 @@
+import base64
 import contextlib
 from contextlib import contextmanager
-import dataclasses
 import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
@@ -11,7 +11,13 @@ from pathlib import Path
 import subprocess
 import sys
 import time
-from typing import List  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import TypedDict
+from typing import cast
 from urllib import parse
 import urllib.parse
 
@@ -543,6 +549,8 @@ class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
         self.spans = []
         self.traces = []
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -571,8 +579,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def __init__(self, *args, **kwargs):
         # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent_config.trace_agent_url
+        if len(args) == 0 and "intake_url" not in kwargs:
+            kwargs["intake_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -583,8 +591,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
@@ -603,7 +609,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
 
 
@@ -638,7 +644,7 @@ class DummyTracer(Tracer):
     @property
     def agent_url(self):
         # type: () -> str
-        return self._span_aggregator.writer.agent_url
+        return self._span_aggregator.writer.intake_url
 
     @property
     def encoder(self):
@@ -1027,18 +1033,109 @@ class SnapshotFailed(Exception):
     pass
 
 
-@dataclasses.dataclass
+class TestAgentRequest(TypedDict):
+    method: str
+    url: str
+    headers: Dict[str, str]
+    body: bytes
+    status: int
+    response: bytes
+
+
+class TestAgentClient:
+    def __init__(self, base_url: str, token: Optional[str] = None):
+        self._base_url = base_url
+        self._token = token
+
+    def _url(self, path: str) -> str:
+        if self._token:
+            path = f"{path}?test_session_token={self._token}"
+        return urllib.parse.urljoin(self._base_url, path)
+
+    def create_connection(self):
+        parsed = parse.urlparse(self._base_url)
+        assert parsed.hostname is not None
+        return httplib.HTTPConnection(parsed.hostname, parsed.port)
+
+    def _request(self, method: str, url: str) -> Tuple[int, bytes]:
+        conn = self.create_connection()
+        MAX_RETRY = 9
+        exp_time = 1.618034
+        for try_nb in range(MAX_RETRY):
+            try:
+                conn.request(method, url)
+                r = conn.getresponse()
+                return r.status, r.read()
+            except BaseException:
+                if try_nb == MAX_RETRY - 1:
+                    pytest.xfail("Failed to connect to test agent")
+                time.sleep(pow(exp_time, try_nb))
+            finally:
+                conn.close()
+        return 0, b""
+
+    def requests(self) -> List[TestAgentRequest]:
+        status, resp = self._request("GET", self._url("/test/session/requests"))
+        assert status == 200, "Failed to get test session requests"
+        data = json.loads(resp)
+        return cast(List[Dict[str, Any]], data)
+
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            if "dd-telemetry-request-type" not in req["headers"]:
+                continue
+
+            if telemetry_type is None:
+                reqs.append(req)
+            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
+                reqs.append(req)
+        return reqs
+
+    def crash_reports(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.telemetry_requests(telemetry_type="logs"):
+            # Parse the json data in order to filter based on "origin" key,
+            # but we give the user back just the raw body
+            try:
+                data = json.loads(base64.b64decode(req["body"]))
+            except Exception:
+                continue
+
+            if data.get("origin") != "Crashtracker":
+                continue
+
+            req["body"] = base64.b64decode(req["body"])
+            reqs.append(req)
+        return reqs
+
+    def clear(self) -> None:
+        status, body = self._request("GET", self._url("/test/session/clear"))
+        assert status == 200, (
+            "Failed to clear test session traces:\n"
+            f"url: {self._url('/test/session/clear')}\n"
+            f"status: {status}\n"
+            f"body: {body.decode('utf-8')}"
+        )
+
+
 class SnapshotTest:
     token: str
-    tracer: ddtrace.trace.Tracer = ddtrace.tracer
+    tracer: ddtrace.trace.Tracer
+    _client: TestAgentClient
+
+    def __init__(self, token: str, tracer: Optional[ddtrace.trace.Tracer] = None):
+        if not tracer:
+            tracer = ddtrace.tracer
+        self.tracer = tracer
+        self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
+
+    def requests(self) -> List[Dict[str, Any]]:
+        return self._client.requests()
 
     def clear(self):
         """Clear any traces sent that were sent for this snapshot."""
-        parsed = parse.urlparse(self.tracer.agent_trace_url)
-        conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
-        conn.request("GET", "/test/session/clear?test_session_token=%s" % self.token)
-        resp = conn.getresponse()
-        assert resp.status == 200
+        self._client.clear()
 
 
 @contextmanager
@@ -1063,7 +1160,7 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
