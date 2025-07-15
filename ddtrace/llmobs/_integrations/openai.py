@@ -146,6 +146,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         span: Span, resp: Any, span_kind: str, kwargs: Dict[str, Any]
     ) -> Optional[Dict[str, Any]]:
         """Extract metrics from a chat/completion and set them as a temporary "_ml_obs.metrics" tag."""
+        if span_kind == "workflow":
+            return None
+
         token_usage = None
 
         # in the streamed responses case, `resp` is a list with `usage` being stored in the first element
@@ -154,28 +157,27 @@ class OpenAIIntegration(BaseLLMIntegration):
         elif resp and getattr(resp, "usage", None):
             token_usage = resp.usage
         if token_usage is not None:
-            if span_kind != "workflow":
-                prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
-                completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
-                input_tokens = _get_attr(token_usage, "input_tokens", 0)
-                output_tokens = _get_attr(token_usage, "output_tokens", 0)
+            prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
+            completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
+            input_tokens = _get_attr(token_usage, "input_tokens", 0)
+            output_tokens = _get_attr(token_usage, "output_tokens", 0)
 
-                input_tokens = prompt_tokens or input_tokens
-                output_tokens = completion_tokens or output_tokens
+            input_tokens = prompt_tokens or input_tokens
+            output_tokens = completion_tokens or output_tokens
 
-                metrics = {
-                    INPUT_TOKENS_METRIC_KEY: input_tokens,
-                    OUTPUT_TOKENS_METRIC_KEY: output_tokens,
-                    TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
-                }
-                # Chat completions returns `prompt_tokens_details` while responses api returns `input_tokens_details`
-                prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {}) or _get_attr(
-                    token_usage, "input_tokens_details", {}
-                )
-                cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
-                if cached_tokens is not None:
-                    metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
-                return metrics
+            metrics = {
+                INPUT_TOKENS_METRIC_KEY: input_tokens,
+                OUTPUT_TOKENS_METRIC_KEY: output_tokens,
+                TOTAL_TOKENS_METRIC_KEY: input_tokens + output_tokens,
+            }
+            # Chat completions returns `prompt_tokens_details` while responses api returns `input_tokens_details`
+            prompt_tokens_details = _get_attr(token_usage, "prompt_tokens_details", {}) or _get_attr(
+                token_usage, "input_tokens_details", {}
+            )
+            cached_tokens = _get_attr(prompt_tokens_details, "cached_tokens", None)
+            if cached_tokens is not None:
+                metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cached_tokens
+            return metrics
         elif kwargs.get("stream") and resp is not None:
             model_name = span.get_tag("openai.response.model") or kwargs.get("model", "")
             _, prompt_tokens = _compute_prompt_tokens(
