@@ -227,7 +227,7 @@ class ExecutionContext(AbstractContextManager):
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
-            value = self._data.get(data_key, _MISSING)
+            value = current._data.get(data_key, _MISSING)
             if value is not _MISSING:
                 return value
             current = current._parent
