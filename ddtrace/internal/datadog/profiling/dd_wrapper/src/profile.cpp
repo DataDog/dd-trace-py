@@ -42,12 +42,10 @@ make_profile(const ddog_prof_Slice_ValueType& sample_types,
 }
 
 bool
-Datadog::Profile::cycle_buffers()
+Datadog::Profile::reset_profile()
 {
     const std::lock_guard<std::mutex> lock(profile_mtx);
     static bool already_warned = false; // cppcheck-suppress threadsafety-threadsafety
-
-    std::swap(last_profile, cur_profile);
 
     // Clear the profile before using it
     auto res = ddog_prof_Profile_reset(&cur_profile);
@@ -190,13 +188,6 @@ Datadog::Profile::one_time_init(SampleType type, unsigned int _max_nframes)
         }
         return;
     }
-    if (!make_profile(sample_types, &default_period, last_profile)) {
-        if (!already_warned) {
-            already_warned = true;
-            std::cerr << "Error initializing last profile" << std::endl;
-        }
-        return;
-    }
 
     // We're done. Don't do this again.
     first_time.store(false);
@@ -231,5 +222,6 @@ void
 Datadog::Profile::postfork_child()
 {
     new (&profile_mtx) std::mutex();
-    cycle_buffers();
+    // Reset the profile to clear any samples collected in the parent process
+    reset_profile();
 }
