@@ -1,0 +1,3 @@
+other:
+  - |
+    gemini: Removes the IO data from the APM spans for Gemini LLM requests and responses, which is duplicated in the LLM Observability span.
