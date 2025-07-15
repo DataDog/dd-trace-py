@@ -101,7 +101,6 @@ like this::
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
 
-from contextlib import AbstractContextManager
 import logging
 import sys
 import types
@@ -162,7 +161,7 @@ def _deprecate_span_kwarg(span):
         )
 
 
-class ExecutionContext(AbstractContextManager):
+class ExecutionContext(object):
     __slots__ = ("identifier", "_data", "_span", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
     def __init__(
@@ -176,10 +175,11 @@ class ExecutionContext(AbstractContextManager):
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
+        self._token: Optional[contextvars.Token["ExecutionContext"]] = None
 
     def __enter__(self) -> "ExecutionContext":
         if self._span is None and "_CURRENT_CONTEXT" in globals():
-            self._token: contextvars.Token["ExecutionContext"] = _CURRENT_CONTEXT.set(self)
+            self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         return self
 
@@ -202,7 +202,7 @@ class ExecutionContext(AbstractContextManager):
         dispatch("context.ended.%s" % self.identifier, (self,))
         if self._span is None:
             try:
-                if hasattr(self, "_token"):
+                if self._token is not None:
                     _CURRENT_CONTEXT.reset(self._token)
             except ValueError:
                 log.debug(
