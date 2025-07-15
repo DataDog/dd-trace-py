@@ -134,31 +134,6 @@ needs_testrun = [
   "scripts/needs_testrun.py {args}",
 ]
 
-## ASM Native IAST module
-
-[envs.appsec_iast_native]
-template = "appsec_iast_native"
-dependencies = [
-    "cmake",
-    "pybind11",
-    "clang"
-]
-
-[envs.appsec_iast_native.env-vars]
-_DD_IAST_PATCH_MODULES = "benchmarks.,tests.appsec."
-DD_IAST_REQUEST_SAMPLING = "100"
-DD_IAST_VULNERABILITIES_PER_REQUEST = "100000"
-DD_IAST_DEDUPLICATION_ENABLED = "false"
-
-[envs.appsec_iast_native.scripts]
-test = [
-    "cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python -S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking",
-    "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests",
-    "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests"
-]
-
-[[envs.appsec_iast_native.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
 
 ## IAST packages integrations
 
