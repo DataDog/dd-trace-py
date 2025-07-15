@@ -386,18 +386,18 @@ memalloc_heap(void)
                 break;
             }
             
-            PyObject* tb_and_info = PyTuple_New(5);
+            PyObject* tb_and_info = PyTuple_New(4);
             if (tb_and_info == NULL) {
                 continue;
             }
             
+            size_t in_use_size = tb->size;
+            size_t alloc_size = tb->reported ? 0 : tb->size;
+            
             PyTuple_SET_ITEM(tb_and_info, 0, traceback_to_tuple(tb));
-            PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(tb->size));
-            PyTuple_SET_ITEM(tb_and_info, 2, Py_True); /* in_use = True for live samples */
-            Py_INCREF(Py_True);
+            PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
+            PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
             PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
-            PyTuple_SET_ITEM(tb_and_info, 4, tb->reported ? Py_True : Py_False);
-            Py_INCREF(tb->reported ? Py_True : Py_False);
             
             PyList_SET_ITEM(heap_list, list_index, tb_and_info);
             list_index++;
@@ -417,18 +417,18 @@ memalloc_heap(void)
         
         traceback_t* tb = global_heap_tracker.allocation_list.tab[i];
         
-        PyObject* tb_and_info = PyTuple_New(5);
+        PyObject* tb_and_info = PyTuple_New(4);
         if (tb_and_info == NULL) {
             continue;
         }
         
+        size_t in_use_size = 0;
+        size_t alloc_size = tb->size;
+        
         PyTuple_SET_ITEM(tb_and_info, 0, traceback_to_tuple(tb));
-        PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(tb->size));
-        PyTuple_SET_ITEM(tb_and_info, 2, Py_False); /* in_use = False for freed samples */
-        Py_INCREF(Py_False);
+        PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
+        PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
         PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
-        PyTuple_SET_ITEM(tb_and_info, 4, tb->reported ? Py_True : Py_False);
-        Py_INCREF(tb->reported ? Py_True : Py_False);
         
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
         list_index++;

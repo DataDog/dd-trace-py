@@ -198,7 +198,10 @@ class HeapInfo:
 def get_heap_info(heap, funcs):
     got = {}
     for event in heap:
-        (frames, _, _), size, in_use, count, reported = event
+        (frames, _, _), in_use_size, alloc_size, count = event
+        
+        in_use = in_use_size > 0
+        size = in_use_size if in_use_size > 0 else alloc_size
         
         if not in_use:
             continue

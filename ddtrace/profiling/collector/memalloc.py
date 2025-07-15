@@ -95,15 +95,15 @@ class MemoryCollector(collector.PeriodicCollector):
             return tuple()
 
         for event in events:
-            (frames, _, thread_id), size, in_use, count, reported = event
+            (frames, _, thread_id), in_use_size, alloc_size, count = event
             
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:                
                 handle = ddup.SampleHandle()
                 
-                if in_use:
-                    handle.push_heap(size)
-                if not in_use or not reported:
-                    handle.push_alloc(size, count)
+                if in_use_size > 0:
+                    handle.push_heap(in_use_size)
+                if alloc_size > 0:
+                    handle.push_alloc(alloc_size, count)
                 
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
@@ -130,11 +130,10 @@ class MemoryCollector(collector.PeriodicCollector):
 
         samples = []
         for event in events:
-            (frames, _, thread_id), size, in_use, count, reported = event
+            (frames, _, thread_id), in_use_size, alloc_size, count = event
             
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
-                in_use_size = size if in_use else 0
-                alloc_size = size if (not in_use or not reported) else 0
+                size = in_use_size if in_use_size > 0 else alloc_size
                 
                 samples.append(MemorySample(frames, size, count, in_use_size, alloc_size))
                 
