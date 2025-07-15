@@ -166,6 +166,7 @@ venv = Venv(
                 "mysql-connector-python": latest,
                 "MarkupSafe": "~=2.1.1",
                 "Werkzeug": "~=3.0.6",
+                "babel": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
