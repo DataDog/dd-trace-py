@@ -436,7 +436,12 @@ class CustomBuildExt(build_ext):
             raise RuntimeError("Not able to find native library")
 
         suffix = sysconfig.get_config_var("EXT_SUFFIX")
-        output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
+
+        if self.inplace:
+            output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
+        else:
+            output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
+
         output_dir.mkdir(parents=True, exist_ok=True)
         destination = output_dir / f"_native{suffix}"
         print(f"Output path: {destination}")
@@ -970,4 +975,5 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
+    + get_exts_for("psutil")
 )
