@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import sys
-import time
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -18,12 +17,15 @@ from typing_extensions import NotRequired
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.logger import get_logger
 
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
+
+logger = get_logger(__name__)
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
 NonNoneJSONType = Union[str, int, float, bool, List[JSONType], Dict[str, JSONType]]
@@ -117,11 +119,17 @@ class Experiment:
         self._run_name: Optional[str] = None
 
     def run(self, jobs: int = 1, raise_errors: bool = False, sample_size: Optional[int] = None) -> None:
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+        if not self._llmobs_instance:
             raise ValueError(
                 "LLMObs is not enabled. Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
                 "and create the experiment via `LLMObs.experiment(...)` before running the experiment."
             )
+        if not self._llmobs_instance.enabled:
+            logger.warning(
+                "Skipping experiment as LLMObs is not enabled. "
+                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
+            )
+            return
         experiment_id, experiment_run_name = self._llmobs_instance._create_experiment(
             name=self.name,
             dataset_id=self._dataset._id,
@@ -141,7 +149,6 @@ class Experiment:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return {}
         idx, record = idx_record
-        start_ns = time.time_ns()
         with self._llmobs_instance._experiment(name=self._task.__name__, experiment_id=self._id) as span:
             span_context = self._llmobs_instance.export_span(span=span)
             if span_context:
@@ -162,8 +169,8 @@ class Experiment:
                 "idx": idx,
                 "output": output_data,
                 "metadata": {
-                    "timestamp": start_ns,
-                    "duration": time.time_ns() - start_ns,
+                    "timestamp": span.start_ns,
+                    "duration": span.duration_ns,
                     "dataset_record_index": idx,
                     "experiment_name": self.name,
                     "dataset_name": self._dataset.name,
@@ -198,8 +205,10 @@ class Experiment:
         with ThreadPoolExecutor(max_workers=jobs) as executor:
             for result in executor.map(self._process_record, enumerate(subset_dataset)):
                 task_results.append(result)
-                if raise_errors and result["error"]["message"]:
-                    raise RuntimeError("Error on record {}: {}".format(result["idx"], result["error"]["message"]))
+                err_dict = result.get("error") or {}
+                err_msg = err_dict.get("message") if isinstance(err_dict, dict) else None
+                if raise_errors and err_msg:
+                    raise RuntimeError("Error on record {}: {}".format(result["idx"], err_msg))
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
