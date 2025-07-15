@@ -182,8 +182,8 @@ def _send_telemetry(event):
     p = subprocess.Popen(
         [FORWARDER_EXECUTABLE, "library_entrypoint"],
         stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
         universal_newlines=True,
     )
     # Mimic Popen.__exit__ which was added in Python 3.3
@@ -199,10 +199,6 @@ def _send_telemetry(event):
     finally:
         if p.stdin:
             p.stdin.close()
-        if p.stderr:
-            p.stderr.close()
-        if p.stdout:
-            p.stdout.close()
 
         # backwards compatible `p.wait(1)`
         start = time.time()

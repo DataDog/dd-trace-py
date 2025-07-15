@@ -88,11 +88,16 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""
-        return {
-            field_name: field_value
-            for field_name in ["type", "text", "annotations", "meta"]
-            if (field_value := _get_attr(item, field_name, None)) is not None
+        content_block = {
+            "type": _get_attr(item, "type", "") or "",
+            "annotations": annotations.model_dump()
+            if (annotations := _get_attr(item, "annotations", None)) and hasattr(annotations, "model_dump")
+            else {},
+            "meta": _get_attr(item, "meta", {}) or {},
         }
+        if content_block["type"] == "text":
+            content_block["text"] = _get_attr(item, "text", "") or ""
+        return content_block
 
     def _llmobs_set_tags(
         self,
