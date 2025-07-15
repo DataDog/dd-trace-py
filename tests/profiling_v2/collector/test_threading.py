@@ -806,3 +806,40 @@ class TestThreadingLockCollector:
                 ),
             ],
         )
+
+    def test_upload_resets_profile(self):
+        # This test checks that the profile is cleared after each upload() call
+        # It is added in test_threading.py as LockCollector can easily be
+        # configured to be deterministic with capture_pct=100.
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
+            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
+                pass
+        ddup.upload()
+
+        linenos = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
+
+        pprof = pprof_utils.parse_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            pprof,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+        )
+
+        # Now we call upload() again, and we expect the profile to be empty
+        ddup.upload()
+        # parse_profile raises an AssertionError if the profile doesn't
+        # have any samples
+        with pytest.raises(AssertionError):
+            pprof_utils.parse_profile(self.output_filename)
