@@ -77,7 +77,7 @@ def unregister(after_in_child):
 
 def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
     try:
-        _registry.remove(after_in_parent)
+        _registry_after_parent.remove(after_in_parent)
     except ValueError:
         log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
 
