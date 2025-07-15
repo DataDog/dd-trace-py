@@ -18,19 +18,21 @@ interactions:
       User-Agent:
       - python-requests/2.32.3
     method: GET
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/df56b404-42a2-4a55-aaec-702c83a152f3/records
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/e69e7ba5-3282-4534-8fe0-a0f0e96ca230/records
   response:
     body:
-      string: '{"data":[],"meta":{"after":""}}'
+      string: '{"data":[{"id":"728b7e73-6ab4-4bf5-b0e6-8309b5558d9d","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-15T04:23:54.382116Z","dataset_id":"e69e7ba5-3282-4534-8fe0-a0f0e96ca230","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"metadata":{},"updated_at":"2025-07-15T04:23:54.382116Z"}},{"id":"48857ab9-84be-4c8e-9f5f-7f4e1e3acba1","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-15T04:23:51.895432Z","dataset_id":"e69e7ba5-3282-4534-8fe0-a0f0e96ca230","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"metadata":{},"updated_at":"2025-07-15T04:23:51.895432Z"}}],"meta":{"after":""}}'
     headers:
       content-length:
-      - '31'
+      - '782'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Fri, 11 Jul 2025 02:28:09 GMT
+      - Tue, 15 Jul 2025 04:23:57 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
