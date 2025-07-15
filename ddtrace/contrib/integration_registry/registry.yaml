@@ -493,6 +493,7 @@ integrations:
   dependency_names:
   - langgraph
   - langgraph-checkpoint
+  - langgraph-prebuilt
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
