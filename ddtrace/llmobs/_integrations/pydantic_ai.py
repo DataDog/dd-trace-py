@@ -70,15 +70,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
-
-        metrics = self.extract_usage_metrics(response, kwargs)
+            
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
                 SPAN_LINKS: span_links,
                 MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
-                METRICS: metrics,
             }
         )
 
@@ -118,11 +116,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-
+        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: result,
+                METRICS: metrics,
             }
         )
 
@@ -143,9 +142,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 INPUT_VALUE: tool_input,
             }
         )
-        if span.error:
-            return
-        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
+        if not span.error:
+            span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
 
     def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         response = kwargs.get("streamed_run_result", None) or response
