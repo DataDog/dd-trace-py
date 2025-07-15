@@ -3,7 +3,11 @@ include(FetchContent)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
-option(NATIVE_TESTING "Load test subdirectories and targets" ON)
+if(DEFINED ENV{CIBUILDWHEEL} OR DEFINED ENV{CIBW_BUILD})
+    option(NATIVE_TESTING "Disable test subdirectories and targets" OFF)
+else()
+    option(NATIVE_TESTING "Load test subdirectories and targets" ON)
+endif()
 
 project(${APP_NAME})
 
