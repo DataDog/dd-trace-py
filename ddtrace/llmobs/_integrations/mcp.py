@@ -28,7 +28,9 @@ class MCPIntegration(BaseLLMIntegration):
         """Parse MCP TextContent fields, extracting only non-None values."""
         content_block = {
             "type": _get_attr(item, "type", "") or "",
-            "annotations": _get_attr(item, "annotations", {}) or {},
+            "annotations": annotations.model_dump()
+            if (annotations := _get_attr(item, "annotations", None)) and hasattr(annotations, "model_dump")
+            else {},
             "meta": _get_attr(item, "meta", {}) or {},
         }
         if content_block["type"] == "text":
