@@ -48,7 +48,6 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
-from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -240,11 +239,6 @@ class LLMObs(Service):
             raise KeyError("Span kind not found in span context")
 
         llmobs_span = LLMObsSpan()
-        _dd_attrs = {
-            "span_id": str(span.span_id),
-            "trace_id": format_trace_id(span.trace_id),
-            "apm_trace_id": format_trace_id(span.trace_id),
-        }
 
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
@@ -264,12 +258,6 @@ class LLMObs(Service):
         if span_kind == "llm" and input_messages is not None:
             input_type = "messages"
             llmobs_span.input = cast(List[LLMObsSpan.Message], enforce_message_role(input_messages))
-
-        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
-            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT_KEY)
-            if span_kind == "experiment" and expected_output:
-                meta["expected_output"] = expected_output
-            _dd_attrs["scope"] = "experiments"
 
         if span._get_ctx_item(OUTPUT_VALUE) is not None:
             output_type = "value"
@@ -359,7 +347,11 @@ class LLMObs(Service):
             "meta": meta,
             "metrics": metrics,
             "tags": [],
-            "_dd": _dd_attrs,
+            "_dd": {
+                "span_id": str(span.span_id),
+                "trace_id": format_trace_id(span.trace_id),
+                "apm_trace_id": format_trace_id(span.trace_id),
+            },
         }
         session_id = _get_session_id(span)
         if session_id is not None:
