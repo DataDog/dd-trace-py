@@ -87,6 +87,30 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset, test_dataset_reco
     assert dataset._version == test_dataset._version == 1
 
 
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
+    test_dataset[0]["input_data"] = {"prompt": "What is the capital of Germany?"}
+    test_dataset[0]["expected_output"] = {"answer": "Berlin"}
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+    assert test_dataset._version == 2
+
+    # assert that the version is consistent with a new pull
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert ds[0]["expected_output"] == {"answer": "Berlin"}
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+    assert ds._version == 2
+
+
 def test_project_create(llmobs):
     project_id = llmobs._instance._dne_client.project_create(name="test-project")
     assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
