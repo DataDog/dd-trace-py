@@ -35,6 +35,7 @@ from tests.utils import override_env
 
 _USE_PLUGIN_V2 = True
 
+
 def _get_spans_from_list(
     spans: t.List[ddtrace.trace.Span],
     span_type: str,
