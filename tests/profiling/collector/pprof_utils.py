@@ -136,7 +136,11 @@ class LockReleaseEvent(LockEvent):
 
 
 def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
-    """Parse the newest profile that has given filename prefix"""
+    """Parse the newest profile that has given filename prefix. The profiler
+    outputs profile file with following naming convention:
+    <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
+    the newest profile that has given filename prefix.
+    """
     files = glob.glob(filename_prefix + ".*")
     # Sort files by creation timestamp (oldest first, newest last)
     files.sort(key=lambda f: os.path.getctime(f))
