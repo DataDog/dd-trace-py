@@ -56,8 +56,6 @@ variables:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
@@ -201,7 +199,6 @@ benchmarks-pr-comment:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
 check-slo-breaches:
   stage: gate

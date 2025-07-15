@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    lib-injection: Fix a bug preventing the Single Step Instrumentation (SSI) telemetry forwarder from completing when debug logging was enabled.

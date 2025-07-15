@@ -1,5 +1,6 @@
 import pytest
 
+from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.contrib.internal.psycopg.patch import patch as psycopg_patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch as psycopg_unpatch
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sqlalchemy_patch
@@ -19,6 +20,7 @@ def iast_create_context():
         sqlalchemy_patch()
         psycopg_patch()
         sqli_sqlite_patch()
+        code_injection_patch()
         _start_iast_context_and_oce()
         yield
         _end_iast_context_and_oce()
