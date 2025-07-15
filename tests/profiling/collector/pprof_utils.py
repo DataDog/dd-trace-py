@@ -135,7 +135,8 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_profile(filename_prefix: str):
+def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+    """Parse the newest profile that has given filename prefix"""
     files = glob.glob(filename_prefix + ".*")
     # Sort files by creation timestamp (oldest first, newest last)
     files.sort(key=lambda f: os.path.getctime(f))
