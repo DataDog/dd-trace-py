@@ -9,7 +9,6 @@ from riot import Venv
 logger = logging.getLogger(__name__)
 latest = ""
 
-
 SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 8),
     (3, 9),
@@ -80,37 +79,6 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     return [version_to_str(version) for version in SUPPORTED_PYTHON_VERSIONS if min_version <= version <= max_version]
 
 
-# Flask version matrix for appsec_threats_flask
-FLASK_THREATS_VENVS = [
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "~=1.1",
-            "MarkupSafe": "~=1.1",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.9"],
-        pkgs={
-            "flask": "==2.1.3",
-            "Werkzeug": "<3.0",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.10", "3.13"],
-        pkgs={
-            "flask": "~=2.3",
-        },
-    ),
-    Venv(
-        pys=["3.8", "3.11", "3.13"],
-        pkgs={
-            "flask": "~=3.0",
-        },
-    ),
-]
-
-
 # Common venv configurations for appsec threats testing
 _appsec_threats_iast_variants = [
     Venv(
@@ -122,10 +90,10 @@ _appsec_threats_iast_variants = [
         env={
             "DD_IAST_ENABLED": "true",
             "DD_IAST_REQUEST_SAMPLING": "100",
+            "DD_IAST_DEDUPLICATION_ENABLED": "false",
         },
     ),
 ]
-
 
 venv = Venv(
     pkgs={
@@ -181,6 +149,30 @@ venv = Venv(
             },
             env={
                 "DD_CIVISIBILITY_ITR_ENABLED": "0",
+            },
+        ),
+        Venv(
+            name="appsec_integrations_packages",
+            pys=select_pys(),
+            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            pkgs={
+                "pytest-xdist": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+                "SQLAlchemy": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "pymysql": latest,
+                "mysqlclient": "==2.1.1",
+                "mysql-connector-python": latest,
+                "MarkupSafe": "~=2.1.1",
+                "Werkzeug": "~=3.0.6",
+                "babel": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
         Venv(
@@ -1351,6 +1343,28 @@ venv = Venv(
                 Venv(command="pytest {cmdargs} --ignore=tests/contrib/pymemcache/autopatch tests/contrib/pymemcache"),
                 Venv(command="python tests/ddtrace_run.py pytest {cmdargs} tests/contrib/pymemcache/autopatch/"),
             ],
+        ),
+        Venv(
+            name="appsec_integrations_pygoat",
+            pys=["3.10", "3.11", "3.12"],
+            pkgs={
+                "requests": latest,
+                "pyyaml": "==6.0.1",
+            },
+            env={
+                "DD_CIVISIBILITY_ITR_ENABLED": "false",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_ENABLED": "true",
+                "_DD_IAST_DEBUG": "false",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_TRACE_AGENT_URL": "http://0.0.0.0:9126",
+                "DD_FAST_BUILD": "1",
+                "PYDONTWRITEBYTECODE": "1",
+                "PYTHONUNBUFFERED": "1",
+            },
+            command="bash tests/appsec/integrations/pygoat_tests/run_pygoat.sh tests/appsec/integrations/pygoat_tests/",
         ),
         Venv(
             name="pynamodb",
@@ -3486,7 +3500,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_django",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_django.py",
+            command="pytest tests/appsec/contrib_appsec/test_django.py {cmdargs}",
             pkgs={
                 "requests": latest,
             },
@@ -3534,7 +3548,8 @@ venv = Venv(
             ],
         ),
         Venv(
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_flask.py",
+            name="appsec_threats_flask",
+            command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
             pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
                 "pytest": latest,
@@ -3549,19 +3564,97 @@ venv = Venv(
             },
             venvs=[
                 Venv(
-                    name="appsec_threats_flask_no_iast",
-                    env={"DD_IAST_ENABLED": "false"},
-                    venvs=FLASK_THREATS_VENVS,
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "~=1.1",
+                        "MarkupSafe": "~=1.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
                 Venv(
-                    name="appsec_threats_flask_iast",
-                    env={
-                        "DD_IAST_ENABLED": "true",
-                        "DD_IAST_REQUEST_SAMPLING": "100",
+                    pys=["3.8", "3.9"],
+                    pkgs={
+                        "flask": "==2.1.3",
+                        "Werkzeug": "<3.0",
                     },
-                    venvs=FLASK_THREATS_VENVS,
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "flask": "~=2.3",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.11", "3.13"],
+                    pkgs={
+                        "flask": "~=3.0",
+                    },
+                    venvs=_appsec_threats_iast_variants,
                 ),
             ],
+        ),
+        Venv(
+            name="appsec_threats_fastapi",
+            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
+            pys=["3.8", "3.10", "3.13"],
+            pkgs={
+                "pytest": latest,
+                "pytest-cov": latest,
+                "requests": latest,
+                "hypothesis": latest,
+                "httpx": "<0.28.0",
+            },
+            env={
+                "DD_TRACE_AGENT_URL": "http://testagent:9126",
+                "AGENT_VERSION": "testagent",
+                "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+            venvs=[
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.86.0",
+                        "anyio": "==3.7.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "==0.94.1",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+                Venv(
+                    pys=["3.8", "3.10", "3.13"],
+                    pkgs={
+                        "fastapi": "~=0.114.2",
+                    },
+                    venvs=_appsec_threats_iast_variants,
+                ),
+            ],
+        ),
+        Venv(
+            name="appsec_iast_native",
+            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python "
+            "-S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && "
+            "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && "
+            "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
+            pys=select_pys(),
+            pkgs={
+                "cmake": latest,
+                "pybind11": latest,
+                "clang": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
         ),
     ],
 )

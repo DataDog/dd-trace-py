@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from dataclasses import field
-import copy
+import inspect
 import json
 import os
 import time
@@ -48,6 +48,7 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -75,6 +76,10 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -132,16 +137,6 @@ class LLMObsSpan:
 
     Example::
         def span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
-            # Access full span context for decision making
-            ctx = span.get_span_context()
-            if ctx:
-                model_name = ctx._get_ctx_item("_ml_obs.meta.model_name")
-                metadata = ctx._get_ctx_item("_ml_obs.meta.metadata") or {}
-
-                # Omit spans based on full context
-                if model_name == "sensitive-model" and metadata.get("contains_pii"):
-                    return None  # This span will be omitted
-
             # Modify input/output
             if span.get_tag("omit_span") == "1":
                 return None
@@ -157,7 +152,6 @@ class LLMObsSpan:
     input: List[Message] = field(default_factory=list)
     output: List[Message] = field(default_factory=list)
     _tags: Dict[str, str] = field(default_factory=dict)
-    _span_context: Optional["Span"] = field(default=None, init=False)
 
     def get_tag(self, key: str) -> Optional[str]:
         """Get a tag from the span.
@@ -168,22 +162,12 @@ class LLMObsSpan:
         """
         return self._tags.get(key)
 
-    def get_span_context(self) -> Optional["Span"]:
-        """Get read-only access to the full span for context.
-
-        This provides access to all span data including metadata, metrics,
-        model information, and any other span fields for decision making.
-
-        :return: The full span object for reading context, or None if not available.
-        :rtype: Optional[Span]
-        """
-        return self._span_context
-
 
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.environ.get("DD_APP_KEY", "")
+    _app_key: str = os.getenv("DD_APP_KEY", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
 
     def __init__(
         self,
@@ -315,10 +299,7 @@ class LLMObs(Service):
         if self._user_span_processor:
             error = False
             try:
-                span_clone = copy.copy(span)
-                llmobs_span._span_context = span_clone
-                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS) or {})
-
+                llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
                 user_llmobs_span = self._user_span_processor(llmobs_span)
                 if user_llmobs_span is None:
                     return None
@@ -490,6 +471,7 @@ class LLMObs(Service):
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
+        project_name: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
@@ -506,6 +488,7 @@ class LLMObs(Service):
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str app_key: Your datadog application key.
+        :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and returns an
@@ -522,6 +505,7 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        cls._project_name = project_name or cls._project_name
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -596,15 +580,87 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, name: str) -> Dataset:
-        return cls._instance._dne_client.dataset_pull(name)
+        ds = cls._instance._dne_client.dataset_get_with_records(name)
+        return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str) -> Dataset:
-        return cls._instance._dne_client.dataset_create(name, description)
+    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
+
+    def _create_experiment(
+        self,
+        name: str,
+        dataset_id: str,
+        project_name: str,
+        dataset_version: int = 0,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        project_id = self._dne_client.project_get(project_name)
+        if not project_id:
+            project_id = self._dne_client.project_create(project_name)
+        experiment_id, experiment_run_name = self._dne_client.experiment_create(
+            name, dataset_id, project_id, dataset_version, exp_config, tags, description
+        )
+        return experiment_id, experiment_run_name
+
+    @classmethod
+    def experiment(
+        cls,
+        name: str,
+        task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
+        dataset: Dataset,
+        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+    ) -> Experiment:
+        """Initializes an Experiment to run a task on a Dataset and evaluators.
+
+        :param name: The name of the experiment.
+        :param task: The task function to run. Must accept a parameter ``input_data`` and optionally ``config``.
+        :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
+        :param evaluators: A list of evaluator functions to evaluate the task output.
+                           Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
+        :param description: A description of the experiment.
+        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
+                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
+                             or `LLMObs.enable(project_name=...)`.
+        :param tags: A list of string tags to associate with the experiment.
+        """
+        if not callable(task):
+            raise TypeError("task must be a callable function.")
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        if not isinstance(dataset, Dataset):
+            raise TypeError("Dataset must be an LLMObs Dataset object.")
+        if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
+            raise TypeError("Evaluators must be a list of callable functions.")
+        for evaluator in evaluators:
+            sig = inspect.signature(evaluator)
+            params = sig.parameters
+            required_params = ("input_data", "output_data", "expected_output")
+            if not all(param in params for param in required_params):
+                raise TypeError("Evaluator function must have parameters {}.".format(required_params))
+        if project_name is None:
+            project_name = cls._project_name
+        return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators,
+            project_name=project_name,
+            tags=tags,
+            description=description,
+            _llmobs_instance=cls._instance,
+        )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
@@ -1090,6 +1146,33 @@ class LLMObs(Service):
         return cls._instance._start_span(
             "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
+
+    @classmethod
+    def _experiment(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Span:
+        """
+        Trace an LLM experiment, only used internally by the experiments SDK.
+        :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str experiment_id: The ID of the experiment to associate with this span and its children.
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+
+        # Set experiment_id in baggage if provided
+        if experiment_id:
+            span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
+
+        return span
 
     @classmethod
     def annotate(

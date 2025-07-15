@@ -113,7 +113,6 @@ def test_code_injection_eval_globals_locals_override(iast_context_defaults):
 
 def test_code_injection_eval_lambda(iast_context_defaults):
     """Validate globals and locals of the function"""
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
 
     def pt_eval_lambda_no_tainted(fun):
         return eval("lambda v,fun=fun:not fun(v)")
@@ -126,7 +125,6 @@ def test_code_injection_eval_lambda(iast_context_defaults):
 
 def test_code_injection_eval_globals_kwargs_lambda(iast_context_defaults):
     """Validate globals and locals of the function"""
-
     code_string = "square(5)"
 
     tainted_string = taint_pyobject(
@@ -151,7 +149,6 @@ def test_code_injection_eval_globals_kwargs_lambda(iast_context_defaults):
 
 
 def test_code_injection_literal_eval(iast_context_defaults):
-    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
     code_string = "[1, 2, 3]"
 
     tainted_string = taint_pyobject(
@@ -159,6 +156,46 @@ def test_code_injection_literal_eval(iast_context_defaults):
     )
     mod.pt_literal_eval(tainted_string)
 
+    data = get_iast_reporter()
+
+    assert data is None
+
+
+def test_code_injection_eval_add_data_to_global(iast_context_defaults):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
+    code_string = """
+def evaluate(n):
+    return func(n)
+"""
+
+    tainted_string = taint_pyobject(
+        code_string, source_name="path", source_value=code_string, source_origin=OriginType.PATH
+    )
+    namespace_globals = {}
+    namespace_locals = None
+    mod.pt_eval_add_data_to_global(tainted_string, namespace_globals, namespace_locals)
+    assert namespace_globals["evaluate"]
+    data = get_iast_reporter()
+
+    assert data is None
+
+
+def test_code_injection_eval_add_data_to_local(iast_context_defaults):
+    mod = _iast_patched_module("tests.appsec.iast.fixtures.taint_sinks.code_injection")
+    code_string = """
+def evaluate(n):
+    return func(n)
+"""
+
+    tainted_string = taint_pyobject(
+        code_string, source_name="path", source_value=code_string, source_origin=OriginType.PATH
+    )
+    namespace_globals = {}
+    namespace_locals = {"var1": "value1", "var2": "value2"}
+    mod.pt_eval_add_data_to_global(tainted_string, namespace_globals, namespace_locals)
+    assert namespace_locals["evaluate"]
+    with pytest.raises(KeyError):
+        _ = namespace_globals["evaluate"]
     data = get_iast_reporter()
 
     assert data is None
