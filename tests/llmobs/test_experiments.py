@@ -16,13 +16,14 @@ import time
 from typing import Generator
 from typing import List
 
+import mock
 import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 
 
-def dummy_task(input_data):
+def dummy_task(input_data, config):
     return input_data
 
 
@@ -112,7 +113,7 @@ def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
 
 
 def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Task function must have an 'input_data' parameter."):
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
 
         def my_task(not_input):
             pass
@@ -197,3 +198,82 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     )
     assert exp_id is not None
     assert exp_run_name.startswith("test_experiment")
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Canada?"}, expected_output={"answer": "Ottawa"}
+            ),
+        ]
+    ],
+)
+def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], project_name="test-project")
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 2
+    assert task_results[0] == {
+        "idx": 0,
+        "output": {"prompt": "What is the capital of France?"},
+        "metadata": {
+            "timestamp": mock.ANY,
+            "duration": mock.ANY,
+            "dataset_record_index": 0,
+            "experiment_name": "test_experiment",
+            "dataset_name": "test-dataset-test_experiment_run_task[test_dataset_records0]",
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+        },
+        "error": mock.ANY,
+    }
+    assert task_results[1] == {
+        "idx": 1,
+        "output": {"prompt": "What is the capital of Canada?"},
+        "metadata": {
+            "timestamp": mock.ANY,
+            "duration": mock.ANY,
+            "dataset_record_index": 1,
+            "experiment_name": "test_experiment",
+            "dataset_name": "test-dataset-test_experiment_run_task[test_dataset_records0]",
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+        },
+        "error": mock.ANY,
+    }
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_experiment_run_task_error(llmobs, test_dataset, test_dataset_records):
+    def faulty_task(input_data, config):
+        raise ValueError("This is a test error")
+
+    exp = llmobs.experiment(
+        "test_experiment", faulty_task, test_dataset, [dummy_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    assert task_results == [
+        {
+            "idx": 0,
+            "output": None,
+            "metadata": {
+                "timestamp": mock.ANY,
+                "duration": mock.ANY,
+                "dataset_record_index": 0,
+                "experiment_name": "test_experiment",
+                "dataset_name": "test-dataset-test_experiment_run_task_error[test_dataset_records0]",
+                "span_id": mock.ANY,
+                "trace_id": mock.ANY,
+            },
+            "error": mock.ANY,
+        }
+    ]
+    assert task_results[0]["error"]["message"] == "This is a test error"
+    assert task_results[0]["error"]["stack"] is not None
+    assert task_results[0]["error"]["type"] == "builtins.ValueError"
