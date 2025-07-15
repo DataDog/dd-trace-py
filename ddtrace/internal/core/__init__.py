@@ -181,7 +181,6 @@ class ExecutionContext(AbstractContextManager):
         if self._span is None and "_CURRENT_CONTEXT" in globals():
             self._token: contextvars.Token["ExecutionContext"] = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
-        dispatch("context.started.start_span.%s" % self.identifier, (self,))
         return self
 
     def __repr__(self) -> str:
