@@ -23,7 +23,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"mcp": ">=1.0.0"}
+    return {"mcp": ">=1.10.0"}
 
 
 @with_traced_module

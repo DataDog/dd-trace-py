@@ -27,16 +27,6 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
-    def get_span_name(self, operation: str, args: List[Any], kwargs: Dict[str, Any]) -> str:
-        """Generate span name for MCP operations."""
-        if operation == CLIENT_TOOL_CALL_OPERATION_NAME:
-            tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
-            return f"MCP Client Tool Call: {tool_name}"
-        elif operation == SERVER_TOOL_CALL_OPERATION_NAME:
-            tool_name = args[0] if len(args) > 0 else "unknown_tool"
-            return f"MCP Server Tool Execute: {tool_name}"
-        return f"MCP {operation}"
-
     def inject_distributed_headers(self, request):
         """Inject distributed tracing headers into MCP request metadata."""
         if not self.llmobs_enabled:
@@ -122,7 +112,8 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_client(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
-        span_name = self.get_span_name(CLIENT_TOOL_CALL_OPERATION_NAME, args, kwargs)
+        tool_name = args[0] if len(args) > 0 else kwargs.get("name", "unknown_tool")
+        span_name = "MCP Client Tool Call: {}".format(tool_name)
 
         span._set_ctx_items(
             {
@@ -146,7 +137,8 @@ class MCPIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_server(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any) -> None:
         tool_arguments = get_argument_value(args, kwargs, 1, "arguments", optional=True) or {}
-        span_name = self.get_span_name(SERVER_TOOL_CALL_OPERATION_NAME, args, kwargs)
+        tool_name = args[0] if len(args) > 0 else "unknown_tool"
+        span_name = "MCP Server Tool Execute: {}".format(tool_name)
 
         span._set_ctx_items(
             {
