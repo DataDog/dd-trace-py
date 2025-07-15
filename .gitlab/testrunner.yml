@@ -9,5 +9,9 @@
     - export _CI_DD_AGENT_URL=http://${HOST_IP}:8126/
   retry: 2
   artifacts:
+    when: always
     reports:
       junit: test-results/junit*.xml
+    paths:
+      - core.*
+      - "**/core.*"
