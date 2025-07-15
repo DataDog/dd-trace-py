@@ -651,7 +651,7 @@ def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
 
-    The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
+    The LogWriter is required by default in AWS Lambdas when the Datadog Agent extension
     is not available in the Lambda.
     """
     if (
