@@ -27,57 +27,17 @@ _punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
 
 
 class BaseOpenAIStreamHandler:
-    def _loop_handler(self, span, chunk, streamed_chunks):
-        """
-        Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
-        When handling a streamed chat/completion/responses,
-        this function is called for each chunk in the streamed response.
-        """
-
-        if span.get_tag("openai.response.model") is None:
-            if hasattr(chunk, "type") and chunk.type.startswith("response."):
-                response = getattr(chunk, "response", None)
-                model = getattr(response, "model", "")
-            else:
-                model = getattr(chunk, "model", "")
-            span.set_tag_str("openai.response.model", model)
-        # Only run if the chunk is a completion/chat completion
-        for choice in getattr(chunk, "choices", []):
-            streamed_chunks[choice.index].append(choice)
-        if getattr(chunk, "usage", None):
-            streamed_chunks[0].insert(0, chunk)
-    
     def finalize_stream(self, exception=None):
         if not exception:
-            self._process_finished_stream(
-                self.options.get("is_completion", False)
+            _process_finished_stream(
+                self.integration, self.primary_span, self.request_kwargs, self.chunks, self.options.get("operation_type", "")
             )
         self.primary_span.finish()
-
-    def _process_finished_stream(self, is_completion=False):
-        prompts = self.request_kwargs.get("prompt", None)
-        request_messages = self.request_kwargs.get("messages", None)
-        try:
-            if is_completion:
-                formatted_completions = [
-                    openai_construct_completion_from_streamed_chunks(choice) for choice in self.chunks.values()
-                ]
-            else:
-                formatted_completions = [
-                    openai_construct_message_from_streamed_chunks(choice) for choice in self.chunks.values()
-                ]
-            if self.integration.is_pc_sampled_span(self.primary_span):
-                _tag_streamed_response(self.integration, self.primary_span, formatted_completions)
-            _set_token_metrics(self.primary_span, formatted_completions, prompts, request_messages, self.request_kwargs)
-            operation = "completion" if is_completion else "chat"
-            self.integration.llmobs_set_tags(self.primary_span, args=[], kwargs=self.request_kwargs, response=formatted_completions, operation=operation)
-        except Exception:
-            log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self._extract_token_chunk(chunk, iterator)
-        self._loop_handler(self.primary_span, chunk, self.chunks)
+        _loop_handler(self.primary_span, chunk, self.chunks)
 
     def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
@@ -101,7 +61,7 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
 class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         await self._extract_token_chunk(chunk, iterator)
-        self._loop_handler(self.primary_span, chunk, self.chunks)
+        _loop_handler(self.primary_span, chunk, self.chunks)
 
     async def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
@@ -203,14 +163,12 @@ def _is_async_generator(resp):
         return True
     return False
 
-
 def _loop_handler(span, chunk, streamed_chunks):
     """
     Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
     When handling a streamed chat/completion/responses,
     this function is called for each chunk in the streamed response.
     """
-
     if span.get_tag("openai.response.model") is None:
         if hasattr(chunk, "type") and chunk.type.startswith("response."):
             response = getattr(chunk, "response", None)
@@ -218,36 +176,45 @@ def _loop_handler(span, chunk, streamed_chunks):
         else:
             model = getattr(chunk, "model", "")
         span.set_tag_str("openai.response.model", model)
-    # Only run if the chunk is a completion/chat completion
+
+    response = getattr(chunk, "response", None)
+    if response is not None:
+        streamed_chunks[0].insert(0, response)
+
+    # Completions/chat completions are returned as `choices`
     for choice in getattr(chunk, "choices", []):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
 
-
-def _process_finished_stream(integration, span, kwargs, streamed_chunks, is_completion=False):
+def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)
     request_messages = kwargs.get("messages", None)
+    if not isinstance(streamed_chunks, list) and operation_type != "response":
+        streamed_chunks = streamed_chunks.values()
     try:
-        if is_completion:
+        if operation_type == "response":
+            formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None
+        elif operation_type == "completion":
             formatted_completions = [
                 openai_construct_completion_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        else:
+        elif operation_type == "chat":
             formatted_completions = [
                 openai_construct_message_from_streamed_chunks(choice) for choice in streamed_chunks
             ]
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_response(integration, span, formatted_completions)
-        _set_token_metrics(span, formatted_completions, prompts, request_messages, kwargs)
-        operation = "completion" if is_completion else "chat"
-        integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation)
+        if integration.is_pc_sampled_span(span) and not operation_type == "response":
+            _tag_streamed_completions(integration, span, formatted_completions)
+        _set_token_metrics_from_streamed_response(span, formatted_completions, prompts, request_messages, kwargs)
+        integration.llmobs_set_tags(
+            span, args=[], kwargs=kwargs, response=formatted_completions, operation=operation_type
+        )
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
 
 
-def _tag_streamed_response(integration, span, completions_or_messages=None):
-    """Tagging logic for streamed completions, chat completions, and responses."""
+def _tag_streamed_completions(integration, span, completions_or_messages=None):
+    """Tagging logic for streamed completions and chat completions."""
     for idx, choice in enumerate(completions_or_messages):
         text = choice.get("text", "")
         if text:
@@ -268,13 +235,18 @@ def _tag_streamed_response(integration, span, completions_or_messages=None):
             span.set_tag_str("openai.response.choices.%d.finish_reason" % idx, str(finish_reason))
 
 
-def _set_token_metrics(span, response, prompts, messages, kwargs):
+def _set_token_metrics_from_streamed_response(span, response, prompts, messages, kwargs):
     """Set token span metrics on streamed chat/completion/response.
     If token usage is not available in the response, compute/estimate the token counts.
     """
     estimated = False
+    usage = None
     if response and isinstance(response, list) and _get_attr(response[0], "usage", None):
         usage = response[0].get("usage", {})
+    elif response and getattr(response, "usage", None):
+        usage = response.usage
+
+    if usage:
         if hasattr(usage, "input_tokens") or hasattr(usage, "prompt_tokens"):
             prompt_tokens = getattr(usage, "input_tokens", 0) or getattr(usage, "prompt_tokens", 0)
         if hasattr(usage, "output_tokens") or hasattr(usage, "completion_tokens"):

@@ -35,7 +35,6 @@ def test_global_tags(ddtrace_config_anthropic, anthropic, request_vcr, mock_trac
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
-    assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
 @pytest.mark.snapshot(token="tests.contrib.anthropic.test_anthropic.test_anthropic_llm", ignores=["resource"])
@@ -301,7 +300,6 @@ async def test_global_tags_async(ddtrace_config_anthropic, anthropic, request_vc
     assert span.get_tag("env") == "staging"
     assert span.get_tag("version") == "1234"
     assert span.get_tag("anthropic.request.model") == "claude-3-opus-20240229"
-    assert span.get_tag("anthropic.request.api_key") == "sk-...key>"
 
 
 @pytest.mark.asyncio

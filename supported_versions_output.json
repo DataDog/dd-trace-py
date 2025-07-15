@@ -103,10 +103,18 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.20.0",
-        "max_tracer_supported": "1.21.3",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.23.0",
         "pinned": "true",
         "auto-instrumented": true
+    },
+    {
+        "dependency": "azure-servicebus",
+        "integration": "azure_servicebus",
+        "minimum_tracer_supported": "7.14.2",
+        "max_tracer_supported": "7.14.2",
+        "pinned": "true",
+        "auto-instrumented": false
     },
     {
         "dependency": "boto3",
@@ -309,6 +317,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "google-genai",
+        "integration": "google_genai",
+        "minimum_tracer_supported": "1.21.1",
+        "max_tracer_supported": "1.21.1",
+        "auto-instrumented": false
+    },
+    {
         "dependency": "google-generativeai",
         "integration": "google_generativeai",
         "minimum_tracer_supported": "0.7.2",
@@ -367,17 +382,15 @@
     {
         "dependency": "langgraph",
         "integration": "langgraph",
-        "minimum_tracer_supported": "0.2.60",
-        "max_tracer_supported": "0.2.61",
-        "pinned": "true",
+        "minimum_tracer_supported": "0.2.23",
+        "max_tracer_supported": "0.4.3",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
-        "minimum_tracer_supported": "2.0.9",
-        "max_tracer_supported": "2.0.9",
-        "pinned": "true",
+        "minimum_tracer_supported": "1.0.12",
+        "max_tracer_supported": "2.0.25",
         "auto-instrumented": true
     },
     {
@@ -393,14 +406,14 @@
         "integration": "logbook",
         "minimum_tracer_supported": "1.0.0",
         "max_tracer_supported": "1.8.1",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "loguru",
         "integration": "loguru",
         "minimum_tracer_supported": "0.4.1",
         "max_tracer_supported": "0.7.2",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "mako",
@@ -413,7 +426,7 @@
         "dependency": "mariadb",
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
-        "max_tracer_supported": "1.1.11",
+        "max_tracer_supported": "1.1.12",
         "auto-instrumented": true
     },
     {
@@ -448,7 +461,7 @@
         "dependency": "openai",
         "integration": "openai",
         "minimum_tracer_supported": "1.0.0",
-        "max_tracer_supported": "1.60.0",
+        "max_tracer_supported": "1.91.0",
         "auto-instrumented": true
     },
     {
@@ -469,7 +482,7 @@
         "dependency": "psycopg",
         "integration": "psycopg",
         "minimum_tracer_supported": "3.0.18",
-        "max_tracer_supported": "3.2.1",
+        "max_tracer_supported": "3.2.9",
         "auto-instrumented": true
     },
     {
@@ -478,6 +491,14 @@
         "minimum_tracer_supported": "2.8.6",
         "max_tracer_supported": "2.9.10",
         "auto-instrumented": true
+    },
+    {
+        "dependency": "pydantic-ai-slim",
+        "integration": "pydantic_ai",
+        "minimum_tracer_supported": "0.3.0",
+        "max_tracer_supported": "0.3.5",
+        "pinned": "true",
+        "auto-instrumented": false
     },
     {
         "dependency": "pylibmc",
@@ -497,7 +518,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.10.1",
+        "max_tracer_supported": "4.13.2",
         "auto-instrumented": true
     },
     {
@@ -533,7 +554,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.3.5",
+        "max_tracer_supported": "8.4.1",
         "auto-instrumented": false
     },
     {
@@ -612,7 +633,7 @@
         "integration": "structlog",
         "minimum_tracer_supported": "20.2.0",
         "max_tracer_supported": "24.4.0",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "tornado",

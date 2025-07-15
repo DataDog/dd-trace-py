@@ -4,12 +4,13 @@ from typing import Dict
 
 import vertexai
 
+# Force the generative_models module to load
+from vertexai.generative_models import GenerativeModel  # noqa:F401
+
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.vertexai._utils import tag_request
-from ddtrace.contrib.internal.vertexai._utils import tag_response
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
@@ -71,21 +72,18 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = func(*args, **kwargs)
         if stream:
             return make_traced_stream(generations, VertexAIStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
-        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs["instance"] = model_instance
-                kwargs["history"] = history
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
+            kwargs["instance"] = model_instance
+            kwargs["history"] = history
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 
@@ -104,21 +102,18 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     # history must be copied since it is modified during the LLM interaction
     history = getattr(instance, "history", [])[:]
     try:
-        tag_request(span, integration, instance, args, kwargs, is_chat)
         generations = await func(*args, **kwargs)
         if stream:
             return make_traced_async_stream(generations, VertexAIAsyncStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
-        tag_response(span, generations, integration)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
         # streamed spans will be finished separately once the stream generator is exhausted
         if span.error or not stream:
-            if integration.is_pc_sampled_llmobs(span):
-                kwargs["instance"] = model_instance
-                kwargs["history"] = history
-                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
+            kwargs["instance"] = model_instance
+            kwargs["history"] = history
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=generations)
             span.finish()
     return generations
 

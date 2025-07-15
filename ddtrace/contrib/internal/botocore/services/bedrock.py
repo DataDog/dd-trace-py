@@ -5,8 +5,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-import wrapt
-
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
@@ -15,6 +13,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
@@ -154,6 +154,8 @@ def _set_llmobs_usage(
     input_tokens: Optional[int],
     output_tokens: Optional[int],
     total_tokens: Optional[int] = None,
+    cache_read_tokens: Optional[int] = None,
+    cache_write_tokens: Optional[int] = None,
 ) -> None:
     """
     Sets LLM usage metrics in the execution context for LLM Observability.
@@ -165,6 +167,10 @@ def _set_llmobs_usage(
         llmobs_usage["output_tokens"] = output_tokens
     if total_tokens is not None:
         llmobs_usage["total_tokens"] = total_tokens
+    if cache_read_tokens is not None:
+        llmobs_usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+    if cache_write_tokens is not None:
+        llmobs_usage[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -375,7 +381,7 @@ def _extract_streamed_response_metadata(
     input_tokens = metadata.get("inputTokenCount")
     output_tokens = metadata.get("outputTokenCount")
 
-    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), None, None, None)
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -390,6 +396,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         if ctx["resource"] in ("Converse", "ConverseStream")
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
+
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
@@ -407,6 +414,9 @@ def handle_bedrock_response(
     output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
+    cache_read_tokens = None
+    cache_write_tokens = None
+
     if ctx["resource"] == "Converse":
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
@@ -417,11 +427,23 @@ def handle_bedrock_response(
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
                 total_tokens = usage.get("totalTokens", total_tokens)
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
     _set_llmobs_usage(
-        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
+        ctx,
+        safe_token_count(input_tokens),
+        safe_token_count(output_tokens),
+        safe_token_count(total_tokens),
+        safe_token_count(cache_read_tokens),
+        safe_token_count(cache_write_tokens),
     )
 
     # for both converse & invoke, dispatch success event to store basic metrics
@@ -470,6 +492,7 @@ def patched_bedrock_api_call(original_func, instance, args, kwargs, function_var
         params=params,
         model_provider=model_provider,
         model_name=model_name,
+        instance=instance,
     ) as ctx:
         try:
             handle_bedrock_request(ctx)

@@ -1,3 +1,4 @@
+import asyncio
 import io
 import json
 from typing import Any
@@ -19,8 +20,10 @@ from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_a
 from ddtrace.contrib.internal.trace_utils_base import _set_url_tag
 from ddtrace.ext import http
 from ddtrace.internal import core
+from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
@@ -159,19 +162,29 @@ def _on_lambda_start_response(
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        more_body = True
+        body_parts = []
         try:
-            data_received = await receive()
+            while more_body:
+                data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
+                if data_received is None:
+                    more_body = False
+                if isinstance(data_received, dict):
+                    more_body = data_received.get("more_body", False)
+                    body_parts.append(data_received.get("body", b""))
+        except asyncio.TimeoutError:
+            pass
         except Exception:
             return receive, None
+        body = b"".join(body_parts)
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
-                return data_received
+                return {"type": "http.request", "body": body, "more_body": more_body}
             return await receive()
 
         try:
-            body = data_received.get("body", b"")
             content_type = headers.get("content-type") or headers.get("Content-Type")
             if content_type in ("application/json", "text/json"):
                 if body is None or body == b"":
@@ -374,7 +387,16 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
     trace_utils.set_http_meta(ctx["req_span"], flask_config, status_code=status, response_headers=response_headers)
 
 
+def _on_telemetry_periodic():
+    if asm_config._asm_enabled:
+        telemetry.telemetry_writer.add_gauge_metric(
+            TELEMETRY_NAMESPACE.APPSEC, "enabled", 2, (("origin", asm_config.asm_enabled_origin),)
+        )
+
+
 def listen():
+    core.on("telemetry.periodic", _on_telemetry_periodic)
+
     core.on("set_http_meta_for_asm", _on_set_http_meta)
     core.on("flask.request_call_modifier", _on_request_span_modifier, "request_body")
 

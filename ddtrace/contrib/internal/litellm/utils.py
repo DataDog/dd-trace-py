@@ -1,5 +1,3 @@
-import sys
-
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
