@@ -152,6 +152,30 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_packages",
+            pys=select_pys(),
+            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            pkgs={
+                "pytest-xdist": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+                "SQLAlchemy": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "pymysql": latest,
+                "mysqlclient": "==2.1.1",
+                "mysql-connector-python": latest,
+                "MarkupSafe": "~=2.1.1",
+                "Werkzeug": "~=3.0.6",
+                "babel": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_iast_packages",
             # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
             pys=["3.8", "3.9", "3.10", "3.11", "3.12"],

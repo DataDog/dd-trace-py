@@ -1,7 +1,7 @@
 interactions:
 - request:
     body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
-      ["3bf4897d-e6aa-43a3-8d9c-5097b1f85177"]}}}'
+      ["4698b07a-7bf6-4f65-9690-6bd481718459"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -21,17 +21,17 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":[{"id":"3bf4897d-e6aa-43a3-8d9c-5097b1f85177","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-14T23:18:56.592831Z","current_version":1,"deleted_at":"2025-07-14T23:19:03.156151Z","description":"A
-        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-14T23:18:56.822333Z"}}]}'
+      string: '{"data":[{"id":"4698b07a-7bf6-4f65-9690-6bd481718459","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-15T14:39:35.965206Z","current_version":1,"deleted_at":"2025-07-15T14:39:38.643852Z","description":"A
+        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-15T14:39:36.51111Z"}}]}'
     headers:
       content-length:
-      - '394'
+      - '393'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Mon, 14 Jul 2025 23:19:03 GMT
+      - Tue, 15 Jul 2025 14:39:38 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
