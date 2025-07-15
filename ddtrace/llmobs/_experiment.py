@@ -233,7 +233,7 @@ class Experiment:
                     eval_result = evaluator(input_data, output_data, expected_output)
                 except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
-                    exc_type_name = exc_type.__name__ if exc_type is not None else "Unknown Exception"
+                    exc_type_name = type(e).__name__ if exc_type is not None else "Unknown Exception"
                     exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
                     eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
                     if raise_errors:
@@ -247,18 +247,10 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            evals = evaluations[idx]["evaluations"]
-            record = cast(DatasetRecord, self._dataset[idx])
-
-            err: Optional[JSONType] = None
-            metadata: Dict[str, JSONType] = {}
-            if isinstance(output_data, dict):
-                _metadata = output_data.get("metadata", {})
-                err = output_data.get("error")
-                if isinstance(_metadata, dict):
-                    metadata = _metadata
+            metadata = cast(Dict[str, JSONType], task_result.get("metadata") or {})
             metadata["tags"] = cast(List[JSONType], self._tags)
-
+            record = cast(DatasetRecord, self._dataset[idx])
+            evals = evaluations[idx]["evaluations"]
             exp_result = {
                 "idx": idx,
                 "record_id": record.get("record_id", ""),
@@ -267,7 +259,7 @@ class Experiment:
                 "output": output_data,
                 "evaluations": evals,
                 "metadata": metadata,
-                "error": err
+                "error": task_result.get("error"),
             }
             experiment_results.append(exp_result)
         return experiment_results
