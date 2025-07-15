@@ -90,9 +90,12 @@ def unregister_before_fork(before_fork):
         log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
 
 
-os.register_at_fork(
-    before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
-)
+# Availability: Unix, not WASI, not Android, not iOS.
+# Added in version 3.7.
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(
+        before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
+    )
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
