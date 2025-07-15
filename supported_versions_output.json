@@ -114,7 +114,7 @@
         "minimum_tracer_supported": "7.14.2",
         "max_tracer_supported": "7.14.2",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "boto3",
@@ -321,7 +321,7 @@
         "integration": "google_genai",
         "minimum_tracer_supported": "1.21.1",
         "max_tracer_supported": "1.21.1",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "google-generativeai",
@@ -498,7 +498,7 @@
         "minimum_tracer_supported": "0.3.0",
         "max_tracer_supported": "0.3.5",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "pylibmc",
@@ -625,7 +625,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.39.2",
+        "max_tracer_supported": "0.47.1",
         "auto-instrumented": true
     },
     {
