@@ -1,6 +1,7 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
 import sys
+import traceback
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
@@ -11,6 +12,7 @@ from typing import Optional
 from typing import Tuple
 from typing import TypedDict
 from typing import Union
+from typing import cast
 
 from typing_extensions import NotRequired
 
@@ -90,7 +92,7 @@ class Experiment:
         name: str,
         task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[Dict[str, NonNoneJSONType], JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
         tags: Optional[List[str]] = None,
@@ -129,7 +131,7 @@ class Experiment:
                 "Skipping experiment as LLMObs is not enabled. "
                 "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
             )
-            return
+            return []
         experiment_id, experiment_run_name = self._llmobs_instance._create_experiment(
             name=self.name,
             dataset_id=self._dataset._id,
@@ -221,7 +223,7 @@ class Experiment:
         evaluations = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            record = self._dataset[idx]
+            record = cast(DatasetRecord, self._dataset[idx])
             input_data = record["input_data"]
             expected_output = record["expected_output"]
             evals_dict = {}
@@ -229,24 +231,34 @@ class Experiment:
                 eval_result, eval_err = None, None
                 try:
                     eval_result = evaluator(input_data, output_data, expected_output)
-                except Exception:
+                except Exception as e:
                     exc_type, exc_value, exc_tb = sys.exc_info()
-                    eval_err = {"message": str(exc_value), "type": exc_type.__name__, "stack": traceback.format_exc()}
+                    exc_type_name = exc_type.__name__ if exc_type is not None else "Unknown Exception"
+                    exc_stack = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+                    eval_err = {"message": str(exc_value), "type": exc_type_name, "stack": exc_stack}
                     if raise_errors:
                         raise RuntimeError(f"Evaluator {evaluator.__name__} failed on row {idx}")
                 evals_dict[evaluator.__name__] = {"value": eval_result, "error": eval_err}
-            evaluations.append({"idx": idx, "evaluations": evals_dict})
+            evaluation = cast(Dict[str, JSONType], {"idx": idx, "evaluations": evals_dict})
+            evaluations.append(evaluation)
         return evaluations
 
-    def _merge_results(self, task_results: List[Dict[str, Any]], evaluations: List[Dict[str, Any]]):
+    def _merge_results(self, task_results: List[Dict[str, JSONType]], evaluations: List[Dict[str, JSONType]]):
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
             evals = evaluations[idx]["evaluations"]
-            record = self._dataset[idx]
+            record = cast(DatasetRecord, self._dataset[idx])
 
-            metadata = output_data.get("metadata", {})
-            metadata["tags"] = self._tags
+            err: Optional[JSONType] = None
+            metadata: Dict[str, JSONType] = {}
+            if isinstance(output_data, dict):
+                _metadata = output_data.get("metadata", {})
+                err = output_data.get("error")
+                if isinstance(_metadata, dict):
+                    metadata = _metadata
+            metadata["tags"] = cast(List[JSONType], self._tags)
+
             exp_result = {
                 "idx": idx,
                 "record_id": record.get("record_id", ""),
@@ -255,7 +267,7 @@ class Experiment:
                 "output": output_data,
                 "evaluations": evals,
                 "metadata": metadata,
-                "error": output_data.get("error")
+                "error": err
             }
             experiment_results.append(exp_result)
         return experiment_results

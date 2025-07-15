@@ -48,6 +48,7 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT_KEY
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -615,7 +616,7 @@ class LLMObs(Service):
         name: str,
         task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[Dict[str, NonNoneJSONType], JSONType, JSONType], JSONType]],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[List[str]] = None,
