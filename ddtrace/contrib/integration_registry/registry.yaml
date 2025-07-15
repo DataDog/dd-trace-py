@@ -496,10 +496,10 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.4.3
+      max: 0.5.3
     langgraph-checkpoint:
       min: 1.0.12
-      max: 2.0.25
+      max: 2.1.0
 
 - integration_name: litellm
   is_external_package: true
