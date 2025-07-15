@@ -4,19 +4,19 @@ interactions:
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Length
       : - '0'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.4
     method: GET
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter%5Bname%5D=test-dataset-non-existent
   response:
@@ -30,7 +30,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Mon, 07 Jul 2025 19:14:50 GMT
+      - Tue, 15 Jul 2025 14:39:06 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

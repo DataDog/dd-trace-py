@@ -1,37 +1,37 @@
 interactions:
 - request:
     body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
-      ["db977773-e6f8-4972-ae54-d26c260b561a"]}}}'
+      ["4698b07a-7bf6-4f65-9690-6bd481718459"]}}}'
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
       Content-Length:
       - '119'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.3
+      - python-requests/2.32.4
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":[{"id":"db977773-e6f8-4972-ae54-d26c260b561a","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-07T19:14:50.175017Z","current_version":0,"deleted_at":"2025-07-07T19:14:50.307404Z","description":"A
-        second test dataset","name":"test-dataset-2","updated_at":"2025-07-07T19:14:50.175017Z"}}]}'
+      string: '{"data":[{"id":"4698b07a-7bf6-4f65-9690-6bd481718459","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-15T14:39:35.965206Z","current_version":1,"deleted_at":"2025-07-15T14:39:38.643852Z","description":"A
+        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-15T14:39:36.51111Z"}}]}'
     headers:
       content-length:
-      - '355'
+      - '393'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Mon, 07 Jul 2025 19:14:50 GMT
+      - Tue, 15 Jul 2025 14:39:38 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
