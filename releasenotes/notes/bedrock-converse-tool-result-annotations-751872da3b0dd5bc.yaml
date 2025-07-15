@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Bedrock Converse ``toolResult`` content blocks are formatted as tool messages on LLM Observability ``llm`` spans' inputs. 
