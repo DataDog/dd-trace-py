@@ -3613,5 +3613,24 @@ venv = Venv(
                 ),
             ],
         ),
+        Venv(
+            name="appsec_iast_native",
+            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python "
+            "-S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && "
+            "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && "
+            "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
+            pys=select_pys(),
+            pkgs={
+                "cmake": latest,
+                "pybind11": latest,
+                "clang": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
     ],
 )
