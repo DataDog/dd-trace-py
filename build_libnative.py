@@ -46,14 +46,14 @@ def build_crate(crate_dir: Path, release: bool, features: list = None):
         # Add cargo binary folder to PATH
         home = os.path.expanduser("~")
         cargo_bin = os.path.join(home, ".cargo", "bin")
-        env = os.environ.copy()
-        env["PATH"] = cargo_bin + os.pathsep + env["PATH"]
+        dedup_env = os.environ.copy()
+        dedup_env["PATH"] = cargo_bin + os.pathsep + env["PATH"]
 
         subprocess.run(
             ["dedup_headers", "common.h", "crashtracker.h", "profiling.h"],
             cwd=str(abs_dir / "target" / "include" / "datadog"),
             check=True,
-            env=env,
+            env=dedup_env,
         )
 
 def clean_crate(crate_dir: Path):
