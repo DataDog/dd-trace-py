@@ -134,33 +134,6 @@ needs_testrun = [
   "scripts/needs_testrun.py {args}",
 ]
 
-[envs.integration_test]
-template = "integration_test"
-extra-dependencies = [
-    "mock==5.0.1",
-    "pytest==7.2.2",
-    "pytest-mock==3.10.0",
-    "coverage==7.2.2",
-    "pytest-cov==4.0.0",
-    "opentracing==2.4.0",
-    "hypothesis==6.45.0",
-]
-
-[[envs.integration_test.matrix]]
-python = ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
-
-[envs.integration_test.env-vars]
-_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER = "1"
-DD_TESTING_RAISE = "1"
-DD_REMOTE_CONFIGURATION_ENABLED = "false"
-DD_CIVISIBILITY_AGENTLESS_ENABLED = "1"
-DD_CIVISIBILITY_CODE_COVERAGE_ENABLED = "1"
-DD_CIVISIBILITY_ITR_ENABLED = "1"
-DD_PATCH_MODULES = "unittest:false"
-CMAKE_BUILD_PARALLEL_LEVEL = "12"
-CARGO_BUILD_JOBS = "12"
-DD_FAST_BUILD = "1"
-
 ## ASM Native IAST module
 
 [envs.appsec_iast_native]
@@ -197,6 +170,7 @@ dependencies = [
     "pytest-xdist",
     "hypothesis",
     "requests",
+    "babel",
     "SQLAlchemy",
     "psycopg2-binary~=2.9.9",
     "pymysql",
