@@ -137,7 +137,8 @@ class LockReleaseEvent(LockEvent):
 
 def parse_profile(filename_prefix: str):
     files = glob.glob(filename_prefix + ".*")
-    files.sort()
+    # Sort files by creation timestamp (oldest first, newest last)
+    files.sort(key=lambda f: os.path.getctime(f))
     filename = files[-1]
     with lz4.frame.open(filename) as fp:
         serialized_data = fp.read()
