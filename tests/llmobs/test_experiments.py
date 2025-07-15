@@ -263,13 +263,9 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
     }
 
 
-@pytest.mark.parametrize(
-    "test_dataset_records",
-    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
-)
-def test_experiment_run_task_error(llmobs, test_dataset, test_dataset_records):
+def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
-        "test_experiment", faulty_task, test_dataset, [dummy_evaluator], project_name="test-project"
+        "test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
     )
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
@@ -282,7 +278,7 @@ def test_experiment_run_task_error(llmobs, test_dataset, test_dataset_records):
                 "duration": mock.ANY,
                 "dataset_record_index": 0,
                 "experiment_name": "test_experiment",
-                "dataset_name": "test-dataset-test_experiment_run_task_error[test_dataset_records0]",
+                "dataset_name": "test-dataset-123",
                 "span_id": mock.ANY,
                 "trace_id": mock.ANY,
             },
