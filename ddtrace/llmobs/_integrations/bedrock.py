@@ -26,6 +26,7 @@ from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
+from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
@@ -80,6 +81,8 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["stop_reason"] = ctx["llmobs.stop_reason"]
         if ctx.get_item("llmobs.usage"):
             usage_metrics = ctx["llmobs.usage"]
+
+        normalize_input_tokens(usage_metrics)
 
         if "total_tokens" not in usage_metrics and (
             "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
@@ -324,6 +327,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not messages:
             messages.append({"role": "assistant", "content": ""})
 
+        normalize_input_tokens(usage_metrics)
         return messages, metadata, usage_metrics
 
     @staticmethod

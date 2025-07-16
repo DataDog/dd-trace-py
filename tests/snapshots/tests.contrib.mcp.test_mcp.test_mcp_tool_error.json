@@ -1,0 +1,55 @@
+[[
+  {
+    "name": "mcp.request",
+    "service": "tests.contrib.mcp",
+    "resource": "server_tool_call",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 1,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "686ea1b300000000",
+      "error.message": "Error executing tool failing_tool: Tool execution failed",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_mcp100/lib/python3.10/site-packages/mcp/server/fastmcp/tools/base.py\", line 87, in run\n    return await self.fn_metadata.call_fn_with_arg_validation(\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_mcp100/lib/python3.10/site-packages/mcp/server/fastmcp/utilities/func_metadata.py\", line 68, in call_fn_with_arg_validation\n    return fn(**arguments_parsed_dict)\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/tests/contrib/mcp/conftest.py\", line 74, in failing_tool\n    raise ValueError(\"Tool execution failed\")\nValueError: Tool execution failed\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/mcp/patch.py\", line 52, in traced_tool_manager_call_tool\n    result = await func(*args, **kwargs)\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_mcp100/lib/python3.10/site-packages/mcp/server/fastmcp/tools/tool_manager.py\", line 73, in call_tool\n    return await tool.run(arguments, context=context)\n  File \"/Users/evan.li/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_pytest-asyncio_mcp100/lib/python3.10/site-packages/mcp/server/fastmcp/tools/base.py\", line 94, in run\n    raise ToolError(f\"Error executing tool {self.name}: {e}\") from e\nmcp.server.fastmcp.exceptions.ToolError: Error executing tool failing_tool: Tool execution failed\n",
+      "error.type": "mcp.server.fastmcp.exceptions.ToolError",
+      "language": "python",
+      "runtime-id": "6fb44f703a2f4c36a7fe5f64ffdc4c42"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 80721
+    },
+    "duration": 2604000,
+    "start": 1752080819629328000
+  }],
+[
+  {
+    "name": "mcp.request",
+    "service": "tests.contrib.mcp",
+    "resource": "client_tool_call",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "686ea1b300000000",
+      "language": "python",
+      "runtime-id": "6fb44f703a2f4c36a7fe5f64ffdc4c42"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 80721
+    },
+    "duration": 3415000,
+    "start": 1752080819628885000
+  }]]

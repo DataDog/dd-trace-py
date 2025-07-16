@@ -78,7 +78,7 @@ def test_accuracy_stack_v2():
     p.stop()
     wall_times = collections.defaultdict(lambda: 0)
     cpu_times = collections.defaultdict(lambda: 0)
-    profile = pprof_utils.parse_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
 
     for sample in profile.sample:
         wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")

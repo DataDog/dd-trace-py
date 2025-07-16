@@ -75,7 +75,7 @@ def test_uwsgi_threads_enabled(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 30
     for pid in worker_pids:
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -119,7 +119,7 @@ def test_uwsgi_threads_processes_primary(uwsgi, tmp_path, monkeypatch):
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -137,7 +137,7 @@ def test_uwsgi_threads_processes_primary_lazy_apps(uwsgi, tmp_path, monkeypatch)
     proc.terminate()
     assert proc.wait() == 0
     for pid in worker_pids:
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
 
@@ -167,6 +167,6 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
             except OSError:
                 break
     for pid in worker_pids:
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0

@@ -1,6 +1,7 @@
 """
 An API to provide fork-safe functions.
 """
+
 import functools
 import logging
 import os
@@ -89,6 +90,8 @@ def unregister_before_fork(before_fork):
         log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
 
 
+# Availability: Unix, not WASI, not Android, not iOS.
+# Added in version 3.7.
 if hasattr(os, "register_at_fork"):
     os.register_at_fork(
         before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
@@ -122,7 +125,8 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """
 
     def __init__(
-        self, wrapped_class  # type: typing.Type[_T]
+        self,
+        wrapped_class,  # type: typing.Type[_T]
     ):
         # type: (...) -> None
         super(ResetObject, self).__init__(wrapped_class())

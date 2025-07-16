@@ -356,7 +356,6 @@ ddup_upload() // cppcheck-suppress unusedFunction
     //   we have for now.
     uploader.upload(Datadog::Sample::profile_borrow());
     Datadog::Sample::profile_release();
-    Datadog::Sample::profile_clear_state();
     return true;
 }
 

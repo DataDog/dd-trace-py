@@ -21,8 +21,8 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
   response:
     body:
-      string: '{"data":{"id":"3bf4897d-e6aa-43a3-8d9c-5097b1f85177","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-14T23:18:56.592831479Z","current_version":0,"description":"A
-        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-14T23:18:56.592831479Z"}}}'
+      string: '{"data":{"id":"4698b07a-7bf6-4f65-9690-6bd481718459","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-15T14:39:35.965206213Z","current_version":0,"description":"A
+        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-15T14:39:35.965206213Z"}}}'
     headers:
       content-length:
       - '355'
@@ -31,7 +31,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Mon, 14 Jul 2025 23:18:56 GMT
+      - Tue, 15 Jul 2025 14:39:36 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

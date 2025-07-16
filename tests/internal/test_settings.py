@@ -641,7 +641,41 @@ def test_config_public_properties_and_methods():
 
 
 @pytest.mark.subprocess()
-def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
+def test_subscription_handler_called_once_for_duplicate_values():
+    """This test ensures that the subscription handler is called only once
+    when the value is set multiple times to the same value.
+    It also checks that the handler is called again when the value changes.
+    """
+    from ddtrace import config
+
+    call_count = 0
+
+    def _handler(cfg, items):
+        global call_count
+        call_count += 1
+
+    config._subscribe(
+        [
+            "_logs_injection",
+        ],
+        _handler,
+    )
+
+    assert call_count == 0, "Handler should not be called before setting the value"
+    for _ in range(3):
+        config._logs_injection = "true"
+        assert call_count == 1, "Handler should be called only once for the same value"
+
+    for _ in range(3):
+        config._logs_injection = "false"
+        assert call_count == 2, "Handler should be called only once for the same value"
+
+    config._logs_injection = "true"
+    assert call_count == 3, "Handler should be called again for a different value"
+
+
+@pytest.mark.subprocess()
+def test_remoteconfig_debug_logging():
     import mock
 
     with mock.patch("ddtrace._trace.product.log") as mock_log:
@@ -650,19 +684,22 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
         from tests.internal.test_settings import _base_rc_config
         from tests.internal.test_settings import call_apm_tracing_rc
 
-        call_apm_tracing_rc(
-            _base_rc_config(
-                {
-                    "log_injection_enabled": False,
-                    "tracing_sampling_rate": 0.3,
-                    "tracing_enabled": "false",
-                    "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
-                    "tracing_tags": ["team:onboarding"],
-                }
-            ),
-            config,
-        )
+        rc_configs = {
+            "log_injection_enabled": False,
+            "tracing_sampling_rate": 0.3,
+            "tracing_enabled": "false",
+            "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+            "tracing_tags": ["team:onboarding"],
+        }
 
+        for _ in range(3):
+            # Attempt to set the same RC Configurations multiple times. This mimicks the behavior
+            # of the agent where all the current RC configurations are returned periodically.
+            call_apm_tracing_rc(
+                _base_rc_config(rc_configs),
+                config,
+            )
+    # Ensure APM Tracing Remote Config debug logs are generated
     assert mock_log.debug.call_args_list == [
         mock.call(
             "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
@@ -674,6 +711,7 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
             True,
             {},
         ),
+        # Tracer configurations are only updated once (calls with duplicate values should be ignored)
         mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
         mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
         mock.call(
@@ -684,14 +722,17 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
             "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
         ),
         mock.call("Updated logs injection configuration via remote_config: %s", "false"),
+        # 3 payloads should be received generating 3 debug logs.
         mock.call(
             "APM Tracing Received: %s from the Agent",
-            {
-                "log_injection_enabled": False,
-                "tracing_sampling_rate": 0.3,
-                "tracing_enabled": "false",
-                "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
-                "tracing_tags": ["team:onboarding"],
-            },
+            rc_configs,
+        ),
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            rc_configs,
+        ),
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            rc_configs,
         ),
     ], mock_log.debug.call_args_list
