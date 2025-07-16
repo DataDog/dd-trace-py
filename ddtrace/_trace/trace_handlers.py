@@ -23,6 +23,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_eventhub as azure_eventhubx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
@@ -891,6 +892,16 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
+def _on_azure_eventhub_send_event_modifier(ctx, azure_eventhub_config, eventhub_name, fully_qualified_namespace):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_eventhub_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, eventhub_name)
+    span.set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_eventhubx.SERVICE)
+    span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -947,6 +958,7 @@ def listen():
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
+    core.on("azure.eventhub.send_event_modifier", _on_azure_eventhub_send_event_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -998,6 +1010,8 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.eventhub.patched_producer",
+        "azure.functions.patched_event_hub",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
