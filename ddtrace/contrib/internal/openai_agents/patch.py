@@ -5,6 +5,7 @@ from agents.tracing import add_trace_processor
 
 from ddtrace import config
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import Pin
 from ddtrace.contrib.trace_utils import with_traced_module_async
@@ -25,6 +26,8 @@ def get_version() -> str:
 
 def _supported_versions() -> Dict[str, str]:
     return {"agents": ">=0.0.2"}
+
+OPENAI_AGENTS_VERSION = parse_version(get_version())
 
 
 @with_traced_module_async
@@ -51,8 +54,11 @@ def patch():
     Pin().onto(agents)
 
     add_trace_processor(LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents)))
-    
-    wrap(agents.Runner, "_run_single_turn", patched_run_single_turn(agents))
+
+    if OPENAI_AGENTS_VERSION >= (0, 0, 19):
+        wrap(agents.run.AgentRunner, "_run_single_turn", patched_run_single_turn(agents))
+    else:
+        wrap(agents.run.Runner, "_run_single_turn", patched_run_single_turn(agents))
 
 
 def unpatch():
@@ -64,4 +70,7 @@ def unpatch():
 
     agents._datadog_patch = False
 
-    unwrap(agents.Runner, "_run_single_turn")
+    if OPENAI_AGENTS_VERSION >= (0, 0, 19):
+        unwrap(agents.run.AgentRunner, "_run_single_turn")
+    else:
+        unwrap(agents.run.Runner, "_run_single_turn")
