@@ -22,4 +22,3 @@ class GoogleGenerativeAIStramHandler(BaseGoogleGenerativeAIStramHandler, StreamH
 class GoogleGenerativeAIAsyncStreamHandler(BaseGoogleGenerativeAIStramHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         pass
-
