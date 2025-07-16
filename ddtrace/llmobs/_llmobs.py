@@ -77,9 +77,10 @@ from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -116,6 +117,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
@@ -578,7 +580,9 @@ class LLMObs(Service):
 
     @classmethod
     def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
-        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
+        ds = cls._instance._dne_client.dataset_create_with_records(name, description, records)
+        ds._dne_client = cls._instance._dne_client
+        return ds
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
@@ -606,9 +610,9 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[List[str]] = None,
