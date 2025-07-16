@@ -16,9 +16,9 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google
+from ddtrace.llmobs._integrations.google_utils import get_system_instructions_from_google_model
+from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 

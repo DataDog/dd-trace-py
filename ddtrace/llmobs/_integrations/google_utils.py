@@ -11,6 +11,10 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
+# ---------------------------------------------------------------------------------------------------
+# Below are util functions for Google GenAI Integration
+# ---------------------------------------------------------------------------------------------------
+
 # google genai has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
 DEFAULT_MODEL_ROLE = "assistant"
@@ -187,3 +191,104 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
+
+
+# ---------------------------------------------------------------------------------------------------
+# Below are util functions for Gemini and VertexAI Integrations
+# ---------------------------------------------------------------------------------------------------
+
+
+def extract_model_name_google(instance, model_name_attr):
+    """Extract the model name from the instance.
+    Model names are stored in the format `"models/{model_name}"`
+    so we do our best to return the model name instead of the full string.
+    """
+    model_name = _get_attr(instance, model_name_attr, "")
+    if not model_name or not isinstance(model_name, str):
+        return ""
+    if "/" in model_name:
+        return model_name.split("/")[-1]
+    return model_name
+
+
+def get_generation_config_google(instance, kwargs):
+    """
+    The generation config can be defined on the model instance or
+    as a kwarg of the request. Therefore, try to extract this information
+    from the kwargs and otherwise default to checking the model instance attribute.
+    """
+    generation_config = kwargs.get("generation_config", {})
+    return generation_config or _get_attr(instance, "_generation_config", {})
+
+
+def llmobs_get_metadata_google(kwargs, instance):
+    metadata = {}
+    model_config = getattr(instance, "_generation_config", {}) or {}
+    model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
+    request_config = kwargs.get("generation_config", {}) or {}
+    request_config = request_config.to_dict() if hasattr(request_config, "to_dict") else request_config
+
+    parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
+    for param in parameters:
+        model_config_value = _get_attr(model_config, param, None)
+        request_config_value = _get_attr(request_config, param, None)
+        if model_config_value or request_config_value:
+            metadata[param] = request_config_value or model_config_value
+    return metadata
+
+
+def extract_message_from_part_google(part, role=None):
+    text = _get_attr(part, "text", "")
+    function_call = _get_attr(part, "function_call", None)
+    function_response = _get_attr(part, "function_response", None)
+    message = {"content": text}
+    if role:
+        message["role"] = role
+    if function_call:
+        function_call_dict = function_call
+        if not isinstance(function_call, dict):
+            function_call_dict = type(function_call).to_dict(function_call)
+        message["tool_calls"] = [
+            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+        ]
+    if function_response:
+        function_response_dict = function_response
+        if not isinstance(function_response, dict):
+            function_response_dict = type(function_response).to_dict(function_response)
+        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+    return message
+
+
+def get_system_instructions_from_google_model(model_instance):
+    """
+    Extract system instructions from model and convert to []str for tagging.
+    """
+    try:
+        from google.ai.generativelanguage_v1beta.types.content import Content
+    except ImportError:
+        Content = None
+    try:
+        from vertexai.generative_models._generative_models import Part
+    except ImportError:
+        Part = None
+
+    raw_system_instructions = getattr(model_instance, "_system_instruction", [])
+    if Content is not None and isinstance(raw_system_instructions, Content):
+        system_instructions = []
+        for part in raw_system_instructions.parts:
+            system_instructions.append(_get_attr(part, "text", ""))
+        return system_instructions
+    elif isinstance(raw_system_instructions, str):
+        return [raw_system_instructions]
+    elif Part is not None and isinstance(raw_system_instructions, Part):
+        return [_get_attr(raw_system_instructions, "text", "")]
+    elif not isinstance(raw_system_instructions, list):
+        return []
+
+    system_instructions = []
+    for elem in raw_system_instructions:
+        if isinstance(elem, str):
+            system_instructions.append(elem)
+        elif Part is not None and isinstance(elem, Part):
+            system_instructions.append(_get_attr(elem, "text", ""))
+    return system_instructions
