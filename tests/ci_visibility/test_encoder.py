@@ -64,7 +64,7 @@ def test_encode_traces_civisibility_v0():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
     assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
@@ -106,7 +106,7 @@ def test_encode_traces_civisibility_v0():
 def test_encode_traces_civisibility_v0_no_traces():
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
-    payload, _ = encoder.encode()
+    payload, _ = encoder.encode()[0]
     assert payload is None
 
 
@@ -117,7 +117,7 @@ def test_encode_traces_civisibility_v0_empty_traces():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, size = encoder.encode()
+    payload, size = encoder.encode()[0]
     assert size == 2
     assert payload is None
 
@@ -160,7 +160,7 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     assert expected_cov == received_covs[0]
 
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -200,7 +200,7 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
         encoder.put(trace)
 
     payload = encoder._build_data(traces)
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -255,7 +255,7 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     payload = encoder._build_data(traces)
     assert payload is None
 
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert complete_payload is None
 
 
@@ -280,7 +280,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
@@ -341,7 +341,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
@@ -397,7 +397,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
@@ -448,7 +448,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]
@@ -543,7 +543,7 @@ def test_xdist_worker_session_filtering(mock_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -570,7 +570,7 @@ def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -652,7 +652,7 @@ def test_full_encoding_with_parent_session_override():
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -699,7 +699,7 @@ def test_payload_size_splitting_under_limit(monkeypatch):
     for trace in traces:
         encoder.put(trace)
 
-    payload, count = encoder.encode()
+    payload, count = encoder.encode()[0]
 
     # All traces should be processed in one payload
     assert count == 3
@@ -730,29 +730,28 @@ def test_payload_size_splitting_over_limit(monkeypatch):
     for trace in traces:
         encoder.put(trace)
 
-    # First encode should return some traces but not all
-    payload1, count1 = encoder.encode()
+    # First encode should return several payloads encoded
+    payloads = encoder.encode()
+    assert len(encoder) == 0  # Buffer should have no remaining traces
+    assert len(payloads) == 4
+
+    payload1, count1 = payloads[0]
 
     assert payload1 is not None
     assert count1 > 0
     assert count1 < 8  # Should not process all traces due to size limit
-    assert len(encoder) > 0  # Buffer should have remaining traces
 
     # Second encode should return remaining traces
-    payload2, count2 = encoder.encode()
+    payload2, count2 = payloads[1]
 
     if payload2 is not None:
         assert count2 > 0
         assert count1 + count2 <= 8  # Total processed should not exceed input
 
-    # Eventually all traces should be processed
-    total_processed = count1 + (count2 if count2 else 0)
-    remaining_traces = 8 - total_processed
+    _, count3 = payloads[2]
+    _, count4 = payloads[3]
 
-    if remaining_traces > 0:
-        payload3, count3 = encoder.encode()
-        if payload3 is not None:
-            total_processed += count3
+    assert count1 + count2 + count3 + count4 == 8
 
 
 def test_payload_size_splitting_single_large_trace(monkeypatch):
@@ -773,7 +772,7 @@ def test_payload_size_splitting_single_large_trace(monkeypatch):
     encoder.set_metadata("*", {"language": "python"})
     encoder.put(trace)
 
-    payload, count = encoder.encode()
+    payload, count = encoder.encode()[0]
 
     # Even though it exceeds the limit, it should still be processed
     assert count == 1
@@ -803,19 +802,8 @@ def test_payload_size_splitting_incremental_processing(monkeypatch):
     for trace in traces:
         encoder.put(trace)
 
-    total_processed = 0
-    iterations = 0
-    max_iterations = 5  # Safety limit to avoid infinite loops
-
-    while len(encoder) > 0 and iterations < max_iterations:
-        payload, count = encoder.encode()
-        if count == 0:
-            break
-        total_processed += count
-        iterations += 1
-
-        assert payload is not None
-        assert count > 0
+    payloads = encoder.encode()
+    total_processed = sum([c for _, c in payloads])
 
     # All traces should eventually be processed
     assert total_processed == 10
@@ -849,7 +837,7 @@ def test_payload_size_splitting_empty_traces_handling(monkeypatch):
     for trace in traces:
         encoder.put(trace)
 
-    payload, count = encoder.encode()
+    payload, count = encoder.encode()[0]
 
     # Should process all traces (empty traces are counted but don't contribute to payload)
     assert count > 0
@@ -888,7 +876,7 @@ def test_payload_size_splitting_with_xdist_filtering(monkeypatch):
         for trace in traces:
             encoder.put(trace)
 
-        payload, count = encoder.encode()
+        payload, count = encoder.encode()[0]
 
         # Should process traces with session spans filtered out
         assert count > 0
@@ -946,31 +934,13 @@ def test_payload_size_splitting_with_multiple_encode_calls(monkeypatch):
     assert len(encoder) == 6
 
     # Track all payloads generated
-    payloads = []
-    total_processed = 0
-
-    # Keep calling encode until all traces are processed
-    while len(encoder) > 0:
-        payload, count = encoder.encode()
-        if count == 0:
-            break
-        total_processed += count
-        if payload:
-            payloads.append(payload)
-
-    # Verify that multiple payloads were created due to splitting
-    assert len(payloads) >= 2  # Should have at least 2 payloads due to splitting
-
-    # Verify that all traces were eventually processed
-    assert total_processed == 6
-
+    payloads = encoder.encode()
     # Verify that encoder buffer is empty after processing
     assert len(encoder) == 0
 
-    # Verify that all payloads are valid msgpack
-    for payload in payloads:
-        assert payload is not None
-        assert isinstance(payload, bytes)
-        decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
-        assert b"events" in decoded
-        assert len(decoded[b"events"]) > 0
+    # Verify that all traces were processed
+    total_processed = sum([c for _, c in payloads])
+    assert total_processed == 6
+
+    # Verify that multiple payloads were created due to splitting
+    assert len(payloads) >= 2  # Should have at least 2 payloads due to splitting
