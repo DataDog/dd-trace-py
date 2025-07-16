@@ -111,7 +111,7 @@ def _test_gunicorn(gunicorn, tmp_path, monkeypatch, *args):
 
     for pid in worker_pids:
         debug_print("Reading pprof file with prefix %s.%d" % (filename, pid))
-        profile = pprof_utils.parse_profile("%s.%d" % (filename, pid))
+        profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         # This returns a list of samples that have non-zero cpu-time
         samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
         assert len(samples) > 0

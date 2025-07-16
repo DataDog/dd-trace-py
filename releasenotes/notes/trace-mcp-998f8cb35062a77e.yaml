@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability, mcp: Adds tracing support for ``mcp.client.session.ClientSession.call_tool`` and ``mcp.server.fastmcp.tools.tool_manager.ToolManager.call_tool`` methods in the MCP SDK.
