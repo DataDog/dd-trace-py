@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix an issue with greenlet support that could cause greenlet
+    spawning to fail in some rare cases.
