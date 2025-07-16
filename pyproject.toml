@@ -49,9 +49,6 @@ opentelemetry = [
 openai = [
     "tiktoken",
 ]
-test = [
-    "pytest-xdist",
-]
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
