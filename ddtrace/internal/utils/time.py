@@ -18,6 +18,7 @@ class Time:
 
     .. _freezegun: https://github.com/spulec/freezegun/blob/1.5.3/freezegun/api.py#L817
     """
+
     time = builtin_time.time
     time_ns = builtin_time.time_ns
     monotonic = builtin_time.monotonic

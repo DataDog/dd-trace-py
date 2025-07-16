@@ -1,10 +1,8 @@
 import datetime
-import os
 import time
 
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.trace import tracer as dd_tracer
-from tests.utils import flaky
 
 
 class TestFreezegunTestCase:
