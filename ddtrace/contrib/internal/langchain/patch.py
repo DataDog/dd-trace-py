@@ -3,10 +3,8 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
-from typing import Union
 
 import langchain
-from pydantic import SecretStr
 
 
 try:
