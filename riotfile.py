@@ -152,6 +152,30 @@ venv = Venv(
             },
         ),
         Venv(
+            name="appsec_integrations_packages",
+            pys=select_pys(),
+            command="python -m pytest -vvv -s -n 8 --no-cov --no-ddtrace tests/appsec/integrations/packages_tests/",
+            pkgs={
+                "pytest-xdist": latest,
+                "pytest-asyncio": latest,
+                "requests": latest,
+                "SQLAlchemy": latest,
+                "psycopg2-binary": "~=2.9.9",
+                "pymysql": latest,
+                "mysqlclient": "==2.1.1",
+                "mysql-connector-python": latest,
+                "MarkupSafe": "~=2.1.1",
+                "Werkzeug": "~=3.0.6",
+                "babel": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
+        ),
+        Venv(
             name="appsec_iast_packages",
             # FIXME: GrpcIO is hanging with 3.13 on CI + hatch for some reason
             pys=["3.8", "3.9", "3.10", "3.11", "3.12"],
@@ -1376,7 +1400,6 @@ venv = Venv(
             name="starlette",
             command="pytest {cmdargs} tests/contrib/starlette",
             pkgs={
-                "httpx": latest,
                 "pytest-asyncio": "==0.21.1",
                 "greenlet": "==3.0.3",
                 "requests": latest,
@@ -1393,21 +1416,29 @@ venv = Venv(
                 Venv(
                     # starlette added support for Python 3.9 in 0.14
                     pys=select_pys(min_version="3.8", max_version="3.9"),
-                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0", latest]},
+                    pkgs={"starlette": ["~=0.14.0", "~=0.20.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
                     # starlette added support for Python 3.10 in 0.15
                     pys="3.10",
-                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest]},
+                    pkgs={"starlette": ["~=0.15.0", "~=0.20.0", "~=0.33.0", latest], "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pys="3.10",
+                    pkgs={"starlette": [latest], "httpx": latest},
                 ),
                 Venv(
                     # starlette added support for Python 3.11 in 0.21
                     pys="3.11",
-                    pkgs={"starlette": ["~=0.21.0", "~=0.33.0", latest]},
+                    pkgs={"starlette": ["~=0.21.0", "~=0.33.0"], "httpx": "~=0.22.0"},
                 ),
                 Venv(
                     pys="3.12",
-                    pkgs={"starlette": latest},
+                    pkgs={"starlette": latest, "httpx": "~=0.27.0"},
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.8", max_version="3.11"),
+                    pkgs={"starlette": [latest], "httpx": "~=0.22.0"},
                 ),
             ],
         ),
@@ -2883,6 +2914,20 @@ venv = Venv(
             pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
         ),
         Venv(
+            name="mcp",
+            command="pytest {cmdargs} tests/contrib/mcp",
+            pys=select_pys(min_version="3.10"),
+            pkgs={
+                "pytest-asyncio": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.10"),
+                    pkgs={"mcp": ["~=1.10.0", latest]},
+                ),
+            ],
+        ),
+        Venv(
             name="litellm",
             command="pytest {cmdargs} tests/contrib/litellm",
             pys=select_pys(min_version="3.9"),
@@ -3612,6 +3657,25 @@ venv = Venv(
                     venvs=_appsec_threats_iast_variants,
                 ),
             ],
+        ),
+        Venv(
+            name="appsec_iast_native",
+            command="cmake -DCMAKE_BUILD_TYPE=Debug -DPYTHON_EXECUTABLE=python "
+            "-S ddtrace/appsec/_iast/_taint_tracking -B ddtrace/appsec/_iast/_taint_tracking && "
+            "make -f ddtrace/appsec/_iast/_taint_tracking/tests/Makefile native_tests && "
+            "ddtrace/appsec/_iast/_taint_tracking/tests/native_tests",
+            pys=select_pys(),
+            pkgs={
+                "cmake": latest,
+                "pybind11": latest,
+                "clang": latest,
+            },
+            env={
+                "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
+                "DD_IAST_REQUEST_SAMPLING": "100",
+                "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
+                "DD_IAST_DEDUPLICATION_ENABLED": "false",
+            },
         ),
     ],
 )
