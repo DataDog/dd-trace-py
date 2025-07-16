@@ -6,7 +6,7 @@ from ddtrace.internal.wrapping.context import WrappingContext
 
 log = get_logger(__name__)
 
-DDTRACE_MODULE_NAME = "ddtrace"
+DDTRACE_MODULE_NAMES = ["ddtrace._trace", "ddtrace.internal.utils.time"]
 
 
 class FreezegunConfigWrappingContext(WrappingContext):
@@ -24,8 +24,9 @@ class FreezegunConfigWrappingContext(WrappingContext):
             log.debug("Could not get default_ignore_list on call to configure()")
             return
 
-        if default_ignore_list is not None and DDTRACE_MODULE_NAME not in default_ignore_list:
-            default_ignore_list.append(DDTRACE_MODULE_NAME)
+        for module_name in DDTRACE_MODULE_NAMES:
+            if default_ignore_list is not None and module_name not in default_ignore_list:
+                default_ignore_list.append(module_name)
 
         return self
 
@@ -52,7 +53,7 @@ def patch() -> None:
 
     FreezegunConfigWrappingContext(freezegun.configure).wrap()
 
-    freezegun.configure(extend_ignore_list=[DDTRACE_MODULE_NAME])
+    freezegun.configure(extend_ignore_list=DDTRACE_MODULE_NAMES)
 
     freezegun._datadog_patch = True
 
@@ -68,7 +69,7 @@ def unpatch() -> None:
 
     # Note: we do not want to restore to the original ignore list, as it may have been modified by the user, but we do
     # want to remove the ddtrace module from the ignore list
-    new_ignore_list = [m for m in freezegun.config.settings.default_ignore_list if m != DDTRACE_MODULE_NAME]
+    new_ignore_list = [m for m in freezegun.config.settings.default_ignore_list if m not in DDTRACE_MODULE_NAMES]
     freezegun.configure(default_ignore_list=new_ignore_list)
 
     freezegun._datadog_patch = False
