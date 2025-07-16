@@ -1789,6 +1789,37 @@ venv = Venv(
                         "httpx": latest,
                     },
                 ),
+                Venv(
+                    name="pytest_plugin_v2",
+                    command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
+                    pys=["3.9", "3.10", "3.12"],
+                    pkgs={
+                        "httpx": latest,
+                        "msgpack": latest,
+                        "requests": latest,
+                        "hypothesis": latest,
+                    },
+                    env={
+                        "DD_AGENT_PORT": "9126",
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "pytest": "~=6.0",
+                            },
+                        ),
+                        Venv(
+                            pkgs={
+                                "pytest": "~=7.0",
+                            },
+                        ),
+                        Venv(
+                            pkgs={
+                                "pytest": "~=8.0",
+                            },
+                        ),
+                    ],
+                ),
             ],
         ),
         Venv(
