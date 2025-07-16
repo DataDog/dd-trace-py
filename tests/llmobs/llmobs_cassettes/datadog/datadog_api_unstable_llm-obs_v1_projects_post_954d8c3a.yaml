@@ -5,18 +5,18 @@ interactions:
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
       Content-Length:
       - '89'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/projects
   response:
@@ -30,7 +30,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 14:39:16 GMT
+      - Wed, 16 Jul 2025 02:23:59 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

@@ -2,28 +2,28 @@ interactions:
 - request:
     body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
       {"prompt": "What is the capital of France?"}, "expected_output": {"answer":
-      "Paris"}, "metadata": {}, "record_id": null}]}}}'
+      "Paris"}, "metadata": {}}], "update_records": [], "delete_record_ids": []}}}'
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
       Content-Length:
-      - '198'
-      ? !!python/object/apply:multidict._multidict.istr
+      - '226'
+      ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/757f4529-ce99-4c10-ab9c-4c389b47839c/batch_update
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/b892c6a3-f691-40de-ae33-f65f102d1696/batch_update
   response:
     body:
-      string: '{"data":[{"id":"45f49d20-a612-4b7e-b889-ee5a4b928b83","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-15T14:39:10.911035757Z","dataset_id":"757f4529-ce99-4c10-ab9c-4c389b47839c","expected_output":{"answer":"Paris"},"input":{"prompt":"What
-        is the capital of France?"},"metadata":{},"updated_at":"2025-07-15T14:39:10.911035757Z","version":1}}]}'
+      string: '{"data":[{"id":"3f4bf950-0148-4b86-90c0-6c8cc6d021d9","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:23:51.446311892Z","dataset_id":"b892c6a3-f691-40de-ae33-f65f102d1696","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"metadata":{},"updated_at":"2025-07-16T02:23:51.446311892Z","version":1}}]}'
     headers:
       content-length:
       - '403'
@@ -32,7 +32,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 14:39:12 GMT
+      - Wed, 16 Jul 2025 02:23:51 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

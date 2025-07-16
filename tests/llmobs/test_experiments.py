@@ -23,6 +23,11 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 
 
+def wait_for_backend():
+    if os.environ.get("RECORD_REQUESTS", "0") != "0":
+        time.sleep(2)
+
+
 def dummy_task(input_data, config):
     return input_data
 
@@ -58,8 +63,7 @@ def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[D
     ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=test_dataset_records)
 
     # When recording the requests, we need to wait for the dataset to be queryable.
-    if os.environ.get("RECORD_REQUESTS", "0") != "0":
-        time.sleep(2)
+    wait_for_backend()
 
     yield ds
 
@@ -72,8 +76,7 @@ def test_dataset_one_record(llmobs):
         DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})
     ]
     ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
-    if os.environ.get("RECORD_REQUESTS", "0") != "0":
-        time.sleep(2)
+    wait_for_backend()
 
     yield ds
 
@@ -114,9 +117,14 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
-    test_dataset[0]["input_data"] = {"prompt": "What is the capital of Germany?"}
-    test_dataset[0]["expected_output"] = {"answer": "Berlin"}
+    test_dataset.update(
+        0,
+        DatasetRecord(
+            input_data={"prompt": "What is the capital of Germany?"}, expected_output={"answer": "Berlin"}
+        ),
+    )
     test_dataset.push()
+    assert len(test_dataset) == 1
     assert test_dataset._version == 2
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
@@ -125,12 +133,46 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     assert test_dataset._version == 2
 
     # assert that the version is consistent with a new pull
+    wait_for_backend()
     ds = llmobs.pull_dataset(name=test_dataset.name)
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert ds[0]["expected_output"] == {"answer": "Berlin"}
+    assert len(ds) == 1
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
     assert ds._version == 2
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_append(llmobs, test_dataset):
+    test_dataset.append(
+        DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"})
+    )
+    assert len(test_dataset) == 2
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 2
+    # note: it looks like dataset order is not deterministic
+    assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
 
 
 def test_project_create(llmobs):

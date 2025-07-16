@@ -1,38 +1,38 @@
 interactions:
 - request:
     body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
-      "description": "", "dataset_id": "757f4529-ce99-4c10-ab9c-4c389b47839c", "project_id":
+      "description": "", "dataset_id": "7f7b84b6-fefa-4183-bb27-776c6c5a1145", "project_id":
       "dc4158e7-c60f-446e-bcf1-540aa68ffa0f", "dataset_version": 1, "config": {},
       "metadata": {"tags": []}, "ensure_unique": true}}}'
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
       Content-Length:
       - '288'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
   response:
     body:
-      string: '{"data":{"id":"04a262c4-d28e-4194-bf7d-93ae0822d525","type":"experiments","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"config":{},"created_at":"2025-07-15T14:39:35.64199992Z","dataset_id":"757f4529-ce99-4c10-ab9c-4c389b47839c","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1752590375641","project_id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","updated_at":"2025-07-15T14:39:35.64200001Z"}}}'
+      string: '{"data":{"id":"6e891c88-6b29-4c90-b8c4-fd2745eaa0ec","type":"experiments","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"config":{},"created_at":"2025-07-16T02:24:17.998945794Z","dataset_id":"7f7b84b6-fefa-4183-bb27-776c6c5a1145","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1752632657998","project_id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","updated_at":"2025-07-16T02:24:17.998945909Z"}}}'
     headers:
       content-length:
-      - '481'
+      - '483'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 14:39:35 GMT
+      - Wed, 16 Jul 2025 02:24:18 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

@@ -1,7 +1,8 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"name": "test-dataset-test_experiment_run_task[test_dataset_records0]",
-      "description": "A test dataset"}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [{"input":
+      {"prompt": "What is the capital of Italy?"}, "expected_output": {"answer": "Rome"},
+      "metadata": {}}], "update_records": [], "delete_record_ids": []}}}'
     headers:
       Accept:
       - '*/*'
@@ -11,27 +12,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '151'
+      - '224'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/b892c6a3-f691-40de-ae33-f65f102d1696/batch_update
   response:
     body:
-      string: '{"data":{"id":"e972d40d-2e15-462d-bf0f-2a1de8bff1f4","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:24:18.442573303Z","current_version":0,"description":"A
-        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-16T02:24:18.442573303Z"}}}'
+      string: '{"data":[{"id":"75b9914e-5918-4a37-8ead-36e94a5e4be9","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:23:55.717350595Z","dataset_id":"b892c6a3-f691-40de-ae33-f65f102d1696","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"metadata":{},"updated_at":"2025-07-16T02:23:55.717350595Z","version":2}}]}'
     headers:
       content-length:
-      - '355'
+      - '401'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 16 Jul 2025 02:24:18 GMT
+      - Wed, 16 Jul 2025 02:23:55 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

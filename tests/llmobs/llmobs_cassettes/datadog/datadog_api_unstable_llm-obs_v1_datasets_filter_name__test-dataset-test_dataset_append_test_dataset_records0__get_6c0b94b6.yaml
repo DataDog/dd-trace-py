@@ -1,7 +1,6 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
-      ["e69e7ba5-3282-4534-8fe0-a0f0e96ca230"]}}}'
+    body: null
     headers:
       Accept:
       - '*/*'
@@ -10,28 +9,29 @@ interactions:
       : - identity
       Connection:
       - keep-alive
-      Content-Length:
-      - '119'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Length
+      : - '0'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
-    method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
+    method: GET
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter%5Bname%5D=test-dataset-test_dataset_append%5Btest_dataset_records0%5D
   response:
     body:
-      string: '{"data":[{"id":"e69e7ba5-3282-4534-8fe0-a0f0e96ca230","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-15T04:23:51.494803Z","current_version":2,"deleted_at":"2025-07-15T04:23:57.674741Z","description":"A
-        test dataset","name":"test-dataset-test_dataset_modify_single_record[test_dataset_records0]","updated_at":"2025-07-15T04:23:54.500847Z"}}]}'
+      string: '{"data":[{"id":"b892c6a3-f691-40de-ae33-f65f102d1696","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:23:51.294733Z","current_version":2,"description":"A
+        test dataset","name":"test-dataset-test_dataset_append[test_dataset_records0]","updated_at":"2025-07-16T02:23:55.845023Z"}}],"meta":{"after":""}}'
     headers:
       content-length:
-      - '403'
+      - '366'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 04:23:57 GMT
+      - Wed, 16 Jul 2025 02:23:57 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

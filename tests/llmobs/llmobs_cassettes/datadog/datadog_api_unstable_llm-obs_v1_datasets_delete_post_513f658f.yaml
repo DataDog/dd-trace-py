@@ -1,36 +1,37 @@
 interactions:
 - request:
-    body: null
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["2245181d-df17-4d88-88da-7e6ee5e1debf"]}}}'
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
-      ? !!python/object/apply:multidict._multidict.istr
-      - Content-Length
-      : - '0'
-      ? !!python/object/apply:multidict._multidict.istr
+      Content-Length:
+      - '119'
+      ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
-    method: GET
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/95bfb2a6-377e-4a79-83ef-487f335aa3f6/records
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":[],"meta":{"after":""}}'
+      string: '{"data":[{"id":"2245181d-df17-4d88-88da-7e6ee5e1debf","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:23:41.718906Z","current_version":0,"deleted_at":"2025-07-16T02:23:41.863379Z","description":"A
+        second test dataset","name":"test-dataset-2","updated_at":"2025-07-16T02:23:41.718906Z"}}]}'
     headers:
       content-length:
-      - '31'
+      - '355'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 14:39:10 GMT
+      - Wed, 16 Jul 2025 02:23:41 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

@@ -43,6 +43,7 @@ from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
@@ -333,31 +334,41 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(name, dataset_id, [], description, curr_version)
+        return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
-    def dataset_create_with_records(self, name: str, description: str, records: List[DatasetRecord]) -> Dataset:
-        ds = self.dataset_create(name, description)
-        if records:
-            ds._records = records
-            new_version = self.dataset_batch_update(ds._id, records)
-            ds._version = new_version
-        return ds
-
-    def dataset_batch_update(self, dataset_id: str, records: List[DatasetRecord]) -> int:
-        rs: JSONType = [
+    def dataset_batch_update(
+        self,
+        dataset_id: str,
+        insert_records: List[DatasetRecordRaw],
+        update_records: List[DatasetRecord],
+        delete_record_ids: List[str],
+    ) -> int:
+        irs: JSONType = [
             {
                 "input": cast(Dict[str, JSONType], r["input_data"]),
                 "expected_output": r["expected_output"],
                 "metadata": r.get("metadata", {}),
-                "record_id": r.get("record_id", None),
             }
-            for r in records
+            for r in insert_records
+        ]
+        urs: JSONType = [
+            {
+                "input": cast(Dict[str, JSONType], r["input_data"]),
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+                "record_id": r["record_id"],
+            }
+            for r in update_records
         ]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
                 "type": "datasets",
-                "attributes": {"insert_records": rs},
+                "attributes": {
+                    "insert_records": irs,
+                    "update_records": urs,
+                    "delete_record_ids": delete_record_ids,
+                },
             }
         }
         resp = self.request("POST", path, body)
@@ -366,7 +377,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
-            raise ValueError(f"Failed to update dataset {dataset_id}, records not found")  # nosec
+            raise ValueError(f"Failed to update dataset {dataset_id}, records not found, {resp.get_json()}")  # nosec
         new_version = data[0]["attributes"]["version"]
         return new_version
 
@@ -402,7 +413,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "metadata": attrs.get("metadata", {}),
                 }
             )
-        return Dataset(name, dataset_id, class_records, dataset_description, curr_version)
+        return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
     def project_create(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"

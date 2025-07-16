@@ -36,11 +36,14 @@ ExperimentConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
-class DatasetRecord(TypedDict):
+class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
-    record_id: NotRequired[Optional[str]]
+
+
+class DatasetRecord(DatasetRecordRaw):
+    record_id: str
 
 
 class TaskResult(TypedDict):
@@ -73,16 +76,28 @@ class Dataset:
     _records: List[DatasetRecord]
     _version: int
     _dne_client: Optional["LLMObsExperimentsClient"]
+    _new_records: List[DatasetRecordRaw]
+    _updated_record_ids: List[str]
+    _deleted_record_ids: List[str]
 
     def __init__(
-        self, name: str, dataset_id: str, records: List[DatasetRecord], description: str, version: int
+        self,
+        name: str,
+        dataset_id: str,
+        records: List[DatasetRecord],
+        description: str,
+        version: int,
+        _dne_client: "LLMObsExperimentsClient",
     ) -> None:
         self.name = name
         self.description = description
         self._id = dataset_id
-        self._records = records
-        self._dne_client = None
         self._version = version
+        self._dne_client = _dne_client
+        self._records = records
+        self._new_records = []
+        self._updated_record_ids = []
+        self._deleted_record_ids = []
 
     def push(self) -> None:
         if not self._id:
@@ -99,8 +114,29 @@ class Dataset:
                     "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
                 )
             )
-        new_version = self._dne_client.dataset_batch_update(self._id, self._records)
+
+        updated_records = [r for r in self._records if "record_id" in r and r["record_id"] in self._updated_record_ids]
+        new_version = self._dne_client.dataset_batch_update(
+            self._id, self._new_records, updated_records, self._deleted_record_ids
+        )
         self._version = new_version
+        self._new_records = []
+        self._deleted_records = []
+        self._updated_record_ids = []
+
+    def update(self, index: int, record: DatasetRecordRaw) -> None:
+        record_id = self._records[index]["record_id"]
+        self._updated_record_ids.append(record_id)
+        record["record_id"] = record_id
+        self._records[index] = record
+
+    def append(self, record: DatasetRecord) -> None:
+        self._new_records.append(record)
+        self._records.append(record)
+
+    def __delitem__(self, index: Union[int, slice]) -> None:
+        self._deleted_record_ids.append(self._records[index]["record_id"])
+        del self._records[index]
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
