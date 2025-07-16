@@ -40,7 +40,7 @@ def test_heap_samples_collected():
     x = _allocate_1k()  # noqa: F841
     p.stop()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "heap-space")
     assert len(samples) > 0
 
@@ -65,7 +65,7 @@ def test_memory_collector(tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     # Gets samples with alloc-space > 0
     samples = pprof_utils.get_samples_with_value_type(profile, "alloc-space")
 
@@ -129,7 +129,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
     ddup.upload()
 
     try:
-        pprof_utils.parse_profile(output_filename)
+        pprof_utils.parse_newest_profile(output_filename)
     except AssertionError as e:
         assert "No samples found" in str(e)
 
