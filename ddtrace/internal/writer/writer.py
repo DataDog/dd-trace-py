@@ -376,6 +376,27 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             self._set_drop_rate()
 
+    def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
+        n_traces = len(client.encoder)
+        try:
+            payloads = client.encoder.encode()
+            if not isinstance(payloads, list):
+                n_traces = payloads[1]
+            elif len(payloads) == 1:
+                n_traces = payloads[0][1]
+        except Exception:
+            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate
+            # due to race conditions
+            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            self._metrics_dist("encoder.dropped.traces", n_traces)
+            return
+
+        if isinstance(payloads, list):
+            for payload in payloads:
+                self._flush_single_payload(payload, client=client, raise_exc=raise_exc)
+        else:
+            self._flush_single_payload(payloads, client=client, raise_exc=raise_exc)
+
     def _flush_single_payload(
         self, payload: Tuple[Optional[bytes], int], client: WriterClientBase, raise_exc: bool = False
     ) -> None:
@@ -411,27 +432,6 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
             self._metrics_dist("http.sent.traces", n_traces)
-
-    def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
-        n_traces = len(client.encoder)
-        try:
-            payloads = client.encoder.encode()
-            if not isinstance(payloads, list):
-                n_traces = payloads[1]
-            elif len(payloads) == 1:
-                n_traces = payloads[0][1]
-        except Exception:
-            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate
-            # due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", n_traces)
-            return
-
-        if isinstance(payloads, list):
-            for payload in payloads:
-                self._flush_single_payload(payload, client=client, raise_exc=raise_exc)
-        else:
-            self._flush_single_payload(payloads, client=client, raise_exc=raise_exc)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
