@@ -2,6 +2,11 @@ import json
 import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -28,12 +33,6 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
     from ddtrace._trace.span import Span  # noqa:F401
 
 
@@ -73,16 +72,19 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def encode_traces(self, traces):
         return self._build_payload(traces=traces)[0]
 
-    def encode(self):
+    def encode(self) -> List[Tuple[Optional[bytes], int]]:
         with self._lock:
             if not self.buffer:
-                return None, 0
-            with StopWatch() as sw:
-                payload, count = self._build_payload(self.buffer)
-            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
-            if count:
-                self.buffer = self.buffer[count:]
-            return payload, count
+                return [(None, 0)]
+            payloads = []
+            while self.buffer:
+                with StopWatch() as sw:
+                    payload, count = self._build_payload(self.buffer)
+                    payloads.append((payload, count))
+                record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
+                if count:
+                    self.buffer = self.buffer[count:]
+            return payloads
 
     def _get_parent_session(self, traces):
         for trace in traces:
