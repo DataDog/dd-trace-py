@@ -10,6 +10,8 @@ from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -250,7 +252,8 @@ class TestLLMObsAnthropic:
                     )
                 )
 
-    def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -274,8 +277,7 @@ class TestLLMObsAnthropic:
                 ],
                 stream=True,
             )
-            for _ in stream:
-                pass
+            consume_stream(stream)
 
             span = mock_tracer.pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
@@ -302,7 +304,8 @@ class TestLLMObsAnthropic:
                 )
             )
 
-    def test_stream_helper(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream_helper(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -325,8 +328,7 @@ class TestLLMObsAnthropic:
                     },
                 ],
             ) as stream:
-                for _ in stream.text_stream:
-                    pass
+                consume_stream(stream.text_stream)
 
             message = stream.get_final_message()
             assert message is not None

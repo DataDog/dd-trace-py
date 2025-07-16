@@ -17,7 +17,7 @@ from ddtrace.trace import Span
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_llm_span_event, iterate_stream, next_stream
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
@@ -489,8 +489,8 @@ def test_llmobs_base_tool_invoke(llmobs_events, tracer):
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
 
-
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder):
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder, consume_stream):
     client = streamed_response_responder(
         module="openai",
         client_class_key="OpenAI",
@@ -507,8 +507,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
 
     chain = prompt | llm | parser
 
-    for _ in chain.stream({"input": "how can langsmith help with testing?"}):
-        pass
+    consume_stream(chain.stream({"input": "how can langsmith help with testing?"}))
 
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 2
@@ -534,8 +533,8 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
         span_links=True,
     )
 
-
-def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_response_responder):
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_response_responder, consume_stream):
     client = streamed_response_responder(
         module="openai",
         client_class_key="OpenAI",
@@ -545,9 +544,7 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_r
     )
 
     llm = langchain_openai.OpenAI(client=client)
-
-    for _ in llm.stream("Hello!"):
-        pass
+    consume_stream(llm.stream("Hello!"))
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1

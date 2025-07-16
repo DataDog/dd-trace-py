@@ -39,13 +39,11 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
         traced_stream = make_traced_stream(
             resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
         )
-        traced_stream.text_stream = _text_stream_generator(traced_stream)
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_async_stream(
             resp, AnthropicAsyncStreamHandler(integration, span, args, kwargs), on_stream_created=add_async_text_stream
         )
-        traced_stream.text_stream = _async_text_stream_generator(traced_stream)
         return traced_stream
 
 

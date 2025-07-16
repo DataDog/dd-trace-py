@@ -10,7 +10,7 @@ from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
 from tests.contrib.vertexai.utils import weather_tool
-from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_llm_span_event, aiterate_stream, anext_stream, iterate_stream, next_stream
 
 
 @pytest.mark.parametrize(
@@ -120,7 +120,8 @@ class TestLLMObsVertexai:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_no_generation_config_span_event(span))
 
-    def test_completion_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -132,14 +133,14 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
-    def test_completion_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -153,14 +154,14 @@ class TestLLMObsVertexai:
                 stream=True,
                 candidate_count=2,  # candidate_count is not a valid keyword argument
             )
-            for _ in response:
-                pass
+            consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
-    def test_completion_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -172,8 +173,7 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -229,7 +229,8 @@ class TestLLMObsVertexai:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
-    async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -241,14 +242,14 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
-    async def test_completion_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_completion_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -262,14 +263,14 @@ class TestLLMObsVertexai:
                 stream=True,
                 candidate_count=2,
             )
-            async for _ in response:
-                pass
+            await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
-    async def test_completion_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_completion_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -281,8 +282,7 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -382,7 +382,8 @@ class TestLLMObsVertexai:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_system_prompt_span_event(span))
 
-    def test_chat_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_chat_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -395,14 +396,14 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
-    def test_chat_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_chat_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_STREAM_CHUNKS)
@@ -417,14 +418,14 @@ class TestLLMObsVertexai:
                 stream=True,
                 candidate_count=2,
             )
-            for _ in response:
-                pass
+            consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
-    def test_chat_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_chat_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
         llm._prediction_client.responses["stream_generate_content"] = [
             (_mock_completion_stream_chunk(chunk) for chunk in MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -437,8 +438,7 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -497,7 +497,8 @@ class TestLLMObsVertexai:
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
-    async def test_chat_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_chat_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -510,14 +511,14 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
-    async def test_chat_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_chat_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
@@ -532,14 +533,14 @@ class TestLLMObsVertexai:
                 stream=True,
                 candidate_count=2,
             )
-            async for _ in response:
-                pass
+            await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_error_span_event(span))
 
-    async def test_chat_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
+    async def test_chat_async_stream_tool(self, vertexai, mock_llmobs_writer, mock_tracer, consume_stream):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS)
@@ -552,8 +553,7 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
