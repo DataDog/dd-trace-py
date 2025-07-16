@@ -270,13 +270,12 @@ def test_metrics_partial_flush_disabled():
 def test_single_trace_too_large():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
-    with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
+    with mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
     ) as log:
         with t.trace("huge"):
