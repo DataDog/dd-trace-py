@@ -27,7 +27,19 @@ def dummy_task(input_data, config):
     return input_data
 
 
+def faulty_task(input_data, config):
+    raise ValueError("This is a test error")
+
+
 def dummy_evaluator(input_data, output_data, expected_output):
+    return output_data == expected_output
+
+
+def faulty_evaluator(input_data, output_data, expected_output):
+    raise ValueError("This is a test error in evaluator")
+
+
+def matches_evaluator(input_data, output_data, expected_output):
     return output_data == expected_output
 
 
@@ -140,6 +152,12 @@ def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_recor
     with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
 
         def my_task(not_input):
+            pass
+
+        llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        def my_task(input_data, not_config):
             pass
 
         llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
@@ -270,9 +288,6 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
-    def faulty_task(input_data, config):
-        raise ValueError("This is a test error")
-
     exp = llmobs.experiment(
         "test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
     )
@@ -297,3 +312,102 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     assert task_results[0]["error"]["message"] == "This is a test error"
     assert task_results[0]["error"]["stack"] is not None
     assert task_results[0]["error"]["type"] == "builtins.ValueError"
+
+
+def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {"idx": 0, "evaluations": {"matches_evaluator": {"value": False, "error": None}}}
+
+
+def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    assert len(eval_results) == 1
+    assert eval_results[0] == {"idx": 0, "evaluations": {"faulty_evaluator": {"value": None, "error": mock.ANY}}}
+    err = eval_results[0]["evaluations"]["faulty_evaluator"]["error"]
+    assert err["message"] == "This is a test error in evaluator"
+    assert err["type"] == "ValueError"
+    assert err["stack"] is not None
+
+
+def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    assert len(task_results) == 1
+    with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
+        exp._run_evaluators(task_results, raise_errors=True)
+
+
+def test_experiment_merge_results(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    merged_results = exp._merge_results(task_results, eval_results)
+
+    assert len(merged_results) == 1
+    exp_result = merged_results[0]
+    assert exp_result["idx"] == 0
+    assert exp_result["record_id"] == ""
+    assert exp_result["input"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["output"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp_result["evaluations"] == {"matches_evaluator": {"value": False, "error": None}}
+    assert exp_result["metadata"] == {
+        "timestamp": mock.ANY,
+        "duration": mock.ANY,
+        "dataset_record_index": 0,
+        "experiment_name": "test_experiment",
+        "dataset_name": "test-dataset-123",
+        "span_id": mock.ANY,
+        "trace_id": mock.ANY,
+        "tags": [],
+    }
+    assert exp_result["error"] == {"message": None, "type": None, "stack": None}
+
+
+def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
+    )
+    task_results = exp._run_task(1, raise_errors=False)
+    eval_results = exp._run_evaluators(task_results, raise_errors=False)
+    merged_results = exp._merge_results(task_results, eval_results)
+
+    assert len(merged_results) == 1
+    exp_result = merged_results[0]
+    assert exp_result["idx"] == 0
+    assert exp_result["record_id"] == ""
+    assert exp_result["input"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["output"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY}}
+    assert exp_result["evaluations"]["faulty_evaluator"]["error"] == {
+        "message": "This is a test error in evaluator",
+        "type": "ValueError",
+        "stack": mock.ANY,
+    }
+    assert exp_result["metadata"] == {
+        "timestamp": mock.ANY,
+        "duration": mock.ANY,
+        "dataset_record_index": 0,
+        "experiment_name": "test_experiment",
+        "dataset_name": "test-dataset-123",
+        "span_id": mock.ANY,
+        "trace_id": mock.ANY,
+        "tags": [],
+    }
+    assert exp_result["error"] == {"message": None, "type": None, "stack": None}

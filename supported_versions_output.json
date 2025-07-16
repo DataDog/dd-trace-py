@@ -430,6 +430,13 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "mcp",
+        "integration": "mcp",
+        "minimum_tracer_supported": "1.10.0",
+        "max_tracer_supported": "1.11.0",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "molten",
         "integration": "molten",
         "minimum_tracer_supported": "1.0.2",
