@@ -185,7 +185,7 @@ memalloc_heap_map_delete(memalloc_heap_map_t* m)
     free(m);
 }
 
-memalloc_heap_map_iter_t* 
+memalloc_heap_map_iter_t*
 memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
 {
     memalloc_heap_map_iter_t* it = malloc(sizeof(memalloc_heap_map_iter_t));
@@ -196,28 +196,28 @@ memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
     return it;
 }
 
-bool 
+bool
 memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb)
 {
     const HeapSamples_Entry* e;
-    
+
     if (!it->started) {
         e = HeapSamples_CIter_get(&it->iter);
         it->started = true;
     } else {
         e = HeapSamples_CIter_next(&it->iter);
     }
-    
+
     if (e != NULL) {
         *key = e->key;
         *tb = e->val;
         return true;
     }
-    
+
     return false;
 }
 
-void 
+void
 memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it)
 {
     if (it) {

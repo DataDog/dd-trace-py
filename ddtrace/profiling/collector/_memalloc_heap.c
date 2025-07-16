@@ -361,12 +361,12 @@ memalloc_heap(void)
      * New allocations will go into the secondary freezer.allocs_m map and allocations
      * tracked in allocs_m which are freed will be added to a list to be removed when
      * the profiler is thawed. */
-    
+
     /* Calculate total number of samples: live + freed */
     size_t live_count = memalloc_heap_map_size(global_heap_tracker.allocs_m);
     size_t freed_count = global_heap_tracker.allocation_list.count;
     size_t total_count = live_count + freed_count;
-    
+
     PyObject* heap_list = PyList_New(total_count);
     if (heap_list == NULL) {
         heap_tracker_thaw(&global_heap_tracker);
@@ -374,72 +374,72 @@ memalloc_heap(void)
     }
 
     int list_index = 0;
-    
+
     /* First, iterate over live samples using the new iterator API */
     memalloc_heap_map_iter_t* it = memalloc_heap_map_iter_new(global_heap_tracker.allocs_m);
     if (it) {
         void* key;
         traceback_t* tb;
-        
+
         while (memalloc_heap_map_iter_next(it, &key, &tb)) {
             if (list_index >= total_count) {
                 break;
             }
-            
+
             PyObject* tb_and_info = PyTuple_New(4);
             if (tb_and_info == NULL) {
                 continue;
             }
-            
+
             size_t in_use_size = tb->size;
             size_t alloc_size = tb->reported ? 0 : tb->size;
-            
+
             PyTuple_SET_ITEM(tb_and_info, 0, traceback_to_tuple(tb));
             PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
             PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
             PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
-            
+
             PyList_SET_ITEM(heap_list, list_index, tb_and_info);
             list_index++;
-            
+
             /* Mark as reported */
             tb->reported = true;
         }
-        
+
         memalloc_heap_map_iter_delete(it);
     }
-    
+
     /* Second, iterate over freed samples from allocation_list */
     for (size_t i = 0; i < global_heap_tracker.allocation_list.count; i++) {
         if (list_index >= total_count) {
             break;
         }
-        
+
         traceback_t* tb = global_heap_tracker.allocation_list.tab[i];
-        
+
         PyObject* tb_and_info = PyTuple_New(4);
         if (tb_and_info == NULL) {
             continue;
         }
-        
+
         size_t in_use_size = 0;
         size_t alloc_size = tb->size;
-        
+
         PyTuple_SET_ITEM(tb_and_info, 0, traceback_to_tuple(tb));
         PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
         PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
         PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
-        
+
         PyList_SET_ITEM(heap_list, list_index, tb_and_info);
         list_index++;
     }
-    
+
     if (list_index < total_count) {
         if (PyList_SetSlice(heap_list, list_index, total_count, NULL) < 0) {
             PyErr_Clear();
         }
     }
-    
+
     /* Free all tracebacks in allocation_list after reporting them */
     for (size_t i = 0; i < global_heap_tracker.allocation_list.count; i++) {
         if (global_heap_tracker.allocation_list.tab[i] != NULL) {

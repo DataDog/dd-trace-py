@@ -38,16 +38,16 @@ PyObject*
 memalloc_heap_map_export(memalloc_heap_map_t* m);
 
 /* Create a new iterator for the heap map */
-memalloc_heap_map_iter_t* 
+memalloc_heap_map_iter_t*
 memalloc_heap_map_iter_new(memalloc_heap_map_t* m);
 
 /* Get the next key-value pair from the iterator. Returns true if a pair was found,
  * false if the iterator is exhausted */
-bool 
+bool
 memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb);
 
 /* Delete the iterator */
-void 
+void
 memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it);
 
 /* Copy the contents of src into dst, removing the items from src */
