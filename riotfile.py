@@ -3084,6 +3084,12 @@ venv = Venv(
             },
         ),
         Venv(
+            name="azure_eventhub",
+            command="pytest {cmdargs} tests/contrib/azure_eventhub",
+            pys=select_pys(min_version="3.8", max_version="3.13"),
+            pkgs={"azure.eventhub": ["~=5.15.0", latest]},
+        ),
+        Venv(
             name="azure_functions",
             command="pytest {cmdargs} tests/contrib/azure_functions",
             pys=select_pys(min_version="3.8", max_version="3.11"),

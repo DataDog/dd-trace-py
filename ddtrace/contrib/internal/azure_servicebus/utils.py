@@ -27,7 +27,6 @@ def create_context(context_name, pin, resource=None):
 
 def handle_service_bus_message_arg(span, message_arg_value):
     if isinstance(message_arg_value, (azure_servicebus.ServiceBusMessage, azure_servicebus_amqp.AmqpAnnotatedMessage)):
-        message_arg_value.application_properties
         inject_context(span, message_arg_value)
     elif (
         isinstance(message_arg_value, list)
@@ -42,10 +41,11 @@ def handle_service_bus_message_arg(span, message_arg_value):
 
 def inject_context(span, message):
     """
-    message.application_properties is of type Dict[str | bytes, PrimitiveTypes] | Dict[str | bytes, Any] | None
+    ServiceBusMessage.application_properties is of type Dict[str | bytes, PrimitiveTypes] | None
+    AmqpAnnotatedMessage.application_properties is of type Dict[str | bytes, Any] | None
     while HTTPPropagator.inject expects type of Dict[str, str].
 
-    Inject the context into an empty dictionary and merge it with message.application_properties
+    Inject the context into an empty dictionary and merge it with application_properties
     to preserve the original type.
     """
     inject_carrier = {}

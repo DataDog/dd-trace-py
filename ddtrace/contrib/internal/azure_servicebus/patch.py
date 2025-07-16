@@ -7,6 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
@@ -71,7 +72,13 @@ def _patched_send_messages(wrapped, instance, args, kwargs):
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
+            (
+                ctx,
+                config.azure_servicebus,
+                azure_servicebusx.SERVICE,
+                resource_name,
+                instance.fully_qualified_namespace,
+            ),
         )
 
         return wrapped(*args, **kwargs)
@@ -90,7 +97,13 @@ async def _patched_send_messages_async(wrapped, instance, args, kwargs):
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
+            (
+                ctx,
+                config.azure_servicebus,
+                azure_servicebusx.SERVICE,
+                resource_name,
+                instance.fully_qualified_namespace,
+            ),
         )
 
         return await wrapped(*args, **kwargs)
@@ -109,7 +122,13 @@ def _patched_schedule_messages(wrapped, instance, args, kwargs):
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
+            (
+                ctx,
+                config.azure_servicebus,
+                azure_servicebusx.SERVICE,
+                resource_name,
+                instance.fully_qualified_namespace,
+            ),
         )
 
         return wrapped(*args, **kwargs)
@@ -128,7 +147,13 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
             handle_service_bus_message_arg(ctx.span, message_arg_value)
         core.dispatch(
             "azure.servicebus.send_message_modifier",
-            (ctx, config.azure_servicebus, resource_name, instance.fully_qualified_namespace),
+            (
+                ctx,
+                config.azure_servicebus,
+                azure_servicebusx.SERVICE,
+                resource_name,
+                instance.fully_qualified_namespace,
+            ),
         )
 
         return await wrapped(*args, **kwargs)
