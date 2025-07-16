@@ -17,6 +17,7 @@ from typing import overload
 
 from typing_extensions import NotRequired
 
+import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -138,7 +139,8 @@ class Experiment:
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
-        self._tags: List[str] = tags or []
+        self._tags: List[str] = [f"ddtrace.version:{ddtrace.__version__}"]
+        self._tags.extend(tags)
         self._config: Dict[str, JSONType] = config or {}
         self._llmobs_instance = _llmobs_instance
 
@@ -178,6 +180,7 @@ class Experiment:
             description=self._description,
         )
         self._id = experiment_id
+        self._tags.append(f"experiment_id:{experiment_id}")
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
@@ -298,3 +301,57 @@ class Experiment:
             }
             experiment_results.append(exp_result)
         return experiment_results
+
+    def _generate_metric_from_evaluation(self, eval_name, eval_value, err, span_id, trace_id, timestamp_ns):
+        metric_type = None
+        if eval_value is None:
+            metric_type = "categorical"
+        elif isinstance(eval_value, bool):
+            metric_type = "boolean"
+        elif isinstance(eval_value, (int, float)):
+            metric_type = "score"
+        else:
+            metric_type = "categorical"
+            eval_value = str(eval_value).lower()
+        return {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "timestamp_ms": timestamp_ns / 1e6,
+            "metric_type": metric_type,
+            "label": eval_name,
+            f"{metric_type}_value": eval_value,
+            "error": err,
+            "tags": self._tags,
+            "experiment_id": self._id,
+        }
+
+    def _push_results(self, experiment_results: List[ExperimentResult]) -> None:
+        if not self._llmobs_instance or not self._llmobs_instance.enabled:
+            return
+        # FIXME: improve error messages and handling
+        if not self._llmobs_instance._dne_client:
+            raise ValueError(
+                "LLMObsExperimentsClient is not enabled. Ensure LLMObs is enabled with a valid experiments client."
+            )
+        if not self._project_id:
+            raise ValueError(
+                "Project ID is not set. Ensure the project is created via experiment.run() before pushing results."
+            )
+        if not self._id:
+            raise ValueError("Experiment ID is not set. Ensure the experiment is created before pushing results.")
+        for exp_result in experiment_results:
+            eval_metrics = []
+            evaluations = exp_result.get("evaluations")
+            metadata = exp_result.get("metadata")
+            span_id = metadata.get("span_id", "")
+            trace_id = metadata.get("trace_id", "")
+            timestamp_ns = metadata.get("timestamp", 0)
+            for eval_name, eval_data in evaluations.items():
+                if not eval_data:
+                    continue
+                eval_value = eval_data.get("value")
+                eval_metric = self._generate_metric_from_evaluation(
+                    eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
+                )
+                eval_metrics.append(eval_metric)
+            self._llmobs_instance._dne_client.enqueue(eval_metrics)

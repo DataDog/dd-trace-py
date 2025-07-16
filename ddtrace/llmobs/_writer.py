@@ -83,6 +83,20 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
+class LLMObsExperimentEvent(TypedDict, total=False):
+    span_id: str
+    trace_id: str
+    timestamp_ms: int
+    metric_type: str
+    label: str
+    categorical_value: str
+    score_value: float
+    boolean_value: bool
+    error: Optional[Dict[str, str]]
+    tags: List[str]
+    experiment_id: str
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
@@ -140,6 +154,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
+            if self._app_key:
+                self._headers["DD-APPLICATION-KEY"] = self._app_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
@@ -162,7 +178,9 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent], event_size: int) -> None:
+    def _enqueue(
+        self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent, LLMObsExperimentEvent], event_size: int
+    ) -> None:
         """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
             if len(self._buffer) >= self.BUFFER_LIMIT:
@@ -276,6 +294,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsExperimentsClient(BaseLLMObsWriter):
+    EVENT_TYPE = "experiment"
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
@@ -463,6 +482,23 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_id = response_data["data"]["id"]
         experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
         return experiment_id, experiment_run_name
+
+    def enqueue(self, event: LLMObsExperimentEvent) -> None:
+        """Enqueue an experiment event to be sent to the LLMObs Evals Endpoint."""
+        event_size = len(safe_json(event))
+        self._enqueue(event, event_size)
+
+    def _data(self, events: List[LLMObsExperimentEvent]) -> List[Dict[str, Any]]:
+        return [
+            {
+                "data": {
+                    "type": "experiments",
+                    "attributes": {"scope": "experiments", "metrics": [event], "tags": event["tags"]},
+                }
+            }
+            for event in events
+        ]
+    # TODO: Figure out how to write experiment payloads to the agentless endpoint.
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
