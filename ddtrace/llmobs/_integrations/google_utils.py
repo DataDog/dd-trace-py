@@ -211,16 +211,6 @@ def extract_model_name_google(instance, model_name_attr):
     return model_name
 
 
-def get_generation_config_google(instance, kwargs):
-    """
-    The generation config can be defined on the model instance or
-    as a kwarg of the request. Therefore, try to extract this information
-    from the kwargs and otherwise default to checking the model instance attribute.
-    """
-    generation_config = kwargs.get("generation_config", {})
-    return generation_config or _get_attr(instance, "_generation_config", {})
-
-
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
