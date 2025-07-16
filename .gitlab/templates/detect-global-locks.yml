@@ -1,0 +1,24 @@
+detect-global-locks:
+  extends: .cached_testrunner
+  stage: setup
+  needs: []
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.8", "3.9", "3.10", "3.11", "3.12", "3.13"]
+  variables:
+    DD_DYNAMIC_INSTRUMENTATION_ENABLED: '1'
+    DD_CODE_ORIGIN_FOR_SPANS_ENABLED: '1'
+    DD_EXCEPTION_REPLAY_ENABLED: '1'
+    DD_APPSEC_ENABLED: '1'
+    DD_APPSEC_SCA_ENABLED: '1'
+    DD_IAST_ENABLED: '1'
+    DD_RUNTIME_METRICS_ENABLED: '1'
+    DD_PROFILING_ENABLED: '1'
+    DD_PROFILING_LOCK_ENABLED: '0' # This patches the lock class
+    DD_REMOTE_CONFIGURATION_ENABLED: '1'
+  script: |
+    set -e -o pipefail
+    echo "Installing the client library"
+    python${{PYTHON_VERSION}} -m pip install -e .
+    echo "Running global lock detection"
+    python${{PYTHON_VERSION}} -X importtime scripts/global-lock-detection.py

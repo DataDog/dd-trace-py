@@ -302,7 +302,7 @@ def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -
     _asm_manual_keep(span)
 
 
-def should_block_user(tracer: Any, userid: str) -> bool:
+def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None) -> bool:
     """
     Return true if the specified User ID should be blocked.
 
@@ -320,8 +320,12 @@ def should_block_user(tracer: Any, userid: str) -> bool:
     # Early check to avoid calling the WAF if the request is already blockedxw
     if get_blocked():
         return True
-
-    _asm_request_context.call_waf_callback(custom_data={"REQUEST_USER_ID": str(userid)}, force_sent=True)
+    custom_data: Dict[str, Any] = {}
+    if userid is not None:
+        custom_data["REQUEST_USER_ID"] = str(userid)
+    if session_id is not None:
+        custom_data["REQUEST_SESSION_ID"] = str(session_id)
+    _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
     return bool(get_blocked())
 
 
@@ -339,7 +343,9 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer: Any, userid: str, mode: str = "sdk") -> None:
+def block_request_if_user_blocked(
+    tracer: Any, userid: str, mode: str = "sdk", session_id: Optional[str] = None
+) -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
@@ -365,7 +371,7 @@ def block_request_if_user_blocked(tracer: Any, userid: str, mode: str = "sdk") -
             if mode != LOGIN_EVENTS_MODE.SDK:
                 root_span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(userid))
             root_span.set_tag_str(user.ID, str(userid))
-    if should_block_user(None, userid):
+    if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()
 
 
