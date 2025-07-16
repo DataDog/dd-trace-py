@@ -43,6 +43,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
@@ -242,7 +243,10 @@ class LLMObs(Service):
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        meta["metadata"] = span._get_ctx_item(METADATA) or {}
+        metadata = span._get_ctx_item(METADATA) or {}
+        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
+            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+        meta["metadata"] = metadata
 
         input_type: Literal["value", "messages", ""] = ""
         output_type: Literal["value", "messages", ""] = ""

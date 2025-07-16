@@ -308,6 +308,9 @@ class TestLangGraphLLMObs:
         agent_d_span = _find_span_by_name(llmobs_events, "agent_d")
 
         expected_agent_a_manifest = {
+            "framework": "LangGraph",
+            "max_iterations": 25,
+            "dependencies": ["a_list", "which"],
             "name": "agent_a",
             "handoffs": [
                 {"agent_name": "agent_b", "tool_name": "which"},
@@ -317,12 +320,18 @@ class TestLangGraphLLMObs:
         }
 
         expected_conditional_agent_manifest = {
+            "framework": "LangGraph",
+            "max_iterations": 25,
+            "dependencies": ["a_list", "which"],
             "name": conditional_agent_name,
             "handoffs": ["agent_d"],
             "tools": [],
         }
 
         expected_agent_d_manifest = {
+            "framework": "LangGraph",
+            "max_iterations": 25,
+            "dependencies": ["a_list", "which"],
             "name": "agent_d",
             "handoffs": [],
             "tools": [],
@@ -341,6 +350,9 @@ class TestLangGraphLLMObs:
         react_agent_span = _find_span_by_name(llmobs_events, "not_your_average_bostonian")
 
         expected_agent_manifest = {
+            "framework": "LangGraph",
+            "max_iterations": 25,
+            "dependencies": ["messages"],
             "name": "not_your_average_bostonian",
             "tools": [
                 {

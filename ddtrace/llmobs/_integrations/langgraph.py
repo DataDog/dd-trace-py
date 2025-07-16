@@ -14,8 +14,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
@@ -110,12 +110,10 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if operation == "graph":
             agent = kwargs.get("instance")
-            agent_manifest = self._get_agent_manifest(span, agent)
-            metadata = span._get_ctx_item(METADATA) or {}
-            metadata["agent_manifest"] = agent_manifest
-            span._set_ctx_item(METADATA, metadata)
+            agent_manifest = self._get_agent_manifest(span, agent, args, config)
+            span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
 
-    def _get_agent_manifest(self, span: Span, agent) -> Optional[Dict[str, Any]]:
+    def _get_agent_manifest(self, span: Span, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Gets the agent manifest for a given agent.
 
@@ -130,6 +128,22 @@ class LangGraphIntegration(BaseLLMIntegration):
             tools = _get_tools_from_tool_nodes(agent)
             agent_manifest = {"name": agent.name or "LangGraph", "tools": tools}
             self._react_agents_manifests[agent] = agent_manifest
+
+        if "framework" not in agent_manifest:
+            agent_manifest["framework"] = "LangGraph"
+        if "max_iterations" not in agent_manifest:
+            agent_manifest["max_iterations"] = _get_attr(config, "max_iterations", 25)
+
+        if (
+            "dependencies" not in agent_manifest
+            and isinstance(args, tuple)
+            and len(args) > 0
+            and isinstance(args[0], dict)
+        ):
+            agent_manifest["dependencies"] = list(args[0].keys())
+
+        if "handoffs" in agent_manifest:
+            return agent_manifest
 
         parent_span = _get_nearest_llmobs_ancestor(span)
         if parent_span is None:
