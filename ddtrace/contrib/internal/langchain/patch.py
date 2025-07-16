@@ -38,7 +38,6 @@ except ImportError:
 import wrapt
 
 from ddtrace import config
-from ddtrace.contrib.internal.langchain.constants import API_KEY
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
@@ -86,45 +85,6 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
-def _format_api_key(api_key: Union[str, SecretStr]) -> str:
-    """Obfuscate a given LLM provider API key by returning the last four characters."""
-    if hasattr(api_key, "get_secret_value"):
-        api_key = api_key.get_secret_value()
-
-    if not api_key or len(api_key) < 4:
-        return ""
-    return "...%s" % api_key[-4:]
-
-
-def _extract_api_key(instance: Any) -> str:
-    """
-    Extract and format LLM-provider API key from instance.
-    Note that langchain's LLM/ChatModel/Embeddings interfaces do not have a
-    standard attribute name for storing the provider-specific API key, so make a
-    best effort here by checking for attributes that end with `api_key/api_token`.
-    """
-    api_key_attrs = [a for a in dir(instance) if a.endswith(("api_token", "api_key"))]
-    if api_key_attrs and hasattr(instance, str(api_key_attrs[0])):
-        api_key = getattr(instance, api_key_attrs[0], None)
-        if api_key:
-            return _format_api_key(api_key)
-    return ""
-
-
-def _is_pinecone_vectorstore_instance(instance):
-    """Safely check if a traced instance is a Pinecone VectorStore.
-    langchain_community does not automatically import submodules which may result in AttributeErrors.
-    """
-    try:
-        if langchain_pinecone:
-            return isinstance(instance, langchain_pinecone.PineconeVectorStore)
-        if langchain_community:
-            return isinstance(instance, langchain_community.vectorstores.Pinecone)
-        return False
-    except (AttributeError, ModuleNotFoundError, ImportError):
-        return False
-
-
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
@@ -138,7 +98,6 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
         interface_type="llm",
         provider=llm_provider,
         model=model,
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
     completions = None
@@ -171,7 +130,6 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
         interface_type="llm",
         provider=llm_provider,
         model=model,
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -203,7 +161,6 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -235,7 +192,6 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
         interface_type="chat_model",
         provider=llm_provider,
         model=_extract_model_name(instance),
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -270,7 +226,6 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
         interface_type="embedding",
         provider=provider,
         model=_extract_model_name(instance),
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -278,8 +233,6 @@ def traced_embedding(langchain, pin, func, instance, args, kwargs):
 
     embeddings = None
     try:
-        # langchain currently does not support token tracking for OpenAI embeddings:
-        #  https://github.com/hwchase17/langchain/issues/945
         embeddings = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -322,9 +275,8 @@ def traced_lcel_runnable_sequence(langchain, pin, func, instance, args, kwargs):
             inputs = get_argument_value(args, kwargs, 0, "input")
         except ArgumentError:
             inputs = get_argument_value(args, kwargs, 0, "inputs")
-        if integration.is_pc_sampled_span(span):
-            if not isinstance(inputs, list):
-                inputs = [inputs]
+        if not isinstance(inputs, list):
+            inputs = [inputs]
         final_output = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -358,9 +310,8 @@ async def traced_lcel_runnable_sequence_async(langchain, pin, func, instance, ar
             inputs = get_argument_value(args, kwargs, 0, "input")
         except ArgumentError:
             inputs = get_argument_value(args, kwargs, 0, "inputs")
-        if integration.is_pc_sampled_span(span):
-            if not isinstance(inputs, list):
-                inputs = [inputs]
+        if not isinstance(inputs, list):
+            inputs = [inputs]
         final_output = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -381,7 +332,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
         interface_type="similarity_search",
         provider=provider,
-        api_key=_extract_api_key(instance),
         instance=instance,
     )
 
@@ -389,21 +339,6 @@ def traced_similarity_search(langchain, pin, func, instance, args, kwargs):
 
     documents = []
     try:
-        if _is_pinecone_vectorstore_instance(instance) and hasattr(instance._index, "configuration"):
-            span.set_tag_str(
-                "langchain.request.pinecone.environment",
-                instance._index.configuration.server_variables.get("environment", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.index_name",
-                instance._index.configuration.server_variables.get("index_name", ""),
-            )
-            span.set_tag_str(
-                "langchain.request.pinecone.project_name",
-                instance._index.configuration.server_variables.get("project_name", ""),
-            )
-            api_key = instance._index.configuration.api_key.get("ApiKeyAuth", "")
-            span.set_tag_str(API_KEY, _format_api_key(api_key))  # override api_key for Pinecone
         documents = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -420,11 +355,7 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
-        inputs = get_argument_value(args, kwargs, 0, "input")
-        if not integration.is_pc_sampled_span(span):
-            return
-        if not isinstance(inputs, list):
-            inputs = [inputs]
+        ## ???
 
     def _on_span_finished(span: Span, streamed_chunks):
         maybe_parser = instance.steps[-1] if instance.steps else None
@@ -447,8 +378,6 @@ def traced_chain_stream(langchain, pin, func, instance, args, kwargs):
             # best effort to join chunks together
             content = "".join([str(chunk) for chunk in streamed_chunks])
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="chain")
-        if span.error or not integration.is_pc_sampled_span(span):
-            return
 
     return shared_stream(
         integration=integration,
@@ -471,8 +400,6 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
-        if not integration.is_pc_sampled_span(span):
-            return
         integration.llmobs_set_metadata(span, instance._identifying_params)
 
     def _on_span_finished(span: Span, streamed_chunks):
@@ -491,7 +418,6 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
         interface_type="chat_model",
         on_span_started=_on_span_started,
         on_span_finished=_on_span_finished,
-        api_key=_extract_api_key(instance),
         provider=llm_provider,
         model=model,
     )
@@ -521,7 +447,6 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
         interface_type="llm",
         on_span_started=_on_span_start,
         on_span_finished=_on_span_finished,
-        api_key=_extract_api_key(instance),
         provider=llm_provider,
         model=model,
     )
