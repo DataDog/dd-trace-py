@@ -7,6 +7,8 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_eventhub as azure_eventhubx
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
@@ -71,8 +73,50 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
             function._func = _wrap_timer_trigger(pin, func, function_name)
         elif trigger_type == "serviceBusTrigger":
             function._func = _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
+        elif trigger_type == "eventHubTrigger":
+            function._func = _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
 
     return functions
+
+
+def _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_details):
+    trigger_type = "EventHub"
+
+    def context_factory(kwargs):
+        resource_name = f"{trigger_type} {function_name}"
+        event = kwargs.get(trigger_arg_name)
+
+        # Reparent trace if single message or list of messages all with same context
+        if isinstance(event, azure_functions.EventHubEvent):
+            application_properties = event.metadata.get("Properties")
+        elif (
+            isinstance(event, list)
+            and event
+            and isinstance(event[0], azure_functions.EventHubEvent)
+            and message_list_has_single_context(event)
+        ):
+            application_properties = event[0].metadata.get("Properties")
+        else:
+            application_properties = None
+        return create_context("azure.functions.patched_event_hub", pin, resource_name, headers=application_properties)
+
+    def pre_dispatch(ctx, kwargs):
+        event_hub_name = trigger_details.get("eventHubName")
+        return (
+            "azure.functions.event_hub_trigger_modifier",
+            (
+                ctx,
+                config.azure_functions,
+                azure_eventhubx.SERVICE,
+                function_name,
+                trigger_type,
+                SpanKind.CONSUMER,
+                event_hub_name,
+                None,
+            ),
+        )
+
+    return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
 
 
 def _wrap_http_trigger(pin, func, function_name, trigger_arg_name):
@@ -125,7 +169,16 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
         entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
         return (
             "azure.functions.service_bus_trigger_modifier",
-            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER, entity_name, message_id),
+            (
+                ctx,
+                config.azure_functions,
+                azure_servicebusx.SERVICE,
+                function_name,
+                trigger_type,
+                SpanKind.CONSUMER,
+                entity_name,
+                message_id,
+            ),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
