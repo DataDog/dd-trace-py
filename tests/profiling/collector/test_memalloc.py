@@ -162,7 +162,6 @@ def test_heap():
     for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         size = in_use_size if in_use_size > 0 else alloc_size
-        in_use = in_use_size > 0
         assert size > 0
         if thread_id == threading.main_thread().ident:
             thread_found = True
@@ -178,7 +177,6 @@ def test_heap():
     for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         size = in_use_size if in_use_size > 0 else alloc_size
-        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         if stack[0] == DDFrame(
@@ -192,7 +190,6 @@ def test_heap():
     for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         size = in_use_size if in_use_size > 0 else alloc_size
-        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         entry = 2 if sys.version_info < (3, 12) else 1
@@ -207,7 +204,6 @@ def test_heap():
     for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
         size = in_use_size if in_use_size > 0 else alloc_size
-        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         if (

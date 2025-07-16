@@ -1,10 +1,8 @@
 # -*- encoding: utf-8 -*-
 from collections import namedtuple
 import logging
-from math import ceil
 import os
 import threading
-import time
 import typing  # noqa:F401
 from typing import Optional
 

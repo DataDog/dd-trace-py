@@ -2,7 +2,6 @@ import inspect
 import os
 import sys
 import threading
-import time
 
 import pytest
 
@@ -480,7 +479,7 @@ def test_unified_profiler_allocation_sampling_accuracy(sample_interval):
     assert avg_allocation_size >= 100, f"Average allocation size too small: {avg_allocation_size}"
     assert avg_allocation_size <= 2000, f"Average allocation size too large: {avg_allocation_size}"
 
-    assert total_allocation_count >= 1, f"Should have captured at least 1 allocation sample"
+    assert total_allocation_count >= 1, "Should have captured at least 1 allocation sample"
 
     print(f"Successfully validated unified profiler allocation sampling for sample_interval={sample_interval}")
     print(f"Captured {len(allocation_samples)} allocation samples representing {total_allocation_count} allocations")
@@ -566,7 +565,6 @@ def test_memory_collector_allocation_tracking_across_snapshots():
 
     with mc:
         initial_samples = mc.test_snapshot()
-        initial_sample_count = len(initial_samples)
 
         assert all(
             sample.alloc_size > 0 for sample in initial_samples
@@ -765,6 +763,7 @@ def test_memory_collector_exception_handling():
 
 def test_memory_collector_allocation_during_shutdown():
     import time
+
     from ddtrace.profiling.collector import _memalloc
 
     _memalloc.start(32, 1000, 512)
@@ -777,7 +776,7 @@ def test_memory_collector_allocation_during_shutdown():
             try:
                 data = [0] * 100
                 del data
-            except:
+            except Exception:
                 pass
             time.sleep(0.001)
 
