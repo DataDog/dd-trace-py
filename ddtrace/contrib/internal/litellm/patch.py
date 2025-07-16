@@ -4,9 +4,9 @@ from typing import Dict
 import litellm
 
 from ddtrace import config
-from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
+from ddtrace.contrib.internal.litellm.utils import extract_host_tag
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap

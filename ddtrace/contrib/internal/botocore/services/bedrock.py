@@ -11,10 +11,10 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 

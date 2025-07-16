@@ -10,13 +10,11 @@ from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
 from tests.contrib.vertexai.utils import weather_tool
-from tests.llmobs._utils import (
-    _expected_llmobs_llm_span_event,
-    aiterate_stream,
-    anext_stream,
-    iterate_stream,
-    next_stream,
-)
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 @pytest.mark.parametrize(

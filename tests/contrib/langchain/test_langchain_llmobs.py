@@ -17,8 +17,10 @@ from ddtrace.trace import Span
 from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
-from tests.llmobs._utils import _expected_llmobs_llm_span_event, iterate_stream, next_stream
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 

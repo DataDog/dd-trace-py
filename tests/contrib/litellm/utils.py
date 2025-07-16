@@ -83,7 +83,7 @@ async def async_consume_stream_anext(resp, n, is_completion=False):
     role = None
     while True:
         try:
-            chunk = await anext(resp)
+            chunk = await resp.__anext__()
         except StopAsyncIteration:
             break
         output_messages, token_metrics, role = extract_output_from_chunk(

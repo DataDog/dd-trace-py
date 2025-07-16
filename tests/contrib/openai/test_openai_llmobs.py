@@ -17,9 +17,9 @@ from tests.contrib.openai.utils import response_tool_function_expected_output
 from tests.contrib.openai.utils import response_tool_function_expected_output_streamed
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
-from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 @pytest.mark.parametrize(

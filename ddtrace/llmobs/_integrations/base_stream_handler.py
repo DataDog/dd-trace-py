@@ -1,10 +1,11 @@
 """
 This file contains shared utilities for tracing streams in LLMobs integrations.
 
-To create a traced stream, each integration should implement a StreamHandler (and AsyncStreamHandler if needed) which contains the logic for initializing 
-chunk storage, processing chunks, handling exceptions, and finalizing a stream. The only methods that need to be implemented are process_chunk (a callback function
-that is called for each chunk in the stream) and finalize_stream (a callback function that is called when the stream ends). All other methods are optional and can be overridden
-if needed (for example, extra exception processing logic in handle_exception).
+To create a traced stream, each integration should implement a StreamHandler (and AsyncStreamHandler if needed) which
+contains the logic for initializing chunk storage, processing chunks, handling exceptions, and finalizing a stream.
+The only methods that need to be implemented are process_chunk (a callback function that is called for each chunk in
+the stream) and finalize_stream (a callback function that is called when the stream ends). All other methods are
+optional and can be overridden if needed (for example, extra exception processing logic in handle_exception).
 
 ```
 class ExampleStreamHandler(StreamHandler):
@@ -26,8 +27,8 @@ class ExampleAsyncStreamHandler(AsyncStreamHandler):
         pass
 ```
 
-This stream handler in combination with the stream to wrap should be used to create a TracedStream or TracedAsyncStream object using the make_traced_stream or 
-make_traced_async_stream factory functions.
+This stream handler in combination with the stream to wrap should be used to create a TracedStream or
+TracedAsyncStream object using the make_traced_stream or make_traced_async_stream factory functions.
 
 ```
 # Example usage of make_traced_stream
@@ -37,8 +38,8 @@ traced_stream = make_traced_stream(stream, ExampleStreamHandler(integration, spa
 traced_async_stream = make_traced_async_stream(stream, ExampleAsyncStreamHandler(integration, span, args, kwargs))
 ```
 
-Note that it is possible to pass in extra arguments via the options argument in case you need to access other information within the stream handler that is not covered
-by the existing arguments.
+Note that it is possible to pass in extra arguments via the options argument in case you need to access other
+information within the stream handler that is not covered by the existing arguments.
 
 ```
 # example stream handler that uses an extra argument
@@ -56,17 +57,20 @@ class ExampleStreamHandler(StreamHandler):
 ExampleStreamHandler(integration, span, args, kwargs, extra_arg=extra_arg)
 ```
 
-The TracedStream and TracedAsyncStream objects are wrappers around the underlying stream object that deal with iterating over the stream and calling the stream handler
-to process chunks, handle exceptions, and finalize the stream. Because each library's streamed response is different, these traced stream classes are meant to be generic enough
-to work with iterables, iterators, generators, and context managers.
+The TracedStream and TracedAsyncStream objects are wrappers around the underlying stream object that deal with
+iterating over the stream and calling the stream handler to process chunks, handle exceptions, and finalize the
+stream. Because each library's streamed response is different, these traced stream classes are meant to be generic
+enough to work with iterables, iterators, generators, and context managers.
 """
-import sys
-from abc import ABC, abstractmethod
+from abc import ABC
+from abc import abstractmethod
 from collections import defaultdict
+import sys
 
 import wrapt
 
 from ddtrace.internal.logger import get_logger
+
 
 log = get_logger(__name__)
 

@@ -892,6 +892,6 @@ def next_stream(stream):
 async def anext_stream(stream):
     while True:
         try:
-            await anext(stream)
+            await stream.__anext__()
         except StopAsyncIteration:
             break

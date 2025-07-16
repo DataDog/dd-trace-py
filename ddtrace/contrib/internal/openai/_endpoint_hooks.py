@@ -1,7 +1,5 @@
 from openai.version import VERSION as OPENAI_VERSION
 
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.contrib.internal.openai.utils import OpenAIAsyncStreamHandler
 from ddtrace.contrib.internal.openai.utils import OpenAIStreamHandler
 from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
@@ -11,6 +9,8 @@ from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.contrib.internal.openai.utils import _tag_tool_calls
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 API_VERSION = "v1"

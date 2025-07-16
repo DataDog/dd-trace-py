@@ -3,9 +3,9 @@ import sys
 
 from ddtrace.internal import core
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 
 
 class BaseLangchainStreamHandler:

@@ -5,11 +5,11 @@ from typing import Tuple
 
 import anthropic
 
+from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
 
 

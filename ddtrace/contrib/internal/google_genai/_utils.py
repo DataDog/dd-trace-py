@@ -3,10 +3,10 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 
 
 def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:

@@ -5,15 +5,15 @@ from typing import Dict
 import google.generativeai as genai
 
 from ddtrace import config
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIAsyncStreamHandler
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIStramHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
-from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIAsyncStreamHandler
-from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIStramHandler
+from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
 
 

@@ -7,10 +7,10 @@ from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
 from tests.contrib.google_genai.utils import get_expected_metadata
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
-from tests.llmobs._utils import iterate_stream
-from tests.llmobs._utils import anext_stream
-from tests.llmobs._utils import next_stream
 from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 @pytest.mark.parametrize(

@@ -11,11 +11,11 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
+from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
-from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
 
