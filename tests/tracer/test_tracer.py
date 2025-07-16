@@ -691,11 +691,10 @@ def test_tracer_url_default():
 def test_tracer_shutdown_no_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
-        with mock.patch.object(AgentWriter, "join") as mock_join:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
+        with mock.patch.object(t._span_aggregator.writer, "join") as mock_join:
             t.shutdown()
 
     mock_stop.assert_called()
@@ -706,10 +705,9 @@ def test_tracer_shutdown_no_timeout():
 def test_tracer_shutdown_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
         with t.trace("something"):
             pass
 
@@ -723,12 +721,11 @@ def test_tracer_shutdown_timeout():
 def test_tracer_shutdown():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
     t.shutdown()
 
-    with mock.patch.object(AgentWriter, "write") as mock_write:
+    with mock.patch.object(t._span_aggregator.writer, "write") as mock_write:
         with t.trace("something"):
             pass
 
