@@ -21,17 +21,17 @@ interactions:
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
   response:
     body:
-      string: '{"data":{"id":"2245181d-df17-4d88-88da-7e6ee5e1debf","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T02:23:41.71890699Z","current_version":0,"description":"A
-        second test dataset","name":"test-dataset-2","updated_at":"2025-07-16T02:23:41.71890699Z"}}}'
+      string: '{"data":{"id":"f59dbfc0-a93c-482a-a73d-2e4c846fccce","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T20:06:27.784830757Z","current_version":0,"description":"A
+        second test dataset","name":"test-dataset-2","updated_at":"2025-07-16T20:06:27.784830757Z"}}}'
     headers:
       content-length:
-      - '314'
+      - '316'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 16 Jul 2025 02:23:41 GMT
+      - Wed, 16 Jul 2025 20:06:27 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

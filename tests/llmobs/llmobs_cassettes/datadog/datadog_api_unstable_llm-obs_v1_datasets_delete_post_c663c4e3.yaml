@@ -1,9 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
-      "description": "", "dataset_id": "7f7b84b6-fefa-4183-bb27-776c6c5a1145", "project_id":
-      "dc4158e7-c60f-446e-bcf1-540aa68ffa0f", "dataset_version": 1, "config": {},
-      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["6b9d0a65-a8a0-47ef-9deb-6fdbeef395f8"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -13,26 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '288'
+      - '119'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":{"id":"6e891c88-6b29-4c90-b8c4-fd2745eaa0ec","type":"experiments","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"config":{},"created_at":"2025-07-16T02:24:17.998945794Z","dataset_id":"7f7b84b6-fefa-4183-bb27-776c6c5a1145","dataset_version":1,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1752632657998","project_id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","updated_at":"2025-07-16T02:24:17.998945909Z"}}}'
+      string: '{"data":[{"id":"6b9d0a65-a8a0-47ef-9deb-6fdbeef395f8","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T20:06:44.363008Z","current_version":2,"deleted_at":"2025-07-16T20:06:51.548612Z","description":"A
+        test dataset","name":"test-dataset-test_dataset_append[test_dataset_records0]","updated_at":"2025-07-16T20:06:49.117713Z"}}]}'
     headers:
       content-length:
-      - '483'
+      - '389'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 16 Jul 2025 02:24:18 GMT
+      - Wed, 16 Jul 2025 20:06:51 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

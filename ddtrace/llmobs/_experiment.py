@@ -116,9 +116,11 @@ class Dataset:
             )
 
         updated_records = [r for r in self._records if "record_id" in r and r["record_id"] in self._updated_record_ids]
-        new_version = self._dne_client.dataset_batch_update(
+        new_version, new_record_ids = self._dne_client.dataset_batch_update(
             self._id, self._new_records, updated_records, self._deleted_record_ids
         )
+        for record, record_id in zip(self._new_records, new_record_ids):
+            record["record_id"] = record_id
         self._version = new_version
         self._new_records = []
         self._deleted_records = []
@@ -133,10 +135,6 @@ class Dataset:
     def append(self, record: DatasetRecord) -> None:
         self._new_records.append(record)
         self._records.append(record)
-
-    def __delitem__(self, index: Union[int, slice]) -> None:
-        self._deleted_record_ids.append(self._records[index]["record_id"])
-        del self._records[index]
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:

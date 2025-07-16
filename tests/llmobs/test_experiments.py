@@ -117,22 +117,23 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
     test_dataset.update(
         0,
-        DatasetRecord(
-            input_data={"prompt": "What is the capital of Germany?"}, expected_output={"answer": "Berlin"}
-        ),
+        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}, expected_output={"answer": "Berlin"}),
     )
     test_dataset.push()
     assert len(test_dataset) == 1
     assert test_dataset._version == 2
+
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
-    assert test_dataset._version == 2
 
     # assert that the version is consistent with a new pull
+
     wait_for_backend()
     ds = llmobs.pull_dataset(name=test_dataset.name)
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
@@ -403,7 +404,7 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
     assert len(merged_results) == 1
     exp_result = merged_results[0]
     assert exp_result["idx"] == 0
-    assert exp_result["record_id"] == ""
+    assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
@@ -432,7 +433,7 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     assert len(merged_results) == 1
     exp_result = merged_results[0]
     assert exp_result["idx"] == 0
-    assert exp_result["record_id"] == ""
+    assert exp_result["record_id"] != ""
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}

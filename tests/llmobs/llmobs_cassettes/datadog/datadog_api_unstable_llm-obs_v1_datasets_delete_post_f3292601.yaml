@@ -1,7 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"insert_records": [], "update_records":
-      [], "delete_record_ids": []}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["f59dbfc0-a93c-482a-a73d-2e4c846fccce"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -11,26 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '115'
+      - '119'
       ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/8492a9a4-cf41-402d-93e1-4811f02226ec/batch_update
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":[]}'
+      string: '{"data":[{"id":"f59dbfc0-a93c-482a-a73d-2e4c846fccce","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T20:06:27.78483Z","current_version":0,"deleted_at":"2025-07-16T20:06:27.92081Z","description":"A
+        second test dataset","name":"test-dataset-2","updated_at":"2025-07-16T20:06:27.78483Z"}}]}'
     headers:
       content-length:
-      - '11'
+      - '352'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 16 Jul 2025 03:14:22 GMT
+      - Wed, 16 Jul 2025 20:06:27 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

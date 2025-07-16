@@ -342,7 +342,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         insert_records: List[DatasetRecordRaw],
         update_records: List[DatasetRecord],
         delete_record_ids: List[str],
-    ) -> int:
+    ) -> Tuple[int, List[str]]:
         irs: JSONType = [
             {
                 "input": cast(Dict[str, JSONType], r["input_data"]),
@@ -356,7 +356,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 "input": cast(Dict[str, JSONType], r["input_data"]),
                 "expected_output": r["expected_output"],
                 "metadata": r.get("metadata", {}),
-                "record_id": r["record_id"],
+                "id": r["record_id"],
             }
             for r in update_records
         ]
@@ -364,10 +364,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         body: JSONType = {
             "data": {
                 "type": "datasets",
+                "id": dataset_id,
                 "attributes": {
                     "insert_records": irs,
                     "update_records": urs,
-                    "delete_record_ids": delete_record_ids,
+                    "delete_records": delete_record_ids,
                 },
             }
         }
@@ -379,7 +380,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if not data:
             raise ValueError(f"Failed to update dataset {dataset_id}, records not found, {resp.get_json()}")  # nosec
         new_version = data[0]["attributes"]["version"]
-        return new_version
+        new_record_ids: List[str] = [r["id"] for r in data]
+        return new_version, new_record_ids
 
     def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
