@@ -244,11 +244,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
-            from ddtrace._monkey import patch
-
-            # Freezegun is proactively patched to avoid it interfering with internal timing
-            patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
