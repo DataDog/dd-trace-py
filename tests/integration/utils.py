@@ -13,7 +13,7 @@ class BadEncoder:
     content_type = ""
 
     def __len__(self):
-        return 0
+        return 1  # Required so we try to send at least one trace
 
     def put(self, trace):
         pass
