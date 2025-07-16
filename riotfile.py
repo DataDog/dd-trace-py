@@ -1822,7 +1822,6 @@ venv = Venv(
                         "msgpack": latest,
                         "requests": latest,
                         "hypothesis": latest,
-                        "pytest-xdist": latest,
                     },
                     env={
                         "DD_AGENT_PORT": "9126",
