@@ -801,8 +801,20 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
         self.start_worker_thread()
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
+        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+        try:
+            # Stop the writer to ensure it is not running while we reconfigure it.
+            self.stop()
+        except ServiceStatusError:
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            pass
+
+        # Stop the trace exporter worker
         self._exporter.stop_worker()
+
+        api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
@@ -812,7 +824,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=self._api_version,
+            api_version=api_version,
             report_metrics=self._report_metrics,
             test_session_token=self._test_session_token,
         )
@@ -1030,6 +1042,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         finally:
             self._exporter.shutdown(3_000_000_000)  # 3 seconds timeout
 
+
 def _use_log_writer() -> bool:
     """Returns whether the LogWriter should be used in the environment by
     default.
@@ -1075,15 +1088,15 @@ def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], No
     verify_url(agent_config.trace_agent_url)
 
     if config._trace_writer_native:
-            self.writer = NativeWriter(
-                intake_url=agent_config.trace_agent_url,
-                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-                sync_mode=_use_sync_mode(),
-                compute_stats_enabled=config._trace_compute_stats,
-                report_metrics=not asm_config._apm_opt_out,
-                response_callback=response_callback,
-                stats_opt_out=asm_config._apm_opt_out,
-            )
+        return NativeWriter(
+            intake_url=agent_config.trace_agent_url,
+            dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+            sync_mode=_use_sync_mode(),
+            compute_stats_enabled=config._trace_compute_stats,
+            report_metrics=not asm_config._apm_opt_out,
+            response_callback=response_callback,
+            stats_opt_out=asm_config._apm_opt_out,
+        )
     else:
         headers: Dict[str, str] = {}
         if config._trace_compute_stats or asm_config._apm_opt_out:
