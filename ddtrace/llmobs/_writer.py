@@ -83,7 +83,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
-class LLMObsExperimentEvent(TypedDict, total=False):
+class LLMObsExperimentEvalMetric(TypedDict, total=False):
     span_id: str
     trace_id: str
     timestamp_ms: int
@@ -178,9 +178,7 @@ class BaseLLMObsWriter(PeriodicService):
     def on_shutdown(self):
         self.periodic()
 
-    def _enqueue(
-        self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent, LLMObsExperimentEvent], event_size: int
-    ) -> None:
+    def _enqueue(self, event: Union[LLMObsSpanEvent, LLMObsEvaluationMetricEvent], event_size: int) -> None:
         """Internal shared logic of enqueuing events to be submitted to LLM Observability."""
         with self._lock:
             if len(self._buffer) >= self.BUFFER_LIMIT:
@@ -483,22 +481,30 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
         return experiment_id, experiment_run_name
 
-    def enqueue(self, event: LLMObsExperimentEvent) -> None:
-        """Enqueue an experiment event to be sent to the LLMObs Evals Endpoint."""
-        event_size = len(safe_json(event))
-        self._enqueue(event, event_size)
-
-    def _data(self, events: List[LLMObsExperimentEvent]) -> List[Dict[str, Any]]:
-        return [
-            {
+    def experiment_eval_post(
+        self, experiment_id: str, events: List[LLMObsExperimentEvalMetric], tags: List[str]
+    ) -> None:
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+        resp = self.request(
+            "POST",
+            path,
+            body={
                 "data": {
                     "type": "experiments",
-                    "attributes": {"scope": "experiments", "metrics": [event], "tags": event["tags"]},
+                    "attributes": {
+                        "scope": "experiments",
+                        "metrics": cast(List[JSONType], events),
+                        "tags": cast(List[JSONType], tags),
+                    },
                 }
-            }
-            for event in events
-        ]
-    # TODO: Figure out how to write experiment payloads to the agentless endpoint.
+            },
+        )
+        if resp.status not in (200, 202):
+            raise ValueError(
+                f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
+            )
+        logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
+        return None
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
