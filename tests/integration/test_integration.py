@@ -548,6 +548,10 @@ def test_trace_with_failing_encoder_generates_error_log():
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
     class ExceptionBadEncoder(BadEncoder):
+        def __len__(self):
+            # Required so we try to send at least one trace
+            return 1
+
         def encode(self):
             raise Exception()
 
