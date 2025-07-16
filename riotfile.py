@@ -352,6 +352,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "setuptools": latest,
                 "boto3": latest,
+                "freezegun": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
