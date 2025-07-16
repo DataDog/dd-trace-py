@@ -482,6 +482,81 @@ def test_unified_profiler_allocation_sampling_accuracy(sample_interval):
     print(f"Captured {len(allocation_samples)} allocation samples representing {total_allocation_count} allocations")
 
 
+@pytest.mark.parametrize("sample_interval", (256, 512, 1024))
+def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
+    import tracemalloc
+
+    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
+    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
+    
+    mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
+    if old is not None:
+        os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
+    else:
+        del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
+
+    try:
+        with mc:
+            tracemalloc.start()
+
+            junk = []
+            for i in range(1000):
+                size = 256
+                junk.append(one(size))
+                junk.append(two(2 * size))
+                junk.append(three(3 * size))
+                junk.append(four(4 * size))
+
+            stats = tracemalloc.take_snapshot().statistics("traceback")
+            tracemalloc.stop()
+
+            del junk
+
+            samples = mc.test_snapshot()
+    
+    finally:
+        pass
+
+    actual_sizes = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
+    actual_total = sum(actual_sizes.values())
+
+    def get_allocation_info(samples, funcs):
+        got = {}
+        for sample in samples:
+            if sample.in_use_size > 0:
+                continue
+            
+            for frame in sample.frames:
+                func = frame.function_name
+                if func in funcs:
+                    v = got.get(func, HeapInfo(0, 0))
+                    v.count += sample.count
+                    v.size += sample.alloc_size
+                    got[func] = v
+                    break
+        return got
+
+    sizes = get_allocation_info(samples, {"one", "two", "three", "four"})
+
+    total = sum(v.size for v in sizes.values())
+    print(f"observed total: {total} actual total: {actual_total} error: {abs(total - actual_total) / actual_total}")
+    assert abs(1 - total / actual_total) <= 0.20
+
+    print("func\tcount\tsize\tactual\trel\tactual\tdiff")
+    for func in ("one", "two", "three", "four"):
+        got = sizes[func]
+        actual_size = actual_sizes[func]
+
+        rel = got.size / total
+        actual_rel = actual_size / actual_total
+
+        print(
+            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{rel:.3f}\t{actual_rel:.3f}\t{abs(rel - actual_rel):.3f}"
+        )
+
+        assert abs(rel - actual_rel) < 0.10
+
+
 def test_memory_collector_allocation_tracking_across_snapshots():
     mc = memalloc.MemoryCollector(heap_sample_size=64)
     
