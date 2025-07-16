@@ -53,7 +53,7 @@ def test_asyncio():
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples_with_span_id) > 0

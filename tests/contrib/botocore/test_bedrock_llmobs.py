@@ -446,7 +446,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 11,
+                    "input_tokens": 1039,
                     "output_tokens": 264,
                     "total_tokens": 1303,
                     "cache_write_input_tokens": 1028,
@@ -470,7 +470,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 12,
+                    "input_tokens": 1040,
                     "output_tokens": 185,
                     "total_tokens": 1225,
                     "cache_write_input_tokens": 0,
@@ -526,7 +526,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 11,
+                    "input_tokens": 1039,
                     "output_tokens": 236,
                     "total_tokens": 1275,
                     "cache_write_input_tokens": 1028,
@@ -549,7 +549,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 12,
+                    "input_tokens": 1040,
                     "output_tokens": 250,
                     "total_tokens": 1290,
                     "cache_write_input_tokens": 0,
@@ -557,6 +557,80 @@ class TestLLMObsBedrock:
                 },
                 tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
             )
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_text(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {"role": "user", "content": [{"toolResult": {"toolUseId": "foo", "content": [{"text": "bar"}]}}]}
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "bar", "role": "tool", "tool_id": "foo"}]
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [{"toolResult": {"toolUseId": "foo", "content": [{"json": {"result": "bar"}}]}}],
+                    }
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+            {"content": '{"result": "bar"}', "role": "tool", "tool_id": "foo"}
+        ]
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_result_json_non_text_or_json(
+        self, bedrock_client, request_vcr, mock_tracer, llmobs_events
+    ):
+        import botocore
+
+        with pytest.raises(botocore.exceptions.ClientError):
+            bedrock_client.converse(
+                modelId="anthropic.claude-3-sonnet-20240229-v1:0",
+                inferenceConfig={"temperature": 0.7, "topP": 0.9, "maxTokens": 1000, "stopSequences": []},
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "toolResult": {
+                                    "toolUseId": "foo",
+                                    "content": [
+                                        {
+                                            "image": {
+                                                "format": "png",
+                                                "source": {"s3Location": {"uri": "s3://bucket/key"}},
+                                            }
+                                        }
+                                    ],
+                                }
+                            }
+                        ],
+                    }
+                ],
+            )
+
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+            {"content": "[Unsupported content type(s): image]", "role": "tool", "tool_id": "foo"}
+        ]
 
 
 @pytest.mark.parametrize(
