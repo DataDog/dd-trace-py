@@ -159,8 +159,10 @@ def test_heap():
     x = _allocate_1k()
     # Check that at least one sample comes from the main thread
     thread_found = False
-    for (stack, _nframe, thread_id), size, in_use in _memalloc.heap():
+    for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
+        size = in_use_size if in_use_size > 0 else alloc_size
+        in_use = in_use_size > 0
         assert size > 0
         if thread_id == threading.main_thread().ident:
             thread_found = True
@@ -173,8 +175,10 @@ def test_heap():
         pytest.fail("No trace of allocation in heap")
     assert thread_found, "Main thread not found"
     y = _pre_allocate_1k()
-    for (stack, _nframe, thread_id), size, in_use in _memalloc.heap():
+    for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
+        size = in_use_size if in_use_size > 0 else alloc_size
+        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         if stack[0] == DDFrame(
@@ -185,8 +189,10 @@ def test_heap():
         pytest.fail("No trace of allocation in heap")
     del x
     gc.collect()
-    for (stack, _nframe, thread_id), size, in_use in _memalloc.heap():
+    for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
+        size = in_use_size if in_use_size > 0 else alloc_size
+        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         entry = 2 if sys.version_info < (3, 12) else 1
@@ -198,8 +204,10 @@ def test_heap():
             pytest.fail("Allocated memory still in heap")
     del y
     gc.collect()
-    for (stack, _nframe, thread_id), size, in_use in _memalloc.heap():
+    for (stack, _nframe, thread_id), in_use_size, alloc_size, count in _memalloc.heap():
         assert 0 < len(stack) <= max_nframe
+        size = in_use_size if in_use_size > 0 else alloc_size
+        in_use = in_use_size > 0
         assert size > 0
         assert isinstance(thread_id, int)
         if (

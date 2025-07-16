@@ -96,15 +96,15 @@ class MemoryCollector(collector.PeriodicCollector):
 
         for event in events:
             (frames, _, thread_id), in_use_size, alloc_size, count = event
-            
-            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:                
+
+            if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 handle = ddup.SampleHandle()
-                
+
                 if in_use_size > 0:
                     handle.push_heap(in_use_size)
                 if alloc_size > 0:
                     handle.push_alloc(alloc_size, count)
-                
+
                 handle.push_threadinfo(
                     thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
                 )
@@ -117,7 +117,7 @@ class MemoryCollector(collector.PeriodicCollector):
                     #      re-initialization.
                     LOG.debug("Invalid state detected in memalloc module, suppressing profile")
         return tuple()
-    
+
     def test_snapshot(self):
         thread_id_ignore_set = self._get_thread_id_ignore_set()
 
@@ -131,12 +131,12 @@ class MemoryCollector(collector.PeriodicCollector):
         samples = []
         for event in events:
             (frames, _, thread_id), in_use_size, alloc_size, count = event
-            
+
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 size = in_use_size if in_use_size > 0 else alloc_size
-                
+
                 samples.append(MemorySample(frames, size, count, in_use_size, alloc_size))
-                
+
         return tuple(samples)
 
     def collect(self):
