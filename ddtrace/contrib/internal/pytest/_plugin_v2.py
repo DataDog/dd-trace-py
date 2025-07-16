@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
@@ -43,7 +42,6 @@ from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -257,6 +255,18 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         _disable_ci_visibility()
 
 
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
+
+
 def pytest_configure(config: pytest_Config) -> None:
     global skip_pytest_runtest_protocol
 
@@ -270,6 +280,8 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
+        from ddtrace.contrib.internal.pytest.plugin import is_enabled
+
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
