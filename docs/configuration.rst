@@ -785,9 +785,16 @@ Logs
 .. ddtrace-configuration-options::
 
    DD_LOGS_INJECTION:
-     type: string
-     default: structured
-     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
+     type: Boolean
+     default: true
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, and ``true``.
+    version_added:
+       v0.51.0: |
+           Added support for correlating traces to log using the builtin logger. This featrue was disabled by default.
+       v3.10.0: |
+           The default value was changed to ``true``. This means that the tracer will inject trace context into logs by default.
+           To disable this behavior, set ``DD_LOGS_INJECTION=false``.
+       
 
    DD_TRACE_DEBUG:
      type: Boolean
