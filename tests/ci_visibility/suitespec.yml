@@ -86,7 +86,7 @@ suites:
     runner: riot
     snapshot: true
   selenium:
-    parallelism: 4
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
