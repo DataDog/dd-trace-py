@@ -59,7 +59,7 @@ def test_call_script_pprof_output(tmp_path):
     else:
         assert exitcode == 42, (stdout, stderr)
     _, _, pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    profile = pprof_utils.parse_profile(filename + "." + str(pid))
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
 
@@ -75,7 +75,7 @@ def test_fork(tmp_path):
     )
     assert exitcode == 0
     child_pid = stdout.decode().strip()
-    profile = pprof_utils.parse_profile(filename + "." + str(pid))
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
     parent_expected_acquire_events = [
         pprof_utils.LockAcquireEvent(
             caller_name="<module>",
@@ -97,7 +97,7 @@ def test_fork(tmp_path):
         expected_acquire_events=parent_expected_acquire_events,
         expected_release_events=parent_expected_release_events,
     )
-    child_profile = pprof_utils.parse_profile(filename + "." + str(child_pid))
+    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
     # We expect the child profile to not have lock events from the parent process
     # Note that assert_lock_events function only checks that the given events
     # exists, and doesn't assert that other events don't exist.
@@ -168,10 +168,10 @@ def test_multiprocessing(method, tmp_path):
     )
     assert exitcode == 0, (stdout, stderr)
     pid, child_pid = list(s.strip() for s in stdout.decode().strip().split("\n"))
-    profile = pprof_utils.parse_profile(filename + "." + str(pid))
+    profile = pprof_utils.parse_newest_profile(filename + "." + str(pid))
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
     assert len(samples) > 0
-    child_profile = pprof_utils.parse_profile(filename + "." + str(child_pid))
+    child_profile = pprof_utils.parse_newest_profile(filename + "." + str(child_pid))
     child_samples = pprof_utils.get_samples_with_value_type(child_profile, "cpu-time")
     assert len(child_samples) > 0
 
