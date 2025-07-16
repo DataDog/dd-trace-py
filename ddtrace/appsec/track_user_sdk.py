@@ -19,7 +19,9 @@ from ddtrace.internal import core as _core
 from ddtrace.internal._exceptions import BlockingException
 
 
-def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto:bool = False) -> None:
+def track_login_success(
+    login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
+) -> None:
     """
     Track a successful user login event.
 
@@ -32,7 +34,11 @@ def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[
 
 
 def track_login_failure(
-    login: str, exists: bool, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto:bool = False
+    login: str,
+    exists: bool,
+    user_id: t.Any = None,
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track a failed user login event.
@@ -42,11 +48,17 @@ def track_login_failure(
     """
     _metrics._report_ato_sdk_usage("login_failure")
     mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
-    _trace_utils.track_user_login_failure_event(None, user_id, exists=exists, login=login, metadata=metadata, login_events_mode=mode)
+    _trace_utils.track_user_login_failure_event(
+        None, user_id, exists=exists, login=login, metadata=metadata, login_events_mode=mode
+    )
 
 
 def track_signup(
-    login: str, user_id: t.Any = None, success: bool = True, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
+    login: str,
+    user_id: t.Any = None,
+    success: bool = True,
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track a user signup event.
@@ -62,7 +74,11 @@ def track_signup(
 
 
 def track_user(
-    login: str, user_id: t.Any = None, session_id=t.Optional[str], metadata: t.Optional[t.Dict[str, t.Any]] = None,  _auto: bool = False
+    login: str,
+    user_id: t.Any = None,
+    session_id=t.Optional[str],
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track an authenticated user.
@@ -105,7 +121,9 @@ def track_user(
             if session_id:
                 custom_data["REQUEST_SESSION_ID"] = session_id
             res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
-            if res and any(action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
+            if res and any(
+                action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions
+            ):
                 raise BlockingException(_get_blocked())
 
 

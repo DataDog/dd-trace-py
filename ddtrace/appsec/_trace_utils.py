@@ -302,7 +302,7 @@ def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -
     _asm_manual_keep(span)
 
 
-def should_block_user(tracer: Any, userid: str, session_id:Optional[str]= None) -> bool:
+def should_block_user(tracer: Any, userid: str, session_id: Optional[str] = None) -> bool:
     """
     Return true if the specified User ID should be blocked.
 
@@ -343,7 +343,9 @@ def block_request() -> None:
     _asm_request_context.block_request()
 
 
-def block_request_if_user_blocked(tracer: Any, userid: str, mode: str = "sdk", session_id: Optional[str]=None) -> None:
+def block_request_if_user_blocked(
+    tracer: Any, userid: str, mode: str = "sdk", session_id: Optional[str] = None
+) -> None:
     """
     Check if the specified User ID should be blocked and if positive
     block the current request using `block_request`.
