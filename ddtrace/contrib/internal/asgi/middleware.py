@@ -274,23 +274,21 @@ class TraceMiddleware:
                     return await receive()
 
                 # Create the span when the handler is invoked (when receive() is called)
-                # This measures the time from receive() call to message completion
+                # This measures the time from receive() call to message processing completion
                 recv_span = self.tracer.start_span(
                     name="websocket.receive",
                     service=span.service,
                     resource=f"websocket {scope.get('path', '')}",
                     span_type="websocket",
                     child_of=span if not self.integration_config._websocket_messages_separate_traces else None,
+                    activate=True,
                 )
                 try:
                     message = await receive()
 
                     if scope["type"] == "websocket" and message["type"] == "websocket.receive":
-                        # clear the current receive span, if there is one
-                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if current_receive_span:
-                            current_receive_span.finish()
-                            scope["datadog"].pop("current_receive_span", None)
+                        # Keep the current receive span open to measure processing time
+                        # It will be finished after the application processes the message
 
                         core.dispatch("asgi.websocket.receive", (message,))
                         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
@@ -298,6 +296,7 @@ class TraceMiddleware:
 
                         if "text" in message:
                             recv_span.set_tag_str("websocket.message.type", "text")
+                            recv_span.set_tag_str("websocket.message.text", message["text"])  # TODO: remove this later
                             recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
                         elif "binary" in message:
                             recv_span.set_tag_str("websocket.message.type", "binary")
@@ -333,9 +332,9 @@ class TraceMiddleware:
                         if "datadog" not in scope:
                             scope["datadog"] = {}
 
-                        # reset current receive span
+                        # Store the receive span to be finished after processing message
                         scope["datadog"]["current_receive_span"] = recv_span
-                        recv_span.finish()
+                        # breakpoint()
 
                     elif message["type"] == "websocket.disconnect":
                         # Peer closes the connection: create a new trace root
@@ -418,16 +417,17 @@ class TraceMiddleware:
                     if (
                         scope["type"] == "websocket"
                         and self.integration_config._trace_asgi_websocket_messages
-                        and message.get("type") in ("websocket.send", "websocket.accept")
+                        and message.get("type") == "websocket.send"
                     ):
+                        # Always use the main websocket span as parent for send spans
+                        # This removes the parent-child relationship between receive and send
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if (
-                            not self.integration_config._websocket_messages_separate_traces
-                            or current_receive_span is None
-                        ):
-                            parent_span = span
-                        else:
+
+                        # Use receive span as parent if it exists, otherwise use main span
+                        if self.integration_config._websocket_messages_separate_traces and current_receive_span:
                             parent_span = current_receive_span
+                        else:
+                            parent_span = span
 
                         with self.tracer.start_span(
                             name="websocket.send",
@@ -458,6 +458,9 @@ class TraceMiddleware:
                             send_span.set_metric("websocket.message.frames", 1)
                             if "text" in message:
                                 send_span.set_tag_str("websocket.message.type", "text")
+                                send_span.set_tag_str(
+                                    "websocket.message.text", message["text"]
+                                )  # TODO: remove this later
                                 send_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
                             elif "binary" in message:
                                 send_span.set_tag_str("websocket.message.type", "binary")
@@ -474,15 +477,13 @@ class TraceMiddleware:
                         websocket.close.reason
 
                         """
-                        # get current receive span from scope
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if (
-                            not self.integration_config._websocket_messages_separate_traces
-                            or current_receive_span is None
-                        ):
-                            parent_span = span
-                        else:
+
+                        # Use receive span as parent if it exists, otherwise use main span
+                        if current_receive_span:
                             parent_span = current_receive_span
+                        else:
+                            parent_span = span
 
                         with self.tracer.start_span(
                             name="websocket.close",
@@ -535,6 +536,11 @@ class TraceMiddleware:
                             if reason:
                                 close_span.set_tag("websocket.close.reason", reason)
 
+                        # Close any still open receive spans
+                        if current_receive_span:
+                            current_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
                         return await send(message)
 
                     response_headers = _extract_headers(message)
@@ -560,6 +566,10 @@ class TraceMiddleware:
                 if blocked:
                     raise BlockingException(blocked)
                 try:
+                    current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                    if current_receive_span:
+                        current_receive_span.finish()
+                        scope["datadog"].pop("current_receive_span", None)
                     return await send(message)
                 finally:
                     # Per asgi spec, "more_body" is used if there is still data to send
@@ -623,9 +633,10 @@ class TraceMiddleware:
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
 
-                # Safety mechanism: finish any remaining current_receive_span to ensure no spans are unfinished
-                if scope["type"] == "websocket" and "datadog" in scope:
-                    current_receive_span = scope["datadog"].get("current_receive_span")
-                    if current_receive_span:
-                        current_receive_span.finish()
-                        scope["datadog"].pop("current_receive_span", None)
+                # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
+
+                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                if current_receive_span:
+                    current_receive_span.finish()
+                    scope["datadog"].pop("current_receive_span", None)
+                    # Note: current_receive_span is no longer used since we removed parent-child relationships
