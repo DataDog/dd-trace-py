@@ -206,7 +206,6 @@ class Tracer(object):
         forksafe.register_before_fork(self._sample_before_fork)
         atexit.register(self._atexit)
         forksafe.register(self._child_after_fork)
-        forksafe.register_after_parent(self._parent_after_fork)
 
         self._shutdown_lock = RLock()
 
@@ -379,13 +378,6 @@ class Tracer(object):
         if compute_stats_enabled is not None:
             config._trace_compute_stats = compute_stats_enabled
 
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            if appsec_enabled:
-                self._span_aggregator.writer._api_version = "v0.4"
-
-        if trace_processors:
-            self._user_trace_processors = trace_processors
-
         if any(
             x is not None
             for x in [
@@ -427,11 +419,6 @@ class Tracer(object):
         self._pid = getpid()
         self._recreate(reset_buffer=True)
         self._new_process = True
-
-    def _parent_after_fork(self):
-        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
-            pass
-            # self._writer.start_worker_thread()
 
     def _recreate(
         self,
@@ -959,5 +946,4 @@ class Tracer(object):
                 forksafe.unregister_before_fork(self._sample_before_fork)
                 atexit.unregister(self._atexit)
                 forksafe.unregister(self._child_after_fork)
-                forksafe.unregister_parent(self._parent_after_fork)
                 self.start_span = self._start_span_after_shutdown  # type: ignore[method-assign]
