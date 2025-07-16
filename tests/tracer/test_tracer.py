@@ -691,11 +691,10 @@ def test_tracer_url_default():
 def test_tracer_shutdown_no_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
-        with mock.patch.object(AgentWriter, "join") as mock_join:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
+        with mock.patch.object(t._span_aggregator.writer, "join") as mock_join:
             t.shutdown()
 
     mock_stop.assert_called()
@@ -706,10 +705,9 @@ def test_tracer_shutdown_no_timeout():
 def test_tracer_shutdown_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
         with t.trace("something"):
             pass
 
@@ -723,12 +721,11 @@ def test_tracer_shutdown_timeout():
 def test_tracer_shutdown():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
     t.shutdown()
 
-    with mock.patch.object(AgentWriter, "write") as mock_write:
+    with mock.patch.object(t._span_aggregator.writer, "write") as mock_write:
         with t.trace("something"):
             pass
 
@@ -1043,10 +1040,16 @@ def test_start_span_hooks():
     def store_span(span):
         result["span"] = span
 
-    span = t.start_span("hello")
+    try:
+        span = t.start_span("hello")
 
-    assert span == result["span"]
-    span.finish()
+        assert span == result["span"]
+        span.finish()
+    finally:
+        # Cleanup after the test is done
+        # DEV: Since we use the core API for these hooks,
+        #      they are not isolated to a single tracer instance
+        t.deregister_on_start_span(store_span)
 
 
 def test_deregister_start_span_hooks():
@@ -1953,19 +1956,16 @@ def test_gc_not_used_on_root_spans():
         pass
 
     # There should be no more span objects lingering around.
-    objects = [obj for obj in gc.get_objects() if str(obj).startswith("<Span")]
+    assert not any(str(obj).startswith("<Span") for obj in gc.get_objects())
 
-    # Helpful debugging message for when the test fails
-    error_message = ""
-    for i, obj in enumerate(objects):
-        error_message += f"""
-        --------------------
-        object {i}: {obj}
-        referrers: {[f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]]}
-        referents: {[f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)]}
-        --------------------
-        """
-    assert not objects, error_message
+    # To check the exact nature of the objects and their references, use the following:
+
+    # for i, obj in enumerate(objects):
+    #     print("--------------------")
+    #     print(f"object {i}:", obj)
+    #     print("referrers:", [f"object {objects.index(r)}" for r in gc.get_referrers(obj)[:-2]])
+    #     print("referents:", [f"object {objects.index(r)}" if r in objects else r for r in gc.get_referents(obj)])
+    #     print("--------------------")
 
 
 @pytest.mark.subprocess(env=dict(AWS_LAMBDA_FUNCTION_NAME="my-func"))
