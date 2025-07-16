@@ -423,9 +423,9 @@ class CustomBuildExt(build_ext):
             target_dir = NATIVE_CRATE / "target" / "debug"
 
         if sys.platform == "win32":
-            library = next(profile_dir.glob("_native.dll"))
+            library = next(target_dir.glob("_native.dll"))
         elif sys.platform == "darwin":
-            library = next(profile_dir.glob("lib_native.dylib"))
+            library = next(target_dir.glob("lib_native.dylib"))
         else:
             library = next(target_dir.glob("lib_native.so"))
 
@@ -434,15 +434,21 @@ class CustomBuildExt(build_ext):
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
 
-        if self.inplace:
+        if IS_EDITABLE or getattr(self, "inplace", False):
             self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
         else:
-            self.output_dir = Path(self.build_lib) / "ddtrace" / "internal" / "native"
+            self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
 
+        native_name = f"_native{self.suffix}"
         self.output_dir.mkdir(parents=True, exist_ok=True)
-        destination = self.output_dir / f"_native{self.suffix}"
-        print(f"Output path: {destination}")
+        destination = self.output_dir / native_name
         shutil.copy2(library, destination)
+
+        # Set SONAME (needed for auditwheel)
+        if sys.platform.startswith("linux"):
+            subprocess.run(["patchelf", "--set-soname", native_name, str(destination)], check=True)
+        elif sys.platform == "darwin":
+            subprocess.run(["install_name_tool", "-id", native_name, str(destination)], check=True)
 
     @staticmethod
     def is_installed(bin_file):
