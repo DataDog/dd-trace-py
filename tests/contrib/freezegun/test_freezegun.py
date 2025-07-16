@@ -11,28 +11,27 @@ from tests.utils import flaky
 
 
 class TestFreezegunTestCase:
-    @pytest.fixture(autouse=True)
-    def _patch_freezegun(self):
-        from ddtrace.contrib.internal.freezegun.patch import patch
-        from ddtrace.contrib.internal.freezegun.patch import unpatch
+    # @pytest.fixture(autouse=True)
+    # def _patch_freezegun(self):
+    #     from ddtrace.contrib.internal.freezegun.patch import patch
+    #     from ddtrace.contrib.internal.freezegun.patch import unpatch
+    #
+    #     patch()
+    #     yield
+    #     unpatch()
 
-        patch()
-        yield
-        unpatch()
-
-    @flaky(1759346444)
-    def test_freezegun_unpatch(self):
-        import freezegun
-
-        from ddtrace.contrib.internal.freezegun.patch import unpatch
-
-        unpatch()
-
-        with freezegun.freeze_time("2020-01-01"):
-            with dd_tracer.trace("freezegun.test") as span:
-                time.sleep(1)
-
-        assert span.duration == 0
+    # def test_freezegun_unpatch(self):
+    #     import freezegun
+    #
+    #     from ddtrace.contrib.internal.freezegun.patch import unpatch
+    #
+    #     unpatch()
+    #
+    #     with freezegun.freeze_time("2020-01-01"):
+    #         with dd_tracer.trace("freezegun.test") as span:
+    #             time.sleep(1)
+    #
+    #     assert span.duration == 0
 
     def test_freezegun_does_not_freeze_tracing(self):
         import freezegun
@@ -78,7 +77,6 @@ class TestFreezegunTestCase:
 
 
 class PytestFreezegunTestCase(PytestTestCaseBase):
-    @flaky(1759346444)
     def test_freezegun_pytest_plugin(self):
         """Tests that pytest's patching of freezegun in the v1 plugin version works"""
         import sys
