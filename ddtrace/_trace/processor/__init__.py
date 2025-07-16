@@ -1,7 +1,6 @@
 import abc
 from collections import defaultdict
 from itertools import chain
-from os import environ
 from threading import RLock
 from typing import Any
 from typing import DefaultDict
@@ -23,25 +22,15 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
-from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.sampling import is_single_span_sampled
-from ddtrace.internal.serverless import has_aws_lambda_agent_extension
-from ddtrace.internal.serverless import in_aws_lambda
-from ddtrace.internal.serverless import in_azure_function
-from ddtrace.internal.serverless import in_gcp_function
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.internal.utils.http import verify_url
 from ddtrace.internal.writer import AgentResponse
-from ddtrace.internal.writer import AgentWriter
-from ddtrace.internal.writer import AgentWriterInterface
-from ddtrace.internal.writer import LogWriter
-from ddtrace.internal.writer import TraceWriter
-from ddtrace.settings._agent import config as agent_config
+from ddtrace.internal.writer import create_trace_writer
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
@@ -288,20 +277,7 @@ class SpanAggregator(SpanProcessor):
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
-        if SpanAggregator._use_log_writer():
-            self.writer: TraceWriter = LogWriter()
-        else:
-            verify_url(agent_config.trace_agent_url)
-            self.writer = AgentWriter(
-                intake_url=agent_config.trace_agent_url,
-                dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
-                sync_mode=SpanAggregator._use_sync_mode(),
-                headers={"Datadog-Client-Computed-Stats": "yes"}
-                if (config._trace_compute_stats or asm_config._apm_opt_out)
-                else {},
-                report_metrics=not asm_config._apm_opt_out,
-                response_callback=self._agent_response_callback,
-            )
+        self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
         self._lock: RLock = RLock()
@@ -422,44 +398,6 @@ class SpanAggregator(SpanProcessor):
         except ValueError as e:
             log.error("Failed to set agent service sample rates: %s", str(e))
 
-    @staticmethod
-    def _use_log_writer() -> bool:
-        """Returns whether the LogWriter should be used in the environment by
-        default.
-
-        The LogWriter required by default in AWS Lambdas when the Datadog Agent extension
-        is not available in the Lambda.
-        """
-        if (
-            environ.get("DD_AGENT_HOST")
-            or environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
-            or environ.get("DD_TRACE_AGENT_URL")
-        ):
-            # If one of these variables are set, we definitely have an agent
-            return False
-        elif in_aws_lambda() and has_aws_lambda_agent_extension():
-            # If the Agent Lambda extension is available then an AgentWriter is used.
-            return False
-        elif in_gcp_function() or in_azure_function():
-            return False
-        else:
-            return in_aws_lambda()
-
-    @staticmethod
-    def _use_sync_mode() -> bool:
-        """Returns, if an `AgentWriter` is to be used, whether it should be run
-         in synchronous mode by default.
-
-        There are only two cases in which this is desirable:
-
-        - AWS Lambdas can have the Datadog agent installed via an extension.
-          When it's available traces must be sent synchronously to ensure all
-          are received before the Lambda terminates.
-        - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
-          Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
-        """
-        return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
-
     def shutdown(self, timeout: Optional[float]) -> None:
         """
         This will stop the background writer/worker and flush any finished traces in the buffer. The tracer cannot be
@@ -522,19 +460,8 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
-        try:
-            # Stop the writer to ensure it is not running while we reconfigure it.
-            self.writer.stop()
-        except ServiceStatusError:
-            # Writers like AgentWriter may not start until the first trace is encoded.
-            # Stopping them before that will raise a ServiceStatusError.
-            pass
-
-        if isinstance(self.writer, AgentWriterInterface) and appsec_enabled:
-            # Ensure AppSec metadata is encoded by setting the API version to v0.4.
-            self.writer._api_version = "v0.4"
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate()
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
         # Recreate the sampling processor using new or existing config values.
         # If an argument is None, the current value is preserved.
