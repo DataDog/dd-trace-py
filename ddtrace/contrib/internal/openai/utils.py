@@ -1,9 +1,6 @@
 import re
-import sys
 from typing import AsyncGenerator
 from typing import Generator
-
-import wrapt
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks

@@ -1,8 +1,5 @@
-import sys
-
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._utils import _get_attr
 
 class BaseVertexAIStreamHandler:
     def initialize_chunk_storage(self):
@@ -27,15 +24,3 @@ class VertexAIStreamHandler(BaseVertexAIStreamHandler, StreamHandler):
 class VertexAIAsyncStreamHandler(BaseVertexAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
-
-def extract_info_from_parts(parts):
-    """Return concatenated text from parts and function calls."""
-    concatenated_text = ""
-    function_calls = []
-    for part in parts:
-        text = _get_attr(part, "text", "")
-        concatenated_text += text
-        function_call = _get_attr(part, "function_call", None)
-        if function_call is not None:
-            function_calls.append(function_call)
-    return concatenated_text, function_calls

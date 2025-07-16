@@ -97,12 +97,12 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
             [execution_ctx, formatted_response, metadata, self.chunks, should_set_choice_ids],
         )
     
-def make_botocore_streaming_body_traced_stream(streaming_body, integration, span, args, kwargs, execution_ctx):
+def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
     original_read = getattr(streaming_body, "read", None)
     original_readlines = getattr(streaming_body, "readlines", None)
     traced_stream = make_traced_stream(
         streaming_body,
-        BotocoreStreamingBodyStreamHandler(integration, span, args, kwargs, execution_ctx=execution_ctx),
+        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
     )
     # add bedrock-specific methods to the traced stream
     if original_read:
@@ -467,7 +467,7 @@ def handle_bedrock_response(
         return result
 
     body = result["body"]
-    result["body"] = make_botocore_streaming_body_traced_stream(body, None, None, None, None, ctx)
+    result["body"] = make_botocore_streaming_body_traced_stream(body, ctx)
     return result
 
 
