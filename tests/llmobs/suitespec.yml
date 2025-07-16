@@ -20,6 +20,9 @@ components:
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+  mcp:
+    - ddtrace/contrib/_mcp.py
+    - ddtrace/contrib/internal/mcp/*
   openai:
     - ddtrace/contrib/_openai.py
     - ddtrace/contrib/internal/openai/*
@@ -122,6 +125,19 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
+    runner: riot
+    snapshot: true
+  mcp:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@mcp'
+      - '@llmobs'
+      - tests/contrib/mcp/*
+      - tests/snapshots/tests.contrib.mcp.*
     runner: riot
     snapshot: true
   openai:

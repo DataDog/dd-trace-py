@@ -446,7 +446,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 11,
+                    "input_tokens": 1039,
                     "output_tokens": 264,
                     "total_tokens": 1303,
                     "cache_write_input_tokens": 1028,
@@ -470,7 +470,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 12,
+                    "input_tokens": 1040,
                     "output_tokens": 185,
                     "total_tokens": 1225,
                     "cache_write_input_tokens": 0,
@@ -526,7 +526,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 11,
+                    "input_tokens": 1039,
                     "output_tokens": 236,
                     "total_tokens": 1275,
                     "cache_write_input_tokens": 1028,
@@ -549,7 +549,7 @@ class TestLLMObsBedrock:
                     "temperature": 0.7,
                 },
                 token_metrics={
-                    "input_tokens": 12,
+                    "input_tokens": 1040,
                     "output_tokens": 250,
                     "total_tokens": 1290,
                     "cache_write_input_tokens": 0,
