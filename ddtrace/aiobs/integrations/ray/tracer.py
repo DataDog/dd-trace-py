@@ -7,7 +7,7 @@ from ddtrace.trace import tracer
 from ddtrace.trace import TraceFilter
 
 
-class FilterShmilter(TraceFilter):
+class RayTraceFilter(TraceFilter):
     def process_trace(self, trace):
         for span in trace:
             span.span_type = "ray." + span.name
@@ -21,5 +21,5 @@ class FilterShmilter(TraceFilter):
 
 
 def setup_tracing() -> None:
-    tracer.configure(trace_processors=[FilterShmilter()])
+    tracer.configure(trace_processors=[RayTraceFilter()])
     set_tracer_provider(TracerProvider())
