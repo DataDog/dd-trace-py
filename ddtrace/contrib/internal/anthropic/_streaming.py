@@ -16,7 +16,6 @@ from ddtrace.llmobs._utils import _get_attr
 log = get_logger(__name__)
 
 
-
 def _text_stream_generator(traced_stream):
     for chunk in traced_stream:
         if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
@@ -28,43 +27,43 @@ async def _async_text_stream_generator(traced_stream):
         if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
             yield chunk.delta.text
 
+
 def handle_streamed_response(integration, resp, args, kwargs, span):
     def add_text_stream(stream):
         stream.text_stream = _text_stream_generator(stream)
-    
+
     def add_async_text_stream(stream):
         stream.text_stream = _async_text_stream_generator(stream)
-    
+
     if _is_stream(resp) or _is_stream_manager(resp):
         traced_stream = make_traced_stream(
-            resp, 
-            AnthropicStreamHandler(integration, span, args, kwargs), 
-            on_stream_created=add_text_stream
+            resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
         )
         traced_stream.text_stream = _text_stream_generator(traced_stream)
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
         traced_stream = make_traced_async_stream(
-            resp, 
-            AnthropicAsyncStreamHandler(integration, span, args, kwargs), 
-            on_stream_created=add_async_text_stream
+            resp, AnthropicAsyncStreamHandler(integration, span, args, kwargs), on_stream_created=add_async_text_stream
         )
         traced_stream.text_stream = _async_text_stream_generator(traced_stream)
         return traced_stream
 
+
 class BaseAnthropicStreamHandler:
     def initialize_chunk_storage(self):
         return []
-    
+
     def finalize_stream(self, exception=None):
         _process_finished_stream(
             self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks
         )
         self.primary_span.finish()
 
+
 class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
+
 
 class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):

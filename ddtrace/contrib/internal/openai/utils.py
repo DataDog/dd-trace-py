@@ -27,9 +27,14 @@ class BaseOpenAIStreamHandler:
     def finalize_stream(self, exception=None):
         if not exception:
             _process_finished_stream(
-                self.integration, self.primary_span, self.request_kwargs, self.chunks, self.options.get("operation_type", "")
+                self.integration,
+                self.primary_span,
+                self.request_kwargs,
+                self.chunks,
+                self.options.get("operation_type", ""),
             )
         self.primary_span.finish()
+
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
@@ -55,6 +60,7 @@ class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
         except (StopIteration, GeneratorExit):
             return
 
+
 class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
         await self._extract_token_chunk(chunk, iterator)
@@ -75,6 +81,7 @@ class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
             self.chunks[0].insert(0, usage_chunk)
         except (StopAsyncIteration, GeneratorExit):
             return
+
 
 def _compute_token_count(content, model):
     # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
@@ -160,6 +167,7 @@ def _is_async_generator(resp):
         return True
     return False
 
+
 def _loop_handler(span, chunk, streamed_chunks):
     """
     Sets the openai model tag and appends the chunk to the correct index in the streamed_chunks list.
@@ -183,6 +191,7 @@ def _loop_handler(span, chunk, streamed_chunks):
         streamed_chunks[choice.index].append(choice)
     if getattr(chunk, "usage", None):
         streamed_chunks[0].insert(0, chunk)
+
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
     prompts = kwargs.get("prompt", None)

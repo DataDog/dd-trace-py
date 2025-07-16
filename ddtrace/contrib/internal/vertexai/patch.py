@@ -74,7 +74,12 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     try:
         generations = func(*args, **kwargs)
         if stream:
-            return make_traced_stream(generations, VertexAIStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
+            return make_traced_stream(
+                generations,
+                VertexAIStreamHandler(
+                    integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
+                ),
+            )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -104,7 +109,12 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     try:
         generations = await func(*args, **kwargs)
         if stream:
-            return make_traced_async_stream(generations, VertexAIAsyncStreamHandler(integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance))
+            return make_traced_async_stream(
+                generations,
+                VertexAIAsyncStreamHandler(
+                    integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
+                ),
+            )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

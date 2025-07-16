@@ -55,10 +55,11 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
         # if error processing chunks, return None to avoid crashing the user app
         return None
 
+
 class BaseGoogleGenAIStreamHandler:
     def initialize_chunk_storage(self):
         return []
-    
+
     def finalize_stream(self, exception=None):
         self.integration.llmobs_set_tags(
             self.primary_span,
@@ -69,9 +70,11 @@ class BaseGoogleGenAIStreamHandler:
         )
         self.primary_span.finish()
 
+
 class GoogleGenAIStreamHandler(BaseGoogleGenAIStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self.chunks.append(chunk)
+
 
 class GoogleGenAIAsyncStreamHandler(BaseGoogleGenAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):

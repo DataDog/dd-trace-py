@@ -44,13 +44,11 @@ class BaseLiteLLMStreamHandler:
             formatted_completions = None
             if self.integration.is_completion_operation(operation):
                 formatted_completions = [
-                    openai_construct_completion_from_streamed_chunks(choice) 
-                    for choice in self.chunks.values()
+                    openai_construct_completion_from_streamed_chunks(choice) for choice in self.chunks.values()
                 ]
             else:
                 formatted_completions = [
-                    openai_construct_message_from_streamed_chunks(choice) 
-                    for choice in self.chunks.values()
+                    openai_construct_message_from_streamed_chunks(choice) for choice in self.chunks.values()
                 ]
             return formatted_completions
         except Exception:

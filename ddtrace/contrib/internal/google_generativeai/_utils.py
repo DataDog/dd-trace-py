@@ -8,9 +8,15 @@ from ddtrace.llmobs._integrations.utils import get_system_instructions_from_goog
 from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
 from ddtrace.llmobs._integrations.utils import tag_response_part_google
 
+
 class BaseGoogleGenerativeAIStramHandler:
     def finalize_stream(self, exception=None):
-        tag_response(self.primary_span, self.options.get("wrapped_stream", None), self.integration, self.options.get("model_instance", None))
+        tag_response(
+            self.primary_span,
+            self.options.get("wrapped_stream", None),
+            self.integration,
+            self.options.get("model_instance", None),
+        )
         self.request_kwargs["instance"] = self.options.get("model_instance", None)
         self.integration.llmobs_set_tags(
             self.primary_span,
@@ -20,9 +26,11 @@ class BaseGoogleGenerativeAIStramHandler:
         )
         self.primary_span.finish()
 
+
 class GoogleGenerativeAIStramHandler(BaseGoogleGenerativeAIStramHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         pass
+
 
 class GoogleGenerativeAIAsyncStreamHandler(BaseGoogleGenerativeAIStramHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):

@@ -104,9 +104,13 @@ class _BaseCompletionHook(_EndpointHook):
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
-                return make_traced_async_stream(resp, OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type))
+                return make_traced_async_stream(
+                    resp, OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type)
+                )
             elif _is_generator(resp):
-                return make_traced_stream(resp, OpenAIStreamHandler(integration, span, None, kwargs, operation_type=operation_type))
+                return make_traced_stream(
+                    resp, OpenAIStreamHandler(integration, span, None, kwargs, operation_type=operation_type)
+                )
 
         def shared_gen():
             try:

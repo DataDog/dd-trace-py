@@ -59,7 +59,12 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
         if api_key:
             span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
         if stream:
-            return make_traced_stream(generations, GoogleGenerativeAIStramHandler(integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations))
+            return make_traced_stream(
+                generations,
+                GoogleGenerativeAIStramHandler(
+                    integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
+                ),
+            )
         tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -89,7 +94,12 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
         tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
-            return make_traced_async_stream(generations, GoogleGenerativeAIAsyncStreamHandler(integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations))
+            return make_traced_async_stream(
+                generations,
+                GoogleGenerativeAIAsyncStreamHandler(
+                    integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
+                ),
+            )
         tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())

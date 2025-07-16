@@ -7,6 +7,7 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_s
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 
+
 class BaseLangchainStreamHandler:
     def initialize_chunk_storage(self):
         return []
@@ -16,16 +17,18 @@ class BaseLangchainStreamHandler:
         chunk_callback = self.options.get("chunk_callback", None)
         if chunk_callback:
             chunk_callback(chunk)
-    
+
     def finalize_stream(self, exception=None):
         on_span_finish = self.options.get("on_span_finish", None)
         if on_span_finish:
             on_span_finish(self.primary_span, self.chunks)
         self.primary_span.finish()
 
+
 class LangchainStreamHandler(BaseLangchainStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
+
 
 class LangchainAsyncStreamHandler(BaseLangchainStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):
@@ -62,8 +65,18 @@ def shared_stream(
         resp = func(*args, **kwargs)
         chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
         if inspect.isasyncgen(resp):
-            return make_traced_async_stream(resp, LangchainAsyncStreamHandler(integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback))
-        return make_traced_stream(resp, LangchainStreamHandler(integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback))
+            return make_traced_async_stream(
+                resp,
+                LangchainAsyncStreamHandler(
+                    integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
+                ),
+            )
+        return make_traced_stream(
+            resp,
+            LangchainStreamHandler(
+                integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
+            ),
+        )
     except Exception:
         # error with the method call itself
         span.set_exc_info(*sys.exc_info())

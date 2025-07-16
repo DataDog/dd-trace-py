@@ -1,10 +1,11 @@
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 
+
 class BaseVertexAIStreamHandler:
     def initialize_chunk_storage(self):
         return []
-    
+
     def _process_chunk(self, chunk):
         if not self.options.get("is_chat", False) or not self.chunks:
             self.chunks.append(chunk)
@@ -17,9 +18,11 @@ class BaseVertexAIStreamHandler:
         )
         self.primary_span.finish()
 
+
 class VertexAIStreamHandler(BaseVertexAIStreamHandler, StreamHandler):
     def process_chunk(self, chunk, iterator=None):
         self._process_chunk(chunk)
+
 
 class VertexAIAsyncStreamHandler(BaseVertexAIStreamHandler, AsyncStreamHandler):
     async def process_chunk(self, chunk, iterator=None):

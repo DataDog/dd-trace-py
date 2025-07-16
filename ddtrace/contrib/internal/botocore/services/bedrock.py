@@ -50,6 +50,7 @@ def traced_stream_read(traced_stream, original_read, amt=None):
         core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
         raise
 
+
 def traced_stream_readlines(traced_stream, original_readlines):
     """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
     handler = traced_stream.handler
@@ -71,16 +72,19 @@ def traced_stream_readlines(traced_stream, original_readlines):
         core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
         raise
 
+
 class BotocoreStreamingBodyStreamHandler(StreamHandler):
     def initialize_chunk_storage(self):
         return []
 
     def process_chunk(self, chunk, iterator=None):
         self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
-    
+
     def handle_exception(self, exception):
-        core.dispatch("botocore.patched_bedrock_api_call.exception", [self.options.get("execution_ctx", {}), sys.exc_info()])
-    
+        core.dispatch(
+            "botocore.patched_bedrock_api_call.exception", [self.options.get("execution_ctx", {}), sys.exc_info()]
+        )
+
     def finalize_stream(self, exception=None):
         if exception:
             return
@@ -96,7 +100,8 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
             "botocore.bedrock.process_response",
             [execution_ctx, formatted_response, metadata, self.chunks, should_set_choice_ids],
         )
-    
+
+
 def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
     original_read = getattr(streaming_body, "read", None)
     original_readlines = getattr(streaming_body, "readlines", None)
@@ -117,12 +122,12 @@ class BotocoreConverseStreamHandler(StreamHandler):
         stream_processor = self.options.get("stream_processor", None)
         if stream_processor:
             stream_processor.send(chunk)
-    
+
     def handle_exception(self, exception):
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
         core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
-    
+
     def finalize_stream(self, exception=None):
         if exception:
             return
@@ -130,10 +135,16 @@ class BotocoreConverseStreamHandler(StreamHandler):
         execution_ctx = self.options.get("execution_ctx", {})
         core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
 
+
 def make_botocore_converse_traced_stream(stream, execution_ctx):
     stream_processor = execution_ctx["bedrock_integration"]._converse_output_stream_processor()
     next(stream_processor)
-    return make_traced_stream(stream, BotocoreConverseStreamHandler(None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor))
+    return make_traced_stream(
+        stream,
+        BotocoreConverseStreamHandler(
+            None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor
+        ),
+    )
 
 
 def safe_token_count(token_count) -> Optional[int]:
