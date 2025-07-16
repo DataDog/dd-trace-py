@@ -40,7 +40,9 @@ class TestLLMObsGoogleGenAI:
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_generate_content_stream(self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream, consume_stream):
+    def test_generate_content_stream(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream, consume_stream
+    ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",

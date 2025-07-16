@@ -489,8 +489,11 @@ def test_llmobs_base_tool_invoke(llmobs_events, tracer):
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
     )
 
+
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder, consume_stream):
+def test_llmobs_streamed_chain(
+    langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder, consume_stream
+):
     client = streamed_response_responder(
         module="openai",
         client_class_key="OpenAI",
@@ -532,6 +535,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=True,
     )
+
 
 @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
 def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_response_responder, consume_stream):

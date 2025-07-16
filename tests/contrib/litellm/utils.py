@@ -64,6 +64,7 @@ def consume_stream_next(resp, n, is_completion=False):
     output_messages = parse_tool_calls(output_messages)
     return output_messages, token_metrics
 
+
 async def async_consume_stream_aiter(resp, n, is_completion=False):
     output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
     token_metrics = {}
@@ -74,6 +75,7 @@ async def async_consume_stream_aiter(resp, n, is_completion=False):
         )
     output_messages = parse_tool_calls(output_messages)
     return output_messages, token_metrics
+
 
 async def async_consume_stream_anext(resp, n, is_completion=False):
     output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]

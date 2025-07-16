@@ -253,7 +253,9 @@ class TestLLMObsAnthropic:
                 )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream):
+    def test_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+    ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -305,7 +307,9 @@ class TestLLMObsAnthropic:
             )
 
     @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_stream_helper(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream):
+    def test_stream_helper(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+    ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.

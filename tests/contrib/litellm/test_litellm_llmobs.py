@@ -55,7 +55,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_exclude_usage(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
+    def test_completion_exclude_usage(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -212,7 +214,9 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_instrumented_proxy_urls="http://localhost:4000")])
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n, consume_stream):
+    def test_completion_proxy(
+        self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -284,7 +288,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_router_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream):
+    def test_router_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -324,7 +330,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_router_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream):
+    async def test_router_acompletion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await router.acompletion(
@@ -364,7 +372,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_router_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream):
+    def test_router_text_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = router.text_completion(
@@ -404,7 +414,9 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
-    async def test_router_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream):
+    async def test_router_atext_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await router.atext_completion(
@@ -445,7 +457,9 @@ class TestLLMObsLiteLLM:
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
     @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
-    def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
+    def test_completion_openai_enabled(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
             import openai

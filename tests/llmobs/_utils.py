@@ -870,13 +870,16 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
             break
     assert found
 
+
 def iterate_stream(stream):
     for _ in stream:
         pass
 
+
 async def aiterate_stream(stream):
     async for _ in stream:
         pass
+
 
 def next_stream(stream):
     while True:
@@ -884,6 +887,7 @@ def next_stream(stream):
             next(stream)
         except StopIteration:
             break
+
 
 async def anext_stream(stream):
     while True:
