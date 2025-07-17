@@ -425,8 +425,15 @@ class CustomBuildExt(build_ext):
         library = None
         link_file = None
         if sys.platform == "win32":
-            library = next(target_dir.glob("lib_native.dll"))
-            link_file = next(target_dir.glob("lib_native.lib"))
+            try:
+                library = next(target_dir.glob("lib_native.dll"))
+            except StopIteration:
+                raise RuntimeError(f"Could not find lib_native.dll in {target_dir}")
+
+            try:
+                link_file = next(target_dir.glob("lib_native.lib"))
+            except StopIteration:
+                raise RuntimeError(f"Could not find lib_native.lib in {target_dir}")
         elif sys.platform == "darwin":
             library = next(target_dir.glob("lib_native.dylib"))
         else:
@@ -908,7 +915,7 @@ if not IS_PYSTON:
 
 else:
     ext_modules = []
-    native_feautes = []
+    native_features = []
 
 interpose_sccache()
 setup(
