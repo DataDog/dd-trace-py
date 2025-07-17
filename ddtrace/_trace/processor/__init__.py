@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 from itertools import chain
+import os
 from os import environ
 from threading import RLock
 from typing import Dict
@@ -164,7 +165,10 @@ class TraceSamplingProcessor(TraceProcessor):
 
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
+                log.info("sampling trace in process_trace %s", chunk_root._pprint())
                 self.sampler.sample(trace[0])
+            else:
+                log.info("trace %s already sampled with context %s", chunk_root._pprint(), root_ctx)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled and not self.apm_opt_out:
@@ -332,6 +336,10 @@ class SpanAggregator(SpanProcessor):
             self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span: Span) -> None:
+        debug_span_name = os.getenv("_DD_TRACE_DEBUG_SPAN", "run_job")
+        if debug_span_name == span.name:
+            log.info("finishing debug span in SpanAggregator %s", span._pprint())
+
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
@@ -342,7 +350,7 @@ class SpanAggregator(SpanProcessor):
             if span.trace_id not in self._traces:
                 log_msg = "finished span not connected to a trace"
                 telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                log.debug("%s: %s", log_msg, span)
+                log.info("%s: %s", log_msg, span._pprint())
                 return
 
             trace = self._traces[span.trace_id]
@@ -399,6 +407,8 @@ class SpanAggregator(SpanProcessor):
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
+                        if debug_span_name == span.name:
+                            log.info("writing debug span in SpanAggregator %s", span._pprint())
                 self.writer.write(spans)
                 return
 

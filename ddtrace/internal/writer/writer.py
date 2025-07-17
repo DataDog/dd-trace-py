@@ -237,11 +237,11 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         sw.start()
         with self._conn_lck:
             if self._conn is None:
-                log.debug("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
+                log.info("creating new intake connection to %s with timeout %d", self.intake_url, self._timeout)
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
-                log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
+                log.info("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -249,13 +249,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     headers,
                 )
                 resp = self._conn.getresponse()
-                log.debug("Got response: %s %s", resp.status, resp.reason)
+                log.info("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
                 else:
-                    log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
+                    log_level = logging.INFO
+                log.info(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -331,12 +331,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._metrics_dist("writer.accepted.traces")
         self._metrics["accepted_traces"] += 1
         self._set_keep_rate(spans)
-
+        encoding_successful = False
         try:
             client.encoder.put(spans)
+            encoding_successful = True
         except BufferItemTooLarge as e:
             payload_size = e.args[0]
-            log.warning(
+            log.error(
                 "trace (%db) larger than payload buffer item limit (%db), dropping",
                 payload_size,
                 client.encoder.max_item_size,
@@ -345,7 +346,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:t_too_big"])
         except BufferFull as e:
             payload_size = e.args[0]
-            log.warning(
+            log.error(
                 "trace buffer (%s traces %db/%db) cannot fit trace of size %db, dropping (writer status: %s)",
                 len(client.encoder),
                 client.encoder.size,
@@ -360,6 +361,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))
+        if not encoding_successful:
+            failed_to_encode = ", ".join([span.name for span in spans])
+            log.info("failed to encode spans: %s", failed_to_encode)
 
     def flush_queue(self, raise_exc: bool = False):
         try:
