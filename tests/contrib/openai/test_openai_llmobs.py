@@ -443,6 +443,60 @@ class TestLLMObsOpenaiV1:
         parse_version(openai_module.version.VERSION) >= (1, 60),
         reason="latest openai versions use modified azure requests",
     )
+    def test_chat_completion_azure_streamed(
+        self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
+    ):
+        input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
+        expected_output = "I'm unable to provide real-time weather updates. To find the current weather in New York City, I recommend checking a reliable weather website or app for the most accurate and up-to-date information."
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion_streamed.yaml"):
+            azure_client = openai.AzureOpenAI(
+                api_version=azure_openai_config["api_version"],
+                azure_endpoint=azure_openai_config["azure_endpoint"],
+                azure_deployment=azure_openai_config["azure_deployment"],
+                api_key=azure_openai_config["api_key"],
+            )
+            resp = azure_client.chat.completions.create(
+                model="gpt-4o-mini",
+                stream=True,
+                messages=input_messages,
+                temperature=0,
+                n=1,
+                max_tokens=300,
+                user="ddtrace-test",
+            )
+            for chunk in resp:
+                pass
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+
+        expected_metadata = {
+            "stream": True,
+            "temperature": 0,
+            "n": 1,
+            "max_tokens": 300,
+            "user": "ddtrace-test",
+        }
+        if parse_version(openai_module.version.VERSION) >= (1, 26):
+            expected_metadata["stream_options"] = {"include_usage": True}
+
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="gpt-4o-mini",
+                model_provider="azure_openai",
+                input_messages=input_messages,
+                # note: investigate why role is empty; in the streamed chunks there is no role returned.
+                output_messages=[{"content": expected_output, "role": ""}],
+                metadata=expected_metadata,
+                token_metrics={"input_tokens": 9, "output_tokens": 45, "total_tokens": 54},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) >= (1, 60),
+        reason="latest openai versions use modified azure requests",
+    )
     async def test_chat_completion_azure_async(
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):

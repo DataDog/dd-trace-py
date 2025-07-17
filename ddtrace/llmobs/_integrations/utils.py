@@ -636,24 +636,24 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
-        if getattr(chunk, "usage", None):
+        if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
-        if not hasattr(chunk, "delta"):
+        if not _get_attr(chunk, "delta", None):
             continue
-        if getattr(chunk, "index", None) and not message.get("index"):
+        if _get_attr(chunk, "index", None) and not message.get("index"):
             message["index"] = chunk.index
-        if getattr(chunk.delta, "role") and not message.get("role"):
+        if _get_attr(chunk.delta, "role", None) and not message.get("role"):
             message["role"] = chunk.delta.role
-        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
+        if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        chunk_content = getattr(chunk.delta, "content", "")
+        chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
             continue
-        function_call = getattr(chunk.delta, "function_call", None)
+        function_call = _get_attr(chunk.delta, "function_call", None)
         if function_call:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = getattr(chunk.delta, "tool_calls", None)
+        tool_calls = _get_attr(chunk.delta, "tool_calls", None)
         if not tool_calls:
             continue
         for tool_call in tool_calls:
