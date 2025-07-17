@@ -78,7 +78,7 @@ Upgrade to 3.0
 Environment variables
 ^^^^^^^^^^^^^^^^^^^^^
 
-Use the following patterns to identify the deprecated environment variables in a code base::
+Use the following patterns to identify the deprecated environment variables in a code base. These configurations will not be supported in v3.0. Refer to the migration guide below for next steps::
 
     git grep -P -e "DD_LLMOBS_APP_NAME" \
         -e "_DD_LLMOBS_EVALUATOR_SAMPLING_RULES" \
