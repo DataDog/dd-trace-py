@@ -305,11 +305,11 @@ async def test_google_genai_embed_content_async_error(mock_async_embed_content, 
         ),
     ],
 )
-def test_normalize_contents(contents, expected):
+def test_normalize_contents_google_genai(contents, expected):
     """Test normalize_contents function with various complex type structures."""
-    from ddtrace.llmobs._integrations.google_utils import normalize_contents
+    from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 
-    result = normalize_contents(contents)
+    result = normalize_contents_google_genai(contents)
 
     # verify structure: list of dicts with role and parts
     assert isinstance(result, list)

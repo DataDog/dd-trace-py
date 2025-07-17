@@ -19,7 +19,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_
 from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name_google
-from ddtrace.llmobs._integrations.google_utils import normalize_contents
+from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 
@@ -120,7 +120,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
         messages = []
-        for content in normalize_contents(contents):
+        for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))

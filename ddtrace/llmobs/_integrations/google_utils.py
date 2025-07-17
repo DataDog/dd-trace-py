@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Tuple
+from typing import Optional
 
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -41,7 +42,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 
 
 def extract_provider_and_model_name_google(
-    kwargs: Dict[str, Any] = None, instance: Any = None, model_name_attr: str = None
+    kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
 ) -> Tuple[str, str]:
     """
     Function to extract provider and model name from either kwargs or instance attributes.
@@ -81,7 +82,7 @@ def extract_provider_and_model_name_google(
 DEFAULT_MODEL_ROLE = "assistant"
 
 
-def normalize_contents(contents) -> List[Dict[str, Any]]:
+def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
