@@ -64,7 +64,7 @@ def test_encode_traces_civisibility_v0():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    [(payload, num_traces)] = encoder.encode()
     assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
@@ -543,7 +543,7 @@ def test_xdist_worker_session_filtering(mock_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    [(payload, num_traces)] = encoder.encode()
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -570,7 +570,7 @@ def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    [(payload, num_traces)] = encoder.encode()
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -652,7 +652,7 @@ def test_full_encoding_with_parent_session_override():
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    [(payload, num_traces)] = encoder.encode()
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
