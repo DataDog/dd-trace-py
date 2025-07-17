@@ -107,9 +107,6 @@ components:
     - ddtrace/contrib/internal/flask/*
     - ddtrace/contrib/flask_cache.py
     - ddtrace/contrib/internal/flask_cache/*
-  freezegun:
-    - ddtrace/contrib/_freezegun.py
-    - ddtrace/contrib/internal/freezegun/*
   futures:
     - ddtrace/contrib/_futures.py
     - ddtrace/contrib/internal/futures/*
@@ -704,16 +701,6 @@ suites:
     services:
       - memcached
       - redis
-    snapshot: true
-  freezegun:
-    paths:
-        - '@bootstrap'
-        - '@core'
-        - '@contrib'
-        - '@tracing'
-        - '@freezegun'
-        - tests/contrib/freezegun/*
-    runner: riot
     snapshot: true
   gevent:
     paths:

@@ -19,8 +19,6 @@ components:
   unittest:
     - ddtrace/contrib/_unittest.py
     - ddtrace/contrib/internal/unittest/*
-  freezegun:
-    - ddtrace/contrib/internal/freezegun/*
 suites:
   ci_visibility:
     parallelism: 4
@@ -33,7 +31,6 @@ suites:
       - '@pytest'
       - '@codeowners'
       - '@unittest'
-      - '@freezegun'
       - tests/ci_visibility/*
     runner: riot
     snapshot: true
@@ -58,7 +55,6 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
-      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -77,7 +73,6 @@ suites:
       - '@ci_visibility'
       - '@coverage'
       - '@codeowners'
-      - '@freezegun'
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
@@ -107,7 +102,6 @@ suites:
       - '@unittest'
       - '@ci_visibility'
       - '@coverage'
-      - '@freezegun'
       - tests/contrib/unittest/*
       - tests/snapshots/tests.contrib.unittest.*
     runner: riot

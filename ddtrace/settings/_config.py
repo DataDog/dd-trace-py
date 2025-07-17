@@ -124,7 +124,6 @@ INTEGRATION_CONFIGS = frozenset(
         "protobuf",
         "aiohttp_jinja2",
         "pymongo",
-        "freezegun",
         "vertica",
         "rq_worker",
         "elasticsearch",

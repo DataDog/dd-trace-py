@@ -48,7 +48,6 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
-    "freezegun": True,
     "google_generativeai": True,
     "google_genai": True,
     "gevent": True,
