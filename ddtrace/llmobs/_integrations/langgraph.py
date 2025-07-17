@@ -13,7 +13,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -71,34 +70,18 @@ class LangGraphIntegration(BaseLLMIntegration):
             if messages is None:
                 return None
             return format_langchain_io(messages)
-        
-        formatted_response = maybe_format_langchain_io(response)
-        
-        if operation == "graph":
-            self._tag_agent_manifest(span, config, formatted_response)
 
         span._set_ctx_items(
             {
                 SPAN_KIND: "agent" if operation == "graph" else "task",
                 INPUT_VALUE: format_langchain_io(inputs),
-                OUTPUT_VALUE: formatted_response
+                OUTPUT_VALUE: maybe_format_langchain_io(response)
                 or maybe_format_langchain_io(span._get_ctx_item(LANGGRAPH_ASTREAM_OUTPUT)),
                 NAME: invoked_node.get("name") or kwargs.get("name", span.name),
                 SPAN_LINKS: current_span_links + span_links,
             }
         )
 
-    def _tag_agent_manifest(self, span, config, formatted_response):
-        manifest = {}
-        manifest["framework"] = "LangGraph"
-        recursion_limit = _get_attr(config, "recursion_limit", None)
-        if recursion_limit:
-            manifest["max_iterations"] = recursion_limit
-        if formatted_response:
-            manifest["dependencies"] = formatted_response
-
-        span.set_tag(AGENT_MANIFEST, manifest)
-    
     def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> Dict[str, Any]:
         """
         Get the node metadata for a given span and its node instance id.
