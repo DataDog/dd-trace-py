@@ -67,7 +67,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: '41b5ebf2ba153c06c0020b396923dec0d6b1e5bf'
+          ref: '00ef7aa109379a58145417d79ed174d93ec7c19b'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -120,7 +120,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: '41b5ebf2ba153c06c0020b396923dec0d6b1e5bf'
+          ref: '00ef7aa109379a58145417d79ed174d93ec7c19b'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -294,7 +294,7 @@ jobs:
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
-          ref: '41b5ebf2ba153c06c0020b396923dec0d6b1e5bf'
+          ref: '00ef7aa109379a58145417d79ed174d93ec7c19b'
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
