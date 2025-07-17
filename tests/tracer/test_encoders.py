@@ -567,7 +567,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
+    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
     # Get test parameters from environment variables
