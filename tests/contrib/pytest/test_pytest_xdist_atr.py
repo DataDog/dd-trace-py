@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
@@ -20,6 +19,8 @@ if not riot_env_value:
     pytest.importorskip("xdist", reason="Auto Test Retries + xdist tests, not running under riot")
 ######
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_atr()),
