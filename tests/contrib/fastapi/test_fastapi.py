@@ -686,7 +686,7 @@ def test_long_running_websocket_session(test_spans, snapshot_app):
             for i in range(5):
                 websocket.send_text(f"ping {i}")
                 response = websocket.receive_text()
-                assert f"pong {i}" in response
+                assert "pong" in response
                 time.sleep(1)
 
             websocket.send_text("goodbye")

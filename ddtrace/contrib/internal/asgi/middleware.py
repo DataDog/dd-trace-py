@@ -37,7 +37,6 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        # TODO: set as initially false until we gradually release feature
         _trace_asgi_websocket_messages=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=False)),
         _asgi_websockets_inherit_sampling=asbool(
             os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
@@ -290,6 +289,12 @@ class TraceMiddleware:
                         # Keep the current receive span open to measure processing time
                         # It will be finished after the application processes the message
 
+                        # end current receive span before
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                        if current_receive_span:
+                            current_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
                         core.dispatch("asgi.websocket.receive", (message,))
                         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -419,11 +424,8 @@ class TraceMiddleware:
                         and self.integration_config._trace_asgi_websocket_messages
                         and message.get("type") == "websocket.send"
                     ):
-                        # Always use the main websocket span as parent for send spans
-                        # This removes the parent-child relationship between receive and send
                         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
-                        # Use receive span as parent if it exists, otherwise use main span
                         if self.integration_config._websocket_messages_separate_traces and current_receive_span:
                             parent_span = current_receive_span
                         else:
@@ -460,7 +462,7 @@ class TraceMiddleware:
                                 send_span.set_tag_str("websocket.message.type", "text")
                                 send_span.set_tag_str(
                                     "websocket.message.text", message["text"]
-                                )  # TODO: remove this later
+                                )  # TODO: remove this later; for testing
                                 send_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
                             elif "binary" in message:
                                 send_span.set_tag_str("websocket.message.type", "binary")
@@ -536,7 +538,7 @@ class TraceMiddleware:
                             if reason:
                                 close_span.set_tag("websocket.close.reason", reason)
 
-                        # Close any still open receive spans
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
                         if current_receive_span:
                             current_receive_span.finish()
                             scope["datadog"].pop("current_receive_span", None)
@@ -566,10 +568,6 @@ class TraceMiddleware:
                 if blocked:
                     raise BlockingException(blocked)
                 try:
-                    current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                    if current_receive_span:
-                        current_receive_span.finish()
-                        scope["datadog"].pop("current_receive_span", None)
                     return await send(message)
                 finally:
                     # Per asgi spec, "more_body" is used if there is still data to send
@@ -634,9 +632,7 @@ class TraceMiddleware:
                     scope["datadog"]["request_spans"].remove(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
-
                 current_receive_span = scope.get("datadog", {}).get("current_receive_span")
                 if current_receive_span:
                     current_receive_span.finish()
                     scope["datadog"].pop("current_receive_span", None)
-                    # Note: current_receive_span is no longer used since we removed parent-child relationships
