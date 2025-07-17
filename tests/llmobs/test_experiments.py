@@ -176,6 +176,36 @@ def test_dataset_append(llmobs, test_dataset):
     assert ds.description == test_dataset.description
 
 
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+        ],
+    ],
+)
+def test_dataset_delete(llmobs, test_dataset):
+    test_dataset.delete(0)
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 1
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+
+
 def test_project_create(llmobs):
     project_id = llmobs._instance._dne_client.project_create(name="test-project")
     assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"

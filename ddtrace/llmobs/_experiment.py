@@ -139,6 +139,11 @@ class Dataset:
         self._new_records.append(r)
         self._records.append(r)
 
+    def delete(self, index: int) -> None:
+        record_id = self._records[index]["record_id"]
+        self._deleted_record_ids.append(record_id)
+        del self._records[index]
+
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
         ...
