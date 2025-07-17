@@ -422,8 +422,11 @@ class CustomBuildExt(build_ext):
         else:
             target_dir = NATIVE_CRATE / "target" / "debug"
 
+        library = None
+        link_file = None
         if sys.platform == "win32":
-            library = next(target_dir.glob("_native.dll"))
+            library = next(target_dir.glob("lib_native.dll"))
+            link_file = next(target_dir.glob("lib_native.lib"))
         elif sys.platform == "darwin":
             library = next(target_dir.glob("lib_native.dylib"))
         else:
@@ -449,6 +452,14 @@ class CustomBuildExt(build_ext):
             subprocess.run(["patchelf", "--set-soname", native_name, str(destination)], check=True)
         elif sys.platform == "darwin":
             subprocess.run(["install_name_tool", "-id", native_name, str(destination)], check=True)
+
+        #Rename .lib file so it has the same base name as the dll.
+        self.windows_link_file = None
+        if link_file is not None:
+            new_link_file = (target_dir / native_name).with_suffix(".lib")
+            shutil.copy2(link_file, new_link_file)
+            self.windows_link_file = new_link_file
+
 
     @staticmethod
     def is_installed(bin_file):
@@ -555,6 +566,11 @@ class CustomBuildExt(build_ext):
             "-DEXTENSION_SUFFIX={}".format(self.suffix),
             "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
         ]
+
+        if self.windows_link_file is not None:
+            cmake_args += [
+                "-DNATIVE_IMPLIB={}".format(self.windows_link_file),
+            ]
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]

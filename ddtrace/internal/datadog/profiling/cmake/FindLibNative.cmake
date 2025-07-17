@@ -27,8 +27,21 @@ message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
 # Add imported library target
 add_library(_native SHARED IMPORTED GLOBAL)
 
-set_target_properties(_native PROPERTIES
-    IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-    INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-)
+if(WIN32)
+    if(not DEFINED NATIVE_IMPLIB)
+        set(NATIVE_IMPLIB ${CMAKE_SOURCE_DIR}/../../../../../src/native/target/release/lib_native.lib)
+    endif()
+
+    message(WARNING "NATIVE_IMPLIB: ${NATIVE_IMPLIB}")
+    set_target_properties(_native PROPERTIES
+        IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+        IMPORTED_IMPLIB ${NATIVE_IMPLIB}
+        INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
+    )
+else()
+    set_target_properties(_native PROPERTIES
+        IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+        INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
+    )
+endif()
 
