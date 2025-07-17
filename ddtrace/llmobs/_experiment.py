@@ -38,11 +38,14 @@ ExperimentConfigType = Dict[str, JSONType]
 DatasetRecordInputType = Dict[str, NonNoneJSONType]
 
 
-class DatasetRecord(TypedDict):
+class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
-    record_id: NotRequired[Optional[str]]
+
+
+class DatasetRecord(DatasetRecordRaw):
+    record_id: str
 
 
 class TaskResult(TypedDict):
@@ -80,17 +83,29 @@ class Dataset:
     _id: str
     _records: List[DatasetRecord]
     _version: int
-    _dne_client: Optional["LLMObsExperimentsClient"]
+    _dne_client: "LLMObsExperimentsClient"
+    _new_records: List[DatasetRecordRaw]
+    _updated_record_ids: List[str]
+    _deleted_record_ids: List[str]
 
     def __init__(
-        self, name: str, dataset_id: str, records: List[DatasetRecord], description: str, version: int
+        self,
+        name: str,
+        dataset_id: str,
+        records: List[DatasetRecord],
+        description: str,
+        version: int,
+        _dne_client: "LLMObsExperimentsClient",
     ) -> None:
         self.name = name
         self.description = description
         self._id = dataset_id
-        self._records = records
-        self._dne_client = None
         self._version = version
+        self._dne_client = _dne_client
+        self._records = records
+        self._new_records = []
+        self._updated_record_ids = []
+        self._deleted_record_ids = []
 
     def push(self) -> None:
         if not self._id:
@@ -107,8 +122,37 @@ class Dataset:
                     "Use LLMObs.create_dataset() or LLMObs.pull_dataset() to create a dataset."
                 )
             )
-        new_version = self._dne_client.dataset_batch_update(self._id, self._records)
-        self._version = new_version
+
+        updated_records = [r for r in self._records if "record_id" in r and r["record_id"] in self._updated_record_ids]
+        new_version, new_record_ids = self._dne_client.dataset_batch_update(
+            self._id, self._new_records, updated_records, self._deleted_record_ids
+        )
+
+        # attach record ids to newly created records
+        for record, record_id in zip(self._new_records, new_record_ids):
+            record["record_id"] = record_id  # type: ignore
+
+        # FIXME: we don't get version numbers in responses to deletion requests
+        self._version = new_version if new_version != -1 else self._version + 1
+        self._new_records = []
+        self._deleted_record_ids = []
+        self._updated_record_ids = []
+
+    def update(self, index: int, record: DatasetRecordRaw) -> None:
+        record_id = self._records[index]["record_id"]
+        self._updated_record_ids.append(record_id)
+        self._records[index] = {**record, "record_id": record_id}
+
+    def append(self, record: DatasetRecordRaw) -> None:
+        r: DatasetRecord = {**record, "record_id": ""}
+        # keep the same reference in both lists to enable us to update the record_id after push
+        self._new_records.append(r)
+        self._records.append(r)
+
+    def delete(self, index: int) -> None:
+        record_id = self._records[index]["record_id"]
+        self._deleted_record_ids.append(record_id)
+        del self._records[index]
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
@@ -249,6 +293,7 @@ class Experiment:
                 records=subset_records,
                 description=self._dataset.description,
                 version=self._dataset._version,
+                _dne_client=self._dataset._dne_client,
             )
         else:
             subset_dataset = self._dataset
