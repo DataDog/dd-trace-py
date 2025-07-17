@@ -78,7 +78,7 @@ from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecordInputType
-from ddtrace.llmobs._experiment import DatasetRecordRaw as DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
@@ -587,15 +587,23 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset_from_csv(cls, csv_path: str, dataset_name: str, input_data_columns: List[str], expected_output_columns: List[str], metadata_columns: List[str] = [], csv_delimiter: str = ",", description="") -> Dataset:
+    def create_dataset_from_csv(
+        cls,
+        csv_path: str,
+        dataset_name: str,
+        input_data_columns: List[str],
+        expected_output_columns: List[str],
+        metadata_columns: List[str] = [],
+        csv_delimiter: str = ",",
+        description="",
+    ) -> Dataset:
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
 
-        csv.field_size_limit(10 * 1024 * 1024) # 10mb
+        csv.field_size_limit(10 * 1024 * 1024)  # 10mb
 
-        records = []
         try:
             # First check if the file exists and is not empty before parsing
             with open(csv_path, mode="r") as csvfile:
@@ -623,7 +631,9 @@ class LLMObs(Service):
 
                     # Determine metadata columns (all columns not used for input or expected output)
                     metadata_columns = [
-                        col for col in header_columns if col not in input_data_columns and col not in expected_output_columns
+                        col
+                        for col in header_columns
+                        if col not in input_data_columns and col not in expected_output_columns
                     ]
 
                     for row in rows:
@@ -633,7 +643,9 @@ class LLMObs(Service):
                                     input_data={col: row[col] for col in input_data_columns},
                                     expected_output={col: row[col] for col in expected_output_columns},
                                     metadata={col: row[col] for col in metadata_columns},
-                                ))
+                                    record_id="",
+                                )
+                            )
 
                         except KeyError as ke:
                             # Missing columns in a data row indicates malformed CSV

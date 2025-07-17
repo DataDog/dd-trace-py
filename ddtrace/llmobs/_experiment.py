@@ -145,12 +145,10 @@ class Dataset:
         del self._records[index]
 
     @overload
-    def __getitem__(self, index: int) -> DatasetRecord:
-        ...
+    def __getitem__(self, index: int) -> DatasetRecord: ...
 
     @overload
-    def __getitem__(self, index: slice) -> List[DatasetRecord]:
-        ...
+    def __getitem__(self, index: slice) -> List[DatasetRecord]: ...
 
     def __getitem__(self, index: Union[int, slice]) -> Union[DatasetRecord, List[DatasetRecord]]:
         return self._records.__getitem__(index)
@@ -204,6 +202,7 @@ class Dataset:
             records_list.append(row)
 
         return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
+
 
 class Experiment:
     def __init__(

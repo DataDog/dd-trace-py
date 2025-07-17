@@ -89,18 +89,29 @@ def test_dataset_create_delete(llmobs):
 
     llmobs._delete_dataset(dataset_id=dataset._id)
 
+
 def test_dataset_as_dataframe(llmobs):
     dataset = llmobs.create_dataset(name="test-dataset-3", description="A third test dataset")
     dataset._records = [
-        DatasetRecord(input_data=[{"role" : "system", "content": "i am machine"}, {"role" : "user", "content": "hello"}], expected_output="label")
+        DatasetRecord(
+            input_data=[{"role": "system", "content": "i am machine"}, {"role": "user", "content": "hello"}],
+            expected_output="label",
+        )
     ]
     df = dataset.as_dataframe()
     llmobs._delete_dataset(dataset_id=dataset._id)
 
+
 def test_dataset_csv(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset = llmobs.create_dataset_from_csv(csv_path=csv_path, dataset_name="test-dataset-good-csv", description="A good csv dataset", input_data_columns=["in0", "in1", "in2"], expected_output_columns=["out0", "out1"])
+    dataset = llmobs.create_dataset_from_csv(
+        csv_path=csv_path,
+        dataset_name="test-dataset-good-csv",
+        description="A good csv dataset",
+        input_data_columns=["in0", "in1", "in2"],
+        expected_output_columns=["out0", "out1"],
+    )
     assert len(dataset) == 2
     assert len(dataset[0]["input_data"]) == 3
     assert dataset[0]["input_data"]["in0"] == "r0v1"
@@ -121,6 +132,7 @@ def test_dataset_csv(llmobs):
     assert dataset[1]["metadata"]["m0"] == "r1v6"
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
 
 def test_dataset_pull_non_existent(llmobs):
     with pytest.raises(ValueError):
