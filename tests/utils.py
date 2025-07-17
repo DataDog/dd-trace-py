@@ -1450,43 +1450,6 @@ def get_128_bit_trace_id_from_headers(headers):
     )
 
 
-def _get_skipped_item(item, skip_reason):
-    if not inspect.isfunction(item) and not inspect.isclass(item):
-        raise ValueError(f"Unexpected skipped object: {item}")
-
-    if not hasattr(item, "pytestmark"):
-        item.pytestmark = []
-
-    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
-
-    return item
-
-
-def _should_skip(until: int, condition=None):
-    until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
-        return True
-    return condition is not None and condition
-
-
-def flaky(until: int, condition: bool = None, reason: str = None):
-    return skip_if_until(until, condition=condition, reason=reason)
-
-
-def skip_if_until(until: int, condition=None, reason=None):
-    """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(until=until, condition=condition)
-
-    def decorator(function_or_class):
-        if not skip:
-            return function_or_class
-
-        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
-
-
 def _build_env(env=None, file_path=FILE_PATH):
     """When a script runs in a subprocess, there are times in the CI or locally when it's assigned a different
     path than expected. Even worse, we've seen scripts that worked for months suddenly stop working because of this.
