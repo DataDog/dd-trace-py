@@ -1,0 +1,3 @@
+other:
+  - |
+    openai: Removes I/O and request/response attribute tags from the APM spans for OpenAI LLM traced completion/chat/response requests and responses, which is duplicated in LLM Observability. `openai.request.client` has been retained and renamed to `openai.request.provider`.

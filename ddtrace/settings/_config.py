@@ -196,6 +196,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_server",
         "yaaredis",
         "openai_agents",
+        "mcp",
     }
 )
 
@@ -317,6 +318,18 @@ class _ConfigItem:
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
+        else:
+            log.warning("Invalid source: %s", source)
+
+    def get_value_source(self, source: _ConfigSource) -> _JSONType:
+        if source == "code":
+            return self._code_value
+        elif source == "remote_config":
+            return self._rc_value
+        elif source == "env_var":
+            return self._env_value
+        elif source == "default":
+            return self._default_value
         else:
             log.warning("Invalid source: %s", source)
 
@@ -788,8 +801,11 @@ class Config(object):
         # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
         item_names = []
         for key, value, origin in items:
-            item_names.append(key)
             item = self._config[key]
+            if item.get_value_source(origin) == value:
+                # No change in config value, no need to notify subscribers or report telemetry
+                continue
+            item_names.append(key)
             item.set_value_source(value, origin)
             telemetry_writer.add_configuration(item._name, item.value(), item.source())
         self._notify_subscribers(item_names)
