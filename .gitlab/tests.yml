@@ -80,7 +80,7 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
-        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
+        ${RIOT_RUN_CMD} "${hash}" -- --ddtrace || echo "Reproduce with: ./scripts/ddtest riot run ${hash}"
       done
       ./scripts/check-diff ".riot/requirements/" \
         "Changes detected after running riot. Consider deleting changed files, running scripts/compile-and-prune-test-requirements and committing the result."
