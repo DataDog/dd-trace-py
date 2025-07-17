@@ -2,7 +2,6 @@ from io import StringIO
 import math
 import pprint
 import sys
-from time import time_ns
 import traceback
 from types import TracebackType
 from typing import Any
@@ -55,6 +54,7 @@ from ddtrace.internal.constants import SPAN_API_DATADOG
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -70,7 +70,7 @@ class SpanEvent:
     ):
         self.name: str = name
         if time_unix_nano is None:
-            time_unix_nano = time_ns()
+            time_unix_nano = Time.time_ns()
         self.time_unix_nano: int = time_unix_nano
         self.attributes: dict = attributes if attributes else {}
 
@@ -199,7 +199,7 @@ class Span(object):
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
         self.duration_ns: Optional[int] = None
 
         if trace_id is not None:
@@ -292,7 +292,7 @@ class Span(object):
         """
         if value:
             if not self.finished:
-                self.duration_ns = time_ns() - self.start_ns
+                self.duration_ns = Time.time_ns() - self.start_ns
         else:
             self.duration_ns = None
 
@@ -314,7 +314,7 @@ class Span(object):
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
         if finish_time is None:
-            self._finish_ns(time_ns())
+            self._finish_ns(Time.time_ns())
         else:
             self._finish_ns(int(finish_time * 1e9))
 
@@ -658,7 +658,7 @@ class Span(object):
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
+        self._add_event(name="exception", attributes=attrs, timestamp=Time.time_ns())
 
     def _validate_attribute(self, key: str, value: object) -> bool:
         if isinstance(value, (str, bool, int, float)):
