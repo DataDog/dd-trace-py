@@ -12,12 +12,8 @@ from ddtrace.llmobs._utils import _get_attr
 
 
 # ---------------------------------------------------------------------------------------------------
-# Below are util functions for Google GenAI Integration
+# Below are util functions shared by all google integrations
 # ---------------------------------------------------------------------------------------------------
-
-# google genai has roles "model" and "user", but in order to stay consistent with other integrations,
-# we use "assistant" as the default role for model messages
-DEFAULT_MODEL_ROLE = "assistant"
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -44,14 +40,44 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
-    model_path = kwargs.get("model", "")
-    model_name = model_path.split("/")[-1]
+def extract_provider_and_model_name_google(
+    kwargs: Dict[str, Any] = None, instance: Any = None, model_name_attr: str = None
+) -> Tuple[str, str]:
+    """
+    Function to extract provider and model name from either kwargs or instance attributes.
+    Args:
+        kwargs: Dictionary containing model information (used for google_genai)
+        instance: Model instance with attributes (used for vertexai and google_generativeai) 
+        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name")
+    
+    Returns:
+        Tuple of (provider_name, model_name)
+    """
+    model_path = ""
+    if kwargs is not None:
+        model_path = kwargs.get("model", "")
+    elif instance is not None and model_name_attr is not None:
+        model_path = _get_attr(instance, model_name_attr, "")
+    
+    if not model_path or not isinstance(model_path, str):
+        return "custom", "custom"
+    
+    model_name = model_path.split("/")[-1] if "/" in model_path else model_path
+    
     for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
+    
     return "custom", model_name if model_name else "custom"
+
+# ---------------------------------------------------------------------------------------------------
+# Below are util functions for Google GenAI Integration
+# ---------------------------------------------------------------------------------------------------
+
+# google genai has roles "model" and "user", but in order to stay consistent with other integrations,
+# we use "assistant" as the default role for model messages
+DEFAULT_MODEL_ROLE = "assistant"
 
 
 def normalize_contents(contents) -> List[Dict[str, Any]]:
@@ -196,20 +222,6 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 # ---------------------------------------------------------------------------------------------------
 # Below are util functions for Gemini and VertexAI Integrations
 # ---------------------------------------------------------------------------------------------------
-
-
-def extract_model_name_google(instance, model_name_attr):
-    """Extract the model name from the instance.
-    Model names are stored in the format `"models/{model_name}"`
-    so we do our best to return the model name instead of the full string.
-    """
-    model_name = _get_attr(instance, model_name_attr, "")
-    if not model_name or not isinstance(model_name, str):
-        return ""
-    if "/" in model_name:
-        return model_name.split("/")[-1]
-    return model_name
-
 
 def llmobs_get_metadata_google(kwargs, instance):
     metadata = {}
