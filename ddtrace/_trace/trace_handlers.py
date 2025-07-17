@@ -665,13 +665,6 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
-    for k, v in request_params.items():
-        if k == "prompt":
-            if integration.is_pc_sampled_span(span):
-                v = integration.trunc(str(v))
-        span.set_tag_str("bedrock.request.{}".format(k), str(v))
-        if k == "n":
-            ctx.set_item("num_generations", str(v))
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
@@ -688,10 +681,6 @@ def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_tok
     span = ctx.span
     span.set_tag_str("bedrock.response.id", reqid)
     span.set_tag_str("bedrock.response.duration", latency)
-    if input_token_count:
-        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
-    if output_token_count:
-        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
 
 
 def _propagate_context(ctx, headers):
@@ -742,29 +731,10 @@ def _on_botocore_bedrock_process_response(
     text = formatted_response["text"]
     span = ctx.span
     model_name = ctx["model_name"]
-    if should_set_choice_ids:
-        for i in range(len(text)):
-            span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
     integration = ctx["bedrock_integration"]
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
-                span.set_metric("bedrock.response.{}".format(k), int(v))
-            else:
-                span.set_tag_str("bedrock.{}".format(k), str(v))
     if "embed" in model_name:
-        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
         span.finish()
         return
-    for i in range(len(formatted_response["text"])):
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str(
-                "bedrock.response.choices.{}.text".format(i),
-                integration.trunc(str(formatted_response["text"][i])),
-            )
-        span.set_tag_str(
-            "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
-        )
     integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
     span.finish()
 
