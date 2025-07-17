@@ -28,6 +28,7 @@ config._add(
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 

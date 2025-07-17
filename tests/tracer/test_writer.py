@@ -705,7 +705,7 @@ def test_additional_headers():
 
 def test_additional_headers_constructor():
     writer = AgentWriter(
-        agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+        intake_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
     )
     assert writer._headers["additional-header"] == "additional-value"
     assert writer._headers["header2"] == "value2"
