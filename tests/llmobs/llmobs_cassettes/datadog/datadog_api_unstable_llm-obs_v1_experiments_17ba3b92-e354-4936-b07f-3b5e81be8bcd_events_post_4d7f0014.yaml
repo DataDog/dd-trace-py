@@ -1,11 +1,11 @@
 interactions:
 - request:
     body: '{"data": {"type": "experiments", "attributes": {"scope": "experiments",
-      "metrics": [{"span_id": "17738437973347539947", "trace_id": "68783e3000000000cdcd25c4e3f937a6",
-      "timestamp_ms": 1752710704815, "metric_type": "score", "label": "dummy_evaluator",
-      "score_value": 0, "error": null, "tags": ["ddtrace.version:3.8.0.dev78+gc0154882b.d20250530",
-      "experiment_id:f83f616f-92f5-4c43-83e3-510d333364a5"], "experiment_id": "f83f616f-92f5-4c43-83e3-510d333364a5"}],
-      "tags": ["ddtrace.version:3.8.0.dev78+gc0154882b.d20250530", "experiment_id:f83f616f-92f5-4c43-83e3-510d333364a5"]}}}'
+      "metrics": [{"span_id": "123", "trace_id": "456", "timestamp_ms": 1234, "metric_type":
+      "score", "label": "dummy_evaluator", "score_value": 0, "error": null, "tags":
+      ["ddtrace.version:1.2.3", "experiment_id:17ba3b92-e354-4936-b07f-3b5e81be8bcd"],
+      "experiment_id": "17ba3b92-e354-4936-b07f-3b5e81be8bcd"}], "tags": ["ddtrace.version:1.2.3",
+      "experiment_id:17ba3b92-e354-4936-b07f-3b5e81be8bcd"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -15,14 +15,14 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '576'
+      - '467'
       ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.4
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/f83f616f-92f5-4c43-83e3-510d333364a5/events
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments/17ba3b92-e354-4936-b07f-3b5e81be8bcd/events
   response:
     body:
       string: ''
@@ -34,7 +34,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Thu, 17 Jul 2025 00:05:05 GMT
+      - Thu, 17 Jul 2025 21:09:55 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

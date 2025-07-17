@@ -84,7 +84,7 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
-class LLMObsExperimentEvalMetric(TypedDict, total=False):
+class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
     span_id: str
     trace_id: str
     timestamp_ms: int
@@ -495,7 +495,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return experiment_id, experiment_run_name
 
     def experiment_eval_post(
-        self, experiment_id: str, events: List[LLMObsExperimentEvalMetric], tags: List[str]
+        self, experiment_id: str, events: List[LLMObsExperimentEvalMetricEvent], tags: List[str]
     ) -> None:
         path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
         resp = self.request(

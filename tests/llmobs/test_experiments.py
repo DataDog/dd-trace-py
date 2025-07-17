@@ -481,10 +481,26 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
-    exp_results = exp.run()
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        # This is to ensure that the eval event post request contains the same span/trace IDs and timestamp.
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "123",
+            "trace_id": "456",
+            "timestamp": 1234567890,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {
+                "dataset_record_index": 0,
+                "experiment_name": "test_experiment",
+                "dataset_name": "test-dataset-123",
+            },
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment(
+            "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
+        )
+        exp._tags = ["ddtrace.version:1.2.3"]  # FIXME: this is a hack to set the tags for the experiment
+        exp_results = exp.run()
     assert len(exp_results) == 1
     exp_result = exp_results[0]
     assert exp_result["idx"] == 0

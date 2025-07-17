@@ -24,7 +24,7 @@ from ddtrace.internal.logger import get_logger
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
-    from ddtrace.llmobs._writer import LLMObsExperimentEvalMetric
+    from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
 
@@ -238,7 +238,8 @@ class Experiment:
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
         experiment_results = self._merge_results(task_results, evaluations)
-        self._push_results(experiment_results)
+        experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
+        self._llmobs_instance._dne_client.experiment_eval_post(self._id, experiment_evals, self._tags)
         return experiment_results
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
@@ -361,7 +362,7 @@ class Experiment:
 
     def _generate_metric_from_evaluation(
         self, eval_name: str, eval_value: JSONType, err: JSONType, span_id: str, trace_id: str, timestamp_ns: int
-    ) -> "LLMObsExperimentEvalMetric":
+    ) -> "LLMObsExperimentEvalMetricEvent":
         metric_type = None
         if eval_value is None:
             metric_type = "categorical"
@@ -384,17 +385,9 @@ class Experiment:
             "experiment_id": self._id,
         }
 
-    def _push_results(self, experiment_results: List[ExperimentResult]) -> None:
-        if not self._llmobs_instance or not self._llmobs_instance.enabled:
-            return
-        if not self._project_id:
-            raise ValueError(
-                "Project ID is not set. Ensure project is created via experiment.run() before pushing results."
-            )
-        if not self._id:
-            raise ValueError(
-                "Experiment ID is not set. Ensure experiment is created via experiment.run() before pushing results."
-            )
+    def _generate_metrics_from_exp_results(
+        self, experiment_results: List[ExperimentResult]
+    ) -> List["LLMObsExperimentEvalMetricEvent"]:
         eval_metrics = []
         for exp_result in experiment_results:
             evaluations = exp_result.get("evaluations") or {}
@@ -409,4 +402,4 @@ class Experiment:
                     eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
                 )
                 eval_metrics.append(eval_metric)
-        self._llmobs_instance._dne_client.experiment_eval_post(self._id, eval_metrics, self._tags)
+        return eval_metrics
