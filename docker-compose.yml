@@ -167,7 +167,7 @@ services:
         environment:
             ACCEPT_EULA: "Y"
             MSSQL_SA_PASSWORD: "Localtestpass1!"
-    azureeventhubs:
+    azureeventhubsemulator:
         image: mcr.microsoft.com/azure-messaging/eventhubs-emulator:2.1.0
         ports:
             - "127.0.0.1:5672:5672"
