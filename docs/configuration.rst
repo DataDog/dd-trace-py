@@ -790,7 +790,7 @@ Logs
      description: Enables :ref:`Logs Injection`. Supported values are ``false``, and ``true``.
      version_added:
        v0.51.0: |
-         Added support for correlating traces to log using the builtin logger. This featrue was disabled by default.
+         Added support for correlating traces to log using the builtin logger. This feature was disabled by default.
        v3.10.0: |
          The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
          To disable this behavior, set ``DD_LOGS_INJECTION=false``.
