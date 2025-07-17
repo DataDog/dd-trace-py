@@ -207,26 +207,30 @@ checksum = "773648b94d0e5d620f64f280777445740e61fe701025087ec8b57f45c791888b"
 
 [[package]]
 name = "datadog-ddsketch"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "datadog-library-config"
-version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "0.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
+ "memfd",
+ "rand",
+ "rmp",
+ "rmp-serde",
  "serde",
  "serde_yaml",
 ]
 
 [[package]]
 name = "ddcommon"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "cc",
@@ -242,18 +246,14 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "libc",
- "log",
- "memfd",
  "nix",
  "pin-project",
- "rand",
  "regex",
- "rmp",
- "rmp-serde",
  "rustls",
  "rustls-native-certs",
  "serde",
  "static_assertions",
+ "thiserror",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -1199,6 +1199,26 @@ name = "target-lexicon"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e502f78cdbb8ba4718f566c418c52bc729126ffd16baee5baa718cf25dd5a69a"
+
+[[package]]
+name = "thiserror"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6aaf5339b578ea85b50e080feb250a3e8ae8cfcdff9a461c9ec2904bc923f52"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.69"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "tokio"
