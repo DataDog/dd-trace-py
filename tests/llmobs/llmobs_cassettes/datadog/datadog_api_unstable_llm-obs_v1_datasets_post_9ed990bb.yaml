@@ -1,37 +1,37 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
-      ["4698b07a-7bf6-4f65-9690-6bd481718459"]}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"name": "test-dataset-test_dataset_delete_record[test_dataset_records0]",
+      "description": "A test dataset"}}}'
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/apply:multidict._multidict.istr
+      ? !!python/object/new:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
       Content-Length:
-      - '119'
-      ? !!python/object/apply:multidict._multidict.istr
+      - '153'
+      ? !!python/object/new:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets
   response:
     body:
-      string: '{"data":[{"id":"4698b07a-7bf6-4f65-9690-6bd481718459","type":"datasets","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-15T14:39:35.965206Z","current_version":1,"deleted_at":"2025-07-15T14:39:38.643852Z","description":"A
-        test dataset","name":"test-dataset-test_experiment_run_task[test_dataset_records0]","updated_at":"2025-07-15T14:39:36.51111Z"}}]}'
+      string: '{"data":{"id":"84a30ea8-df55-4bcb-8ca5-d7e8bd4a8212","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T20:06:51.923696475Z","current_version":0,"description":"A
+        test dataset","name":"test-dataset-test_dataset_delete_record[test_dataset_records0]","updated_at":"2025-07-16T20:06:51.923696475Z"}}}'
     headers:
       content-length:
-      - '393'
+      - '357'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 14:39:38 GMT
+      - Wed, 16 Jul 2025 20:06:51 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

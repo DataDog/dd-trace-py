@@ -78,7 +78,7 @@ suites:
       - tests/contrib/pytest_bdd/*
       - tests/snapshots/tests.contrib.pytest.*
     pattern: pytest_plugin_v2
-    runner: hatch
+    runner: riot
     snapshot: true
   selenium:
     parallelism: 2
