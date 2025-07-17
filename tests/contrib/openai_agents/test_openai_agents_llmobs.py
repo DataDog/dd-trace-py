@@ -20,6 +20,24 @@ COMMON_RESPONSE_LLM_METADATA = {
     "text": {"format": {"type": "text"}},
 }
 
+def _expected_agent_metadata(tools: List[str], handoffs: List[str]) -> Dict:
+    metadata = {
+        "agent_manifest": {
+            "framework": "OpenAI",
+            "name": mock.ANY,
+            "instructions": mock.ANY,
+            "handoff_description": None,
+            "model": "gpt-4o",
+            "model_settings": mock.ANY,
+        }
+    }
+    if tools:
+        metadata["agent_manifest"]["tools"] = mock.ANY
+    if handoffs:
+        metadata["agent_manifest"]["handoffs"] = mock.ANY
+    return metadata
+
+
 
 def _assert_expected_agent_run(
     expected_span_names: List[str],
@@ -49,7 +67,7 @@ def _assert_expected_agent_run(
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="agent",
-        metadata=mock.ANY,
+        metadata=_expected_agent_metadata(tools, handoffs),
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     if not previous_tool_events:

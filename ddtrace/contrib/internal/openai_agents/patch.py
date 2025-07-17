@@ -29,14 +29,21 @@ def _supported_versions() -> Dict[str, str]:
 
 OPENAI_AGENTS_VERSION = parse_version(get_version())
 
-
 @with_traced_module_async
 async def patched_run_single_turn(agents, pin, func, instance, args, kwargs):
+    return await _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0)
+
+@with_traced_module_async
+async def patched_run_single_turn_streamed(agents, pin, func, instance, args, kwargs):
+    return await _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=1)
+    
+    
+async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0):
     from ddtrace import tracer
     s = tracer.current_span()
     r = await func(*args, **kwargs)
 
-    agent = get_argument_value(args, kwargs, 0, "agent", None)
+    agent = get_argument_value(args, kwargs, agent_index, "agent", None)
     agent_manifest = create_agent_manifest(agent) if agent else None
 
     s._set_ctx_item(AGENT_MANIFEST, agent_manifest)
@@ -57,8 +64,10 @@ def patch():
 
     if OPENAI_AGENTS_VERSION >= (0, 0, 19):
         wrap(agents.run.AgentRunner, "_run_single_turn", patched_run_single_turn(agents))
+        wrap(agents.run.AgentRunner, "_run_single_turn_streamed", patched_run_single_turn_streamed(agents))
     else:
         wrap(agents.run.Runner, "_run_single_turn", patched_run_single_turn(agents))
+        wrap(agents.run.Runner, "_run_single_turn_streamed", patched_run_single_turn_streamed(agents))
 
 
 def unpatch():
@@ -72,5 +81,7 @@ def unpatch():
 
     if OPENAI_AGENTS_VERSION >= (0, 0, 19):
         unwrap(agents.run.AgentRunner, "_run_single_turn")
+        unwrap(agents.run.AgentRunner, "_run_single_turn_streamed")
     else:
         unwrap(agents.run.Runner, "_run_single_turn")
+        unwrap(agents.run.Runner, "_run_single_turn_streamed")
