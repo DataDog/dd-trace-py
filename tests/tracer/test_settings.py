@@ -21,7 +21,7 @@ class TestConfig(BaseTestCase):
 
         with self.override_env(dict(DD_LOGS_INJECTION="structured")):
             config = Config()
-            self.assertEqual(config._logs_injection, False)
+            self.assertEqual(config._logs_injection, True)
 
         with self.override_env(dict(), replace_os_env=True):
             config = Config()
