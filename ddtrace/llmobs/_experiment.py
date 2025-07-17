@@ -15,8 +15,6 @@ from typing import Union
 from typing import cast
 from typing import overload
 
-from typing_extensions import NotRequired
-
 import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
