@@ -226,12 +226,15 @@ def get_tracemalloc_stats_per_func(stats, funcs):
         source_to_func[str(file) + str(line)] = f.__name__
 
     actual_sizes = {}
+    actual_counts = {}
     for stat in stats:
         f = stat.traceback[0]
         key = f.filename + str(f.lineno)
         if key in source_to_func:
-            actual_sizes[source_to_func[key]] = stat.size
-    return actual_sizes
+            func_name = source_to_func[key]
+            actual_sizes[func_name] = stat.size
+            actual_counts[func_name] = stat.count
+    return actual_sizes, actual_counts
 
 
 def test_unified_profiler_allocation_samples():
@@ -311,7 +314,7 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
     # hooks in LIFO order.
     _memalloc.stop()
 
-    actual_sizes = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
+    actual_sizes, _ = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
     actual_total = sum(actual_sizes.values())
 
     del junk
@@ -419,73 +422,6 @@ def test_memealloc_data_race_regression():
 
 
 @pytest.mark.parametrize("sample_interval", (256, 512, 1024))
-def test_unified_profiler_allocation_sampling_accuracy(sample_interval):
-    import os
-
-    mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
-
-    old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
-    os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
-
-    try:
-        with mc:
-            junk = []
-            for i in range(100):
-                size = 256
-                junk.append(one(size))
-                junk.append(two(2 * size))
-                junk.append(three(3 * size))
-                junk.append(four(4 * size))
-
-            del junk
-
-            samples = mc.test_snapshot()
-
-    finally:
-        if old is not None:
-            os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
-        else:
-            if "_DD_MEMALLOC_DEBUG_RNG_SEED" in os.environ:
-                del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
-
-    allocation_samples = [s for s in samples if s.in_use_size == 0]
-    heap_samples = [s for s in samples if s.in_use_size > 0]
-
-    print(f"Total samples: {len(samples)}")
-    print(f"Allocation samples (in_use_size=0): {len(allocation_samples)}")
-    print(f"Heap samples (in_use_size>0): {len(heap_samples)}")
-
-    assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
-
-    total_allocation_size = 0
-    total_allocation_count = 0
-    for sample in allocation_samples:
-        assert isinstance(sample.size, int) and sample.size > 0, f"Invalid allocation sample size: {sample.size}"
-        assert isinstance(sample.count, int) and sample.count > 0, f"Invalid allocation sample count: {sample.count}"
-        assert sample.in_use_size == 0, f"Allocation sample should have in_use_size=0, got: {sample.in_use_size}"
-        assert (
-            isinstance(sample.in_use_size, int) and sample.in_use_size >= 0
-        ), f"Invalid in_use_size: {sample.in_use_size}"
-        assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
-        total_allocation_size += sample.size
-        total_allocation_count += sample.count
-
-    avg_allocation_size = total_allocation_size // total_allocation_count if total_allocation_count > 0 else 0
-
-    print(f"Total allocation size: {total_allocation_size}")
-    print(f"Total allocation count: {total_allocation_count}")
-    print(f"Average allocation size: {avg_allocation_size}")
-
-    assert avg_allocation_size >= 100, f"Average allocation size too small: {avg_allocation_size}"
-    assert avg_allocation_size <= 2000, f"Average allocation size too large: {avg_allocation_size}"
-
-    assert total_allocation_count >= 1, "Should have captured at least 1 allocation sample"
-
-    print(f"Successfully validated unified profiler allocation sampling for sample_interval={sample_interval}")
-    print(f"Captured {len(allocation_samples)} allocation samples representing {total_allocation_count} allocations")
-
-
-@pytest.mark.parametrize("sample_interval", (256, 512, 1024))
 def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
     import tracemalloc
 
@@ -493,10 +429,6 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
     os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
 
     mc = memalloc.MemoryCollector(heap_sample_size=sample_interval)
-    if old is not None:
-        os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
-    else:
-        del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
     try:
         with mc:
@@ -518,10 +450,36 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
             samples = mc.test_snapshot()
 
     finally:
-        pass
+        if old is not None:
+            os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
+        else:
+            if "_DD_MEMALLOC_DEBUG_RNG_SEED" in os.environ:
+                del os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"]
 
-    actual_sizes = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
+    allocation_samples = [s for s in samples if s.in_use_size == 0]
+    heap_samples = [s for s in samples if s.in_use_size > 0]
+
+    print(f"Total samples: {len(samples)}")
+    print(f"Allocation samples (in_use_size=0): {len(allocation_samples)}")
+    print(f"Heap samples (in_use_size>0): {len(heap_samples)}")
+
+    assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
+
+    total_allocation_count = 0
+    for sample in allocation_samples:
+        assert sample.size > 0, f"Invalid allocation sample size: {sample.size}"
+        assert sample.count > 0, f"Invalid allocation sample count: {sample.count}"
+        assert sample.in_use_size == 0, f"Allocation sample should have in_use_size=0, got: {sample.in_use_size}"
+        assert sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+        assert sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
+        total_allocation_count += sample.count
+
+    print(f"Total allocation count: {total_allocation_count}")
+    assert total_allocation_count >= 1, "Should have captured at least 1 allocation sample"
+
+    actual_sizes, actual_counts = get_tracemalloc_stats_per_func(stats, (one, two, three, four))
     actual_total = sum(actual_sizes.values())
+    actual_count_total = sum(actual_counts.values())
 
     def get_allocation_info(samples, funcs):
         got = {}
@@ -542,22 +500,36 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
     sizes = get_allocation_info(samples, {"one", "two", "three", "four"})
 
     total = sum(v.size for v in sizes.values())
-    print(f"observed total: {total} actual total: {actual_total} error: {abs(total - actual_total) / actual_total}")
-    # assert abs(1 - total / actual_total) <= 0.20
+    total_count = sum(v.count for v in sizes.values())
 
-    print("func\tcount\tsize\tactual\trel\tactual\tdiff")
+    print(f"observed total: {total} actual total: {actual_total} error: {abs(total - actual_total) / actual_total}")
+    assert abs(1 - total / actual_total) <= 0.20
+
+    count_error = abs(total_count - actual_count_total) / actual_count_total
+    print(f"observed count total: {total_count} actual count total: {actual_count_total} error: {count_error}")
+    assert abs(1 - total_count / actual_count_total) <= 0.30
+
+    print("func\tcount\tsize\tactual_size\tactual_count\trel_size\tactual_rel_size\trel_count\tactual_rel_count")
     for func in ("one", "two", "three", "four"):
         got = sizes[func]
         actual_size = actual_sizes[func]
+        actual_count = actual_counts[func]
 
-        rel = got.size / total
-        actual_rel = actual_size / actual_total
+        rel_size = got.size / total
+        actual_rel_size = actual_size / actual_total
+
+        rel_count = got.count / total_count
+        actual_rel_count = actual_count / actual_count_total
 
         print(
-            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{rel:.3f}\t{actual_rel:.3f}\t{abs(rel - actual_rel):.3f}"
+            f"{func}\t{got.count}\t{got.size}\t{actual_size}\t{actual_count}\t{rel_size:.3f}\t{actual_rel_size:.3f}\t{rel_count:.3f}\t{actual_rel_count:.3f}"
         )
 
-        # assert abs(rel - actual_rel) < 0.10
+        assert abs(rel_size - actual_rel_size) < 0.10
+        assert abs(rel_count - actual_rel_count) < 0.15
+
+    print(f"Successfully validated allocation sampling accuracy for sample_interval={sample_interval}")
+    print(f"Captured {len(allocation_samples)} allocation samples representing {total_allocation_count} allocations")
 
 
 def test_memory_collector_allocation_tracking_across_snapshots():
