@@ -4,7 +4,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
@@ -18,6 +17,8 @@ from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
 

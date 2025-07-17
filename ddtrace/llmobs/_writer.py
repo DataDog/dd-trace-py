@@ -4,7 +4,9 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
+from typing import cast
 from urllib.parse import quote
 
 
@@ -41,6 +43,7 @@ from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
@@ -330,24 +333,75 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
-        return Dataset(name, dataset_id, [])
+        curr_version = response_data["data"]["attributes"]["current_version"]
+        return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
-    def dataset_pull(self, name: str) -> Dataset:
+    def dataset_batch_update(
+        self,
+        dataset_id: str,
+        insert_records: List[DatasetRecordRaw],
+        update_records: List[DatasetRecord],
+        delete_record_ids: List[str],
+    ) -> Tuple[int, List[str]]:
+        irs: JSONType = [
+            {
+                "input": cast(Dict[str, JSONType], r["input_data"]),
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+            }
+            for r in insert_records
+        ]
+        urs: JSONType = [
+            {
+                "input": cast(Dict[str, JSONType], r["input_data"]),
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+                "id": r["record_id"],
+            }
+            for r in update_records
+        ]
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        body: JSONType = {
+            "data": {
+                "type": "datasets",
+                "id": dataset_id,
+                "attributes": {
+                    "insert_records": irs,
+                    "update_records": urs,
+                    "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                },
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+        response_data = resp.get_json()
+        data = response_data["data"]
+
+        # FIXME: we don't get version numbers in responses to deletion requests
+        new_version = data[0]["attributes"]["version"] if data else -1
+        new_record_ids: List[str] = [r["id"] for r in data] if data else []
+        return new_version, new_record_ids
+
+    def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status}")
 
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
             raise ValueError(f"Dataset '{name}' not found")
 
+        curr_version = data[0]["attributes"]["current_version"]
+        dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
-        url = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = self.request("GET", url)
-        if resp.status == 404:
-            raise ValueError(f"Dataset '{name}' not found")
+
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
         records_data = resp.get_json()
 
         class_records: List[DatasetRecord] = []
@@ -361,7 +415,67 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                     "metadata": attrs.get("metadata", {}),
                 }
             )
-        return Dataset(name, dataset_id, class_records)
+        return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
+
+    def project_create(self, name: str) -> str:
+        path = "/api/unstable/llm-obs/v1/projects"
+        resp = self.request(
+            "POST",
+            path,
+            body={"data": {"type": "projects", "attributes": {"name": name, "description": ""}}},
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        return response_data["data"]["id"]
+
+    def project_get(self, name: str) -> str:
+        path = f"/api/unstable/llm-obs/v1/projects?filter[name]={quote(name)}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to get project {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        data = response_data["data"]
+        if not data:
+            raise ValueError(f"Project {name} not found")
+        return data[0]["id"]
+
+    def experiment_create(
+        self,
+        name: str,
+        dataset_id: str,
+        project_id: str,
+        dataset_version: int = 0,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        path = "/api/unstable/llm-obs/v1/experiments"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": {
+                        "name": name,
+                        "description": description or "",
+                        "dataset_id": dataset_id,
+                        "project_id": project_id,
+                        "dataset_version": dataset_version,
+                        "config": exp_config or {},
+                        "metadata": {"tags": cast(JSONType, tags or [])},
+                        "ensure_unique": True,
+                    },
+                }
+            },
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create experiment {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiment_id = response_data["data"]["id"]
+        experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
+        return experiment_id, experiment_run_name
 
 
 class LLMObsSpanWriter(BaseLLMObsWriter):

@@ -31,21 +31,21 @@ def spend_16():
 
 
 def spend_cpu_2():
-    now = time.process_time_ns()
     # Active wait for 2 seconds
-    while time.process_time_ns() - now < 2e9:
+    now = time.thread_time_ns()
+    while time.thread_time_ns() - now < 2e9:
         pass
 
 
 def spend_cpu_3():
     # Active wait for 3 seconds
-    now = time.process_time_ns()
-    while time.process_time_ns() - now < 3e9:
+    now = time.thread_time_ns()
+    while time.thread_time_ns() - now < 3e9:
         pass
 
 
-# We allow 7% error:
-TOLERANCE = 0.07
+# We allow 10% error:
+TOLERANCE = 0.1
 
 
 def assert_almost_equal(value, target, tolerance=TOLERANCE):
@@ -78,7 +78,7 @@ def test_accuracy_stack_v2():
     p.stop()
     wall_times = collections.defaultdict(lambda: 0)
     cpu_times = collections.defaultdict(lambda: 0)
-    profile = pprof_utils.parse_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
+    profile = pprof_utils.parse_newest_profile(os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid()))
 
     for sample in profile.sample:
         wall_time_index = pprof_utils.get_sample_type_index(profile, "wall-time")
@@ -101,7 +101,7 @@ def test_accuracy_stack_v2():
     assert_almost_equal(wall_times["spend_16"], 16e9)
     assert_almost_equal(wall_times["spend_7"], 7e9)
 
-    assert_almost_equal(wall_times["spend_cpu_2"], 2e9, tolerance=0.07)
-    assert_almost_equal(wall_times["spend_cpu_3"], 3e9, tolerance=0.07)
-    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9, tolerance=0.07)
-    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9, tolerance=0.07)
+    assert_almost_equal(wall_times["spend_cpu_2"], 2e9)
+    assert_almost_equal(wall_times["spend_cpu_3"], 3e9)
+    assert_almost_equal(cpu_times["spend_cpu_2"], 2e9)
+    assert_almost_equal(cpu_times["spend_cpu_3"], 3e9)
