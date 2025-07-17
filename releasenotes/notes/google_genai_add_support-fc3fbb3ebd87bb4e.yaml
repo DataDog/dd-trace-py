@@ -1,4 +1,4 @@
 ---
-other:
+fixes:
   - |
-    google_genai: automatically enable google_genai integration.
+    LLM Observability: ensures that the google_genai integration is automatically enabled.
