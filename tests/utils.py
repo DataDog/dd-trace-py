@@ -1231,7 +1231,6 @@ def snapshot_context(
             # Patch the tracer writer to include the test token header for all requests.
             if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
                 tracer._span_aggregator.writer.set_test_session_token(token)
-                tracer._span_aggregator.writer.recreate()
             else:
                 tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
