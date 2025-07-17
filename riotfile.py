@@ -3532,7 +3532,6 @@ venv = Venv(
         Venv(
             name="appsec_threats_flask",
             command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
-            pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
@@ -3579,8 +3578,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
-            pys=["3.8", "3.10", "3.13"],
+            command="pytest tests/appsec/contrib_appsec/test_fastapi.py {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
