@@ -301,7 +301,6 @@ class TraceMiddleware:
 
                         if "text" in message:
                             recv_span.set_tag_str("websocket.message.type", "text")
-                            recv_span.set_tag_str("websocket.message.text", message["text"])  # TODO: remove this later
                             recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
                         elif "binary" in message:
                             recv_span.set_tag_str("websocket.message.type", "binary")
@@ -460,9 +459,6 @@ class TraceMiddleware:
                             send_span.set_metric("websocket.message.frames", 1)
                             if "text" in message:
                                 send_span.set_tag_str("websocket.message.type", "text")
-                                send_span.set_tag_str(
-                                    "websocket.message.text", message["text"]
-                                )  # TODO: remove this later; for testing
                                 send_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
                             elif "binary" in message:
                                 send_span.set_tag_str("websocket.message.type", "binary")
