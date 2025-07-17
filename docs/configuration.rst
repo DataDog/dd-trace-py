@@ -788,7 +788,7 @@ Logs
      type: Boolean
      default: true
      description: Enables :ref:`Logs Injection`. Supported values are ``false``, and ``true``.
-    version_added:
+     version_added:
        v0.51.0: |
            Added support for correlating traces to log using the builtin logger. This featrue was disabled by default.
        v3.10.0: |
