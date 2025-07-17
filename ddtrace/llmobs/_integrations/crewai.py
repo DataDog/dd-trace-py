@@ -154,8 +154,6 @@ class CrewAIIntegration(BaseLLMIntegration):
         agent_instance = kwargs.get("instance")
         self._tag_agent_manifest(span, agent_instance)
         agent_role = getattr(agent_instance, "role", "")
-        agent_goal = getattr(agent_instance, "goal", "")
-        agent_backstory = getattr(agent_instance, "backstory", "")
         task_description = getattr(kwargs.get("task"), "description", "")
         context = get_argument_value(args, kwargs, 1, "context", optional=True) or ""
 
@@ -176,7 +174,6 @@ class CrewAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 NAME: agent_role if agent_role else "CrewAI Agent",
-                METADATA: {"description": agent_goal, "backstory": agent_backstory},
                 INPUT_VALUE: {"context": context, "input": task_description},
                 SPAN_LINKS: curr_span_links + [span_link],
             }
