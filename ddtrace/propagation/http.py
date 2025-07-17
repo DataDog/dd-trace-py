@@ -153,14 +153,14 @@ def _dd_id_to_b3_id(dd_id):
     return "{:016x}".format(dd_id)
 
 
-def _record_injection_telemetry(header_style: str) -> None:
+def _record_injection_telemetry(metric_name: str, header_style: str) -> None:
     """Record telemetry metric for successful context injection by header style.
 
     :param header_style: The header style that was successfully injected
     """
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
-        name="context_header_style.injected",
+        name=metric_name,
         value=1,
         tags=(("header_style", header_style),),
     )
