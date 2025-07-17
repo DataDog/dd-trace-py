@@ -7,7 +7,7 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
-    """Assert that client and server spans have the same trace ID (distributed tracing)."""
+    """Assert that client and server spans have the same trace ID and return client/server spans and LLM Obs events."""
     traces = mock_tracer.pop_traces()
     assert len(traces) >= 1
 
