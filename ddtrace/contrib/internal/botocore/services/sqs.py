@@ -10,8 +10,6 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.ext import net  # type: ignore[attr-defined]
-from ddtrace.contrib.internal.botocore.utils import compute_peer_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -159,15 +157,6 @@ def _patched_sqs_api_call(parent_ctx, original_func, instance, args, kwargs, fun
             call_trace=False,
             pin=pin,
         ) as ctx, ctx.span:
-            # Set peer.hostname when applicable
-            try:
-                region = getattr(instance, "meta", None)
-                region_name = getattr(region, "region_name", None) if region else None
-                host = compute_peer_hostname(endpoint_name, region_name, params)
-                if host:
-                    ctx.span.set_tag_str(net.PEER_HOSTNAME, host)
-            except Exception:
-                log.debug("Failed to compute peer.hostname", exc_info=True)
             core.dispatch("botocore.patched_sqs_api_call.started", [ctx])
 
             if should_update_messages:
