@@ -780,15 +780,16 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
+            .set_client_computed_stats()
         )
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
-        if self._stats_opt_out:
-            builder.set_client_computed_stats()
-        elif self._compute_stats_enabled:
-            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-            bucket_size_ns = int(stats_interval * 1e9)  # type: int
-            builder.enable_stats(bucket_size_ns)
+        #if self._stats_opt_out:
+            #builder.set_client_computed_stats()
+        # elif self._compute_stats_enabled:
+        #     stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+        #     bucket_size_ns = int(stats_interval * 1e9)  # type: int
+        #     builder.enable_stats(bucket_size_ns)
         return builder.build()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
