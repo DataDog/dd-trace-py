@@ -190,7 +190,7 @@ def test_app_started_event(telemetry_writer, test_agent_session, mock_time):
                     {"name": "trace_sample_rate", "origin": "default", "value": "1.0"},
                     {"name": "trace_sampling_rules", "origin": "default", "value": ""},
                     {"name": "trace_header_tags", "origin": "default", "value": ""},
-                    {"name": "logs_injection_enabled", "origin": "default", "value": "structured"},
+                    {"name": "logs_injection_enabled", "origin": "default", "value": True},
                     {"name": "trace_tags", "origin": "default", "value": ""},
                     {"name": "trace_enabled", "origin": "default", "value": "true"},
                     {"name": "instrumentation_config_id", "origin": "default", "value": ""},
