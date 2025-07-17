@@ -95,5 +95,4 @@ Use the following patterns to identify the deprecated environment variables in a
 Legacy tracing interfaces
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Reference the [3.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v3.0.0) to identify and remove the deprecated legacy tracing
-interfaces in a code base.
+Reference the [3.0 release note](https://github.com/DataDog/dd-trace-py/releases/tag/v3.0.0) to identify and update deprecated interfaces in ddtrace products.
