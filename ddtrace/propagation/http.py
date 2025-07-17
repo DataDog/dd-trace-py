@@ -153,10 +153,11 @@ def _dd_id_to_b3_id(dd_id):
     return "{:016x}".format(dd_id)
 
 
-def _record_injection_telemetry(metric_name: str, header_style: str) -> None:
-    """Record telemetry metric for successful context injection by header style.
+def _record_http_telemetry(metric_name: str, header_style: str) -> None:
+    """Record telemetry metric for HTTP propagation operations.
 
-    :param header_style: The header style that was successfully injected
+    :param metric_name: The name of the metric to record
+    :param tags: Tuple of tag key-value pairs to include with the metric
     """
     telemetry_writer.add_count_metric(
         namespace=TELEMETRY_NAMESPACE.TRACERS,
@@ -304,7 +305,7 @@ class _DatadogMultiHeader:
                 log.warning("failed to encode x-datadog-tags", exc_info=True)
 
         # Record telemetry for successful injection
-        _record_injection_telemetry(PROPAGATION_STYLE_DATADOG)
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
     def _extract(headers):
@@ -464,7 +465,7 @@ class _B3MultiHeader:
                 headers[_HTTP_HEADER_B3_FLAGS] = "1"
 
         # Record telemetry for successful injection
-        _record_injection_telemetry(PROPAGATION_STYLE_B3_MULTI)
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
 
     @staticmethod
     def _extract(headers):
@@ -583,7 +584,7 @@ class _B3SingleHeader:
         headers[_HTTP_HEADER_B3_SINGLE] = single_header
 
         # Record telemetry for successful injection
-        _record_injection_telemetry(PROPAGATION_STYLE_B3_SINGLE)
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
     def _extract(headers):
@@ -898,7 +899,7 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
         # Record telemetry for successful injection
-        _record_injection_telemetry(_PROPAGATION_STYLE_W3C_TRACECONTEXT)
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_W3C_TRACECONTEXT)
 
 
 class _BaggageHeader:
@@ -955,7 +956,7 @@ class _BaggageHeader:
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection
-            _record_injection_telemetry(_PROPAGATION_STYLE_BAGGAGE)
+            _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_BAGGAGE)
 
         except Exception:
             log.warning("Failed to encode and inject baggage header")
@@ -1008,19 +1009,6 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
-    def _record_extraction_telemetry(header_style: str) -> None:
-        """Record telemetry metric for successful context extraction by header style.
-
-        :param header_style: The header style that was successfully extracted
-        """
-        telemetry_writer.add_count_metric(
-            namespace=TELEMETRY_NAMESPACE.TRACERS,
-            name="context_header_style.extracted",
-            value=1,
-            tags=(("header_style", header_style),),
-        )
-
-    @staticmethod
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
@@ -1032,7 +1020,7 @@ class HTTPPropagator(object):
                 propagator = _PROP_STYLES[prop_style]
                 context = propagator._extract(normalized_headers)  # type: ignore
                 if context:
-                    HTTPPropagator._record_extraction_telemetry(prop_style)
+                    _record_http_telemetry("context_header_style.extracted", prop_style)
                     contexts.append(context)
                     styles_w_ctx.append(prop_style)
         return contexts, styles_w_ctx
@@ -1200,7 +1188,7 @@ class HTTPPropagator(object):
                     context = propagator._extract(normalized_headers)
                     style = prop_style
                     if context:
-                        HTTPPropagator._record_extraction_telemetry(prop_style)
+                        _record_http_telemetry("context_header_style.extracted", prop_style)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
@@ -1222,7 +1210,7 @@ class HTTPPropagator(object):
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
                     # Record telemetry for successful baggage extraction
-                    HTTPPropagator._record_extraction_telemetry(_PROPAGATION_STYLE_BAGGAGE)
+                    _record_http_telemetry("context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE)
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
