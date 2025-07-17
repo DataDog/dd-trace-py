@@ -74,7 +74,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         {
             "expected": {
                 "_trace_sampling_rules": "",
-                "_logs_injection": "structured",
+                "_logs_injection": True,
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
@@ -116,8 +116,8 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
             "expected_source": {"_trace_sampling_rules": "remote_config"},
         },
         {
-            "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"_logs_injection": "true"},
+            "env": {"DD_LOGS_INJECTION": "false"},
+            "expected": {"_logs_injection": False},
             "expected_source": {"_logs_injection": "env_var"},
         },
         {
@@ -669,7 +669,7 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
             "dd tags, tracing enablement, and HTTP header tags.\nConfigs on startup: "
             "sampling_rules: %s, logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
             "",
-            "structured",
+            True,
             {},
             True,
             {},
@@ -683,7 +683,7 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
         mock.call(
             "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
         ),
-        mock.call("Updated logs injection configuration via remote_config: %s", "false"),
+        mock.call("Updated logs injection configuration via remote_config: %s", False),
         mock.call(
             "APM Tracing Received: %s from the Agent",
             {

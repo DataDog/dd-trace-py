@@ -330,7 +330,7 @@ def test_info_no_configs():
         b"Application Security enabled: False",
         b"Remote Configuration enabled: False",
         b"Debug logging: False",
-        b"Log injection enabled: structured",
+        b"Log injection enabled: True",
         b"Health metrics enabled: False",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 300",
