@@ -426,14 +426,14 @@ class CustomBuildExt(build_ext):
         link_file = None
         if sys.platform == "win32":
             try:
-                library = next(target_dir.glob("lib_native.dll"))
+                library = next(target_dir.glob("_native.dll"))
             except StopIteration:
-                raise RuntimeError(f"Could not find lib_native.dll in {target_dir}")
+                raise RuntimeError(f"Could not find _native.dll in {target_dir}")
 
             try:
-                link_file = next(target_dir.glob("lib_native.lib"))
+                link_file = next(target_dir.glob("_native.lib"))
             except StopIteration:
-                raise RuntimeError(f"Could not find lib_native.lib in {target_dir}")
+                raise RuntimeError(f"Could not find _native.lib in {target_dir}")
         elif sys.platform == "darwin":
             library = next(target_dir.glob("lib_native.dylib"))
         else:
