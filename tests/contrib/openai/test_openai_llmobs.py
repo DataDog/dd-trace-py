@@ -447,7 +447,10 @@ class TestLLMObsOpenaiV1:
         self, openai, azure_openai_config, ddtrace_global_config, mock_llmobs_writer, mock_tracer
     ):
         input_messages = [{"role": "user", "content": "What's the weather like in NYC right now?"}]
-        expected_output = "I'm unable to provide real-time weather updates. To find the current weather in New York City, I recommend checking a reliable weather website or app for the most accurate and up-to-date information."
+        expected_output = (
+            "I'm unable to provide real-time weather updates. To find the current weather in New York City, "
+            "I recommend checking a reliable weather website or app for the most accurate and up-to-date information."
+        )
         with get_openai_vcr(subdirectory_name="v1").use_cassette("azure_chat_completion_streamed.yaml"):
             azure_client = openai.AzureOpenAI(
                 api_version=azure_openai_config["api_version"],
