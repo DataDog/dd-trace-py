@@ -7,6 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
@@ -49,13 +50,17 @@ def _patch(azure_servicebus_module):
     azure_servicebus_module._datadog_patch = True
 
     if azure_servicebus_module.__name__ == "azure.servicebus.aio":
-        Pin().onto(azure_servicebus_aio.ServiceBusSender)
+        Pin().onto(azure_servicebus_module.ServiceBusSender)
         _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
         _w("azure.servicebus.aio", "ServiceBusSender.schedule_messages", _patched_schedule_messages_async)
+        _w("azure.servicebus.aio", "ServiceBusSender.create_message_batch", _patched_create_message_batch_async)
     else:
         Pin().onto(azure_servicebus_module.ServiceBusSender)
+        Pin().onto(azure_servicebus_module.ServiceBusMessageBatch)
         _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
         _w("azure.servicebus", "ServiceBusSender.schedule_messages", _patched_schedule_messages)
+        _w("azure.servicebus", "ServiceBusSender.create_message_batch", _patched_create_message_batch)
+        _w("azure.servicebus", "ServiceBusMessageBatch.add_message", _patched_batch_add_message)
 
 
 def _patched_send_messages(wrapped, instance, args, kwargs):
@@ -134,6 +139,51 @@ async def _patched_schedule_messages_async(wrapped, instance, args, kwargs):
         return await wrapped(*args, **kwargs)
 
 
+def _patched_create_message_batch(wrapped, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    service_bus_message_batch = wrapped(*args, **kwargs)
+    service_bus_message_batch.dd_entity_name = instance.entity_name
+    service_bus_message_batch.dd_fully_qualified_namespace = instance.fully_qualified_namespace
+
+    return service_bus_message_batch
+
+
+async def _patched_create_message_batch_async(wrapped, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return await wrapped(*args, **kwargs)
+
+    service_bus_message_batch = await wrapped(*args, **kwargs)
+    service_bus_message_batch.dd_entity_name = instance.entity_name
+    service_bus_message_batch.dd_fully_qualified_namespace = instance.fully_qualified_namespace
+
+    return service_bus_message_batch
+
+
+def _patched_batch_add_message(wrapped, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    resource_name = instance.dd_entity_name
+
+    with create_context(
+        "azure.servicebus.patched_message_batch", pin, resource_name, azure_servicebusx.BATCH_ADD_MESSAGE
+    ) as ctx, ctx.span:
+        if config.azure_servicebus.distributed_tracing:
+            message_arg_value = get_argument_value(args, kwargs, 0, "message", True)
+            handle_service_bus_message_arg(ctx.span, message_arg_value)
+        core.dispatch(
+            "azure.servicebus.batch_add_message_modifier",
+            (ctx, config.azure_servicebus, resource_name, instance.dd_fully_qualified_namespace),
+        )
+
+        return wrapped(*args, **kwargs)
+
+
 def unpatch():
     for azure_servicebus_module in (azure_servicebus, azure_servicebus_aio):
         _unpatch(azure_servicebus_module)
@@ -146,3 +196,7 @@ def _unpatch(azure_servicebus_module):
 
     _u(azure_servicebus_module.ServiceBusSender, "send_messages")
     _u(azure_servicebus_module.ServiceBusSender, "schedule_messages")
+    _u(azure_servicebus_module.ServiceBusSender, "create_message_batch")
+
+    if azure_servicebus_module.__name__ == "azure.servicebus":
+        _u(azure_servicebus_module.ServiceBusMessageBatch, "add_message")
