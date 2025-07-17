@@ -7,6 +7,7 @@ from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import Optional, Mapping
 
 from ddtrace import config
 from ddtrace.internal import core
@@ -164,3 +165,44 @@ def extract_DD_json(message):
     except Exception:
         log.debug("Unable to parse AWS message attributes for Datadog Context.")
     return context_json
+
+
+# ------------------------------------------------------------
+# Helper: derive peer.hostname for AWS services
+# ------------------------------------------------------------
+
+
+def compute_peer_hostname(endpoint_name: str, region: Optional[str], params: Optional[Mapping[str, Any]] = None) -> Optional[str]:
+    """Return the URL hostname that should be set as *peer.hostname* for the given AWS service.
+
+    Only handles services for which Datadog wants explicit hostnames (EventBridge, SQS, SNS,
+    Kinesis, DynamoDB/DocumentDB, S3).  For other services or if *region* is unknown the
+    function returns ``None``.
+    """
+
+    if not region:
+        return None
+
+    endpoint_name = (endpoint_name or "").lower()
+
+    if endpoint_name == "events":  # EventBridge
+        return f"events.{region}.amazonaws.com"
+    elif endpoint_name == "sqs":
+        return f"sqs.{region}.amazonaws.com"
+    elif endpoint_name == "sns":
+        return f"sns.{region}.amazonaws.com"
+    elif endpoint_name == "kinesis":
+        return f"kinesis.{region}.amazonaws.com"
+    elif endpoint_name in {"dynamodb", "dynamodbstreams"}:
+        return f"dynamodb.{region}.amazonaws.com"
+    elif endpoint_name == "s3":
+        bucket = None
+        if params is not None:
+            # params might be any mapping (botocore.client call arguments)
+            bucket = params.get("Bucket")
+        if bucket:
+            return f"{bucket}.s3.{region}.amazonaws.com"
+        return f"s3.{region}.amazonaws.com"
+
+    # Service not in the mapping
+    return None

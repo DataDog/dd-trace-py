@@ -24,6 +24,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.ext import net  # type: ignore[attr-defined]
+from ddtrace.contrib.internal.botocore.utils import compute_peer_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_cloud_faas_operation
@@ -272,6 +274,15 @@ def patched_api_call_fallback(original_func, instance, args, kwargs, function_va
         span_type=SpanTypes.HTTP,
         span_key="instrumented_api_call",
     ) as ctx, ctx.span:
+        # Set peer.hostname if applicable
+        try:
+            region = getattr(instance, "meta", None)
+            region_name = getattr(region, "region_name", None) if region else None
+            host = compute_peer_hostname(endpoint_name, region_name, params)
+            if host:
+                ctx.span.set_tag_str(net.PEER_HOSTNAME, host)
+        except Exception:
+            log.debug("Failed to compute peer.hostname", exc_info=True)
         core.dispatch("botocore.patched_api_call.started", [ctx])
         if args and config.botocore["distributed_tracing"]:
             prep_context_injection(ctx, endpoint_name, operation, trace_operation, params)
