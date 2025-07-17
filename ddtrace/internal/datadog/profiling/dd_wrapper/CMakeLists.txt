@@ -111,7 +111,12 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
-set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+if(APPLE)
+    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+else()
+    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$loader_path/../../../internal/native")
+endif()
+
 
 if(NOT WIN32)
     # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be
