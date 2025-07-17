@@ -14,6 +14,7 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace.appsec.metrics import APPSEC_TEMP_METRICS
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 
@@ -21,6 +22,8 @@ from ddtrace.internal import core
 if TYPE_CHECKING:
     import ddtrace.appsec._ddwaf as ddwaf
 
+
+from time import time_ns
 
 from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
@@ -95,7 +98,10 @@ class AppSecSpanProcessor(SpanProcessor):
         self._rules: Optional[Dict[str, Any]] = None
         try:
             with open(self.rule_filename, "r") as f:
+                _ = time_ns()
                 self._rules = json.load(f)
+                json_deser_time = time_ns() - _
+                APPSEC_TEMP_METRICS.json_deser_time_ns = json_deser_time
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error(
@@ -123,9 +129,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 self.metrics = metrics
+                _ = time_ns()
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
+                waf_init_time = time_ns() - _
+                APPSEC_TEMP_METRICS.waf_init_time_ns = waf_init_time
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00

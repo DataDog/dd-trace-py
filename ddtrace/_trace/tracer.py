@@ -7,6 +7,7 @@ import logging
 import os
 from os import getpid
 from threading import RLock
+from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
@@ -27,6 +28,7 @@ from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
+from ddtrace.appsec.metrics import APPSEC_TEMP_METRICS
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -74,6 +76,7 @@ if TYPE_CHECKING:
 
 
 def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
+    _ = time_ns()
     # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
@@ -91,6 +94,10 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
         )
         if config._raise:
             raise
+    finally:
+        # Record the time taken to initialize the AppSec processor
+        appsec_init_time = time_ns() - _
+        APPSEC_TEMP_METRICS.appsec_init_time = appsec_init_time
     return None
 
 

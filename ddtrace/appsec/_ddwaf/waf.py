@@ -26,6 +26,7 @@ from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
 from ddtrace.appsec._ddwaf.waf_stubs import DDWafRulesType
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_context_capsule
 from ddtrace.appsec._utils import _observator
+from ddtrace.appsec.metrics import APPSEC_TEMP_METRICS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import PayloadType
 
@@ -59,7 +60,10 @@ class DDWaf(WAF):
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
         diagnostics = ddwaf_object()
+        _ = time.time_ns()
         ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
+        rule_object_creation_ns = time.time_ns() - _
+        APPSEC_TEMP_METRICS.object_creation_time_ns = rule_object_creation_ns
         self._builder = py_ddwaf_builder_init(config)
         py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
         self._handle = py_ddwaf_builder_build_instance(self._builder)
