@@ -349,6 +349,19 @@ def extract_github_actions(env):
         github_run_id,
     )
 
+    git_commit_head_sha = None
+    if "GITHUB_EVENT_PATH" in env:
+        try:
+            with open(env["GITHUB_EVENT_PATH"]) as f:
+                github_event_data = json.load(f)
+                git_commit_head_sha = (
+                    github_event_data.get("pull_request", {})
+                    .get("head", {})
+                    .get("sha")
+                )
+        except Exception as e:
+            log.error("Failed to read or parse GITHUB_EVENT_PATH: %s", e)
+
     env_vars = {
         "GITHUB_SERVER_URL": github_server_url,
         "GITHUB_REPOSITORY": github_repository,
@@ -362,6 +375,7 @@ def extract_github_actions(env):
         git.BRANCH: env.get("GITHUB_HEAD_REF") or env.get("GITHUB_REF"),
         git.COMMIT_SHA: git_commit_sha,
         git.REPOSITORY_URL: "{0}/{1}.git".format(github_server_url, github_repository),
+        git.COMMIT_HEAD_SHA: git_commit_head_sha,
         JOB_URL: "{0}/{1}/commit/{2}/checks".format(github_server_url, github_repository, git_commit_sha),
         PIPELINE_ID: github_run_id,
         PIPELINE_NAME: env.get("GITHUB_WORKFLOW"),

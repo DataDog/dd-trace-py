@@ -33,6 +33,9 @@ BRANCH = "git.branch"
 # Git Commit SHA
 COMMIT_SHA = "git.commit.sha"
 
+# Git Commit HEAD SHA
+COMMIT_HEAD_SHA = "git.commit.head.sha"
+
 # Git Repository URL
 REPOSITORY_URL = "git.repository_url"
 
@@ -173,11 +176,11 @@ def _get_device_for_path(path):
     return os.stat(path).st_dev
 
 
-def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
-    # type (Optional[str], Optional[str], Optional[str]) -> _GitSubprocessDetails
+def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None, parent_only=False):
+    # type (Optional[str], Optional[str], Optional[str], Optional[str]) -> _GitSubprocessDetails
     cmd = [
         "fetch",
-        '--shallow-since="1 month ago"',
+        "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
         "--update-shallow",
         "--filter=blob:none",
         "--recurse-submodules=no",
