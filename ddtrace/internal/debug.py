@@ -54,7 +54,7 @@ def collect(tracer):
     """Collect system and library information into a serializable dict."""
 
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
-    
+
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
