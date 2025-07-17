@@ -100,7 +100,7 @@ class RefMsgpackEncoder(_EncoderBase):
         return self.encode(normalized_traces)[0]
 
     def encode(self, obj):
-        return msgpack.packb(obj), len(obj)
+        return [(msgpack.packb(obj), len(obj))]
 
     @staticmethod
     def decode(data):
@@ -240,7 +240,7 @@ def test_encode_meta_struct():
         ]
     )
 
-    spans, _ = encoder.encode()
+    [(spans, _)] = encoder.encode()
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
@@ -333,7 +333,7 @@ def test_custom_msgpack_encode(encoding):
     ref_encoded = refencoder.encode_traces([trace, trace])
     encoder.put(trace)
     encoder.put(trace)
-    encoded, _ = encoder.encode()
+    [(encoded, _)] = encoder.encode()
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
