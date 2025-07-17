@@ -9,14 +9,12 @@ from typing import Dict  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
-from ddtrace.internal import gitmetadata
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.settings.crashtracker import config as crashtracker_config
 
 from .logger import get_logger
 
@@ -53,7 +51,10 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
+    # Inline expensive imports to avoid unnecessary overhead on startup.
+    from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.settings.crashtracker import config as crashtracker_config
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
