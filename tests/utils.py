@@ -1,7 +1,6 @@
 import base64
 import contextlib
 from contextlib import contextmanager
-import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
