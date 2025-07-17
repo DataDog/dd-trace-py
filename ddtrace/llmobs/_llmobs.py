@@ -581,9 +581,9 @@ class LLMObs(Service):
     @classmethod
     def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
         ds = cls._instance._dne_client.dataset_create(name, description)
-        if records:
-            for r in records:
-                ds.append(r)
+        for r in records:
+            ds.append(r)
+        if len(records) > 0:
             ds.push()
         return ds
 
