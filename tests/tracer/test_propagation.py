@@ -10,6 +10,7 @@ import ddtrace
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace.appsec._trace_utils import _asm_manual_keep
+from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
@@ -370,8 +371,8 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Span priority was unset, but as we keep 1 per min, it should be kept
-            # Since we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
-            assert span._metrics["_sampling_priority_v1"] == USER_KEEP
+            # Since we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
+            assert span._metrics["_sampling_priority_v1"] == AUTO_KEEP
 
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
