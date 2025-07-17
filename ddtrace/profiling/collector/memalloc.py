@@ -21,7 +21,10 @@ from ddtrace.settings.profiling import config
 
 LOG = logging.getLogger(__name__)
 
-MemorySample = namedtuple("MemorySample", ("frames", "size", "count", "in_use_size", "alloc_size"))
+MemorySample = namedtuple(
+    "MemorySample",
+    ("frames", "size", "count", "in_use_size", "alloc_size", "nframe", "thread_id"),
+)
 
 
 class MemoryCollector(collector.PeriodicCollector):
@@ -104,7 +107,9 @@ class MemoryCollector(collector.PeriodicCollector):
                     handle.push_alloc(alloc_size, count)
 
                 handle.push_threadinfo(
-                    thread_id, _threading.get_thread_native_id(thread_id), _threading.get_thread_name(thread_id)
+                    thread_id,
+                    _threading.get_thread_native_id(thread_id),
+                    _threading.get_thread_name(thread_id),
                 )
                 try:
                     for frame in frames:
@@ -128,12 +133,12 @@ class MemoryCollector(collector.PeriodicCollector):
 
         samples = []
         for event in events:
-            (frames, _, thread_id), in_use_size, alloc_size, count = event
+            (frames, nframe, thread_id), in_use_size, alloc_size, count = event
 
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 size = in_use_size if in_use_size > 0 else alloc_size
 
-                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size))
+                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, nframe, thread_id))
 
         return tuple(samples)
 
