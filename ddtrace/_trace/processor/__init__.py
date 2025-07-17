@@ -311,6 +311,8 @@ class SpanAggregator(SpanProcessor):
             "spans_created": defaultdict(int),
             "spans_finished": defaultdict(int),
         }
+        # Cache debug span name to avoid calling os.getenv on every span finish
+        self._debug_span_name = os.getenv("_DD_TRACE_DEBUG_SPAN", "run_job")
         super(SpanAggregator, self).__init__()
 
     def __repr__(self) -> str:
@@ -336,8 +338,7 @@ class SpanAggregator(SpanProcessor):
             self._queue_span_count_metrics("spans_created", "integration_name")
 
     def on_span_finish(self, span: Span) -> None:
-        debug_span_name = os.getenv("_DD_TRACE_DEBUG_SPAN", "run_job")
-        if debug_span_name == span.name:
+        if self._debug_span_name == span.name:
             log.info("finishing debug span in SpanAggregator %s", span._pprint())
 
         with self._lock:
@@ -407,7 +408,7 @@ class SpanAggregator(SpanProcessor):
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
-                        if debug_span_name == span.name:
+                        if self._debug_span_name == span.name:
                             log.info("writing debug span in SpanAggregator %s", span._pprint())
                 self.writer.write(spans)
                 return
