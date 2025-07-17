@@ -3,12 +3,12 @@ import pytest
 from typing_extensions import TypedDict
 
 from ddtrace.llmobs._utils import safe_json
+from tests.contrib.pydantic_ai.utils import _expected_agent_metadata
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -38,7 +38,6 @@ class TestLLMObsPydanticAI:
             token_metrics,
             instructions=instructions,
             system_prompt=system_prompt,
-            tools=["calculate_square_tool"],
             model_settings=model_settings,
         )
 
@@ -125,7 +124,6 @@ class TestLLMObsPydanticAI:
             token_metrics,
             input_value="What is the square of 2?",
             instructions=instructions,
-            tools=["calculate_square_tool"],
             span_links=True,
         )
 
@@ -158,7 +156,6 @@ class TestLLMObsPydanticAI:
             token_metrics,
             input_value="What is the square of 2?",
             instructions=instructions,
-            tools=["calculate_square_tool"],
             span_links=True,
         )
 
@@ -180,7 +177,7 @@ class TestLLMObsPydanticAI:
             "agent",
             input_value="Hello, world!",
             output_value=output,
-            metadata={"instructions": None, "system_prompts": (), "tools": []},
+            metadata=_expected_agent_metadata(),
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
             error="builtins.Exception",
             error_message="test error",

@@ -1,4 +1,21 @@
+from typing import Dict
+from unittest import mock
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+def _expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None) -> Dict:
+    metadata = {
+        "agent_manifest": {
+            "framework": "PydanticAI",
+            "name": "test_agent",
+            "model": "gpt-4o",
+            "model_provider": "openai",
+            "model_settings": model_settings,
+            "instructions": instructions,
+            "system_prompts": (system_prompt,) if system_prompt else (),
+            "tools": mock.ANY,
+        }
+    }
+    return metadata
 
 
 def expected_run_agent_span_event(
@@ -8,25 +25,15 @@ def expected_run_agent_span_event(
     input_value="Hello, world!",
     instructions=None,
     system_prompt=None,
-    tools=None,
     model_settings=None,
     span_links=None,
 ):
-    system_prompts = (system_prompt,) if system_prompt else ()
-    metadata = {"instructions": instructions, "system_prompts": system_prompts, "tools": tools or []}
-    if model_settings:
-        metadata.update(
-            {
-                "max_tokens": model_settings.get("max_tokens", None),
-                "temperature": model_settings.get("temperature", None),
-            }
-        )
     return _expected_llmobs_non_llm_span_event(
         span,
         "agent",
         input_value=input_value,
         output_value=output,
-        metadata=metadata,
+        metadata=_expected_agent_metadata(instructions, system_prompt, model_settings),
         token_metrics=token_metrics,
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
         span_links=span_links,
