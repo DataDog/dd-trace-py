@@ -381,9 +381,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         try:
             payloads = client.encoder.encode()
             if not isinstance(payloads, list):
-                n_traces = payloads[1]
-            elif len(payloads) == 1:
-                n_traces = payloads[0][1]
+                payloads = [payloads]
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate
             # due to race conditions
@@ -391,16 +389,12 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
-        if isinstance(payloads, list):
-            for payload in payloads:
-                self._flush_single_payload(payload, client=client, raise_exc=raise_exc)
-        else:
-            self._flush_single_payload(payloads, client=client, raise_exc=raise_exc)
+        for payload in payloads:
+            self._flush_single_payload(payload[0], payload[1], client=client, raise_exc=raise_exc)
 
     def _flush_single_payload(
-        self, payload: Tuple[Optional[bytes], int], client: WriterClientBase, raise_exc: bool = False
+        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
     ) -> None:
-        encoded, n_traces = payload
         if encoded is None:
             return
 
