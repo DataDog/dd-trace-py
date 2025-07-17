@@ -117,9 +117,6 @@ def test_llmobs_mcp_distributed_tracing(mcp_setup, mock_tracer, llmobs_events, m
         mock_tracer, llmobs_events, "calculator"
     )
 
-    # This test specifically validates that distributed tracing is working
-    # The _assert_distributed_trace function already validates trace ID matching
-    # But we can add additional assertions here
     assert len(all_spans) == 2
     assert client_spans[0].trace_id == server_spans[0].trace_id
     assert client_events[0]["trace_id"] == server_events[0]["trace_id"]

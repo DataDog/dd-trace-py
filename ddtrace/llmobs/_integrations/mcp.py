@@ -71,14 +71,15 @@ class MCPIntegration(BaseLLMIntegration):
             return
 
         context = kwargs.get("context")
-        if not context or not hasattr(context, "request_context") or not context.request_context:
+        if not context or not _get_attr(context, "request_context", None):
             return
 
         try:
             request_context = context.request_context
-            if not hasattr(request_context, "meta") or not request_context.meta:
+            meta = _get_attr(request_context, "meta", None)
+            if not meta:
                 return
-            headers = _get_attr(request_context.meta, "dd_trace_context", None)
+            headers = _get_attr(meta, "dd_trace_context", None)
             if headers:
                 context = HTTPPropagator.extract(headers)
                 LLMObs._instance.tracer.context_provider.activate(context)
