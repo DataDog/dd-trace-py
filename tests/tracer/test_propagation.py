@@ -13,7 +13,6 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
-from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
 from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
@@ -418,7 +417,7 @@ def test_asm_standalone_missing_propagation_tags_no_appsec_event_trace_dropped(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Ensure span is dropped (no appsec event upstream or in this span)
-            assert span._metrics["_sampling_priority_v1"] == USER_REJECT
+            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "0"}):
                 ddtrace.config._reset()
@@ -510,8 +509,8 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
             assert "x-datadog-sampling-priority" not in next_headers
 
             # Priority was unset, and trace is not kept, so it should be dropped
-            # As we have a rate limiter, priorities used are USER_KEEP and USER_REJECT
-            assert span._metrics["_sampling_priority_v1"] == USER_REJECT
+            # As we have a rate limiter, priorities used are AUTO_KEEP and AUTO_REJECT
+            assert span._metrics["_sampling_priority_v1"] == AUTO_REJECT
         finally:
             with override_env({"DD_APPSEC_SCA_ENABLED": "false"}):
                 ddtrace.config._reset()
