@@ -28,9 +28,6 @@ class MCPIntegration(BaseLLMIntegration):
 
     def inject_distributed_headers(self, request):
         """Inject distributed tracing headers into MCP request metadata."""
-        if not self.llmobs_enabled:
-            return request
-
         span = LLMObs._instance.tracer.current_span()
         if span is None:
             return request
@@ -67,7 +64,7 @@ class MCPIntegration(BaseLLMIntegration):
 
     def extract_and_activate_distributed_headers(self, kwargs: Dict[str, Any]) -> None:
         """Extract distributed tracing headers from MCP request context and activate them."""
-        if not self.llmobs_enabled or "context" not in kwargs:
+        if "context" not in kwargs:
             return
 
         context = kwargs.get("context")
