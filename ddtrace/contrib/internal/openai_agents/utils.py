@@ -9,7 +9,6 @@ from agents import (
 def create_agent_manifest(agent):
     manifest = {}
     manifest["framework"] = "OpenAI"
-    manifest["model_provider"] = "openai"
 
     if hasattr(agent, "name"):
         manifest["name"] = agent.name
@@ -18,7 +17,8 @@ def create_agent_manifest(agent):
     if hasattr(agent, "handoff_description"):
         manifest["handoff_description"] = agent.handoff_description
     if hasattr(agent, "model"):
-        manifest["model"] = agent.model
+        model = agent.model
+        manifest["model"] = model if isinstance(model, str) else getattr(model, "model", "")
 
     model_settings = extract_model_settings_from_agent(agent)
     if model_settings:
