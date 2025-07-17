@@ -792,7 +792,7 @@ Logs
        v0.51.0: |
          Added support for correlating traces to log using the builtin logger. This featrue was disabled by default.
        v3.10.0: |
-         The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-runt`` or ``import ddtrace.auto`` is used.
+         The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
          To disable this behavior, set ``DD_LOGS_INJECTION=false``.
        
 

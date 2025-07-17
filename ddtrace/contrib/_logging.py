@@ -15,9 +15,10 @@ Enabling
 Patch ``logging``
 ~~~~~~~~~~~~~~~~~
 
-Datadog support for builtin logging is enabled by default when using the
-``ddtrace-run`` command or ``import ddtrace.auto``. If you are using the ``ddtrace`` library directly,
-you can enable it by calling ``ddtrace.patch(logging=True)``. However, this is not recommended.
+Datadog support for built-in logging is enabled by default when you either: run your application 
+with the ddtrace-run command, or Import ddtrace.auto in your code. If you are using the ddtrace 
+library directly, you can enable logging support by calling: ``ddtrace.patch(logging=True)``. 
+Note: Directly enabling integrations via ddtrace.patch(...) is not recommended. 
 
 
 Update Log Format
