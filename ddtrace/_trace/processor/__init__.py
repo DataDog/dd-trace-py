@@ -466,9 +466,7 @@ class SpanAggregator(SpanProcessor):
         Arguments that are None will not override existing values.
         """
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
-        self.writer = self.writer.recreate(
-            appsec_enabled=appsec_enabled, apm_opt_out=apm_opt_out, compute_stats=compute_stats
-        )
+        self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
         # Recreate the sampling processor using new or existing config values.
         # If an argument is None, the current value is preserved.

@@ -89,12 +89,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
     # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
     #       Find an alternative way to do this without having to pass the parameter/recreating the writer
     @abc.abstractmethod
-    def recreate(
-        self,
-        appsec_enabled: Optional[bool] = None,
-        apm_opt_out: Optional[bool] = None,
-        compute_stats: Optional[bool] = None,
-    ) -> "TraceWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -119,12 +114,7 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(
-        self,
-        appsec_enabled: Optional[bool] = None,
-        apm_opt_out: Optional[bool] = None,
-        compute_stats: Optional[bool] = None,
-    ) -> "LogWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -578,12 +568,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             report_metrics=report_metrics,
         )
 
-    def recreate(
-        self,
-        appsec_enabled: Optional[bool] = None,
-        apm_opt_out: Optional[bool] = None,
-        compute_stats: Optional[bool] = None,
-    ) -> HTTPWriter:
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> HTTPWriter:
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
@@ -816,12 +801,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._exporter = self._create_exporter()
         self.start_worker_thread()
 
-    def recreate(
-        self,
-        appsec_enabled: Optional[bool] = None,
-        apm_opt_out: Optional[bool] = None,
-        compute_stats: Optional[bool] = None,
-    ) -> "NativeWriter":
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
         try:
             # Stop the writer to ensure it is not running while we reconfigure it.
@@ -838,7 +818,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
-            compute_stats_enabled=compute_stats if compute_stats is not None else self._compute_stats_enabled,
+            compute_stats_enabled=self._compute_stats_enabled,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
             timeout=self._timeout,
@@ -847,7 +827,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             api_version=api_version,
             report_metrics=self._report_metrics,
             test_session_token=self._test_session_token,
-            stats_opt_out=apm_opt_out if apm_opt_out is not None else self._stats_opt_out,
         )
 
     def _downgrade(self, status, client):
