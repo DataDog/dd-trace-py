@@ -1,0 +1,58 @@
+#!/usr/bin/env bash
+set -ex
+
+if [[ -z "${RUN_ID}" ]]; then
+    export RUN_ID=$(uuidgen)
+fi
+
+ARTIFACTS=/artifacts/${RUN_ID}/${SCENARIO}
+
+ENABLE_PERF_PROFILING=${ENABLE_PERF_PROFILING:-0}
+
+if [[ "${ENABLE_PERF_PROFILING}" == "1" ]]; then
+    echo "Running benchmark with perf profiling enabled"
+    
+    PERF_OUTPUT=${ARTIFACTS}/perf/
+    mkdir -p ${PERF_OUTPUT}
+    
+    OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+    mkdir -p ${OUTPUT_V2}
+    source ${VENV_DDTRACE_V2}/bin/activate
+    
+    echo "Starting perf profiling for ${SCENARIO}..."
+    
+    export PYTHONPERFSUPPORT=1
+    
+    perf record -F max -g --call-graph dwarf,65528 --inherit --no-buildid-cache \
+        --buildid-all \
+        -o ${PERF_OUTPUT}/perf.data \
+        python -X perf run.py ${OUTPUT_V2}
+    
+    cd ${PERF_OUTPUT}
+    echo "Generating perf script output with Python symbols..."
+    perf script --show-kernel-path --show-task-events > out.perf
+    
+    grep -E "(recursive_computation|fibonacci|benchmark|scenario)" out.perf | head -3 || true
+    
+    echo "Processing with FlameGraph tools..."
+    /opt/FlameGraph/stackcollapse-perf.pl out.perf > out.collapsed
+    /opt/FlameGraph/flamegraph.pl out.collapsed > flamegraph.svg
+    
+    echo "Flamegraph generated: ${PERF_OUTPUT}/flamegraph.svg"
+    
+    deactivate
+else
+    OUTPUT_V1=${ARTIFACTS}/${DDTRACE_V1}/
+    mkdir -p ${OUTPUT_V1}
+    source ${VENV_DDTRACE_V1}/bin/activate
+    python run.py ${OUTPUT_V1}
+    deactivate
+
+    OUTPUT_V2=${ARTIFACTS}/${DDTRACE_V2}/
+    mkdir -p ${OUTPUT_V2}
+    source ${VENV_DDTRACE_V2}/bin/activate
+    python run.py ${OUTPUT_V2}
+
+    pyperf compare_to --table ${OUTPUT_V1}/results.json ${OUTPUT_V2}/results.json
+    deactivate
+fi 
