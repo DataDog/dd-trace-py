@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    google_genai: automatically enable google_genai integration.
