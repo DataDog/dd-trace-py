@@ -15,8 +15,6 @@ from typing import Union
 from typing import cast
 from typing import overload
 
-from typing_extensions import NotRequired
-
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -75,7 +73,7 @@ class Dataset:
     _id: str
     _records: List[DatasetRecord]
     _version: int
-    _dne_client: Optional["LLMObsExperimentsClient"]
+    _dne_client: "LLMObsExperimentsClient"
     _new_records: List[DatasetRecordRaw]
     _updated_record_ids: List[str]
     _deleted_record_ids: List[str]
@@ -119,22 +117,27 @@ class Dataset:
         new_version, new_record_ids = self._dne_client.dataset_batch_update(
             self._id, self._new_records, updated_records, self._deleted_record_ids
         )
+
+        # attach record ids to newly created records
         for record, record_id in zip(self._new_records, new_record_ids):
-            record["record_id"] = record_id
-        self._version = new_version
+            record["record_id"] = record_id  # type: ignore
+
+        # FIXME: we don't get version numbers in responses to deletion requests
+        self._version = new_version if new_version != -1 else self._version + 1
         self._new_records = []
-        self._deleted_records = []
+        self._deleted_record_ids = []
         self._updated_record_ids = []
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
         record_id = self._records[index]["record_id"]
         self._updated_record_ids.append(record_id)
-        record["record_id"] = record_id
-        self._records[index] = record
+        self._records[index] = {**record, "record_id": record_id}
 
-    def append(self, record: DatasetRecord) -> None:
-        self._new_records.append(record)
-        self._records.append(record)
+    def append(self, record: DatasetRecordRaw) -> None:
+        r: DatasetRecord = {**record, "record_id": ""}
+        # keep the same reference in both lists to enable us to update the record_id after push
+        self._new_records.append(r)
+        self._records.append(r)
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
@@ -269,6 +272,7 @@ class Experiment:
                 records=subset_records,
                 description=self._dataset.description,
                 version=self._dataset._version,
+                _dne_client=self._dataset._dne_client,
             )
         else:
             subset_dataset = self._dataset

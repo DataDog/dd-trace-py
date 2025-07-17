@@ -368,7 +368,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 "attributes": {
                     "insert_records": irs,
                     "update_records": urs,
-                    "delete_records": delete_record_ids,
+                    "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
                 },
             }
         }
@@ -377,17 +377,17 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
         response_data = resp.get_json()
         data = response_data["data"]
-        if not data:
-            raise ValueError(f"Failed to update dataset {dataset_id}, records not found, {resp.get_json()}")  # nosec
-        new_version = data[0]["attributes"]["version"]
-        new_record_ids: List[str] = [r["id"] for r in data]
+
+        # FIXME: we don't get version numbers in responses to deletion requests
+        new_version = data[0]["attributes"]["version"] if data else -1
+        new_record_ids: List[str] = [r["id"] for r in data] if data else []
         return new_version, new_record_ids
 
     def dataset_get_with_records(self, name: str) -> Dataset:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status}")
 
         response_data = resp.get_json()
         data = response_data["data"]

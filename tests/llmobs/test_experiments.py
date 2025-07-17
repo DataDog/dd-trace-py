@@ -157,12 +157,12 @@ def test_dataset_append(llmobs, test_dataset):
 
     wait_for_backend()
     test_dataset.push()
-    assert test_dataset._version == 2
     assert len(test_dataset) == 2
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
     assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
+    assert test_dataset._version == 2
 
     # check that a pulled dataset matches the pushed dataset
     wait_for_backend()
