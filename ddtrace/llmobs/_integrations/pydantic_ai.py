@@ -3,8 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from pydantic_ai.agent import AgentRun
-
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -83,6 +81,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _llmobs_set_tags_agent(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
+        from pydantic_ai.agent import AgentRun
+        
         agent_instance = kwargs.get("instance", None)
         if agent_instance:
             agent_name = getattr(agent_instance, "name", None)
