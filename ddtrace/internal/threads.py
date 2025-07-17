@@ -1,14 +1,17 @@
 import atexit
 
 from ddtrace.internal import forksafe
-from ddtrace.internal._threads import Lock as NativeLock
+from ddtrace.internal._threads import Lock as _Lock
 from ddtrace.internal._threads import PeriodicThread
+from ddtrace.internal._threads import RLock as _RLock
 from ddtrace.internal._threads import periodic_threads
 
 
 __all__ = [
+    "Lock",
     "PeriodicThread",
     "periodic_threads",
+    "RLock",
 ]
 
 
@@ -30,29 +33,6 @@ def _() -> None:
     for thread in periodic_threads.values():
         thread._after_fork()
     periodic_threads.clear()
-
-
-class _BaseLock(NativeLock):
-    __reentrant__: bool
-
-    def __init__(self):
-        return super().__init__(reentrant=self.__reentrant__)
-
-    def __enter__(self):
-        self.acquire()
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.release()
-        return False
-
-
-class _Lock(_BaseLock):
-    __reentrant__ = False
-
-
-class _RLock(_BaseLock):
-    __reentrant__ = True
 
 
 def Lock() -> forksafe.ResetObject[_Lock]:

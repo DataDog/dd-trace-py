@@ -540,6 +540,9 @@ PyInit__threads(void)
     if (PyType_Ready(&LockType) < 0)
         return NULL;
 
+    if (PyType_Ready(&RLockType) < 0)
+        return NULL;
+
     _periodic_threads = PyDict_New();
     if (_periodic_threads == NULL)
         return NULL;
@@ -562,6 +565,13 @@ PyInit__threads(void)
     Py_INCREF(&LockType);
     if (PyModule_AddObject(m, "Lock", (PyObject*)&LockType) < 0) {
         Py_DECREF(&LockType);
+        goto error;
+    }
+
+    // RLock
+    Py_INCREF(&RLockType);
+    if (PyModule_AddObject(m, "RLock", (PyObject*)&RLockType) < 0) {
+        Py_DECREF(&RLockType);
         goto error;
     }
 
