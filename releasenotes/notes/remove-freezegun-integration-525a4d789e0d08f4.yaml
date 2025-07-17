@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where ``freezegun`` would not work with tests defined in ``unittest``
+    classes. The ``freezegun`` integration was removed, as it is not necessary anymore for the correct reporting of test
+    durations and timestamps.
