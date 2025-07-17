@@ -15,6 +15,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace.appsec.metrics import APPSEC_TEMP_METRICS
+from ddtrace.appsec.metrics import DeferredSpan
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 
@@ -101,7 +102,11 @@ class AppSecSpanProcessor(SpanProcessor):
                 _ = time_ns()
                 self._rules = json.load(f)
                 json_deser_time = time_ns() - _
-                APPSEC_TEMP_METRICS.json_deser_time_ns = json_deser_time
+                APPSEC_TEMP_METRICS.json_deser = DeferredSpan(
+                    name="json_deser",
+                    start_time_ns=_,
+                    end_time_ns=json_deser_time + _,
+                )
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error(
@@ -134,7 +139,11 @@ class AppSecSpanProcessor(SpanProcessor):
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
                 waf_init_time = time_ns() - _
-                APPSEC_TEMP_METRICS.waf_init_time_ns = waf_init_time
+                APPSEC_TEMP_METRICS.waf_init = DeferredSpan(
+                    name="waf_init",
+                    start_time_ns=_,
+                    end_time_ns=waf_init_time + _,
+                )
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00

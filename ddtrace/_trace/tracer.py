@@ -29,6 +29,7 @@ from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec.metrics import APPSEC_TEMP_METRICS
+from ddtrace.appsec.metrics import DeferredSpan
 from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
@@ -96,8 +97,12 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
             raise
     finally:
         # Record the time taken to initialize the AppSec processor
-        appsec_init_time = time_ns() - _
-        APPSEC_TEMP_METRICS.appsec_init_time = appsec_init_time
+        appsec_init_time = time_ns()
+        APPSEC_TEMP_METRICS.appsec_init = DeferredSpan(
+            name="appsec_init",
+            start_time_ns=_,
+            end_time_ns=appsec_init_time,
+        )
     return None
 
 

@@ -2,21 +2,23 @@ from dataclasses import dataclass
 
 
 @dataclass
-class MetricsDict:
-    json_deser_time_ns: int = 0
-    waf_init_time_ns: int = 0
-    object_creation_time_ns: int = 0
-    appsec_init_time: int = 0
+class DeferredSpan:
+    """
+    A class to hold a span that is deferred for later processing.
+    This is used to store spans that are created before the AppSec processor is initialized.
+    """
 
-    def to_json(self) -> dict:
-        """Convert the metrics to a JSON-serializable dictionary."""
-        # Convert ns to ms as floats for better readability
-        return {
-            "json_deser_time_ms": self.json_deser_time_ns / 1_000_000,
-            "waf_init_time_ms": self.waf_init_time_ns / 1_000_000,
-            "object_creation_time_ms": self.object_creation_time_ns / 1_000_000,
-            "appsec_init_time_ms": self.appsec_init_time / 1_000_000,
-        }
+    name: str
+    start_time_ns: int
+    end_time_ns: int
+
+
+@dataclass
+class MetricsDict:
+    json_deser: DeferredSpan | None = None
+    waf_init: DeferredSpan | None = None
+    object_creation: DeferredSpan | None = None
+    appsec_init: DeferredSpan | None = None
 
 
 APPSEC_TEMP_METRICS: MetricsDict = MetricsDict()
