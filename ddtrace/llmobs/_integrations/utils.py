@@ -463,11 +463,9 @@ def openai_get_input_messages_from_response_input(
             # Process `FunctionCallOutput` type from input messages
             output = item["output"]
 
-            if isinstance(output, str):
-                try:
-                    output = json.loads(output)
-                except json.JSONDecodeError:
-                    output = {"output": str(output)}
+            if not isinstance(output, str):
+                output = safe_json(output)
+
             processed_item.update(
                 {
                     "role": "tool",
@@ -486,42 +484,45 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
     Parses the output to openai responses api into a list of output messages
 
     Args:
-        response: An OpenAI response object containing output messages
+        response: An OpenAI response object or dictionary containing output messages
 
     Returns:
         - A list of processed messages
     """
-    if not response or not getattr(response, "output", None):
+    if not response:
         return []
 
-    messages: List[Any] = response.output
+    messages = _get_attr(response, "output", [])
+    if not messages:
+        return []
+
     processed: List[Dict[str, Any]] = []
 
     for item in messages:
         message = {}
-        message_type = getattr(item, "type", "")
+        message_type = _get_attr(item, "type", "")
 
         if message_type == "message":
             text = ""
-            for content in getattr(item, "content", []):
-                text += str(getattr(content, "text", "") or "")
-                text += str(getattr(content, "refusal", "") or "")
-            message.update({"role": getattr(item, "role", "assistant"), "content": text})
+            for content in _get_attr(item, "content", []):
+                text += str(_get_attr(content, "text", "") or "")
+                text += str(_get_attr(content, "refusal", "") or "")
+            message.update({"role": _get_attr(item, "role", "assistant"), "content": text})
         elif message_type == "reasoning":
             message.update(
                 {
                     "role": "reasoning",
                     "content": safe_json(
                         {
-                            "summary": getattr(item, "summary", ""),
-                            "encrypted_content": getattr(item, "encrypted_content", ""),
-                            "id": getattr(item, "id", ""),
+                            "summary": _get_attr(item, "summary", ""),
+                            "encrypted_content": _get_attr(item, "encrypted_content", ""),
+                            "id": _get_attr(item, "id", ""),
                         }
                     ),
                 }
             )
         elif message_type == "function_call":
-            arguments = getattr(item, "arguments", "{}")
+            arguments = _get_attr(item, "arguments", "{}")
             try:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
@@ -530,10 +531,10 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
                 {
                     "tool_calls": [
                         {
-                            "tool_id": getattr(item, "call_id", ""),
+                            "tool_id": _get_attr(item, "call_id", ""),
                             "arguments": arguments,
-                            "name": getattr(item, "name", ""),
-                            "type": getattr(item, "type", "function"),
+                            "name": _get_attr(item, "name", ""),
+                            "type": _get_attr(item, "type", "function"),
                         }
                     ]
                 }
