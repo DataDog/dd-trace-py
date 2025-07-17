@@ -82,7 +82,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
-        
+
         agent_instance = kwargs.get("instance", None)
         if agent_instance:
             agent_name = getattr(agent_instance, "name", None)
