@@ -344,10 +344,7 @@ def test_logger_log_level_from_env(monkeypatch):
 
     import ddtrace.internal.logger as dd_logger
 
-    original_trie = dd_logger.LOG_LEVEL_TRIE
-    dd_logger.LOG_LEVEL_TRIE = dd_logger.LoggerPrefix.build_trie()
-
-    try:
+    with mock.patch.object(dd_logger, "LOG_LEVEL_TRIE", dd_logger.LoggerPrefix.build_trie()):
         assert get_logger("ddtrace.testing.debug.foo.bar").level == logging.DEBUG
         assert get_logger("ddtrace.testing.debug.foo").level == logging.DEBUG
         assert get_logger("ddtrace.testing.debug").level == logging.DEBUG
@@ -358,5 +355,3 @@ def test_logger_log_level_from_env(monkeypatch):
         assert get_logger("ddtrace.testing.warning").level == logging.WARNING
 
         assert get_logger("ddtrace.package_with_underscore.submodule").level == logging.ERROR
-    finally:
-        dd_logger.LOG_LEVEL_TRIE = original_trie
