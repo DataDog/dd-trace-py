@@ -11,13 +11,13 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
 
-def create_context(context_name, pin, resource=None):
+def create_context(context_name, pin, resource=None, operation_name_override=None):
     operation_name = schematize_cloud_messaging_operation(
         azure_eventhubx.PRODUCE, cloud_provider="azure", cloud_service="eventhub", direction=SpanDirection.OUTBOUND
     )
     return core.context_with_data(
         context_name,
-        span_name=operation_name,
+        span_name=operation_name_override or operation_name,
         pin=pin,
         resource=resource,
         service=ext_service(pin, config.azure_eventhub),

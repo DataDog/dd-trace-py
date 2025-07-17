@@ -7,6 +7,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
+from ddtrace.ext import azure_eventhub as azure_eventhubx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
@@ -49,15 +50,19 @@ def _patch(azure_eventhub_module):
     azure_eventhub_module._datadog_patch = True
 
     if azure_eventhub_module.__name__ == "azure.eventhub.aio":
-        Pin().onto(azure_eventhub_aio.EventHubProducerClient)
+        Pin().onto(azure_eventhub_module.EventHubProducerClient)
         _w("azure.eventhub.aio", "EventHubProducerClient.__init__", _patched_producer_init)  # TODO: test async init
         _w("azure.eventhub.aio", "EventHubProducerClient.send_event", _patched_send_event_async)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_batch", _patched_send_batch_async)
+        # _w("azure.eventhub.aio", "EventHubProducerClient.create_batch", _patched_create_batch_async)
     else:
         Pin().onto(azure_eventhub_module.EventHubProducerClient)
+        Pin().onto(azure_eventhub_module.EventDataBatch)
         _w("azure.eventhub", "EventHubProducerClient.__init__", _patched_producer_init)
         _w("azure.eventhub", "EventHubProducerClient.send_event", _patched_send_event)
         _w("azure.eventhub", "EventHubProducerClient.send_batch", _patched_send_batch)
+        _w("azure.eventhub", "EventHubProducerClient.create_batch", _patched_create_batch)
+        _w("azure.eventhub", "EventDataBatch.add", _patched_batch_add)
 
 
 def _patched_producer_init(wrapped, instance, args, kwargs):
@@ -66,9 +71,46 @@ def _patched_producer_init(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     # TODO: test positional argument
+    # TODO: use pin instead?
     instance._dd_fully_qualified_namespace = get_argument_value(args, kwargs, 0, "fully_qualified_namespace", True)
 
     return wrapped(*args, **kwargs)
+
+
+def _patched_create_batch(wrapped, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    print("in create batch")
+
+    # TODO: use pin instead?
+    batch = wrapped(*args, **kwargs)
+    batch._dd_fully_qualified_namespace = instance._dd_fully_qualified_namespace
+    batch._dd_eventhub_name = instance.eventhub_name
+
+    return batch
+
+
+def _patched_batch_add(wrapped, instance, args, kwargs):
+    pin = Pin.get_from(instance)
+    if not pin or not pin.enabled():
+        return wrapped(*args, **kwargs)
+
+    print("in batch add")
+
+    resource_name = instance._dd_eventhub_name
+
+    with create_context("azure.eventhub.patched_batch", pin, resource_name, azure_eventhubx.BATCH_ADD) as ctx, ctx.span:
+        if config.azure_eventhub.distributed_tracing:
+            event_data_arg_value = get_argument_value(args, kwargs, 0, "event_data", True)
+            handle_event_hub_event_data_arg(ctx.span, event_data_arg_value)
+        core.dispatch(
+            "azure.eventhub.batch_add_modifier",
+            (ctx, config.azure_eventhub, resource_name, instance._dd_fully_qualified_namespace),
+        )
+
+        return wrapped(*args, **kwargs)
 
 
 def _patched_send_event(wrapped, instance, args, kwargs):
@@ -103,7 +145,15 @@ def _patched_send_batch(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    return wrapped(*args, **kwargs)
+    resource_name = instance.eventhub_name
+
+    with create_context("azure.eventhub.patched_producer", pin, resource_name) as ctx, ctx.span:
+        core.dispatch(
+            "azure.eventhub.send_event_modifier",
+            (ctx, config.azure_eventhub, resource_name, instance._dd_fully_qualified_namespace),
+        )
+
+        return wrapped(*args, **kwargs)
 
 
 async def _patched_send_batch_async(wrapped, instance, args, kwargs):
@@ -127,3 +177,7 @@ def _unpatch(azure_eventhub_module):
     _u(azure_eventhub_module.EventHubProducerClient, "__init__")
     _u(azure_eventhub_module.EventHubProducerClient, "send_event")
     _u(azure_eventhub_module.EventHubProducerClient, "send_batch")
+    _u(azure_eventhub_module.EventHubProducerClient, "create_batch")
+
+    if azure_eventhub_module.__name__ == "azure.eventhub":
+        _u(azure_eventhub_module.EventDataBatch, "add")

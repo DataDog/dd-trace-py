@@ -902,6 +902,16 @@ def _on_azure_eventhub_send_event_modifier(ctx, azure_eventhub_config, eventhub_
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
+def _on_azure_eventhub_batch_add_modifier(ctx, azure_eventhub_config, eventhub_name, fully_qualified_namespace):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_eventhub_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, eventhub_name)
+    # span.set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_eventhubx.SERVICE)
+    span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -953,12 +963,13 @@ def listen():
     core.on("redis.command.post", _on_redis_command_post)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
+    core.on("azure.eventhub.batch_add_modifier", _on_azure_eventhub_batch_add_modifier)
+    core.on("azure.eventhub.send_event_modifier", _on_azure_eventhub_send_event_modifier)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
-    core.on("azure.eventhub.send_event_modifier", _on_azure_eventhub_send_event_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -1010,6 +1021,7 @@ def listen():
         "rq.worker.perform_job",
         "rq.job.perform",
         "rq.job.fetch_many",
+        "azure.eventhub.patched_batch",
         "azure.eventhub.patched_producer",
         "azure.functions.patched_event_hub",
         "azure.functions.patched_route_request",
