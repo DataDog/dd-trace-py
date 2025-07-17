@@ -571,7 +571,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
     cpdef flush(self):
         with self._lock:
             try:
-                return self.get_bytes(), len(self)
+                return [(self.get_bytes(), len(self))]
             finally:
                 self._reset_buffer()
 
@@ -990,7 +990,7 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
                     PyLong_FromLong(<long> self.get_buffer()),
                     <Py_ssize_t> super(MsgpackEncoderV05, self).size,
                 )
-                return self._st.flush(), len(self)
+                return [(self._st.flush(), len(self))]
             finally:
                 self._reset_buffer()
 
