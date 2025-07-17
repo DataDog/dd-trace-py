@@ -40,9 +40,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name_google(
-        instance=instance, model_name_attr="model_name"
-    )
+    provider_name, model_name = extract_provider_and_model_name_google(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -71,9 +69,7 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name_google(
-        instance=instance, model_name_attr="model_name"
-    )
+    provider_name, model_name = extract_provider_and_model_name_google(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),

@@ -47,9 +47,9 @@ def extract_provider_and_model_name_google(
     Function to extract provider and model name from either kwargs or instance attributes.
     Args:
         kwargs: Dictionary containing model information (used for google_genai)
-        instance: Model instance with attributes (used for vertexai and google_generativeai) 
+        instance: Model instance with attributes (used for vertexai and google_generativeai)
         model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name")
-    
+
     Returns:
         Tuple of (provider_name, model_name)
     """
@@ -58,18 +58,19 @@ def extract_provider_and_model_name_google(
         model_path = kwargs.get("model", "")
     elif instance is not None and model_name_attr is not None:
         model_path = _get_attr(instance, model_name_attr, "")
-    
+
     if not model_path or not isinstance(model_path, str):
         return "custom", "custom"
-    
+
     model_name = model_path.split("/")[-1] if "/" in model_path else model_path
-    
+
     for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-    
+
     return "custom", model_name if model_name else "custom"
+
 
 # ---------------------------------------------------------------------------------------------------
 # Below are util functions for Google GenAI Integration
@@ -223,7 +224,8 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 # Below are util functions for Gemini and VertexAI Integrations
 # ---------------------------------------------------------------------------------------------------
 
-def llmobs_get_metadata_google(kwargs, instance):
+
+def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
     metadata = {}
     model_config = getattr(instance, "_generation_config", {}) or {}
     model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
@@ -239,7 +241,7 @@ def llmobs_get_metadata_google(kwargs, instance):
     return metadata
 
 
-def extract_message_from_part_google(part, role=None):
+def extract_message_from_part_gemini_vertexai(part, role=None):
     text = _get_attr(part, "text", "")
     function_call = _get_attr(part, "function_call", None)
     function_response = _get_attr(part, "function_response", None)
@@ -261,7 +263,7 @@ def extract_message_from_part_google(part, role=None):
     return message
 
 
-def get_system_instructions_from_google_model(model_instance):
+def get_system_instructions_gemini_vertexai(model_instance):
     """
     Extract system instructions from model and convert to []str for tagging.
     """
