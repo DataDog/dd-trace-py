@@ -112,9 +112,9 @@ set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 if(APPLE)
-    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$loader_path/../../native")
 else()
-    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$loader_path/../../../internal/native")
+    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
 endif()
 
 
