@@ -26,28 +26,14 @@ from tests.utils import override_global_config
 class TestLLMObsBedrock:
     @staticmethod
     def expected_llmobs_span_event(span, n_output, message=False, metadata=None, token_metrics=None):
-        # prompt_tokens = span.get_metric("bedrock.response.usage.prompt_tokens")
-        # completion_tokens = span.get_metric("bedrock.response.usage.completion_tokens")
-        # token_metrics = {}
-        # if prompt_tokens is not None:
-        # token_metrics["input_tokens"] = prompt_tokens
-        # if completion_tokens is not None:
-        # token_metrics["output_tokens"] = completion_tokens
-        # if prompt_tokens is not None and completion_tokens is not None:
-        # token_metrics["total_tokens"] = prompt_tokens + completion_tokens
-
-        # if span.get_tag("bedrock.request.temperature"):
-        # expected_parameters = {"temperature": float(span.get_tag("bedrock.request.temperature"))}
-        # if span.get_tag("bedrock.request.max_tokens"):
-        # expected_parameters["max_tokens"] = int(span.get_tag("bedrock.request.max_tokens"))
         expected_input = [{"content": mock.ANY}]
         if message:
             expected_input = [{"content": mock.ANY, "role": "user"}]
-        
+
         # Use empty dicts as defaults for _expected_llmobs_llm_span_event to avoid None issues
         expected_parameters = metadata if metadata is not None else {}
         expected_token_metrics = token_metrics if token_metrics is not None else None
-        
+
         expected_event = _expected_llmobs_llm_span_event(
             span,
             model_name=span.get_tag("bedrock.request.model"),
@@ -58,13 +44,13 @@ class TestLLMObsBedrock:
             token_metrics=expected_token_metrics,
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
-        
+
         # If parameters were not explicitly provided, use mock.ANY to match anything
         if metadata is None:
             expected_event["meta"]["metadata"] = mock.ANY
         if token_metrics is None:
             expected_event["metrics"] = mock.ANY
-        
+
         return expected_event
 
     @classmethod
@@ -73,7 +59,7 @@ class TestLLMObsBedrock:
             cassette_name = "%s_invoke.yaml" % provider
         body = _REQUEST_BODIES[provider]
         expected_metadata = None
-        
+
         if provider == "cohere":
             body = {
                 "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
@@ -86,7 +72,7 @@ class TestLLMObsBedrock:
                 "num_generations": n_output,
             }
             expected_metadata = {"temperature": 0.9, "max_tokens": 10}
-        
+
         with get_request_vcr().use_cassette(cassette_name):
             body, model = json.dumps(body), _MODELS[provider]
             if provider == "anthropic_message":
@@ -111,7 +97,7 @@ class TestLLMObsBedrock:
             cassette_name = "%s_invoke_stream.yaml" % provider
         body = _REQUEST_BODIES[provider]
         expected_metadata = None
-        
+
         if provider == "cohere":
             body = {
                 "prompt": "\n\nHuman: %s\n\nAssistant: Can you explain what a LLM chain is?",
@@ -124,7 +110,7 @@ class TestLLMObsBedrock:
                 "num_generations": n_output,
             }
             expected_metadata = {"temperature": 0.9, "max_tokens": 10}
-        
+
         with get_request_vcr().use_cassette(cassette_name):
             body, model = json.dumps(body), _MODELS[provider]
             response = bedrock_client.invoke_model_with_response_stream(body=body, modelId=model)
@@ -240,10 +226,6 @@ class TestLLMObsBedrock:
                 json.loads(response.get("body").read())
         span = mock_tracer.pop_traces()[0][0]
 
-        # metadata={
-        # "temperature": float(span.get_tag("bedrock.request.temperature")),
-        # "max_tokens": int(span.get_tag("bedrock.request.max_tokens")),
-        # },
         metadata = mock.ANY
 
         assert len(llmobs_events) == 1
