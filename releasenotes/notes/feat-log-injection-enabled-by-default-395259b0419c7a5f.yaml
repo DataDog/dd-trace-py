@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    logging: Automatic injection of trace attributes into logs is now enabled for the standard logging library when using
+    either ``ddtrace-run`` or ``import ddtrace.auto``. To disable this feature, set the environment variable ``DD_LOGS_INJECTION`` to `False`.
