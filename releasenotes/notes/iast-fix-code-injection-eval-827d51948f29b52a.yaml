@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Improved compatibility with eval() when used with custom globals and locals. When 
+    instrumenting eval(), Python behaves differently depending on whether locals is passed. If both globals and 
+    locals are provided, new functions are stored in the locals dictionary. This fix ensures any dynamically 
+    defined functions (e.g., via eval(code, globals, locals)) are accessible by copying them from locals to 
+    globals when necessary. This resolves issues with third-party libraries (like babel) that rely on this behavior.
