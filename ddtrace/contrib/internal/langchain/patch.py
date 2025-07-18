@@ -103,13 +103,13 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.record_instance(instance, span)
 
     try:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
     return completions
@@ -135,13 +135,13 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=completions, operation="llm")
         span.finish()
     return completions
@@ -166,13 +166,13 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
     return chat_completions
@@ -197,13 +197,13 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
-        kwargs["_dd.identifying_params"] = instance._identifying_params
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=chat_completions, operation="chat")
         span.finish()
     return chat_completions
@@ -397,12 +397,12 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
-        kwargs["_dd.identifying_params"] = instance._identifying_params
 
     def _on_span_finished(span: Span, streamed_chunks):
         joined_chunks = streamed_chunks[0]
         for chunk in streamed_chunks[1:]:
             joined_chunks += chunk  # base message types support __add__ for concatenation
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=joined_chunks, operation="chat")
 
     return shared_stream(
@@ -428,10 +428,10 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
-        kwargs["_dd.identifying_params"] = instance._identifying_params
 
     def _on_span_finished(span: Span, streamed_chunks):
         content = "".join([str(chunk) for chunk in streamed_chunks])
+        kwargs["_dd.identifying_params"] = instance._identifying_params
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=content, operation="llm")
 
     return shared_stream(

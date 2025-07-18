@@ -185,7 +185,6 @@ class LangChainIntegration(BaseLLMIntegration):
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
             )
 
-        self._llmobs_set_metadata(span, kwargs)
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
@@ -367,7 +366,11 @@ class LangChainIntegration(BaseLLMIntegration):
             delattr(instance, "_datadog_spans")
 
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
-        identifying_params = kwargs.pop("_dd.identifying_params", None)
+        try:
+            identifying_params = kwargs.pop("_dd.identifying_params", None)
+        except Exception:
+            span._set_ctx_item(METADATA, {'JS': kwargs})
+            return
         if not identifying_params:
             return
         metadata: Dict[str, Any] = {}
