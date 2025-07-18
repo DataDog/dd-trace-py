@@ -447,7 +447,7 @@ class CustomBuildExt(build_ext):
             try:
                 link_file = next(target_dir.glob("_native.lib"))
             except StopIteration:
-                raise RuntimeError(f"Could not find _native.lib in {target_dir}")
+                link_file = None
         elif sys.platform == "darwin":
             library = next(target_dir.glob("lib_native.dylib"))
         else:
