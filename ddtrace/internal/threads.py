@@ -4,14 +4,14 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._threads import Lock
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import RLock
+from ddtrace.internal._threads import acquire_all
 from ddtrace.internal._threads import periodic_threads
-from ddtrace.internal._threads import reset_locks
+from ddtrace.internal._threads import release_all
 
 
 __all__ = [
     "Lock",
     "PeriodicThread",
-    "periodic_threads",
     "RLock",
 ]
 
@@ -36,4 +36,8 @@ def _() -> None:
     periodic_threads.clear()
 
 
-forksafe.register(reset_locks)
+# Acquire all locks before a fork in the thread that is forking. We then
+# release them after the fork in both the parent and child processes.
+forksafe.register_before_fork(acquire_all)
+forksafe.register(release_all)
+forksafe.register_after_parent(release_all)

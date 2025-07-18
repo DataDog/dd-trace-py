@@ -7,7 +7,7 @@
 #include <mutex>
 #include <set>
 
-std::unique_ptr<std::mutex> _lock_set_mutex = std::make_unique<std::mutex>();
+std::mutex _lock_set_mutex;
 
 // ----------------------------------------------------------------------------
 // Lock class
@@ -23,19 +23,18 @@ typedef struct lock
     std::unique_ptr<std::timed_mutex> _mutex = nullptr;
 } Lock;
 
-std::set<Lock*> lock_set; // Global set of locks for reset after fork
+std::set<Lock*> lock_set;
 
 // ----------------------------------------------------------------------------
 static int
-Lock_init(Lock* self, PyObject* args, PyObject* kwargs)
+Lock_init(Lock* self, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
     self->_mutex = std::make_unique<std::timed_mutex>();
 
-    // Register the lock for reset after fork
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.insert(self);
     }
@@ -51,7 +50,7 @@ Lock_dealloc(Lock* self)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.erase(self);
     }
@@ -109,7 +108,7 @@ Lock_release(Lock* self)
     }
 
     self->_mutex->unlock();
-    self->_locked = 0; // Reset the lock state
+    self->_locked = 0;
 
     Py_RETURN_NONE;
 }
@@ -127,7 +126,7 @@ Lock_locked(Lock* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-Lock_enter(Lock* self, PyObject* args, PyObject* kwargs)
+Lock_enter(Lock* self)
 {
     AllowThreads _;
 
@@ -140,7 +139,7 @@ Lock_enter(Lock* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-Lock_exit(Lock* self, PyObject* args, PyObject* kwargs)
+Lock_exit(Lock* self, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
     // This method is called when the lock is used in a "with" statement
     if (Lock_release(self) == NULL) {
@@ -148,13 +147,6 @@ Lock_exit(Lock* self, PyObject* args, PyObject* kwargs)
     }
 
     Py_RETURN_FALSE;
-}
-
-static inline void
-Lock_reset(Lock* self)
-{
-    self->_mutex = std::make_unique<std::timed_mutex>();
-    self->_locked = 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -200,19 +192,18 @@ typedef struct rlock
     std::unique_ptr<std::recursive_timed_mutex> _mutex = nullptr;
 } RLock;
 
-std::set<RLock*> rlock_set; // Global set of re-entrant locks for reset after fork
+std::set<RLock*> rlock_set;
 
 // ----------------------------------------------------------------------------
 static int
-RLock_init(RLock* self, PyObject* args, PyObject* kwargs)
+RLock_init(RLock* self, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
     self->_mutex = std::make_unique<std::recursive_timed_mutex>();
 
-    // Register the re-entrant lock for reset after fork
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.insert(self);
     }
@@ -227,7 +218,7 @@ RLock_dealloc(RLock* self)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.erase(self);
     }
@@ -303,7 +294,7 @@ RLock_locked(RLock* self)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-RLock_enter(RLock* self, PyObject* args, PyObject* kwargs)
+RLock_enter(RLock* self)
 {
     AllowThreads _;
 
@@ -316,7 +307,7 @@ RLock_enter(RLock* self, PyObject* args, PyObject* kwargs)
 
 // ----------------------------------------------------------------------------
 static PyObject*
-RLock_exit(RLock* self, PyObject* args, PyObject* kwargs)
+RLock_exit(RLock* self, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
 {
     // This method is called when the lock is used in a "with" statement
     if (RLock_release(self) == NULL) {
@@ -324,13 +315,6 @@ RLock_exit(RLock* self, PyObject* args, PyObject* kwargs)
     }
 
     Py_RETURN_FALSE;
-}
-
-static inline void
-RLock_reset(RLock* self)
-{
-    self->_mutex = std::make_unique<std::recursive_timed_mutex>();
-    self->_locked = 0;
 }
 
 // ----------------------------------------------------------------------------
@@ -367,21 +351,41 @@ static PyTypeObject RLockType = {
 
 // ----------------------------------------------------------------------------
 static PyObject*
-lock_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+lock_acquire_all(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
 {
-    // Reset all locks that have been registered for reset after a fork. This
-    // MUST be called in a single-thread scenario only, e.g. soon after the
-    // fork.
+    {
+        AllowThreads _;
+
+        _lock_set_mutex.lock();
+
+        for (Lock* lock : lock_set) {
+            self->_mutex->lock();
+            self->_locked = 1;
+        }
+
+        for (RLock* rlock : rlock_set) {
+            rlock->_mutex->lock();
+            rlock->_locked++;
+        }
+    }
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+lock_release_all(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+
     for (Lock* lock : lock_set) {
-        Lock_reset(lock);
+        Lock_exit(lock, NULL, NULL);
     }
 
     for (RLock* rlock : rlock_set) {
-        RLock_reset(rlock);
+        RLock_exit(rlock, NULL, NULL);
     }
 
-    // Reset the lock set mutex too!
-    _lock_set_mutex = std::make_unique<std::mutex>();
+    _lock_set_mutex.unlock();
 
     Py_RETURN_NONE;
 }
