@@ -13,11 +13,14 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logging import get_logger
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping.context import WrappingContext
 
 
 T = TypeVar("T")
+
+log = get_logger(__name__)
 
 
 class DjangoTemplateWrappingContext(WrappingContext):
@@ -113,7 +116,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
             if ctx.span:
                 ctx.span.__exit__(exc_type, exc_val, exc_tb)
         except Exception:
-            pass
+            log.exception("Failed to close Django template render wrapping context")
 
     def __return__(self, value: T) -> T:
         if config.django.instrument_templates:
