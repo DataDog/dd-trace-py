@@ -769,6 +769,21 @@ if not IS_PYSTON:
                 else ["/std:c++20", "/MT"]
             ),
         ),
+        Extension(
+            "ddtrace.appsec._ddwaf.json2ddwaf",
+            sources=[
+                "ddtrace/appsec/_ddwaf/json2ddwaf.c",
+                "ddtrace/appsec/_ddwaf/vendors/cjson/cJSON.c",
+            ],
+            include_dirs=[
+                "ddtrace/appsec/_ddwaf/vendors",
+            ],
+            libraries=["ddwaf"],
+            library_dirs=["ddtrace/appsec/_ddwaf/libddwaf/aarch64/lib"],
+            extra_link_args=["-Wl,-rpath,ddtrace/appsec/_ddwaf/libddwaf/aarch64/lib"],
+            extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+            language="c",
+        ),
     ]
     if platform.system() not in ("Windows", ""):
         ext_modules.append(

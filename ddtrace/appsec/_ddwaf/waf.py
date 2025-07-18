@@ -1,3 +1,5 @@
+from ctypes import c_void_p
+from ctypes import cast
 import json
 import time
 from typing import Any
@@ -13,6 +15,7 @@ from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_config
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_get_version
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_free
+from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_object_p
 from ddtrace.appsec._ddwaf.ddwaf_types import ddwaf_run
 from ddtrace.appsec._ddwaf.ddwaf_types import py_add_or_update_config
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_build_instance
@@ -20,6 +23,8 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
+from ddtrace.appsec._ddwaf.json2ddwaf import addr
+from ddtrace.appsec._ddwaf.json2ddwaf import from_json
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
@@ -62,7 +67,9 @@ class DDWaf(WAF):
         )
         diagnostics = ddwaf_object()
         _ = time.time_ns()
-        ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
+        ruleset_map_object = from_json(DEFAULT.RULES)
+        self._leaked = ruleset_map_object
+        ruleset_map_object = cast(c_void_p(addr(ruleset_map_object)), ddwaf_object_p)
         rule_object_creation_ns = time.time_ns() - _
         APPSEC_TEMP_METRICS.object_creation = DeferredSpan(
             name="object_creation",
@@ -79,9 +86,9 @@ class DDWaf(WAF):
         if not self._handle or info.failed:
             # We keep the handle alive in case of errors, as some valid rules can be loaded
             # at the same time some invalid ones are rejected
-            LOGGER.debug(
-                "DDWAF.__init__: invalid rules\n ruleset: %s\nloaded:%s\nerrors:%s\n",
-                ruleset_map_object.struct,
+            LOGGER.error(
+                "DDWAF.__init__: invalid rules\nloaded:%s\nerrors:%s\n",
+                # ruleset_map_object.struct,
                 info.failed,
                 info.errors,
             )
