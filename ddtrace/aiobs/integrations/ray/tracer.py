@@ -1,11 +1,13 @@
 import os
 
+
 os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
 
 from opentelemetry.trace import set_tracer_provider
+
 from ddtrace.opentelemetry import TracerProvider
-from ddtrace.trace import tracer
 from ddtrace.trace import TraceFilter
+from ddtrace.trace import tracer
 
 
 class RayTraceFilter(TraceFilter):
