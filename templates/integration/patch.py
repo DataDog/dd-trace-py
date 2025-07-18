@@ -10,6 +10,7 @@ config._add(
     },
 )
 
+
 def _supported_versions() -> dict[str, str]:
     return {"fooo": ">=0.0.0"}
 

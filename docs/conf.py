@@ -134,7 +134,8 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    # Excludes files that require third-party packages not included with ddtrace, preventing Sphinx build failures due to module not found errors.
+    # Excludes files that require third-party packages not included with ddtrace,
+    # preventing Sphinx build failures due to module not found errors.
     "ddtrace/contrib/internal/**",
     "!ddtrace/contrib/internal/*/__init__.py",
 ]
