@@ -506,7 +506,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
 
         # TODO: Can we skip packing an empty array?
         if L == 0:
-          return 0
+            return 0
 
         if trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
