@@ -20,6 +20,7 @@ FILE_PATH = Path(__file__).resolve().parent
 
 @contextmanager
 def gunicorn_server(
+    use_ddtrace_cmd=True,
     appsec_enabled="true",
     iast_enabled="false",
     remote_configuration_enabled="true",
@@ -32,7 +33,9 @@ def gunicorn_server(
     use_gevent=False,
     env=None,
 ):
-    cmd = ["python", "-m", "ddtrace.commands.ddtrace_run", "gunicorn", "-w", workers, "--log-level", "debug"]
+    cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
+    if use_ddtrace_cmd:
+        cmd = ["python", "-m", "ddtrace.commands.ddtrace_run"] + cmd
     if use_threads:
         cmd += ["--threads", "1"]
     if use_gevent:
@@ -65,8 +68,11 @@ def flask_server(
     port=8000,
     assert_debug=False,
     manual_propagation_debug=False,
+    use_ddtrace_cmd=True,
 ):
-    cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run", python_cmd, app, "--no-reload"]
+    cmd = [python_cmd, app, "--no-reload"]
+    if use_ddtrace_cmd:
+        cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run"] + cmd
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
