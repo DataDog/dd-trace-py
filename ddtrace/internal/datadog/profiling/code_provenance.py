@@ -6,11 +6,11 @@ import sys
 import sysconfig
 import typing as t
 
+from ddtrace.internal import gitmetadata
 from ddtrace.internal.packages import _package_for_root_module_mapping
 
 
 class Library:
-
     def __init__(
         self,
         kind: str,
@@ -60,7 +60,7 @@ class CodeProvenance:
                     spec = importlib.util.find_spec(name)
                     if spec and spec.origin == "frozen":
                         python_stdlib.paths.add(f"<frozen {spec.name}>")
-                except Exception: # nosec
+                except Exception:  # nosec
                     continue
 
         self.libraries.append(python_stdlib)
@@ -86,6 +86,15 @@ class CodeProvenance:
             module_path = site_packages / module
             if module.endswith(".py") or module_path.is_dir():
                 lib.paths.add(str(module_path))
+
+        # If the user installed their code like a library and is running it as
+        # the main package (python -m my_package), and they explicitly specified
+        # that that's the main package, make sure it shows up as "my code" in
+        # the UI. Do this by leaving the kind blank (but not deleting the
+        # library so we can still associate the library with its files)
+        _, _, main_package = gitmetadata.get_git_tags()
+        if info := libraries.get(main_package, None):
+            info.kind = ""
 
         self.libraries.extend(libraries.values())
 

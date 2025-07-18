@@ -33,7 +33,7 @@ jobs:
           MATRIX_INCLUDE=$(
             {
               cibuildwheel --print-build-identifiers --platform linux --arch x86_64,i686 | jq -cR '{only: ., os: "ubuntu-latest"}' \
-              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "arm-4core-linux-ubuntu24.04"}' \
+              && cibuildwheel --print-build-identifiers --platform linux --arch aarch64  | jq -cR '{only: ., os: "ubuntu-24.04-arm"}' \
               && cibuildwheel --print-build-identifiers --platform windows --arch AMD64,x86 | jq -cR '{only: ., os: "windows-latest"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch x86_64 | jq -cR '{only: ., os: "macos-13"}' \
               && cibuildwheel --print-build-identifiers --platform macos --arch arm64 | jq -cR '{only: ., os: "macos-latest"}'
@@ -59,19 +59,19 @@ jobs:
           fetch-depth: 0
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
-        if: matrix.os != 'arm-4core-linux-ubuntu24.04'
+        if: matrix.os != 'ubuntu-24.04-arm'
         name: Install Python
         with:
           python-version: '3.8'
 
       - name: Set up QEMU
-        if: runner.os == 'Linux' && matrix.os != 'arm-4core-linux-ubuntu24.04'
+        if: runner.os == 'Linux' && matrix.os != 'ubuntu-24.04-arm'
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
         with:
           platforms: all
 
       - name: Build wheels arm64
-        if: always() && matrix.os == 'arm-4core-linux-ubuntu24.04'
+        if: always() && matrix.os == 'ubuntu-24.04-arm'
         run: pipx run cibuildwheel==2.22.0 --only ${{ matrix.only }}
         env:
           CIBW_SKIP: ${{ inputs.cibw_skip }}
@@ -106,7 +106,7 @@ jobs:
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - name: Build wheels
-        if: always() && matrix.os != 'arm-4core-linux-ubuntu24.04'
+        if: always() && matrix.os != 'ubuntu-24.04-arm'
         uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
         with:
           only: ${{ matrix.only }}
