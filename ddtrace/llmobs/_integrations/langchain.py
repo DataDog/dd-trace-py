@@ -366,11 +366,7 @@ class LangChainIntegration(BaseLLMIntegration):
             delattr(instance, "_datadog_spans")
 
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
-        try:
-            identifying_params = kwargs.pop("_dd.identifying_params", None)
-        except Exception:
-            span._set_ctx_item(METADATA, {'JS': kwargs})
-            return
+        identifying_params = kwargs.pop("_dd.identifying_params", None)
         if not identifying_params:
             return
         metadata: Dict[str, Any] = {}
@@ -425,6 +421,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_tag_key: input_messages,
             }
         )
+        
+        self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
             span._set_ctx_item(output_tag_key, [{"content": ""}])
@@ -459,6 +457,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
             }
         )
+        
+        self._llmobs_set_metadata(span, kwargs)
+        
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
