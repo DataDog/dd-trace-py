@@ -552,7 +552,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
                 "event_type": "span",
                 "spans": [event],
             }
-            if event["_dd"].get("scope") == "experiments":
+            if event.get("_dd", {}).get("scope") == "experiments":
                 event_data["_dd.scope"] = "experiments"
             payload.append(event_data)
         return payload
