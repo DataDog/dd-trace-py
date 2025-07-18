@@ -13,9 +13,51 @@ from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.formats import deep_getattr
+from ddtrace.internal.serverless import in_aws_lambda
 
 
 _PAYLOAD_TAGGER = AWSPayloadTagging()
+
+
+# Helper to build AWS hostname from service, region and parameters
+def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """Return hostname for given AWS service according to Datadog peer hostname rules.
+
+    Logic mirrors the JS mapping provided by the user:
+
+        events   -> events.<region>.amazonaws.com
+        sqs      -> sqs.<region>.amazonaws.com
+        sns      -> sns.<region>.amazonaws.com
+        kinesis  -> kinesis.<region>.amazonaws.com
+        dynamodb -> dynamodb.<region>.amazonaws.com
+        s3       -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
+                   s3.<region>.amazonaws.com          (otherwise)
+
+    Unknown services or missing region return ``None``.
+    """
+
+    if not region:
+        return None
+
+    aws_service = service.lower()
+
+    if aws_service in {"eventbridge", "events"}:
+        return f"events.{region}.amazonaws.com"
+    if aws_service == "sqs":
+        return f"sqs.{region}.amazonaws.com"
+    if aws_service == "sns":
+        return f"sns.{region}.amazonaws.com"
+    if aws_service == "kinesis":
+        return f"kinesis.{region}.amazonaws.com"
+    if aws_service in {"dynamodb", "dynamodbdocument"}:
+        return f"dynamodb.{region}.amazonaws.com"
+    if aws_service == "s3":
+        bucket = params.get("Bucket") if params else None
+        if bucket:
+            return f"{bucket}.s3.{region}.amazonaws.com"
+        return f"s3.{region}.amazonaws.com"
+
+    return None
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
@@ -50,6 +92,13 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     if region_name is not None:
         span.set_tag_str("aws.region", region_name)
         span.set_tag_str("region", region_name)
+
+        # Derive peer hostname only in serverless environments to avoid
+        # unnecessary tag noise in traditional hosts/containers.
+        if in_aws_lambda():
+            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+            if hostname:
+                span.set_tag_str("peer.service", hostname)
 
 
 def set_botocore_response_metadata_tags(
