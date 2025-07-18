@@ -37,15 +37,11 @@ def faulty_task(input_data, config):
 
 
 def dummy_evaluator(input_data, output_data, expected_output):
-    return output_data == expected_output
+    return int(output_data == expected_output)
 
 
 def faulty_evaluator(input_data, output_data, expected_output):
     raise ValueError("This is a test error in evaluator")
-
-
-def matches_evaluator(input_data, output_data, expected_output):
-    return output_data == expected_output
 
 
 @pytest.fixture
@@ -308,8 +304,9 @@ def test_experiment_create(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         project_name="test-project",
     )
-    exp_id, exp_run_name = llmobs._instance._create_experiment(
-        exp.name, exp._dataset._id, "test-project", exp._dataset._version, exp._config
+    project_id = llmobs._instance._dne_client.project_get("test-project")
+    exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
+        exp.name, exp._dataset._id, project_id, exp._dataset._version, exp._config
     )
     assert exp_id is not None
     assert exp_run_name.startswith("test_experiment")
@@ -332,29 +329,27 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
     assert len(task_results) == 2
     assert task_results[0] == {
         "idx": 0,
+        "span_id": mock.ANY,
+        "trace_id": mock.ANY,
+        "timestamp": mock.ANY,
         "output": {"prompt": "What is the capital of France?"},
         "metadata": {
-            "timestamp": mock.ANY,
-            "duration": mock.ANY,
             "dataset_record_index": 0,
             "experiment_name": "test_experiment",
             "dataset_name": "test-dataset-test_experiment_run_task[test_dataset_records0]",
-            "span_id": mock.ANY,
-            "trace_id": mock.ANY,
         },
         "error": mock.ANY,
     }
     assert task_results[1] == {
         "idx": 1,
+        "span_id": mock.ANY,
+        "trace_id": mock.ANY,
+        "timestamp": mock.ANY,
         "output": {"prompt": "What is the capital of Canada?"},
         "metadata": {
-            "timestamp": mock.ANY,
-            "duration": mock.ANY,
             "dataset_record_index": 1,
             "experiment_name": "test_experiment",
             "dataset_name": "test-dataset-test_experiment_run_task[test_dataset_records0]",
-            "span_id": mock.ANY,
-            "trace_id": mock.ANY,
         },
         "error": mock.ANY,
     }
@@ -369,15 +364,14 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     assert task_results == [
         {
             "idx": 0,
+            "span_id": mock.ANY,
+            "trace_id": mock.ANY,
+            "timestamp": mock.ANY,
             "output": None,
             "metadata": {
-                "timestamp": mock.ANY,
-                "duration": mock.ANY,
                 "dataset_record_index": 0,
                 "experiment_name": "test_experiment",
                 "dataset_name": "test-dataset-123",
-                "span_id": mock.ANY,
-                "trace_id": mock.ANY,
             },
             "error": mock.ANY,
         }
@@ -389,13 +383,13 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"
+        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
     )
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     assert len(eval_results) == 1
-    assert eval_results[0] == {"idx": 0, "evaluations": {"matches_evaluator": {"value": False, "error": None}}}
+    assert eval_results[0] == {"idx": 0, "evaluations": {"dummy_evaluator": {"value": False, "error": None}}}
 
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
@@ -425,7 +419,7 @@ def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record)
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [matches_evaluator], project_name="test-project"
+        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
     )
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
@@ -438,17 +432,17 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
-    assert exp_result["evaluations"] == {"matches_evaluator": {"value": False, "error": None}}
+    assert exp_result["timestamp"] == mock.ANY
+    assert exp_result["span_id"] == mock.ANY
+    assert exp_result["trace_id"] == mock.ANY
+    assert exp_result["evaluations"] == {"dummy_evaluator": {"value": False, "error": None}}
     assert exp_result["metadata"] == {
-        "timestamp": mock.ANY,
-        "duration": mock.ANY,
         "dataset_record_index": 0,
         "experiment_name": "test_experiment",
         "dataset_name": "test-dataset-123",
-        "span_id": mock.ANY,
-        "trace_id": mock.ANY,
-        "tags": [],
+        "tags": mock.ANY,
     }
+    assert exp_result["metadata"]["tags"][0].startswith("ddtrace.version:")
     assert exp_result["error"] == {"message": None, "type": None, "stack": None}
 
 
@@ -467,6 +461,9 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp_result["timestamp"] == mock.ANY
+    assert exp_result["span_id"] == mock.ANY
+    assert exp_result["trace_id"] == mock.ANY
     assert exp_result["evaluations"] == {"faulty_evaluator": {"value": None, "error": mock.ANY}}
     assert exp_result["evaluations"]["faulty_evaluator"]["error"] == {
         "message": "This is a test error in evaluator",
@@ -474,13 +471,61 @@ def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
         "stack": mock.ANY,
     }
     assert exp_result["metadata"] == {
-        "timestamp": mock.ANY,
-        "duration": mock.ANY,
         "dataset_record_index": 0,
         "experiment_name": "test_experiment",
         "dataset_name": "test-dataset-123",
-        "span_id": mock.ANY,
-        "trace_id": mock.ANY,
-        "tags": [],
+        "tags": mock.ANY,
     }
+    assert exp_result["metadata"]["tags"][0].startswith("ddtrace.version:")
     assert exp_result["error"] == {"message": None, "type": None, "stack": None}
+
+
+def test_experiment_run(llmobs, test_dataset_one_record):
+    with mock.patch("ddtrace.llmobs._experiment.Experiment._process_record") as mock_process_record:
+        # This is to ensure that the eval event post request contains the same span/trace IDs and timestamp.
+        mock_process_record.return_value = {
+            "idx": 0,
+            "span_id": "123",
+            "trace_id": "456",
+            "timestamp": 1234567890,
+            "output": {"prompt": "What is the capital of France?"},
+            "metadata": {
+                "dataset_record_index": 0,
+                "experiment_name": "test_experiment",
+                "dataset_name": "test-dataset-123",
+            },
+            "error": {"message": None, "type": None, "stack": None},
+        }
+        exp = llmobs.experiment(
+            "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
+        )
+        exp._tags = ["ddtrace.version:1.2.3"]  # FIXME: this is a hack to set the tags for the experiment
+        exp_results = exp.run()
+    assert len(exp_results) == 1
+    exp_result = exp_results[0]
+    assert exp_result["idx"] == 0
+    assert exp_result["input"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["output"] == {"prompt": "What is the capital of France?"}
+    assert exp_result["expected_output"] == {"answer": "Paris"}
+
+
+def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record):
+    """Assert that the experiment span includes expected output field and includes the experiment scope."""
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
+    )
+    exp._id = "1234567890"
+    exp._run_task(1, raise_errors=False)
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["name"] == "dummy_task"
+    for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
+        assert event[key] == mock.ANY
+    assert event["status"] == "ok"
+    assert event["meta"]["input"] == {"value": '{"prompt": "What is the capital of France?"}'}
+    assert event["meta"]["output"] == {"value": '{"prompt": "What is the capital of France?"}'}
+    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
+    assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+    assert "experiment_id:1234567890" in event["tags"]
+    assert event["_dd"]["scope"] == "experiments"
