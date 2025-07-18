@@ -16,11 +16,11 @@ import warnings
 
 import cmake
 from setuptools_rust import Binding
-from setuptools_rust import RustExtension
+from setuptools_rust import RustExtension, Binding
 from setuptools_rust import build_rust
 
 
-from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools import Distribution, Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
@@ -182,6 +182,20 @@ def load_module_from_project_file(mod_name, fname):
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
+class PatchedDistribution(Distribution):
+    def __init__(self, attrs=None):
+        super().__init__(attrs)
+        # Tell ext_hashes about your manually-built Rust artifact
+        self.rust_extensions = [
+            RustExtension(
+                # The Python import path of your extension:
+                "ddtrace.internal.native._native",
+                # Path to your Cargo.toml so setuptools-rust can infer names
+                path=str(Path(__file__).parent / "src" / "native" / "Cargo.toml"),
+                # Use no-binding if you don't need PyO3 bindings
+                binding=Binding.NoBinding,
+            )
+        ]
 
 class ExtensionHashes(build_ext):
     def run(self):
@@ -443,22 +457,22 @@ class CustomBuildExt(build_ext):
             raise RuntimeError("Not able to find native library")
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        native_name = f"_native{self.suffix}"
+
+        # Set SONAME (needed for auditwheel)
+        if sys.platform.startswith("linux"):
+            subprocess.run(["patchelf", "--set-soname", native_name, str(library)], check=True)
+        elif sys.platform == "darwin":
+            subprocess.run(["install_name_tool", "-id", native_name, str(library)], check=True)
 
         if IS_EDITABLE or getattr(self, "inplace", False):
             self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
         else:
             self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
 
-        native_name = f"_native{self.suffix}"
-        self.output_dir.mkdir(parents=True, exist_ok=True)
         destination = self.output_dir / native_name
+        self.output_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(library, destination)
-
-        # Set SONAME (needed for auditwheel)
-        if sys.platform.startswith("linux"):
-            subprocess.run(["patchelf", "--set-soname", native_name, str(destination)], check=True)
-        elif sys.platform == "darwin":
-            subprocess.run(["install_name_tool", "-id", native_name, str(destination)], check=True)
 
         #Rename .lib file so it has the same base name as the dll.
         self.windows_link_file = None
@@ -1003,5 +1017,6 @@ setup(
         annotate=os.getenv("_DD_CYTHON_ANNOTATE") == "1",
         compiler_directives={"language_level": "3"},
     )
-    + get_exts_for("psutil")
+    + get_exts_for("psutil"),
+    distclass=PatchedDistribution,
 )
