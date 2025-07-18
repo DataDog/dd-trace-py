@@ -76,9 +76,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
                 payload = self._build_payload(self.buffer)
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             buffer_size = len(self.buffer)
-            self._init_buffer()
-            if payload is None:
+            if not buffer_size:
                 return []
+            self._init_buffer()
             return [(payload, buffer_size)]
 
     def _get_parent_session(self, traces):

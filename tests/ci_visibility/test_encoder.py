@@ -120,7 +120,10 @@ def test_encode_traces_civisibility_v0_empty_traces():
     for trace in traces:
         encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces == [], "Expected empty list when payload is None"
+    [(payload, size)] = encoded_traces
+    assert size == 2
+    assert payload is None
+    # assert encoded_traces == [], "Expected empty list when payload is None"
 
 
 def test_encode_traces_civisibility_v2_coverage_per_test():
