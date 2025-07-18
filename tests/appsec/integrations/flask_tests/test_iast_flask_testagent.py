@@ -136,7 +136,7 @@ def test_iast_header_injection_secure(server):
     """
     token = "test_iast_header_injection"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050) as context:
+    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
         _, flask_client, pid = context
 
         response = flask_client.get(
