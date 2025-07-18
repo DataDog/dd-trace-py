@@ -267,11 +267,27 @@ def test_iast_code_injection_with_stacktrace(server):
     (
         (
             gunicorn_server,
-            {"workers": "3", "use_threads": False, "use_gevent": False, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+            {
+                "workers": "3",
+                "use_threads": False,
+                "use_gevent": False,
+                "env": {
+                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
         ),
         (
             gunicorn_server,
-            {"workers": "3", "use_threads": True, "use_gevent": False, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": False,
+                "env": {
+                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
         ),
         (
             gunicorn_server,
