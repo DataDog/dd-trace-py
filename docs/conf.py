@@ -128,16 +128,19 @@ language = None
 #
 # today_fmt = '%B %d, %Y'
 
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
+# Patterns, relative to the source directory, for files and directories to ignore when searching for source files.
+exclude_patterns = [
+    # These patterns also affect html_static_path and html_extra_path.
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    # Excludes files that require third-party packages not included with ddtrace, preventing Sphinx build failures due to module not found errors.
+    "ddtrace/contrib/internal/**",
+    "!ddtrace/contrib/internal/*/__init__.py",
+]
 
 
 # autodoc_mock_imports contains a list of modules to be mocked up.
-# This is useful when some external dependencies are installed at build time and break the building process.
-# The following modules require third party packages and should be mocked when generating docs:
-autodoc_mock_imports = ["ddtrace.contrib.internal"]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
