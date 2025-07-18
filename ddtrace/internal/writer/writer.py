@@ -16,6 +16,7 @@ from typing import TextIO
 import ddtrace
 from ddtrace import config
 import ddtrace.internal.native as native
+from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
@@ -780,16 +781,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_client_computed_top_level()
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
-            .set_client_computed_stats()
         )
+        if config._telemetry_enabled:
+            heartbeat_interval = int(config._telemetry_heartbeat_interval * 1e9)
+            builder.enable_telemetry(heartbeat_interval, get_runtime_id())
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
-        #if self._stats_opt_out:
-            #builder.set_client_computed_stats()
-        # elif self._compute_stats_enabled:
-        #     stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
-        #     bucket_size_ns = int(stats_interval * 1e9)  # type: int
-        #     builder.enable_stats(bucket_size_ns)
+        if self._stats_opt_out:
+            builder.set_client_computed_stats()
+        elif self._compute_stats_enabled:
+            stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
+            bucket_size_ns: int = int(stats_interval * 1e9)
+            builder.enable_stats(bucket_size_ns)
+
         return builder.build()
 
     def set_test_session_token(self, token: Optional[str]) -> None:

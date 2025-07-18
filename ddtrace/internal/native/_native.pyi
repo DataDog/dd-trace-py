@@ -243,8 +243,9 @@ class TraceExporterBuilder:
         runtime_id: str,
     ) -> TraceExporterBuilder:
         """
-        Enable stats computation in the TraceExporter
-        :param bucket_size_ns: The size of stats bucket in nanoseconds.
+        Emit telemetry in the TraceExporter
+        :param heartbeat: The flush interval for telemetry metrics in nanoseconds.
+        :param runtime_id: The runtime id to use for telemetry.
         """
         ...
     def build(self) -> TraceExporter:
