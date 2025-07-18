@@ -66,7 +66,7 @@ def flask_server(
     assert_debug=False,
     manual_propagation_debug=False,
 ):
-    cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run", "python", app, "--no-reload"]
+    cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run", python_cmd, app, "--no-reload"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,

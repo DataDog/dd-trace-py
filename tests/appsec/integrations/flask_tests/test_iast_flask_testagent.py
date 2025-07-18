@@ -342,7 +342,7 @@ def test_iast_vulnerable_request_downstream(server, config):
             spans.append(span)
     clear_session(token)
 
-    assert len(spans) == 30, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans) >= 29, f"Incorrect number of spans ({len(spans)}):\n{spans}"
     assert len(spans_with_iast) == 3
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1

@@ -933,7 +933,6 @@ def test_flask_common_modules_patch_read():
 
 @app.route("/returnheaders", methods=["GET"])
 def return_headers(*args, **kwargs):
-    print("returnheaders: request.headers!!!!!!!!!!")
     headers = {}
     for key, value in request.headers.items():
         headers[key] = value
@@ -942,16 +941,12 @@ def return_headers(*args, **kwargs):
 
 @app.route("/vulnerablerequestdownstream", methods=["GET"])
 def vulnerable_request_downstream():
-    print("vulnerable_request_downstream: request.headers!!!!!!!!!!")
-    # _weak_hash_vulnerability()
+    _weak_hash_vulnerability()
     # Propagate the received headers to the downstream service
     http_poolmanager = urllib3.PoolManager(num_pools=1)
     # Sending a GET request and getting back response as HTTPResponse object.
     response = http_poolmanager.request("GET", "http://localhost:8050/returnheaders")
-    print("FINISH REQUEST 1")
     http_poolmanager.clear()
-    # time.sleep(2)
-    print("FINISH REQUEST 2")
     return Response(response.data)
 
 
