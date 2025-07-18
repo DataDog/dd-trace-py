@@ -12,6 +12,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TextIO
+from typing import Tuple
 
 import ddtrace
 from ddtrace import config
@@ -378,29 +379,36 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         try:
-            if not (encoded_traces := client.encoder.encode()):
+            if not (payloads := client.encoder.encode()):
                 return
 
-            [(encoded, n_traces)] = encoded_traces
-
-            if encoded is None:
-                return
-
-            # Should gzip the payload if intake accepts it
-            if self._intake_accepts_gzip:
-                original_size = len(encoded)
-                # Replace the value to send with the gzipped the value
-                encoded = gzip.compress(encoded, compresslevel=6)
-                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
-
-                # And add the header
-                self._headers["Content-Encoding"] = "gzip"
+            [(_, n_traces)] = payloads
 
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
+
+        for payload in payloads:
+            encoded_data, n_traces = payload
+            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+
+    def _flush_single_payload(
+        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+    ) -> None:
+        if encoded is None:
+            return
+
+        # Should gzip the payload if intake accepts it
+        if self._intake_accepts_gzip:
+            original_size = len(encoded)
+            # Replace the value to send with the gzipped the value
+            encoded = gzip.compress(encoded, compresslevel=6)
+            log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+
+            # And add the header
+            self._headers["Content-Encoding"] = "gzip"
 
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
