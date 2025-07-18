@@ -57,6 +57,7 @@ def research_workflow():
     summarizer = Agent(
         name="Summarizer",
         instructions="""You are a helpful assistant that can summarize a research results.""",
+        model="gpt-4o",
     )
     yield Agent(
         name="Researcher",
@@ -66,6 +67,7 @@ def research_workflow():
         ),
         tools=[research],
         handoffs=[summarizer],
+        model="gpt-4o",
     )
 
 
@@ -76,6 +78,7 @@ def addition_agent():
         name="Addition Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         tools=[add],
+        model="gpt-4o",
     )
 
 
@@ -95,6 +98,7 @@ def addition_agent_with_tool_errors():
             "Do not retry the tool call if it errors and instead return immediately"
         ),
         tools=[add_with_error],
+        model="gpt-4o",
     )
 
 
@@ -117,6 +121,7 @@ def simple_agent_with_guardrail():
         name="Simple Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         input_guardrails=[simple_guardrail],
+        model="gpt-4o",
     )
 
 
@@ -126,6 +131,7 @@ def simple_agent():
     yield Agent(
         name="Simple Agent",
         instructions="You are a helpful assistant who answers questions concisely and accurately.",
+        model="gpt-4o",
     )
 
 

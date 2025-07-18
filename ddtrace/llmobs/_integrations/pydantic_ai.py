@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -82,28 +83,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
-
         agent_instance = kwargs.get("instance", None)
-        if agent_instance:
-            agent_name = getattr(agent_instance, "name", None)
-            agent_instructions = getattr(agent_instance, "_instructions", None)
-            agent_system_prompts = getattr(agent_instance, "_system_prompts", None)
-            agent_tools = list(getattr(agent_instance, "_function_tools", {}).keys())
-            agent_model_settings = getattr(agent_instance, "model_settings", None)
-            metadata = {
-                "instructions": agent_instructions,
-                "system_prompts": agent_system_prompts,
-                "tools": agent_tools,
-            }
-            if agent_model_settings:
-                metadata["max_tokens"] = agent_model_settings.get("max_tokens", None)
-                metadata["temperature"] = agent_model_settings.get("temperature", None)
-            span._set_ctx_items(
-                {
-                    NAME: agent_name or "PydanticAI Agent",
-                    METADATA: metadata,
-                }
-            )
+        agent_name = getattr(agent_instance, "name", None)
+        self._tag_agent_manifest(span, kwargs, agent_instance)
         user_prompt = get_argument_value(args, kwargs, 0, "user_prompt")
         result = response
         if isinstance(result, AgentRun) and hasattr(result, "result"):
@@ -119,6 +101,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
+                NAME: agent_name or "PydanticAI Agent",
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: result,
                 METRICS: metrics,
@@ -144,6 +127,57 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
         if not span.error:
             span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
+
+    def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
+        if not agent:
+            return
+        
+        manifest = {}
+        manifest["framework"] = "PydanticAI"
+        if hasattr(agent, "name"):
+            manifest["name"] = agent.name or "PydanticAI Agent"
+        if span.get_tag("pydantic_ai.request.model"):
+            manifest["model"] = span.get_tag("pydantic_ai.request.model")
+        if span.get_tag("pydantic_ai.request.provider"):
+            manifest["model_provider"] = span.get_tag("pydantic_ai.request.provider")
+        if hasattr(agent, "model_settings"):
+            manifest["model_settings"] = agent.model_settings
+        if hasattr(agent, "_instructions"):
+            manifest["instructions"] = agent._instructions
+        if hasattr(agent, "_system_prompts"):
+            manifest["system_prompts"] = agent._system_prompts
+        if hasattr(agent, "_function_tools"):
+            manifest["tools"] = self._get_agent_tools(agent._function_tools)
+        if kwargs.get("deps", None):
+            agent_dependencies = kwargs.get("deps", None)
+            manifest["dependencies"] = agent_dependencies.__dict__ if hasattr(agent_dependencies, "__dict__") else agent_dependencies
+        
+        span._set_ctx_item(AGENT_MANIFEST, manifest)
+    
+    def _get_agent_tools(self, tools: Any) -> List[Dict[str, Any]]:
+        if not tools:
+            return []
+        formatted_tools = []
+        for tool_name, tool_instance in tools.items():
+            tool_dict = {}
+            tool_dict["name"] = tool_name
+            if hasattr(tool_instance, "description"):
+                tool_dict["description"] = tool_instance.description
+            function_schema = getattr(tool_instance, "function_schema", None)
+            json_schema = getattr(function_schema, "json_schema", None)
+            required_params = {param: True for param in json_schema.get("required", [])}
+            parameters = {}
+            for param, schema in json_schema.get("properties", {}).items():
+                param_dict = {}
+                if "type" in schema:
+                    param_dict["type"] = schema["type"]
+                if param in required_params:
+                    param_dict["required"] = True
+                parameters[param] = param_dict
+            tool_dict["parameters"] = parameters
+            formatted_tools.append(tool_dict)
+        return formatted_tools
+
 
     def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         response = kwargs.get("streamed_run_result", None) or response
