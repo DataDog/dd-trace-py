@@ -727,9 +727,7 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
 
     encoder.put(trace)
 
-    encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty traces"
-    assert encoder.size == len(encoded_traces[0][0])
+    assert encoder.size == len(encoder.encode()[0][0])
 
 
 def test_encoder_buffer_size_limit_v05():
