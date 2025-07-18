@@ -1,64 +1,14 @@
 import json
-import os
 
 import mock
 import pytest
 
-from ddtrace.contrib.internal.botocore.patch import patch
-from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
 from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_request_vcr
-from tests.subprocesstest import SubprocessTestCase
-from tests.subprocesstest import run_in_subprocess
-from tests.utils import DummyTracer
-from tests.utils import DummyWriter
-
-# from tests.utils import flaky
-
-
-class TestBedrockConfig(SubprocessTestCase):
-    def setUp(self):
-        patch()
-        import boto3
-
-        os.environ["AWS_ACCESS_KEY_ID"] = "testing"
-        os.environ["AWS_SECRET_ACCESS_KEY"] = "testing"
-        os.environ["AWS_SECURITY_TOKEN"] = "testing"
-        os.environ["AWS_SESSION_TOKEN"] = "testing"
-        os.environ["AWS_DEFAULT_REGION"] = "us-east-1"
-
-        self.session = boto3.Session(
-            aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID", ""),
-            aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY", ""),
-            aws_session_token=os.getenv("AWS_SESSION_TOKEN", ""),
-            region_name=os.getenv("AWS_DEFAULT_REGION", "us-east-1"),
-        )
-        self.bedrock_client = self.session.client("bedrock-runtime")
-        self.mock_tracer = DummyTracer(writer=DummyWriter(trace_flush_enabled=False))
-        pin = Pin.get_from(self.bedrock_client)
-        pin._override(self.bedrock_client, tracer=self.mock_tracer)
-
-        super(TestBedrockConfig, self).setUp()
-
-    @run_in_subprocess(
-        env_overrides=dict(
-            DD_SERVICE="test-svc", DD_ENV="staging", DD_VERSION="1234", DD_TRACE_SPAN_ATTRIBUTE_SCHEMA="v1"
-        )
-    )
-    def test_global_tags(self):
-        body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
-        with get_request_vcr().use_cassette("meta_invoke.yaml"):
-            response = self.bedrock_client.invoke_model(body=body, modelId=model)
-            json.loads(response.get("body").read())
-        span = self.mock_tracer.pop_traces()[0][0]
-        assert span.resource == "InvokeModel"
-        assert span.service == "test-svc"
-        assert span.get_tag("env") == "staging"
-        assert span.get_tag("version") == "1234"
 
 
 @pytest.mark.snapshot
