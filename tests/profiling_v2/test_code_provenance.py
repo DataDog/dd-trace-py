@@ -116,3 +116,20 @@ class TestCodeProvenance:
 
         for path in stdlib_paths:
             assert path.startswith("<frozen") or path == sysconfig.get_path("stdlib")
+
+    @pytest.mark.subprocess(
+        env=dict(DD_MAIN_PACKAGE="ddtrace"),
+    )
+    def test_main_package_my_code(self):
+        import json
+
+        from ddtrace.internal.datadog.profiling.code_provenance import json_str_to_export
+
+        json_str = json_str_to_export()
+        json_obj = json.loads(json_str)
+        # Really what we're checking is that whatever package the user calls the
+        # "main" pacakge isn't called a library. Normally this would matter if
+        # the user installs their package as a dependency and then runs it as
+        # the main package. But for the sake of this test, just call ddtrace the
+        # "main" package.
+        assert any(info["name"] == "ddtrace" and info["kind"] == "" for info in json_obj["v1"])
