@@ -1189,7 +1189,7 @@ def _compute_completion_tokens(completions_or_messages, model_name):
     estimated = False
     num_completion_tokens = 0
     for choice in completions_or_messages:
-        content = _get_attr(choice, "content", "") or _get_attr(choice, "text", "")
+        content = choice.get("content", "") or choice.get("text", "")
         estimated, completion_tokens = _compute_token_count(content, model_name)
         num_completion_tokens += completion_tokens
     return estimated, num_completion_tokens
