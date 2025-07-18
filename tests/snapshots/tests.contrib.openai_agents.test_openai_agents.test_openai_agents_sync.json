@@ -10,19 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67ed626f00000000",
+      "_dd.p.tid": "685d853d00000000",
       "language": "python",
-      "runtime-id": "a8fe362345964b32a3398a733e8a535c"
+      "runtime-id": "a9636fc9401c47f0a83bafb1fba83c50"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 19196
+      "process_id": 15968
     },
-    "duration": 56405000,
-    "start": 1743610479253321000
+    "duration": 2873000,
+    "start": 1750959421205457000
   },
      {
        "name": "Simple Agent",
@@ -36,8 +36,8 @@
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 56030000,
-       "start": 1743610479253656000
+       "duration": 2729000,
+       "start": 1750959421205574000
      },
         {
           "name": "openai_agents.response",
@@ -51,6 +51,6 @@
           "metrics": {
             "_dd.measured": 1
           },
-          "duration": 50521000,
-          "start": 1743610479258793000
+          "duration": 2208000,
+          "start": 1750959421205855000
         }]]
