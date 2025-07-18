@@ -90,8 +90,10 @@ def http_post_root_servicebus(req: func.HttpRequest) -> func.HttpResponse:
     return func.HttpResponse("Hello Datadog!")
 
 
-@app.route(route="httppostrootservicebusmany", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST])
-def http_post_root_servicebus_many(req: func.HttpRequest) -> func.HttpResponse:
+@app.route(
+    route="httppostrootservicebusmanysamecontext", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST]
+)
+def http_post_root_servicebus_many_same_context(req: func.HttpRequest) -> func.HttpResponse:
     with azure_servicebus.ServiceBusClient.from_connection_string(
         conn_str=os.getenv("CONNECTION_STRING", "")
     ) as servicebus_client:
@@ -102,6 +104,19 @@ def http_post_root_servicebus_many(req: func.HttpRequest) -> func.HttpResponse:
                     azure_servicebus.ServiceBusMessage('{"body":"test message 2"}'),
                 ]
             )
+    return func.HttpResponse("Hello Datadog!")
+
+
+@app.route(
+    route="httppostrootservicebusmanydiffcontext", auth_level=func.AuthLevel.ANONYMOUS, methods=[func.HttpMethod.POST]
+)
+def http_post_root_servicebus_many_diff_context(req: func.HttpRequest) -> func.HttpResponse:
+    with azure_servicebus.ServiceBusClient.from_connection_string(
+        conn_str=os.getenv("CONNECTION_STRING", "")
+    ) as servicebus_client:
+        with servicebus_client.get_topic_sender(topic_name="topic.1") as topic_sender:
+            topic_sender.send_messages([azure_servicebus.ServiceBusMessage('{"body":"test message 1"}')])
+            topic_sender.send_messages([azure_servicebus.ServiceBusMessage('{"body":"test message 2"}')])
     return func.HttpResponse("Hello Datadog!")
 
 
