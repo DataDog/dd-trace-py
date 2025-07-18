@@ -59,41 +59,6 @@ class TestBedrockConfig(SubprocessTestCase):
         assert span.get_tag("env") == "staging"
         assert span.get_tag("version") == "1234"
 
-    def _test_span_sampling(self, rate):
-        body, model = json.dumps(_REQUEST_BODIES["meta"]), _MODELS["meta"]
-        num_completions = 200
-        for _ in range(num_completions):
-            with get_request_vcr().use_cassette("meta_invoke.yaml"):
-                response = self.bedrock_client.invoke_model(body=body, modelId=model)
-                json.loads(response.get("body").read())
-        traces = self.mock_tracer.pop_traces()
-        sampled = 0
-        for trace in traces:
-            for span in trace:
-                if span.get_tag("bedrock.response.choices.0.text"):
-                    sampled += 1
-        assert (rate * num_completions - 30) < sampled < (rate * num_completions + 30)
-
-    @flaky(until=1752686557)
-    @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.0"))
-    def test_span_sampling_0(self):
-        self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
-
-    @flaky(until=1752686557)
-    @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.25"))
-    def test_span_sampling_25(self):
-        self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
-
-    @flaky(until=1752686557)
-    @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="0.75"))
-    def test_span_sampling_75(self):
-        self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
-
-    @flaky(until=1752686557)
-    @run_in_subprocess(env_overrides=dict(DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE="1.0"))
-    def test_span_sampling_100(self):
-        self._test_span_sampling(rate=float(os.getenv("DD_BEDROCK_SPAN_PROMPT_COMPLETION_SAMPLE_RATE")))
-
 
 @pytest.mark.snapshot
 def test_ai21_invoke(bedrock_client, request_vcr):
@@ -336,4 +301,3 @@ def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tr
     assert span is not None
     assert span.name == "bedrock-runtime.command"
     assert span.resource == "InvokeModelWithResponseStream"
-    assert span.get_tag("bedrock.response.choices.0.text").startswith("Hobb")
