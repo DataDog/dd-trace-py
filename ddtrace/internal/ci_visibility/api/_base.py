@@ -630,7 +630,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         item_status = self.get_status()
 
-        if item_status == SPECIAL_STATUS.UNFINISHED:
+        if item_status == SPECIAL_STATUS.UNFINISHED and not force:
             return
 
         if not isinstance(item_status, SPECIAL_STATUS):
