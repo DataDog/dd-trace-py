@@ -1,0 +1,49 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "ec1700cb-fec3-4aa9-b324-2a10b0b69247",
+      "attributes": {"insert_records": [], "update_records": [{"input": {"prompt":
+      "What is the capital of Germany?"}, "expected_output": {"answer": "Berlin"},
+      "metadata": {}, "id": "4db63e47-c0c8-43d6-95a6-f5c5b6e2c8f6"}], "delete_records":
+      []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '317'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/ec1700cb-fec3-4aa9-b324-2a10b0b69247/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"e62e6597-5e1e-4b57-ae33-f2cad2ee50e5","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-16T20:06:40.388403727Z","dataset_id":"ec1700cb-fec3-4aa9-b324-2a10b0b69247","expected_output":{"answer":"Berlin"},"input":{"prompt":"What
+        is the capital of Germany?"},"metadata":{},"updated_at":"2025-07-16T20:06:40.388403809Z","version":2}}]}'
+    headers:
+      content-length:
+      - '405'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 16 Jul 2025 20:06:40 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

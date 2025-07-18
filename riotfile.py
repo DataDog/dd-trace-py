@@ -352,6 +352,7 @@ venv = Venv(
                 "pytest-randomly": latest,
                 "setuptools": latest,
                 "boto3": latest,
+                "freezegun": latest,
             },
             env={
                 "DD_CIVISIBILITY_LOG_LEVEL": "none",
@@ -1788,6 +1789,37 @@ venv = Venv(
                         "more_itertools": "<8.11.0",
                         "httpx": latest,
                     },
+                ),
+                Venv(
+                    name="pytest_plugin_v2",
+                    command="pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {cmdargs}",
+                    pys=["3.9", "3.10", "3.12"],
+                    pkgs={
+                        "httpx": latest,
+                        "msgpack": latest,
+                        "requests": latest,
+                        "hypothesis": latest,
+                    },
+                    env={
+                        "DD_AGENT_PORT": "9126",
+                    },
+                    venvs=[
+                        Venv(
+                            pkgs={
+                                "pytest": "~=6.0",
+                            },
+                        ),
+                        Venv(
+                            pkgs={
+                                "pytest": "~=7.0",
+                            },
+                        ),
+                        Venv(
+                            pkgs={
+                                "pytest": "~=8.0",
+                            },
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -3501,7 +3533,6 @@ venv = Venv(
         Venv(
             name="appsec_threats_flask",
             command="pytest tests/appsec/contrib_appsec/test_flask.py {cmdargs}",
-            pys=["3.8", "3.9", "3.10", "3.11", "3.13"],
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,
@@ -3548,8 +3579,7 @@ venv = Venv(
         ),
         Venv(
             name="appsec_threats_fastapi",
-            command="pytest {cmdargs} tests/appsec/contrib_appsec/test_fastapi.py",
-            pys=["3.8", "3.10", "3.13"],
+            command="pytest tests/appsec/contrib_appsec/test_fastapi.py {cmdargs}",
             pkgs={
                 "pytest": latest,
                 "pytest-cov": latest,

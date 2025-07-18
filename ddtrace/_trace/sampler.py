@@ -215,7 +215,7 @@ class DatadogSampler:
         elif self._rate_limit_always_on:
             # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
             # we want spans to be set to a MANUAL priority to avoid agent based sampling
-            return SamplingMechanism.MANUAL
+            return SamplingMechanism.APPSEC
         elif agent_service_based:
             return SamplingMechanism.AGENT_RATE_BY_SERVICE
         else:
