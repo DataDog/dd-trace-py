@@ -52,8 +52,7 @@ cdef class SimpleMovingAverage:
         if self.totals:
             free(self.totals)
 
-    cdef double _get(self) nogil:
-        """Internal C function for maximum performance"""
+    cdef double _get(self):
         if self.sum_total == 0:
             return 0.0
         return <double>self.sum_count / <double>self.sum_total
@@ -67,8 +66,7 @@ cdef class SimpleMovingAverage:
         """
         return self._get()
 
-    cdef void _set(self, int count, int total) nogil:
-        """Internal C function for maximum performance"""
+    cdef void _set(self, int count, int total):
         cdef int old_count, old_total
 
         # Ensure count doesn't exceed total
