@@ -621,18 +621,19 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             # Respect override status no matter what
             self.set_status(override_status)
 
+        if force:
+            # Finish all children regardless of their status
+            for child in self._children.values():
+                if not child.is_finished():
+                    child.finish(force=force)
+            self.set_status(self.get_raw_status())
+
         item_status = self.get_status()
 
         if item_status == SPECIAL_STATUS.UNFINISHED:
-            if force:
-                # Finish all children regardless of their status
-                for child in self._children.values():
-                    if not child.is_finished():
-                        child.finish(force=force)
-                self.set_status(self.get_raw_status())
-            else:
-                return
-        elif not isinstance(item_status, SPECIAL_STATUS):
+            return
+
+        if not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
         super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
