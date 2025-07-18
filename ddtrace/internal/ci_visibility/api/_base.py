@@ -235,6 +235,10 @@ class TestVisibilityItemBase(abc.ABC):
         self._add_all_tags_to_span()
         self._span.finish(finish_time=override_finish_time)
 
+        parent_span = self.get_parent_span()
+        if parent_span:
+            self._tracer.context_provider.activate(parent_span)
+
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
 
