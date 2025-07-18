@@ -10,21 +10,17 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
+      "_dd.p.tid": "68757a3200000000",
       "component": "openai",
       "language": "python",
-      "openai.api_base": "https://api.openai.com/v1",
-      "openai.api_type": "open_ai",
-      "openai.base_url": "https://api.openai.com/v1/",
       "openai.organization.name": "datadog-4",
-      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/moderations",
-      "openai.request.input": "i want to kill them.",
       "openai.request.method": "POST",
       "openai.request.model": "text-moderation-latest",
+      "openai.request.provider": "OpenAI",
       "openai.response.id": "modr-8E3q1Ym0ynUPcFCfcCOOqEcguvMNX",
       "openai.response.model": "text-moderation-006",
-      "openai.user.api_key": "sk-...key>",
-      "runtime-id": "cbe0e14f746844368fe3213cca093638"
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
     },
     "metrics": {
       "_dd.measured": 1,
@@ -54,8 +50,8 @@
       "openai.response.category_scores.violence": 0.994572103023529,
       "openai.response.category_scores.violence/graphic": 2.5829390892795345e-07,
       "openai.response.flagged": 1,
-      "process_id": 60993
+      "process_id": 88640
     },
-    "duration": 19600000,
-    "start": 1699904034482287000
+    "duration": 8623000,
+    "start": 1752529458550920000
   }]]

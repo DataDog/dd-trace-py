@@ -64,6 +64,7 @@ class DDTraceAPITestCase(TracerTestCase):
     def test_current_span(self):
         with ddtrace_api.tracer.trace("web.request"):
             span = ddtrace_api.tracer.current_span()
+            span.set_tags({"foobar": "banana"})
             self._assert_span_stub(span)
         self._assert_real_spans()
 
