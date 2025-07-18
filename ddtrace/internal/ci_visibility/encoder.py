@@ -96,7 +96,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _build_payload(self, traces):
         # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
         if not traces:
-            return []
+            return (None, 0)
 
         new_parent_session_span_id = self._get_parent_session(traces)
         return self._send_all_or_half_spans(traces, new_parent_session_span_id)
