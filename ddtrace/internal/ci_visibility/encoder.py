@@ -2,6 +2,11 @@ import json
 import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -28,11 +33,6 @@ from ddtrace.internal.writer.writer import NoEncodableSpansError
 log = get_logger(__name__)
 
 if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Dict  # noqa:F401
-    from typing import List  # noqa:F401
-    from typing import Optional  # noqa:F401
-
     from ddtrace._trace.span import Span  # noqa:F401
 
 
@@ -42,13 +42,15 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     TEST_SUITE_EVENT_VERSION = 1
     TEST_EVENT_VERSION = 2
     ENDPOINT_TYPE = ENDPOINT.TEST_CYCLE
+    _MAX_PAYLOAD_SIZE = 5 * 1024 * 1024  # 5MB
 
     def __init__(self, *args):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
+        self._metadata = {}  # type: Dict[str, Dict[str, str]]
         self._lock = threading.RLock()
-        self._metadata = {}
+        self._is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
         self._init_buffer()
 
     def __len__(self):
@@ -68,18 +70,21 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self.buffer.append(spans)
 
     def encode_traces(self, traces):
-        return self._build_payload(traces=traces)
+        return self._build_payload(traces=traces)[0]
 
-    def encode(self):
+    def encode(self) -> List[Tuple[Optional[bytes], int]]:
         with self._lock:
-            with StopWatch() as sw:
-                payload = self._build_payload(self.buffer)
-            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
-            buffer_size = len(self.buffer)
-            if not buffer_size:
+            if not self.buffer:
                 return []
-            self._init_buffer()
-            return [(payload, buffer_size)]
+            payloads = []
+            while self.buffer:
+                with StopWatch() as sw:
+                    payload, count = self._build_payload(self.buffer)
+                    payloads.append((payload, count))
+                record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
+                if count:
+                    self.buffer = self.buffer[count:]
+            return payloads
 
     def _get_parent_session(self, traces):
         for trace in traces:
@@ -89,29 +94,65 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return 0
 
     def _build_payload(self, traces):
-        new_parent_session_span_id = self._get_parent_session(traces)
-        is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
-        normalized_spans = [
-            self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
-            for trace in traces
-            for span in trace
-            if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
-        ]
-        if not normalized_spans:
-            return None
-        record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
+        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
+        if not traces:
+            return []
 
-        # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
+        new_parent_session_span_id = self._get_parent_session(traces)
+        return self._send_all_or_half_spans(traces, new_parent_session_span_id)
+
+    def _send_all_or_half_spans(self, traces, new_parent_session_span_id):
+        # Convert all traces to spans with filtering
+        all_spans_with_trace_info = self._convert_traces_to_spans(traces, new_parent_session_span_id)
+        total_traces = len(traces)
+
+        # Get all spans (flattened)
+        all_spans = [span for _, trace_spans in all_spans_with_trace_info for span in trace_spans]
+
+        if not all_spans:
+            log.debug("No spans to encode after filtering, returning empty payload")
+            return None, total_traces
+
+        # Try to fit all spans first (optimistic case)
+        payload = self._create_payload_from_spans(all_spans)
+        if len(payload) <= self._MAX_PAYLOAD_SIZE or total_traces <= 1:
+            record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
+            return payload, total_traces
+
+        mid = (total_traces + 1) // 2
+        return self._send_all_or_half_spans(traces[:mid], new_parent_session_span_id)
+
+    def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
+        # type: (List[List[Span]], Optional[int]) -> List[Tuple[int, List[Dict[str, Any]]]]
+        """Convert all traces to spans with xdist filtering applied."""
+        all_spans_with_trace_info = []
+        for trace_idx, trace in enumerate(traces):
+            trace_spans = [
+                self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
+                for span in trace
+                if self._is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE
+            ]
+            all_spans_with_trace_info.append((trace_idx, trace_spans))
+
+        return all_spans_with_trace_info
+
+    def _create_payload_from_spans(self, spans):
+        # type: (List[Dict[str, Any]]) -> bytes
+        """Create a payload from the given spans."""
         return CIVisibilityEncoderV01._pack_payload(
-            {"version": self.PAYLOAD_FORMAT_VERSION, "metadata": self._metadata, "events": normalized_spans}
+            {
+                "version": self.PAYLOAD_FORMAT_VERSION,
+                "metadata": self._metadata,
+                "events": spans,
+            }
         )
 
     @staticmethod
     def _pack_payload(payload):
         return msgpack_packb(payload)
 
-    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
-        # type: (Span, str, Optional[int]) -> Dict[str, Any]
+    def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
+        # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -220,7 +261,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _build_data(self, traces):
         # type: (List[List[Span]]) -> Optional[bytes]
         normalized_covs = [
-            self._convert_span(span, "")
+            self._convert_span(span)
             for trace in traces
             for span in trace
             if (COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None)
@@ -232,14 +273,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Optional[bytes]
+        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
         data = self._build_data(traces)
         if not data:
-            return None
-        return b"\r\n".join(self._build_body(data))
+            return None, 0
+        return b"\r\n".join(self._build_body(data)), len(data)
 
-    def _convert_span(self, span, dd_origin, new_parent_session_span_id=0):
-        # type: (Span, str, Optional[int]) -> Dict[str, Any]
+    def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
+        # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: Dict[str, Any] = {}
 
