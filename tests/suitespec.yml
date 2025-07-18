@@ -139,7 +139,7 @@ components:
     - ddtrace/internal/runtime/*
     - ddtrace/internal/sampling.py
     - ddtrace/internal/schema/*
-    - ddtrace/internal/sma.py
+    - ddtrace/internal/sma.py*
     - ddtrace/internal/tracemethods.py
     - ddtrace/internal/sysdep.h
     - ddtrace/internal/writer/*

@@ -229,9 +229,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
         self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
-    def _set_keep_rate(self, trace):
+    def _set_keep_rate(self, trace: List["Span"]) -> None:
         if trace:
-            trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+            # PERF: avoid calling set_metric to avoid the overhead of isinstance checks and other public API validations
+            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = 1.0 - self._drop_sma.get()
 
     def _reset_connection(self) -> None:
         with self._conn_lck:
