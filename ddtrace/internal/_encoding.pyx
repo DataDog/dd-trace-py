@@ -504,11 +504,23 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
         if ret != 0:
             raise RuntimeError("Couldn't pack trace")
 
-        if L > 0 and trace[0].context is not None and trace[0].context.dd_origin is not None:
+        # TODO: Can we skip packing an empty array?
+        if L == 0:
+          return 0
+
+        if trace[0].context is not None and trace[0].context.dd_origin is not None:
             dd_origin = self.get_dd_origin_ref(trace[0].context.dd_origin)
 
         # PERF: _trace_id_64bits is a computed property, cache/convert once for all spans
-        trace_id_64bits = trace[0]._trace_id_64bits
+        try:
+            trace_id_64bits = trace[0]._trace_id_64bits
+
+        # We can get TypeError if the trace_id is not an int
+        #   e.g. "unsupported operand type(s) for &: 'int' and 'str'"
+        except Exception as e:
+            raise RuntimeError(
+                "failed to pack span: {!r}. Exception: {}".format(trace[0], e)
+            )
         for span in trace:
             try:
                 ret = self.pack_span(span, trace_id_64bits, dd_origin)
