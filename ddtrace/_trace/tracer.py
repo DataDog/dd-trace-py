@@ -7,7 +7,7 @@ import logging
 import os
 from os import getpid
 from threading import RLock
-from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -68,12 +68,8 @@ log = get_logger(__name__)
 
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
-if TYPE_CHECKING:
-    from ddtrace.appsec._processor import AppSecSpanProcessor
 
-
-def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
-    # FIXME: type should be AppsecSpanProcessor but we have a cyclic import here
+def _start_appsec_processor():
     try:
         from ddtrace.appsec._processor import AppSecSpanProcessor
 
@@ -95,12 +91,12 @@ def _start_appsec_processor() -> Optional["AppSecSpanProcessor"]:
 
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Optional["AppSecSpanProcessor"]]:
+) -> Tuple[List[SpanProcessor], Any]:
     """Construct the default list of span processors to use."""
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    appsec_processor: Optional["AppSecSpanProcessor"] = None
+    appsec_processor = None
     if asm_config._asm_libddwaf_available:
         if asm_config._asm_enabled:
             if asm_config._api_security_enabled:
