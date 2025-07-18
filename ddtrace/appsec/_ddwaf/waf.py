@@ -1,5 +1,4 @@
-from ctypes import c_void_p
-from ctypes import cast
+import ctypes
 import json
 import time
 from typing import Any
@@ -23,8 +22,7 @@ from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_builder_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_context_init
 from ddtrace.appsec._ddwaf.ddwaf_types import py_ddwaf_known_addresses
 from ddtrace.appsec._ddwaf.ddwaf_types import py_remove_config
-from ddtrace.appsec._ddwaf.json2ddwaf import addr
-from ddtrace.appsec._ddwaf.json2ddwaf import from_json
+from ddtrace.appsec._ddwaf.default_ddwaf_rules import get_rules
 from ddtrace.appsec._ddwaf.waf_stubs import WAF
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_info
 from ddtrace.appsec._ddwaf.waf_stubs import DDWaf_result
@@ -67,9 +65,13 @@ class DDWaf(WAF):
         )
         diagnostics = ddwaf_object()
         _ = time.time_ns()
-        ruleset_map_object = from_json(DEFAULT.RULES)
-        self._leaked = ruleset_map_object
-        ruleset_map_object = cast(c_void_p(addr(ruleset_map_object)), ddwaf_object_p)
+        ruleset_map_object = get_rules()
+
+        get_ptr = ctypes.pythonapi.PyCapsule_GetPointer
+        get_ptr.restype = ddwaf_object_p
+        get_ptr.argtypes = [ctypes.py_object, ctypes.c_char_p]
+
+        ruleset_map_object = get_ptr(ruleset_map_object, b"ddwaf_object")
         rule_object_creation_ns = time.time_ns() - _
         APPSEC_TEMP_METRICS.object_creation = DeferredSpan(
             name="object_creation",

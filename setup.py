@@ -697,6 +697,16 @@ except EnvironmentError as e:
     print(f"{e}")
     sys.exit(1)
 
+# Generate native objects for the Appsec default rules
+subprocess.check_call(
+    [
+        sys.executable,
+        "scripts/appsec/rules2c.py",
+        "ddtrace/appsec/rules.json",
+        "ddtrace/appsec/_ddwaf/default_ddwaf_rules.c",
+    ]
+)
+
 
 def get_exts_for(name):
     try:
@@ -770,17 +780,24 @@ if not IS_PYSTON:
             ),
         ),
         Extension(
-            "ddtrace.appsec._ddwaf.json2ddwaf",
+            "ddtrace.appsec._ddwaf.default_ddwaf_rules",
             sources=[
-                "ddtrace/appsec/_ddwaf/json2ddwaf.c",
-                "ddtrace/appsec/_ddwaf/vendors/cjson/cJSON.c",
+                "ddtrace/appsec/_ddwaf/default_ddwaf_rules.c",
             ],
             include_dirs=[
                 "ddtrace/appsec/_ddwaf/vendors",
             ],
             libraries=["ddwaf"],
-            library_dirs=["ddtrace/appsec/_ddwaf/libddwaf/aarch64/lib"],
-            extra_link_args=["-Wl,-rpath,ddtrace/appsec/_ddwaf/libddwaf/aarch64/lib"],
+            library_dirs=[
+                str(LIBDDWAF_DOWNLOAD_DIR / "aarch64/lib"),
+                str(LIBDDWAF_DOWNLOAD_DIR / "arm64/lib"),
+                str(LIBDDWAF_DOWNLOAD_DIR / "amd64/lib"),
+            ],
+            extra_link_args=[
+                f"-Wl,-rpath,{str(LIBDDWAF_DOWNLOAD_DIR)}/aarch64/lib",
+                f"-Wl,-rpath,{str(LIBDDWAF_DOWNLOAD_DIR)}/arm64/lib",
+                f"-Wl,-rpath,{str(LIBDDWAF_DOWNLOAD_DIR)}/amd64/lib",
+            ],
             extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             language="c",
         ),
