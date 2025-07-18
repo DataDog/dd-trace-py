@@ -83,7 +83,7 @@ def extract_tools_from_agent(agent):
                 tool_dict["strict_json_schema"] = tool.strict_json_schema
             if hasattr(tool, "params_json_schema"):
                 parameter_schema = tool.params_json_schema
-                required_params = get_required_param_dict(parameter_schema.get("required", [])) 
+                required_params = {param: True for param in parameter_schema.get("required", [])}
                 parameters = {}
                 for param, schema in parameter_schema.get("properties", {}).items():
                     param_dict = {}
@@ -130,9 +130,6 @@ def extract_guardrails_from_agent(agent):
     if hasattr(agent, "output_guardrails"):
         guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
     return guardrails
-
-def get_required_param_dict(required_params):
-    return {param: True for param in required_params}
 
 def make_json_compatible(obj):
     if isinstance(obj, dict):
