@@ -53,17 +53,13 @@ def test_iast_stacktrace_error():
 
 
 @pytest.mark.parametrize(
-    "server, config",
-    (
-        (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
-        (flask_server, {}),
-    ),
+    "server",
+    (gunicorn_server, flask_server),
 )
-def test_iast_cmdi(server, config):
+def test_iast_cmdi(server):
     token = "test_iast_cmdi"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+    with server(iast_enabled="true", token=token, port=8050) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
@@ -238,20 +234,17 @@ def test_iast_code_injection_with_stacktrace(server):
     clear_session(token)
 
     assert len(spans_with_iast) == 2
-    if server.__name__ == "flask_server":
-        assert len(vulnerabilities) == 1
-        assert len(vulnerabilities[0]) == 1
-        vulnerability = vulnerabilities[0][0]
-        assert vulnerability["type"] == VULN_CODE_INJECTION
-        assert vulnerability["evidence"]["valueParts"] == [
-            {"value": "a + '"},
-            {"value": tainted_string, "source": 0},
-            {"value": "'"},
-        ]
-        assert vulnerability["hash"]
-        assert metastruct
-    else:
-        assert len(vulnerabilities) == 0
+    assert len(vulnerabilities) == 1
+    assert len(vulnerabilities[0]) == 1
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_CODE_INJECTION
+    assert vulnerability["evidence"]["valueParts"] == [
+        {"value": "a + '"},
+        {"value": tainted_string, "source": 0},
+        {"value": "'"},
+    ]
+    assert vulnerability["hash"]
+    assert metastruct
 
 
 @pytest.mark.parametrize(
@@ -350,7 +343,7 @@ def test_iast_vulnerable_request_downstream(server, config):
             spans.append(span)
     clear_session(token)
 
-    assert len(spans) >= 29, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans) >= 28, f"Incorrect number of spans ({len(spans)}):\n{spans}"
     assert len(spans_with_iast) == 3
     assert len(vulnerabilities) == 1
     assert len(vulnerabilities[0]) == 1

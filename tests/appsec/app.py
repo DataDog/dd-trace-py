@@ -1,4 +1,5 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
+import ddtrace.auto  # noqa: F401  # isort: skip
 import copy
 import os
 import re

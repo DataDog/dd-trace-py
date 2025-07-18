@@ -27,7 +27,7 @@ def gunicorn_server(
     apm_tracing_enabled="true",
     token=None,
     port=8000,
-    workers="3",
+    workers="1",
     use_threads=False,
     use_gevent=False,
     env=None,
@@ -103,7 +103,16 @@ def django_server(
     The server is started when entering the context and stopped when exiting.
     """
     manage_py = "tests/appsec/integrations/django_tests/django_app/manage.py"
-    cmd = [python_cmd, manage_py, "runserver", f"0.0.0.0:{port}", "--noreload"]
+    cmd = [
+        python_cmd,
+        "-m",
+        "ddtrace.commands.ddtrace_run",
+        python_cmd,
+        manage_py,
+        "runserver",
+        f"0.0.0.0:{port}",
+        "--noreload",
+    ]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
