@@ -52,6 +52,19 @@ jobs:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     steps:
+      - name: Checkout CI Visibility GitHub SaaS Runner Monitoring action
+        uses: actions/checkout@v4
+        with:
+          repository: DataDog/civis-gha-monitor-action
+          token: ${{ secrets.DD_CIVIS_GHA_MONITORING_ACTION_KEY }}
+          ref: main
+          path: civis-gha-monitor-action
+      - name: Setup CI Visibility GitHub SaaS Runner Monitoring
+        uses: ./civis-gha-monitor-action
+        if: runner.os == 'Linux' && matrix.os == 'arm-4core-linux-ubuntu24.04'
+        with:
+          upload-artifacts: 'true'
+
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         # Include all history and tags
         with:
