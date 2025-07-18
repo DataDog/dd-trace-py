@@ -507,3 +507,25 @@ def test_experiment_run(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
+
+
+def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record):
+    """Assert that the experiment span includes expected output field and includes the experiment scope."""
+    exp = llmobs.experiment(
+        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
+    )
+    exp._id = "1234567890"
+    exp._run_task(1, raise_errors=False)
+    assert len(llmobs_events) == 1
+    event = llmobs_events[0]
+    assert event["name"] == "dummy_task"
+    for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
+        assert event[key] == mock.ANY
+    assert event["status"] == "ok"
+    assert event["meta"]["input"] == {"value": '{"prompt": "What is the capital of France?"}'}
+    assert event["meta"]["output"] == {"value": '{"prompt": "What is the capital of France?"}'}
+    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
+    assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
+    assert "experiment_id:1234567890" in event["tags"]
+    assert event["_dd"]["scope"] == "experiments"
