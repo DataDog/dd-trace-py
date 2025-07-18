@@ -185,6 +185,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
             )
 
+        self._llmobs_set_metadata(span, kwargs)
+
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
@@ -364,30 +366,37 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def llmobs_set_metadata(self, span: Span, parameters: Dict[str, Any]) -> None:
-        max_tokens = None
-        temperature = None
-        for param, val in parameters.items():
-            if isinstance(val, dict):
-                for k, v in val.items():
-                    if k == "temperature":
-                        temperature = v
-                    elif k in ["max_tokens", "maxTokens", "max_completion_tokens"]:
-                        max_tokens = v
-            else:
-                if param == "temperature":
-                    temperature = val
-                elif param in ["max_tokens", "maxTokens", "max_completion_tokens"]:
-                    max_tokens = val
-
+    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
+        identifying_params = kwargs.pop("_dd.identifying_params", None)
+        if not identifying_params:
+            return
         metadata: Dict[str, Any] = {}
-        if max_tokens is not None and max_tokens != "None":
-            metadata["max_tokens"] = int(max_tokens)
-        if temperature is not None and temperature != "None":
-            metadata["temperature"] = float(temperature)
+        for _, val in identifying_params.items():
+            if isinstance(val, dict):
+                params = self._llmobs_extract_parameters(val)
+            else:
+                params = self._llmobs_extract_parameters(identifying_params)
+            if params["max_tokens"] is not None and params["max_tokens"] != "None":
+                metadata["max_tokens"] = int(params["max_tokens"])
+            if params["temperature"] is not None and params["temperature"] != "None":
+                metadata["temperature"] = float(params["temperature"])
 
         if metadata:
             span._set_ctx_item(METADATA, metadata)
+
+    def _llmobs_extract_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        max_tokens = None
+        temperature = None
+        for k, v in parameters.items():
+            if k == "temperature":
+                temperature = v
+            elif k in ["max_tokens", "maxTokens", "max_completion_tokens"]:
+                max_tokens = v
+        metadata["max_tokens"] = max_tokens
+        metadata["temperature"] = temperature
+
+        return metadata
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
