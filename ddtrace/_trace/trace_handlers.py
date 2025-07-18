@@ -728,7 +728,6 @@ def _on_botocore_bedrock_process_response(
     body: Dict[str, List[Dict]],
     should_set_choice_ids: bool,
 ) -> None:
-    text = formatted_response["text"]
     span = ctx.span
     model_name = ctx["model_name"]
     integration = ctx["bedrock_integration"]
