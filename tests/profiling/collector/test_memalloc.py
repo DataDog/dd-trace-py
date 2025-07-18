@@ -305,11 +305,6 @@ def test_heap():
 
 def test_heap_stress():
     # This should run for a few seconds, and is enough to spot potential segfaults.
-    try:
-        _memalloc.stop()
-    except RuntimeError:
-        pass  # Already stopped, that's fine
-
     _memalloc.start(64, 64, 1024)
     try:
         x = []
@@ -324,14 +319,12 @@ def test_heap_stress():
 
 
 @pytest.mark.parametrize("heap_sample_size", (0, 512 * 1024, 1024 * 1024, 2048 * 1024, 4096 * 1024))
-def test_memalloc_speed(heap_sample_size):
-    pytest.importorskip("pytest_benchmark")
-
+def test_memalloc_speed(benchmark, heap_sample_size):
     if heap_sample_size:
         with memalloc.MemoryCollector(heap_sample_size=heap_sample_size):
-            _allocate_1k()
+            benchmark(_allocate_1k)
     else:
-        _allocate_1k()
+        benchmark(_allocate_1k)
 
 
 @pytest.mark.parametrize(
@@ -361,12 +354,7 @@ def test_memalloc_sample_size(enabled, predicates, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_HEAP_ENABLED", str(enabled).lower())
     config = ProfilingConfig()
 
-    if hasattr(config, "heap"):
-        assert config.heap.enabled is enabled
+    assert config.heap.enabled is enabled
 
-        for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
-            assert predicate(_derive_default_heap_sample_size(config.heap, default)), _derive_default_heap_sample_size(
-                config.heap, default
-            )
-    else:
-        pytest.skip("heap config not available in this version")
+    for predicate, default in zip(predicates, (1024 * 1024, 1, 512, 512 * 1024 * 1024)):
+        assert predicate(_derive_default_heap_sample_size(config.heap, default))
