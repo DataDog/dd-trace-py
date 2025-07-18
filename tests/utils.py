@@ -1419,11 +1419,11 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_results = client.encoder.encode()
-        if not encoded_results:
+        encoded_traces = client.encoder.encode()
+        if not encoded_traces:
             return
-        
-        [(encoded_traces, _)] = encoded_results
+
+        [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)

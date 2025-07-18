@@ -778,7 +778,7 @@ class PytestTestCase(PytestTestCaseBase):
         encoder = self.tracer.encoder
         encoder.put(spans)
         encoded_results = encoder.encode()
-        assert encoded_results, "Expected encoded results but got empty list"
+        assert encoded_results, "Expected encoded traces but got empty list"
         [(trace, _)] = encoded_results
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
@@ -788,7 +788,7 @@ class PytestTestCase(PytestTestCaseBase):
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
         encoded_results = ci_agentless_encoder.encode()
-        assert encoded_results, "Expected encoded results but got empty list"
+        assert encoded_results, "Expected encoded traces but got empty list"
         [(event_payload, _)] = encoded_results
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
