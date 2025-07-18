@@ -14,6 +14,7 @@ variables:
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
   DD_DISABLE_VPA: true  # disable only on 2.21/older release branches
+  SKIP_SHARED_PIPELINE: true
   # CI_DEBUG_SERVICES: "true"
 
 default:
