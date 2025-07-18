@@ -17,7 +17,6 @@ def _expected_agent_metadata(instructions=None, system_prompt=None, model_settin
     }
     return metadata
 
-
 def expected_run_agent_span_event(
     span,
     output,

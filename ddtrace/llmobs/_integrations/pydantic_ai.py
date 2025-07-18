@@ -3,8 +3,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from pydantic_ai.agent import AgentRun
-
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
@@ -72,20 +70,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         elif span_kind == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
 
-        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
                 SPAN_LINKS: span_links,
                 MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
-                METRICS: metrics,
             }
         )
 
     def _llmobs_set_tags_agent(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
+        from pydantic_ai.agent import AgentRun
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
@@ -101,12 +98,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
                     result += part.content
                 elif hasattr(part, "args_as_json_str"):
                     result += part.args_as_json_str()
-
+        metrics = self.extract_usage_metrics(response, kwargs)
         span._set_ctx_items(
             {
                 NAME: agent_name or "PydanticAI Agent",
                 INPUT_VALUE: user_prompt,
                 OUTPUT_VALUE: result,
+                METRICS: metrics,
             }
         )
 
@@ -114,7 +112,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "message")
+        tool_call = get_argument_value(args, kwargs, 0, "message", optional=True)
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         if tool_call:
@@ -127,9 +125,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 INPUT_VALUE: tool_input,
             }
         )
-        if span.error:
-            return
-        span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
+        if not span.error:
+            span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
@@ -206,7 +203,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
         span_links = []
         if span_kind == "agent":
-            for tool_span_id in self._running_agents[span.span_id]:
+            for tool_span_id in self._running_agents.pop(span.span_id, []):
                 span_links.append(
                     {
                         "span_id": str(tool_span_id),

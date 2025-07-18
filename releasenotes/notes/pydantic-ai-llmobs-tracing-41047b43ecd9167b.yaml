@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: Adds support to automatically submit PydanticAI requests to LLM Observability.
+    LLM Observability: Adds support to automatically submit PydanticAI request spans to LLM Observability.

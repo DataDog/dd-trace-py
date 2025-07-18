@@ -376,6 +376,20 @@ def test_msgpack_span_property_variations(encoding, span):
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
 
 
+@allencodings
+def test_long_span_start(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
+
+    # Start a span a very long time ago
+    span = Span(None)
+    span.start = -62135596700
+    span.finish()
+
+    trace = [span]
+    encoder.put(trace)
+    assert decode(encoder.encode()[0]) is not None
+
+
 class SubString(str):
     pass
 
@@ -553,7 +567,7 @@ def test_span_event_encoding_msgpack():
         {"emotion": "happy", "rating": 9.8, "other": [1, 9.5, 1], "idol": False},
         17353464354546,
     )
-    with mock.patch("ddtrace._trace.span.time_ns", return_value=2234567890123456):
+    with mock.patch("ddtrace._trace.span.Time.time_ns", return_value=2234567890123456):
         span._add_event("We are going to the moon")
 
     # Get test parameters from environment variables

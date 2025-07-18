@@ -285,13 +285,12 @@ def test_metrics_partial_flush_disabled():
 def test_single_trace_too_large():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
-    with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
+    with mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
     ) as log:
         with t.trace("huge"):
@@ -466,7 +465,7 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
             "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
-            t._span_aggregator.writer.agent_url,
+            t._span_aggregator.writer.intake_url,
         )
     ]
     log.error.assert_has_calls(calls)
@@ -601,7 +600,7 @@ def test_writer_flush_queue_generates_debug_log():
                 "sent %s in %.5fs to %s",
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, encoding),
+                "{}/{}/traces".format(writer.intake_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
