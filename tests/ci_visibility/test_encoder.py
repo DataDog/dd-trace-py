@@ -64,7 +64,7 @@ def test_encode_traces_civisibility_v0():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
     assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
@@ -106,7 +106,7 @@ def test_encode_traces_civisibility_v0():
 def test_encode_traces_civisibility_v0_no_traces():
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
-    payload, _ = encoder.encode()
+    payload, _ = encoder.encode()[0]
     assert payload is None
 
 
@@ -117,7 +117,7 @@ def test_encode_traces_civisibility_v0_empty_traces():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, size = encoder.encode()
+    payload, size = encoder.encode()[0]
     assert size == 2
     assert payload is None
 
@@ -160,7 +160,7 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     assert expected_cov == received_covs[0]
 
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -200,7 +200,7 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
         encoder.put(trace)
 
     payload = encoder._build_data(traces)
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -255,7 +255,7 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     payload = encoder._build_data(traces)
     assert payload is None
 
-    complete_payload, _ = encoder.encode()
+    complete_payload, _ = encoder.encode()[0]
     assert complete_payload is None
 
 
@@ -280,7 +280,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
@@ -341,7 +341,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
@@ -397,7 +397,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
@@ -448,7 +448,7 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        event_payload, _ = ci_agentless_encoder.encode()[0]
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]
@@ -543,7 +543,7 @@ def test_xdist_worker_session_filtering(mock_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -570,7 +570,7 @@ def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -652,7 +652,7 @@ def test_full_encoding_with_parent_session_override():
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    payload, num_traces = encoder.encode()[0]
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -678,3 +678,269 @@ def test_full_encoding_with_parent_session_override():
     # Both should use the parent session ID (0xAAAAAA) instead of worker session ID
     assert test_event[b"content"][b"test_session_id"] == 0xAAAAAA
     assert session_event[b"content"][b"test_session_id"] == 0xAAAAAA
+
+
+def test_payload_size_splitting_under_limit(monkeypatch):
+    """Test that payloads under the limit are not split"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 10000)  # 10KB
+
+    # Create small traces that won't exceed the limit
+    traces = []
+    for i in range(3):
+        trace = [
+            Span(name=f"test.span.{i}", span_id=0xAAAAAA + i, service="test"),
+        ]
+        trace[0].set_tag_str("type", "test")
+        traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+    for trace in traces:
+        encoder.put(trace)
+
+    payload, count = encoder.encode()[0]
+
+    # All traces should be processed in one payload
+    assert count == 3
+    assert payload is not None
+    assert len(encoder) == 0  # Buffer should be empty
+
+
+def test_payload_size_splitting_over_limit(monkeypatch):
+    """Test that payloads over the limit are split appropriately"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 2000)  # 2KB
+
+    # Create traces that will exceed the limit
+    # Each trace will have metadata to increase payload size
+    traces = []
+    medium_metadata = "x" * 500  # 500 bytes of data per trace
+
+    for i in range(8):  # Should trigger splitting
+        trace = [
+            Span(name=f"test.span.{i}", span_id=0xAAAAAA + i, service="test"),
+        ]
+        trace[0].set_tag_str("type", "test")
+        trace[0].set_tag_str("data", medium_metadata)
+        traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+    for trace in traces:
+        encoder.put(trace)
+
+    # First encode should return several payloads encoded
+    payloads = encoder.encode()
+    assert len(encoder) == 0  # Buffer should have no remaining traces
+    assert len(payloads) == 4
+
+    payload1, count1 = payloads[0]
+
+    assert payload1 is not None
+    assert count1 > 0
+    assert count1 < 8  # Should not process all traces due to size limit
+
+    # Second encode should return remaining traces
+    payload2, count2 = payloads[1]
+
+    if payload2 is not None:
+        assert count2 > 0
+        assert count1 + count2 <= 8  # Total processed should not exceed input
+
+    _, count3 = payloads[2]
+    _, count4 = payloads[3]
+
+    assert count1 + count2 + count3 + count4 == 8
+
+
+def test_payload_size_splitting_single_large_trace(monkeypatch):
+    """Test that a single trace larger than the limit is still processed"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 1000)  # 1KB
+
+    # Create one trace that exceeds the limit by itself
+    large_metadata = "x" * 2000  # 2KB of data (exceeds 1KB limit)
+
+    trace = [
+        Span(name="test.large.span", span_id=0xAAAAAA, service="test"),
+    ]
+    trace[0].set_tag_str("type", "test")
+    trace[0].set_tag_str("large_data", large_metadata)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+    encoder.put(trace)
+
+    payload, count = encoder.encode()[0]
+
+    # Even though it exceeds the limit, it should still be processed
+    assert count == 1
+    assert payload is not None
+    assert len(encoder) == 0  # Buffer should be empty
+
+
+def test_payload_size_splitting_incremental_processing(monkeypatch):
+    """Test that encoder processes traces incrementally when splitting"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 3000)  # 3KB
+
+    # Create multiple medium-sized traces
+    traces = []
+    medium_metadata = "x" * 400  # 400 bytes per trace
+
+    for i in range(10):  # Should trigger splitting
+        trace = [
+            Span(name=f"test.span.{i}", span_id=0xAAAAAA + i, service="test"),
+        ]
+        trace[0].set_tag_str("type", "test")
+        trace[0].set_tag_str("medium_data", medium_metadata)
+        traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+    for trace in traces:
+        encoder.put(trace)
+
+    payloads = encoder.encode()
+    total_processed = sum([c for _, c in payloads])
+
+    # All traces should eventually be processed
+    assert total_processed == 10
+    assert len(encoder) == 0
+
+
+def test_payload_size_splitting_empty_traces_handling(monkeypatch):
+    """Test that empty traces are handled correctly during splitting"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 2000)  # 2KB
+
+    # Mix of empty traces and traces with data
+    traces = []
+    metadata = "x" * 300  # 300 bytes per non-empty trace
+
+    for i in range(8):
+        if i % 2 == 0:
+            # Empty trace
+            traces.append([])
+        else:
+            # Trace with data
+            trace = [
+                Span(name=f"test.span.{i}", span_id=0xAAAAAA + i, service="test"),
+            ]
+            trace[0].set_tag_str("type", "test")
+            trace[0].set_tag_str("data", metadata)
+            traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+    for trace in traces:
+        encoder.put(trace)
+
+    payload, count = encoder.encode()[0]
+
+    # Should process all traces (empty traces are counted but don't contribute to payload)
+    assert count > 0
+    assert payload is not None or count == len([t for t in traces if not t])  # All empty traces case
+
+
+def test_payload_size_splitting_with_xdist_filtering(monkeypatch):
+    """Test payload splitting works correctly with xdist session filtering"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 2000)  # 2KB
+
+    # Create traces with session spans that will be filtered in xdist worker mode
+    traces = []
+    metadata = "x" * 300  # 300 bytes per trace
+
+    for i in range(6):
+        session_span = Span(name=f"test.session.{i}", span_id=0xAAAAAA + i, service="test")
+        session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+        session_span.set_tag_str("data", metadata)
+
+        test_span = Span(name=f"test.case.{i}", span_id=0xBBBBBB + i, service="test", span_type="test")
+        test_span.set_tag(EVENT_TYPE, "test")
+        test_span.set_tag_str("data", metadata)
+
+        traces.append([session_span, test_span])
+
+    # Mock xdist worker environment
+    import os
+
+    original_env = os.getenv("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
+
+    try:
+        encoder = CIVisibilityEncoderV01(0, 0)
+        encoder.set_metadata("*", {"language": "python"})
+        for trace in traces:
+            encoder.put(trace)
+
+        payload, count = encoder.encode()[0]
+
+        # Should process traces with session spans filtered out
+        assert count > 0
+        assert payload is not None
+
+        if payload:
+            decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+            events = decoded[b"events"]
+            # Should only have test events, no session events
+            for event in events:
+                assert event[b"type"] != b"session"
+
+    finally:
+        # Restore original environment
+        if original_env is None:
+            os.environ.pop("PYTEST_XDIST_WORKER", None)
+        else:
+            os.environ["PYTEST_XDIST_WORKER"] = original_env
+
+
+def test_payload_size_max_payload_constant():
+    """Test that the _MAX_PAYLOAD_SIZE constant is properly defined"""
+    encoder = CIVisibilityEncoderV01(0, 0)
+
+    # Should be 5MB
+    assert hasattr(encoder, "_MAX_PAYLOAD_SIZE")
+    assert encoder._MAX_PAYLOAD_SIZE == 5 * 1024 * 1024
+
+
+def test_payload_size_splitting_with_multiple_encode_calls(monkeypatch):
+    """Test that multiple encode calls work correctly with payload splitting"""
+    # Mock the payload size limit to a small value for testing
+    monkeypatch.setattr(CIVisibilityEncoderV01, "_MAX_PAYLOAD_SIZE", 1500)  # 1.5KB
+
+    # Create traces that will exceed the limit and require splitting
+    traces = []
+    metadata = "x" * 400  # 400 bytes per trace
+
+    for i in range(6):  # Should trigger splitting
+        trace = [
+            Span(name=f"test.span.{i}", span_id=0xAAAAAA + i, service="test"),
+        ]
+        trace[0].set_tag_str("type", "test")
+        trace[0].set_tag_str("data", metadata)
+        traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+
+    # Add traces to encoder
+    for trace in traces:
+        encoder.put(trace)
+
+    # Verify that encoder has traces
+    assert len(encoder) == 6
+
+    # Track all payloads generated
+    payloads = encoder.encode()
+    # Verify that encoder buffer is empty after processing
+    assert len(encoder) == 0
+
+    # Verify that all traces were processed
+    total_processed = sum([c for _, c in payloads])
+    assert total_processed == 6
+
+    # Verify that multiple payloads were created due to splitting
+    assert len(payloads) >= 2  # Should have at least 2 payloads due to splitting

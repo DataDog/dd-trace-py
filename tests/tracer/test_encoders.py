@@ -97,10 +97,10 @@ class RefMsgpackEncoder(_EncoderBase):
 
     def encode_traces(self, traces):
         normalized_traces = [[self.normalize(span) for span in trace] for trace in traces]
-        return self.encode(normalized_traces)[0]
+        return self.encode(normalized_traces)[0][0]
 
     def encode(self, obj):
-        return msgpack.packb(obj), len(obj)
+        return [(msgpack.packb(obj), len(obj))]
 
     @staticmethod
     def decode(data):
