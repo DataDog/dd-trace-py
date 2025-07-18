@@ -209,7 +209,6 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 
@@ -315,7 +314,6 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.started.start_span.my.cool.context", (ctx,)),
             ("context.ended.my.cool.context", (ctx,)),
         ]
 
