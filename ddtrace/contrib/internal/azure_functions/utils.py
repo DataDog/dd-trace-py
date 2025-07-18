@@ -1,6 +1,8 @@
 import functools
 import inspect
 
+import azure.functions as azure_functions
+
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
@@ -59,3 +61,11 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
                     core.dispatch(*post_dispatch(ctx, res))
 
     return wrapper
+
+
+def first_message(msg) -> azure_functions.ServiceBusMessage | None:
+    if isinstance(msg, azure_functions.ServiceBusMessage):
+        return msg
+    elif isinstance(msg, list) and msg and isinstance(msg[0], azure_functions.ServiceBusMessage):
+        return msg[0]
+    return None

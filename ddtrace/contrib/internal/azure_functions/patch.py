@@ -12,6 +12,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Pin
 
 from .utils import create_context
+from .utils import first_message
 from .utils import wrap_function_with_tracing
 
 
@@ -97,12 +98,18 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
         msg = kwargs.get(trigger_arg_name)
+        first_msg = first_message(msg)
+        if not first_msg:
+            return
         return create_context(
-            "azure.functions.patched_service_bus", pin, resource_name, headers=msg.application_properties
+            "azure.functions.patched_service_bus", pin, resource_name, headers=first_msg.application_properties
         )
 
     def pre_dispatch(ctx, kwargs):
         msg = kwargs.get(trigger_arg_name)
+        first_msg = first_message(msg)
+        if not first_msg:
+            return
         entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
         return (
             "azure.functions.service_bus_trigger_modifier",
@@ -113,7 +120,7 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
                 trigger_type,
                 SpanKind.CONSUMER,
                 entity_name,
-                msg.message_id,
+                first_msg.message_id,
             ),
         )
 
