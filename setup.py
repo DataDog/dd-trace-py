@@ -559,7 +559,8 @@ class CustomBuildExt(build_ext):
 
                 # We need to copy the binary where setuptools expects it
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(ext_path, full_path)
+                if ext_path.resolve() != full_path.resolve():
+                    shutil.copy(ext_path, full_path)
 
                 return
             else:
