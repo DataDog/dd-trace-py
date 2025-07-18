@@ -331,7 +331,7 @@ def test_custom_msgpack_encode(encoding):
     # can vary due to non-deterministic map key/value positioning
     encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
     ref_encoded = refencoder.encode_traces([trace, trace])
@@ -345,7 +345,7 @@ def test_custom_msgpack_encode(encoding):
     # Empty trace (not that this should be done in practice)
     encoder.put([])
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert decode(refencoder.encode_traces([[]])) == decode(encoded_traces[0][0])
 
     s = Span(None)
@@ -354,7 +354,7 @@ def test_custom_msgpack_encode(encoding):
     s.finish()
     encoder.put([s])
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert decode(refencoder.encode_traces([[s]])) == decode(encoded_traces[0][0])
 
 
@@ -384,7 +384,7 @@ def test_msgpack_span_property_variations(encoding, span):
     trace = [span]
     encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
 
@@ -427,7 +427,7 @@ def test_span_types(encoding, span, tags):
     trace = [span]
     encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
 
@@ -471,7 +471,7 @@ def test_span_link_v04_encoding():
 
     encoder.put([span])
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     decoded_trace = decode(encoded_traces[0][0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
@@ -653,7 +653,7 @@ def test_span_link_v05_encoding():
 
     encoder.put([span])
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     decoded_trace = decode(encoded_traces[0][0])
     assert len(decoded_trace) == 1
     assert len(decoded_trace[0]) == 1
@@ -695,7 +695,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
 
     encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     decoded_trace = decode(encoded_traces[0][0])
     assert len(decoded_trace) == 1
     assert decoded_trace[0]
@@ -728,7 +728,7 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
     encoder.put(trace)
 
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     assert encoder.size == len(encoded_traces[0][0])
 
 
@@ -784,7 +784,7 @@ def test_custom_msgpack_encode_v05():
 
     num_bytes = encoder.size
     flush_traces = encoder.flush()
-    assert flush_results, "Expected flush traces but got empty list"
+    assert flush_traces, "Expected flush traces but got empty list"
     [(encoded, num_traces)] = flush_traces
     assert num_traces == 1
     assert num_bytes == len(encoded)
@@ -911,7 +911,7 @@ def test_custom_msgpack_encode_thread_safe(encoding):
         t.join()
 
     encoded_traces = encoder.encode()
-    assert encoded_traces, "Expected non-empty results"
+    assert encoded_traces, "Expected non-empty traces"
     unpacked = decode(encoded_traces[0][0], reconstruct=True)
     assert unpacked is not None
 

@@ -381,7 +381,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             encoded_traces = client.encoder.encode()
             if not encoded_traces:
                 return
-            
+
             [(encoded, n_traces)] = encoded_traces
 
             if encoded is None:
