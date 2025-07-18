@@ -9,7 +9,6 @@ stages:
   - release
 
 variables:
-  SKIP_SHARED_PIPELINE: true
   REPO_LANG: python # "python" is used everywhere rather than "py"
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
