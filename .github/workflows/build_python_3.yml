@@ -59,6 +59,14 @@ jobs:
           persist-credentials: false
           fetch-depth: 0
 
+      - name: Debug secret availability
+        run: |
+          if [ -z "${{ secrets.DD_CIVIS_GHA_MONITORING_ACTION_KEY }}" ]; then
+            echo "Secret is empty or not available"
+          else
+            echo "Secret is available"
+          fi
+
       - name: Checkout CI Visibility GitHub SaaS Runner Monitoring action
         uses: actions/checkout@v4
         with:
