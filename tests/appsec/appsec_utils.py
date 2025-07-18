@@ -27,8 +27,17 @@ def gunicorn_server(
     apm_tracing_enabled="true",
     token=None,
     port=8000,
+    workers="3",
+    use_threads=False,
+    use_gevent=False,
+    env=None,
 ):
-    cmd = ["gunicorn", "-w", "3", "-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
+    cmd = ["python", "-m", "ddtrace.commands.ddtrace_run", "gunicorn", "-w", workers, "--log-level", "debug"]
+    if use_threads:
+        cmd += ["--threads", "1"]
+    if use_gevent:
+        cmd += ["-k", "gevent"]
+    cmd += ["-b", "0.0.0.0:%s" % port, "tests.appsec.app:app"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -37,6 +46,7 @@ def gunicorn_server(
         remote_configuration_enabled=remote_configuration_enabled,
         tracer_enabled=tracer_enabled,
         token=token,
+        env=env,
         port=port,
     )
 
@@ -56,7 +66,7 @@ def flask_server(
     assert_debug=False,
     manual_propagation_debug=False,
 ):
-    cmd = [python_cmd, app, "--no-reload"]
+    cmd = [python_cmd, "-m", "ddtrace.commands.ddtrace_run", "python", app, "--no-reload"]
     yield from appsec_application_server(
         cmd,
         appsec_enabled=appsec_enabled,
@@ -184,6 +194,7 @@ def appsec_application_server(
         env[IAST.ENV] = iast_enabled
         env[IAST.ENV_REQUEST_SAMPLING] = "100"
         env["DD_IAST_DEDUPLICATION_ENABLED"] = "false"
+        env["_DD_IAST_PATCH_MODULES"] = "tests.appsec."
         env[IAST.ENV_NO_DIR_PATCH] = "false"
         if assert_debug:
             env["_" + IAST.ENV_DEBUG] = iast_enabled

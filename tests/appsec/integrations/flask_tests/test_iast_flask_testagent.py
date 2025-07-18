@@ -1,7 +1,10 @@
+import json
+
 import pytest
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
+from ddtrace.appsec._iast.constants import VULN_INSECURE_HASHING_TYPE
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
@@ -49,11 +52,22 @@ def test_iast_stacktrace_error():
     assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-def test_iast_cmdi(server):
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
+        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": False}),
+        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": True}),
+        (gunicorn_server, {"workers": "1", "use_threads": False, "use_gevent": False}),
+        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": False}),
+        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
+        (flask_server, {}),
+    ),
+)
+def test_iast_cmdi(server, config):
     token = "test_iast_cmdi"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050) as context:
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
@@ -85,11 +99,22 @@ def test_iast_cmdi(server):
     assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
-def test_iast_cmdi_secure(server):
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
+        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": False}),
+        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": True}),
+        (gunicorn_server, {"workers": "1", "use_threads": False, "use_gevent": False}),
+        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": False}),
+        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
+        (flask_server, {}),
+    ),
+)
+def test_iast_cmdi_secure(server, config):
     token = "test_iast_cmdi_secure"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050) as context:
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability-secure?filename=path_traversal_test_file.txt")
@@ -235,3 +260,93 @@ def test_iast_code_injection_with_stacktrace(server):
         assert metastruct
     else:
         assert len(vulnerabilities) == 0
+
+
+@pytest.mark.parametrize(
+    "server, config",
+    (
+        (
+            gunicorn_server,
+            {"workers": "3", "use_threads": False, "use_gevent": False, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+        ),
+        (
+            gunicorn_server,
+            {"workers": "3", "use_threads": True, "use_gevent": False, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+        ),
+        (
+            gunicorn_server,
+            {"workers": "3", "use_threads": True, "use_gevent": True, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+        ),
+        (
+            gunicorn_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {"_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe."},
+            },
+        ),
+        (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
+    ),
+)
+def test_iast_vulnerable_request_downstream(server, config):
+    token = "test_iast_vulnerable_request_downstream"
+    _ = start_trace(token)
+    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+        _, flask_client, pid = context
+        trace_id = 1212121212121212121
+        parent_id = 34343434
+        response = flask_client.get(
+            "/vulnerablerequestdownstream",
+            headers={
+                "x-datadog-trace-id": str(trace_id),
+                "x-datadog-parent-id": str(parent_id),
+                "x-datadog-sampling-priority": "-1",
+                "x-datadog-origin": "rum",
+                "x-datadog-tags": "_dd.p.other=1",
+            },
+        )
+
+        assert response.status_code == 200
+        downstream_headers = json.loads(response.text)
+
+        assert downstream_headers["X-Datadog-Origin"] == "rum"
+        assert downstream_headers["X-Datadog-Parent-Id"] != "34343434"
+        assert "_dd.p.other=1" in downstream_headers["X-Datadog-Tags"]
+        assert downstream_headers["X-Datadog-Sampling-Priority"] == "2"
+        assert downstream_headers["X-Datadog-Trace-Id"] == "1212121212121212121"
+
+    response_tracer = _get_span(token)
+    spans = []
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+            spans.append(span)
+    clear_session(token)
+
+    assert len(spans) == 30, f"Incorrect number of spans ({len(spans)}):\n{spans}"
+    assert len(spans_with_iast) == 3
+    assert len(vulnerabilities) == 1
+    assert len(vulnerabilities[0]) == 1
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_INSECURE_HASHING_TYPE
+    assert "valueParts" not in vulnerability["evidence"]
+    assert vulnerability["hash"]
