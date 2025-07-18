@@ -25,6 +25,15 @@ jobs:
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         with:
           python-version: '3.8'
+
+      - name: Debug secret availability
+        run: |
+          if [ -z "${{ secrets.DD_CIVIS_GHA_MONITORING_ACTION_KEY }}" ]; then
+            echo "Secret is empty or not available"
+          else
+            echo "Secret is available"
+          fi
+          
       - run: pip install cibuildwheel==2.22.0
       - id: set-matrix
         env:
@@ -52,21 +61,6 @@ jobs:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
 
     steps:
-
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
-        # Include all history and tags
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Debug secret availability
-        run: |
-          if [ -z "${{ secrets.DD_CIVIS_GHA_MONITORING_ACTION_KEY }}" ]; then
-            echo "Secret is empty or not available"
-          else
-            echo "Secret is available"
-          fi
-
       - name: Checkout CI Visibility GitHub SaaS Runner Monitoring action
         uses: actions/checkout@v4
         with:
@@ -76,9 +70,15 @@ jobs:
           path: civis-gha-monitor-action
       - name: Setup CI Visibility GitHub SaaS Runner Monitoring
         uses: ./civis-gha-monitor-action
-        if: ${{ runner.os == 'Linux' && matrix.os == 'arm-4core-linux-ubuntu24.04' }}
+        if: runner.os == 'Linux' && matrix.os == 'arm-4core-linux-ubuntu24.04'
         with:
           upload-artifacts: 'true'
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        # Include all history and tags
+        with:
+          persist-credentials: false
+          fetch-depth: 0
 
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5.6.0
         if: matrix.os != 'arm-4core-linux-ubuntu24.04'
