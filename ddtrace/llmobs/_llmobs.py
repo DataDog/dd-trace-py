@@ -591,24 +591,6 @@ class LLMObs(Service):
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
-    def _create_experiment(
-        self,
-        name: str,
-        dataset_id: str,
-        project_name: str,
-        dataset_version: int = 0,
-        exp_config: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[List[str]] = None,
-        description: Optional[str] = None,
-    ) -> Tuple[str, str]:
-        project_id = self._dne_client.project_get(project_name)
-        if not project_id:
-            project_id = self._dne_client.project_create(project_name)
-        experiment_id, experiment_run_name = self._dne_client.experiment_create(
-            name, dataset_id, project_id, dataset_version, exp_config, tags, description
-        )
-        return experiment_id, experiment_run_name
-
     @classmethod
     def experiment(
         cls,
