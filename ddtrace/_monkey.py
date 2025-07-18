@@ -1,6 +1,5 @@
 import importlib
 import os
-import threading
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Union
@@ -9,6 +8,7 @@ from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.threads import Lock
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
@@ -130,7 +130,7 @@ CONTRIB_DEPENDENCIES = {
 }
 
 
-_LOCK = threading.Lock()
+_LOCK = Lock()
 _PATCHED_MODULES = set()
 
 # Module names that need to be patched for a given integration. If the module

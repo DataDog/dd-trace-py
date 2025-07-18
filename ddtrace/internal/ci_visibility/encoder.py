@@ -1,6 +1,5 @@
 import json
 import os
-import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from uuid import uuid4
 
@@ -21,6 +20,7 @@ from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_pay
 from ddtrace.internal.ci_visibility.telemetry.payload import record_endpoint_payload_events_serialization_time
 from ddtrace.internal.encoding import JSONEncoderV2
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.time import StopWatch
 from ddtrace.internal.writer.writer import NoEncodableSpansError
 
@@ -47,7 +47,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
-        self._lock = threading.RLock()
+        self._lock = RLock()
         self._metadata = {}
         self._init_buffer()
 

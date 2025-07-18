@@ -5,7 +5,6 @@ import gzip
 import logging
 import os
 import sys
-import threading
 from typing import TYPE_CHECKING
 from typing import Callable
 from typing import Dict
@@ -15,7 +14,7 @@ from typing import TextIO
 
 import ddtrace
 from ddtrace import config
-import ddtrace.internal.utils.http
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
@@ -184,7 +183,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         # The connection has to be locked since there exists a race between
         # the periodic thread of HTTPWriter and other threads that might
         # force a flush with `flush_queue()`.
-        self._conn_lck: threading.RLock = threading.RLock()
+        self._conn_lck = RLock()
 
         self._send_payload_with_backoff = fibonacci_backoff_with_jitter(  # type ignore[assignment]
             attempts=self.RETRY_ATTEMPTS,
