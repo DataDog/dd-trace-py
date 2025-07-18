@@ -1,4 +1,5 @@
 import os
+
 os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
 
 from opentelemetry.trace import set_tracer_provider
