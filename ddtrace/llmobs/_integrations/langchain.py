@@ -185,7 +185,6 @@ class LangChainIntegration(BaseLLMIntegration):
                 LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
             )
 
-
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
@@ -421,7 +420,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_tag_key: input_messages,
             }
         )
-        
+
         self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
@@ -457,9 +456,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
             }
         )
-        
+
         self._llmobs_set_metadata(span, kwargs)
-        
+
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
