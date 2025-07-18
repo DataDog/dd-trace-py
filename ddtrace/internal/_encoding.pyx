@@ -60,6 +60,8 @@ cdef extern from "pack.h":
     int msgpack_pack_true(msgpack_packer* pk)
     int msgpack_pack_false(msgpack_packer* pk)
 
+from libc.limits cimport LONG_MAX, LLONG_MIN, LLONG_MAX, ULLONG_MAX
+
 
 cdef long long ITEM_LIMIT = (2**32)-1
 
@@ -124,7 +126,9 @@ cdef inline int pack_number(msgpack_packer *pk, object n) except? -1:
     if PyLong_Check(n):
         try:
             if n > 0:
+                n = min(ULLONG_MAX, n)
                 return msgpack_pack_unsigned_long_long(pk, <unsigned long long> n)
+            n = max(LLONG_MIN, min(LLONG_MAX, n))
             return msgpack_pack_long_long(pk, <long long> n)
         except OverflowError as oe:
             raise OverflowError("Integer value out of range")
@@ -1049,12 +1053,14 @@ cdef class MsgpackEncoderV05(MsgpackEncoderBase):
             return ret
 
         _ = span.start_ns
-        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
+        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
+        ret = msgpack_pack_int64(&self.pk, _)
         if ret != 0:
             return ret
 
         _ = span.duration_ns
-        ret = msgpack_pack_int64(&self.pk, _ if _ is not None else 0)
+        _ = max(0, min(LONG_MAX, _ if _ is not None else 0))
+        ret = msgpack_pack_int64(&self.pk, _)
         if ret != 0:
             return ret
 

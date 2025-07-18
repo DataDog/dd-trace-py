@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue in which span durations or start timestamps exceeding the platform's ``LONG_MAX``
+    caused traces to fail to send.

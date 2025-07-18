@@ -111,13 +111,13 @@ class DefaultContextProvider(BaseContextProvider):
         When a span finishes, the active span becomes its parent.
         If no parent exists and the context is reactivatable, that context is restored.
         """
-        if span.finished:
-            new_active: Optional[Span] = span
-            while new_active and new_active.finished:
-                if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
-                    self.activate(new_active._parent_context)
-                    return new_active._parent_context
-                new_active = new_active._parent
+        new_active: Optional[Span] = span
+        # PERF: Avoid calling `Span.finished` more than once per span. This is a computed property.
+        while new_active and new_active.finished:
+            if new_active._parent is None and new_active._parent_context and new_active._parent_context._reactivate:
+                self.activate(new_active._parent_context)
+                return new_active._parent_context
+            new_active = new_active._parent
+        if new_active is not span:
             self.activate(new_active)
-            return new_active
-        return span
+        return new_active

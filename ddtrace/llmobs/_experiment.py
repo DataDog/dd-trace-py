@@ -20,6 +20,7 @@ from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 
 
 if TYPE_CHECKING:
@@ -262,6 +263,7 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             return {
                 "idx": idx,
                 "span_id": span_id,

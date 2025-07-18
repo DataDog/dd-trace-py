@@ -544,10 +544,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payload = []
+        for event in events:
+            event_data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
+            if event.get("_dd", {}).get("scope") == "experiments":
+                event_data["_dd.scope"] = "experiments"
+            payload.append(event_data)
+        return payload
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
