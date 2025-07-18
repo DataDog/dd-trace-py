@@ -100,7 +100,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
                 metadata["temperature"] = agent_model_settings.get("temperature", None)
             span._set_ctx_items(
                 {
-                    NAME: agent_name if agent_name else "PydanticAI Agent",
+                    NAME: agent_name or "PydanticAI Agent",
                     METADATA: metadata,
                 }
             )
@@ -129,7 +129,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "message")
+        tool_call = get_argument_value(args, kwargs, 0, "message", optional=True)
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         if tool_call:
