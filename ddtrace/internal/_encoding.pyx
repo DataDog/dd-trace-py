@@ -462,7 +462,7 @@ cdef class MsgpackEncoderBase(BufferedEncoder):
     cpdef encode(self):
         with self._lock:
             if not self._count:
-                return [(None, 0)]
+                return []
 
             return self.flush()
 

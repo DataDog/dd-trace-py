@@ -240,7 +240,9 @@ def test_encode_meta_struct():
         ]
     )
 
-    [(spans, _)] = encoder.encode()
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected encoded results but got empty list"
+    [(spans, _)] = encoded_results
     items = decode(spans)
     assert isinstance(spans, bytes)
     assert len(items) == 1
@@ -328,24 +330,32 @@ def test_custom_msgpack_encode(encoding):
     # Note that we assert on the decoded versions because the encoded
     # can vary due to non-deterministic map key/value positioning
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_results[0][0])
 
     ref_encoded = refencoder.encode_traces([trace, trace])
     encoder.put(trace)
     encoder.put(trace)
-    [(encoded, _)] = encoder.encode()
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected encoded results but got empty list"
+    [(encoded, _)] = encoded_results
     assert decode(encoded) == decode(ref_encoded)
 
     # Empty trace (not that this should be done in practice)
     encoder.put([])
-    assert decode(refencoder.encode_traces([[]])) == decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert decode(refencoder.encode_traces([[]])) == decode(encoded_results[0][0])
 
     s = Span(None)
     # Need to .finish() to have a duration since the old implementation will not encode
     # duration_ns, the new one will encode as None
     s.finish()
     encoder.put([s])
-    assert decode(refencoder.encode_traces([[s]])) == decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert decode(refencoder.encode_traces([[s]])) == decode(encoded_results[0][0])
 
 
 def span_type_span():
@@ -373,7 +383,9 @@ def test_msgpack_span_property_variations(encoding, span):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_results[0][0])
 
 
 class SubString(str):
@@ -414,7 +426,9 @@ def test_span_types(encoding, span, tags):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert decode(refencoder.encode_traces([trace])) == decode(encoded_results[0][0])
 
 
 def test_span_link_v04_encoding():
@@ -456,7 +470,9 @@ def test_span_link_v04_encoding():
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    decoded_trace = decode(encoded_results[0][0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
     # ensure trace has one span
@@ -562,7 +578,9 @@ def test_span_event_encoding_msgpack():
 
     encoder = MSGPACK_ENCODERS[version](1 << 20, 1 << 20)
     encoder.put([span])
-    [data] = encoder.encode()
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected encoded results but got empty list"
+    [data] = encoded_results
     decoded_trace = decode(data[0])
     # ensure one trace was decoded
     assert len(decoded_trace) == 1
@@ -634,7 +652,9 @@ def test_span_link_v05_encoding():
     span.finish()
 
     encoder.put([span])
-    decoded_trace = decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    decoded_trace = decode(encoded_results[0][0])
     assert len(decoded_trace) == 1
     assert len(decoded_trace[0]) == 1
 
@@ -674,7 +694,9 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     assert trace, "DummyWriter failed to encode the trace"
 
     encoder.put(trace)
-    decoded_trace = decode(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    decoded_trace = decode(encoded_results[0][0])
     assert len(decoded_trace) == 1
     assert decoded_trace[0]
 
@@ -705,7 +727,9 @@ def test_custom_msgpack_encode_trace_size(encoding, trace_id, name, service, res
 
     encoder.put(trace)
 
-    assert encoder.size == len(encoder.encode()[0][0])
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    assert encoder.size == len(encoded_results[0][0])
 
 
 def test_encoder_buffer_size_limit_v05():
@@ -759,7 +783,9 @@ def test_custom_msgpack_encode_v05():
     assert len(encoder) == 1
 
     num_bytes = encoder.size
-    [(encoded, num_traces)] = encoder.flush()
+    flush_results = encoder.flush()
+    assert flush_results, "Expected flush results but got empty list"
+    [(encoded, num_traces)] = flush_results
     assert num_traces == 1
     assert num_bytes == len(encoded)
     st, ts = decode(encoded, reconstruct=False)
@@ -852,7 +878,8 @@ def test_encoding_invalid_data(data):
         encoder.put(trace)
 
     assert e.match(r"failed to pack span: <Span\(id="), e
-    assert encoder.encode()[0][0] is None
+    encoded_results = encoder.encode()
+    assert (not encoded_results) or (encoded_results[0][0] is None)
 
 
 @allencodings
@@ -883,7 +910,9 @@ def test_custom_msgpack_encode_thread_safe(encoding):
     for t in ts:
         t.join()
 
-    unpacked = decode(encoder.encode()[0][0], reconstruct=True)
+    encoded_results = encoder.encode()
+    assert encoded_results, "Expected non-empty results"
+    unpacked = decode(encoded_results[0][0], reconstruct=True)
     assert unpacked is not None
 
 
