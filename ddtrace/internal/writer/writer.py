@@ -832,6 +832,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             api_version=api_version,
             report_metrics=self._report_metrics,
             test_session_token=self._test_session_token,
+            stats_opt_out=self._stats_opt_out,
         )
 
     def _downgrade(self, status, client):
