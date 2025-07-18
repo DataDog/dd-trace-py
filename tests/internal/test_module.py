@@ -543,7 +543,8 @@ def test_module_import_side_effect():
 
 def test_public_modules_in_ddtrace_contrib():
     """Ensures that integration implementation details are not accidentally added to our public api.
-    By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/""""
+    By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
+    """
     contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
     public_modules = set()
