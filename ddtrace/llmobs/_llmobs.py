@@ -48,6 +48,7 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -112,6 +113,7 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "google_generativeai": "google_generativeai",
+    "google_genai": "google_genai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
     "litellm": "litellm",
@@ -241,6 +243,11 @@ class LLMObs(Service):
             raise KeyError("Span kind not found in span context")
 
         llmobs_span = LLMObsSpan()
+        _dd_attrs = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        }
 
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
@@ -255,6 +262,12 @@ class LLMObs(Service):
             llmobs_span.input = [
                 {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
             ]
+
+        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            _dd_attrs["scope"] = "experiments"
+            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+            if span_kind == "experiment" and expected_output:
+                meta["expected_output"] = expected_output
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -349,11 +362,7 @@ class LLMObs(Service):
             "meta": meta,
             "metrics": metrics,
             "tags": [],
-            "_dd": {
-                "span_id": str(span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "apm_trace_id": format_trace_id(span.trace_id),
-            },
+            "_dd": _dd_attrs,
         }
         session_id = _get_session_id(span)
         if session_id is not None:
