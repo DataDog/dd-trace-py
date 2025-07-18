@@ -5,7 +5,7 @@ Datadog APM traces can be integrated with the logs product by:
 attributes to the log record.
 
 2. Updating the log formatter used by the application. In order to inject
-tracing information into a log the formatter must be updated to include the
+tracing information using the log the formatter must be updated to include the
 tracing attributes from the log record.
 
 
@@ -15,22 +15,20 @@ Enabling
 Patch ``logging``
 ~~~~~~~~~~~~~~~~~
 
-There are a few ways to tell ddtrace to patch the ``logging`` module:
-
-1. If using :ref:`ddtrace-run<ddtracerun>`, you can set the environment variable ``DD_LOGS_INJECTION=true``.
-
-2. Use :func:`patch()<ddtrace.patch>` to manually enable the integration::
-
-    from ddtrace import patch
-    patch(logging=True)
-
-3. (beta) Set ``log_injection_enabled`` at runtime via the Datadog UI.
+Datadog support for built-in logging is enabled by default when you either: run your application
+with the ddtrace-run command, or Import ddtrace.auto in your code. If you are using the ddtrace
+library directly, you can enable logging support by calling: ``ddtrace.patch(logging=True)``.
+Note: Directly enabling integrations via ddtrace.patch(...) is not recommended.
 
 
 Update Log Format
 ~~~~~~~~~~~~~~~~~
 
-Make sure that your log format exactly matches the following::
+Make sure that your log format supports the following attributes: ``dd.trace_id``, ``dd.span_id``,
+``dd.service``, ``dd.env``, ``dd.version``. These values will be automatically added to
+the log record by the ``ddtrace`` library.
+
+Example::
 
     import logging
     from ddtrace.trace import tracer
