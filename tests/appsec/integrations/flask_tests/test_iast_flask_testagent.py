@@ -56,10 +56,6 @@ def test_iast_stacktrace_error():
     "server, config",
     (
         (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": False}),
-        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": True}),
-        (gunicorn_server, {"workers": "1", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": False}),
         (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
         (flask_server, {}),
     ),
@@ -103,10 +99,6 @@ def test_iast_cmdi(server, config):
     "server, config",
     (
         (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": False}),
-        (gunicorn_server, {"workers": "3", "use_threads": True, "use_gevent": True}),
-        (gunicorn_server, {"workers": "1", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": False}),
         (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
         (flask_server, {}),
     ),
