@@ -1,0 +1,3 @@
+fixes:
+  - |
+    azure_functions: This fix resolves an issue where a function that consumes a list of service bus messages throws an exception when instrumented.
