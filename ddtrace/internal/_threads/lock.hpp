@@ -5,6 +5,9 @@
 
 #include <atomic>
 #include <mutex>
+#include <set>
+
+std::unique_ptr<std::mutex> _lock_set_mutex = std::make_unique<std::mutex>();
 
 // ----------------------------------------------------------------------------
 // Lock class
@@ -20,11 +23,22 @@ typedef struct lock
     std::unique_ptr<std::timed_mutex> _mutex = nullptr;
 } Lock;
 
+std::set<Lock*> lock_set; // Global set of locks for reset after fork
+
 // ----------------------------------------------------------------------------
 static int
 Lock_init(Lock* self, PyObject* args, PyObject* kwargs)
 {
     self->_mutex = std::make_unique<std::timed_mutex>();
+
+    // Register the lock for reset after fork
+    {
+        AllowThreads _;
+
+        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+
+        lock_set.insert(self);
+    }
 
     return 0;
 }
@@ -33,6 +47,15 @@ Lock_init(Lock* self, PyObject* args, PyObject* kwargs)
 static void
 Lock_dealloc(Lock* self)
 {
+    // Unregister the lock from the global set
+    {
+        AllowThreads _;
+
+        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+
+        lock_set.erase(self);
+    }
+
     self->_mutex = nullptr;
 
     Py_TYPE(self)->tp_free((PyObject*)self);
@@ -127,6 +150,13 @@ Lock_exit(Lock* self, PyObject* args, PyObject* kwargs)
     Py_RETURN_FALSE;
 }
 
+static inline void
+Lock_reset(Lock* self)
+{
+    self->_mutex = std::make_unique<std::timed_mutex>();
+    self->_locked = 0;
+}
+
 // ----------------------------------------------------------------------------
 static PyMethodDef Lock_methods[] = {
     { "acquire", (PyCFunction)Lock_acquire, METH_VARARGS | METH_KEYWORDS, "Acquire the lock with an optional timeout" },
@@ -170,11 +200,22 @@ typedef struct rlock
     std::unique_ptr<std::recursive_timed_mutex> _mutex = nullptr;
 } RLock;
 
+std::set<RLock*> rlock_set; // Global set of re-entrant locks for reset after fork
+
 // ----------------------------------------------------------------------------
 static int
 RLock_init(RLock* self, PyObject* args, PyObject* kwargs)
 {
     self->_mutex = std::make_unique<std::recursive_timed_mutex>();
+
+    // Register the re-entrant lock for reset after fork
+    {
+        AllowThreads _;
+
+        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+
+        rlock_set.insert(self);
+    }
 
     return 0;
 }
@@ -183,6 +224,14 @@ RLock_init(RLock* self, PyObject* args, PyObject* kwargs)
 static void
 RLock_dealloc(RLock* self)
 {
+    {
+        AllowThreads _;
+
+        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+
+        rlock_set.erase(self);
+    }
+
     self->_mutex = nullptr;
 
     Py_TYPE(self)->tp_free((PyObject*)self);
@@ -277,6 +326,13 @@ RLock_exit(RLock* self, PyObject* args, PyObject* kwargs)
     Py_RETURN_FALSE;
 }
 
+static inline void
+RLock_reset(RLock* self)
+{
+    self->_mutex = std::make_unique<std::recursive_timed_mutex>();
+    self->_locked = 0;
+}
+
 // ----------------------------------------------------------------------------
 static PyMethodDef RLock_methods[] = {
     { "acquire",
@@ -308,3 +364,24 @@ static PyTypeObject RLockType = {
     .tp_init = (initproc)RLock_init,
     .tp_new = PyType_GenericNew,
 };
+
+// ----------------------------------------------------------------------------
+static PyObject*
+lock_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // Reset all locks that have been registered for reset after a fork. This
+    // MUST be called in a single-thread scenario only, e.g. soon after the
+    // fork.
+    for (Lock* lock : lock_set) {
+        Lock_reset(lock);
+    }
+
+    for (RLock* rlock : rlock_set) {
+        RLock_reset(rlock);
+    }
+
+    // Reset the lock set mutex too!
+    _lock_set_mutex = std::make_unique<std::mutex>();
+
+    Py_RETURN_NONE;
+}

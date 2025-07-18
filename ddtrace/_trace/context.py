@@ -1,6 +1,5 @@
 import base64
 import re
-import threading
 from typing import Any
 from typing import Dict
 from typing import List
@@ -66,7 +65,7 @@ class Context(object):
         sampling_priority: Optional[float] = None,
         meta: Optional[_MetaDictType] = None,
         metrics: Optional[_MetricDictType] = None,
-        lock: Optional[threading.RLock] = None,
+        lock: Optional[RLock] = None,
         span_links: Optional[List[SpanLink]] = None,
         baggage: Optional[Dict[str, Any]] = None,
         is_remote: bool = True,

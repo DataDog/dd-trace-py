@@ -1,10 +1,11 @@
 import atexit
 
 from ddtrace.internal import forksafe
-from ddtrace.internal._threads import Lock as _Lock
+from ddtrace.internal._threads import Lock
 from ddtrace.internal._threads import PeriodicThread
-from ddtrace.internal._threads import RLock as _RLock
+from ddtrace.internal._threads import RLock
 from ddtrace.internal._threads import periodic_threads
+from ddtrace.internal._threads import reset_locks
 
 
 __all__ = [
@@ -35,9 +36,4 @@ def _() -> None:
     periodic_threads.clear()
 
 
-def Lock() -> forksafe.ResetObject[_Lock]:
-    return forksafe.ResetObject(_Lock)
-
-
-def RLock() -> forksafe.ResetObject[_RLock]:
-    return forksafe.ResetObject(_RLock)
+forksafe.register(reset_locks)
