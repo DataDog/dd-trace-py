@@ -160,7 +160,6 @@ traceback_free(traceback_t* tb)
         Py_DECREF(tb->frames[nframe].filename);
         Py_DECREF(tb->frames[nframe].name);
     }
-    memalloc_debug_gil_release();
     PyMem_RawFree(tb);
 }
 
@@ -250,7 +249,11 @@ memalloc_frame_to_traceback(PyFrameObject* pyframe, uint16_t max_nframe)
 }
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain)
+memalloc_get_traceback(uint16_t max_nframe,
+                       void* ptr,
+                       size_t size,
+                       PyMemAllocatorDomain domain,
+                       size_t allocated_memory)
 {
     PyThreadState* tstate = PyThreadState_Get();
 
@@ -271,12 +274,24 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocat
     if (traceback == NULL)
         return NULL;
 
-    traceback->size = size;
+    traceback->size = allocated_memory;
     traceback->ptr = ptr;
 
     traceback->thread_id = PyThread_get_thread_ident();
 
     traceback->domain = domain;
+
+    traceback->reported = false;
+
+    if (size > 0) {
+        double scaled_count = ((double)allocated_memory) / ((double)size);
+        traceback->count = (size_t)scaled_count;
+        if (traceback->count == 0) {
+            traceback->count = 1;
+        }
+    } else {
+        traceback->count = 1;
+    }
 
     return traceback;
 }

@@ -114,31 +114,6 @@ memalloc_add_sample_no_cpython(memalloc_context_t* ctx, traceback_t* tb)
 }
 
 static void
-memalloc_add_event(memalloc_context_t* ctx, void* ptr, size_t size)
-{
-    if (!memalloc_should_sample_no_cpython(ctx)) {
-        return;
-    }
-
-    if (!memalloc_take_guard()) {
-        return;
-    }
-
-    traceback_t* tb = memalloc_get_traceback(ctx->max_nframe, ptr, size, ctx->domain);
-    if (!tb) {
-        memalloc_yield_guard();
-        return;
-    }
-
-    traceback_t* to_free = memalloc_add_sample_no_cpython(ctx, tb);
-    if (to_free) {
-        traceback_free(to_free);
-    }
-
-    memalloc_yield_guard();
-}
-
-static void
 memalloc_free(void* ctx, void* ptr)
 {
     PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
@@ -163,7 +138,6 @@ memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
         ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
 
     if (ptr) {
-        memalloc_add_event(memalloc_ctx, ptr, nelem * elsize);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
     }
 
@@ -189,7 +163,6 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
     void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
 
     if (ptr2) {
-        memalloc_add_event(memalloc_ctx, ptr2, new_size);
         memalloc_heap_untrack(ptr);
         memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
     }
@@ -358,156 +331,6 @@ memalloc_heap_py(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
     return memalloc_heap();
 }
 
-typedef struct
-{
-    PyObject_HEAD alloc_tracker_t* alloc_tracker;
-    uint32_t seq_index;
-} IterEventsState;
-
-PyDoc_STRVAR(iterevents__doc__,
-             "iter_events()\n"
-             "--\n"
-             "\n"
-             "Returns a tuple with 3 items:\n:"
-             "1. an iterator of memory allocation traced so far\n"
-             "2. the number of items in the iterator\n"
-             "3. the total number of allocations since last reset\n"
-             "\n"
-             "Also reset the traces of memory blocks allocated by Python.");
-static PyObject*
-iterevents_new(PyTypeObject* type, PyObject* Py_UNUSED(args), PyObject* Py_UNUSED(kwargs))
-{
-    IterEventsState* iestate = (IterEventsState*)type->tp_alloc(type, 0);
-    if (!iestate) {
-        PyErr_SetString(PyExc_RuntimeError, "failed to allocate IterEventsState");
-        return NULL;
-    }
-
-    MEMALLOC_GIL_DEBUG_CHECK_ACQUIRE(&global_memalloc_ctx.alloc_gil_guard);
-    if (!global_alloc_tracker) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&global_memalloc_ctx.alloc_gil_guard);
-        PyErr_SetString(PyExc_RuntimeError, "the memalloc module was not started");
-        Py_TYPE(iestate)->tp_free(iestate);
-        return NULL;
-    }
-
-    /* Reset the current traceback list. Do this outside lock so we can track it,
-     * and avoid reentrancy/deadlock problems, if we start tracking the raw
-     * allocator domain */
-    alloc_tracker_t* tracker = alloc_tracker_new();
-    if (!tracker) {
-        MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&global_memalloc_ctx.alloc_gil_guard);
-        PyErr_SetString(PyExc_RuntimeError, "failed to allocate new allocation tracker");
-        Py_TYPE(iestate)->tp_free(iestate);
-        return NULL;
-    }
-
-    iestate->alloc_tracker = global_alloc_tracker;
-    global_alloc_tracker = tracker;
-    MEMALLOC_GIL_DEBUG_CHECK_RELEASE(&global_memalloc_ctx.alloc_gil_guard);
-
-    iestate->seq_index = 0;
-
-    PyObject* iter_and_count = PyTuple_New(3);
-    PyTuple_SET_ITEM(iter_and_count, 0, (PyObject*)iestate);
-    PyTuple_SET_ITEM(iter_and_count, 1, PyLong_FromUnsignedLong(iestate->alloc_tracker->allocs.count));
-    PyTuple_SET_ITEM(iter_and_count, 2, PyLong_FromUnsignedLongLong(iestate->alloc_tracker->alloc_count));
-
-    return iter_and_count;
-}
-
-static void
-iterevents_dealloc(IterEventsState* iestate)
-{
-    alloc_tracker_free(iestate->alloc_tracker);
-    Py_TYPE(iestate)->tp_free(iestate);
-}
-
-static PyObject*
-iterevents_next(IterEventsState* iestate)
-{
-    if (iestate->seq_index < iestate->alloc_tracker->allocs.count) {
-        traceback_t* tb = iestate->alloc_tracker->allocs.tab[iestate->seq_index];
-        iestate->seq_index++;
-
-        PyObject* tb_size_domain = PyTuple_New(3);
-        PyTuple_SET_ITEM(tb_size_domain, 0, traceback_to_tuple(tb));
-        PyTuple_SET_ITEM(tb_size_domain, 1, PyLong_FromSize_t(tb->size));
-
-        /* Domain name */
-        if (tb->domain == PYMEM_DOMAIN_OBJ) {
-            PyTuple_SET_ITEM(tb_size_domain, 2, object_string);
-            Py_INCREF(object_string);
-        } else {
-            PyTuple_SET_ITEM(tb_size_domain, 2, Py_None);
-            Py_INCREF(Py_None);
-        }
-
-        return tb_size_domain;
-    }
-
-    /* Returning NULL in this case is enough. The next() builtin will raise the
-     * StopIteration error for us.
-     */
-    return NULL;
-}
-
-static PyTypeObject MemallocIterEvents_Type = {
-    PyVarObject_HEAD_INIT(NULL, 0) "iter_events", /* tp_name */
-    sizeof(IterEventsState),                      /* tp_basicsize */
-    0,                                            /* tp_itemsize */
-    (destructor)iterevents_dealloc,               /* tp_dealloc */
-    0,                                            /* tp_print */
-    0,                                            /* tp_getattr */
-    0,                                            /* tp_setattr */
-    0,                                            /* tp_reserved */
-    0,                                            /* tp_repr */
-    0,                                            /* tp_as_number */
-    0,                                            /* tp_as_sequence */
-    0,                                            /* tp_as_mapping */
-    0,                                            /* tp_hash */
-    0,                                            /* tp_call */
-    0,                                            /* tp_str */
-    0,                                            /* tp_getattro */
-    0,                                            /* tp_setattro */
-    0,                                            /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT,                           /* tp_flags */
-    iterevents__doc__,                            /* tp_doc */
-    0,                                            /* tp_traverse */
-    0,                                            /* tp_clear */
-    0,                                            /* tp_richcompare */
-    0,                                            /* tp_weaklistoffset */
-    PyObject_SelfIter,                            /* tp_iter */
-    (iternextfunc)iterevents_next,                /* tp_iternext */
-    0,                                            /* tp_methods */
-    0,                                            /* tp_members */
-    0,                                            /* tp_getset */
-    0,                                            /* tp_base */
-    0,                                            /* tp_dict */
-    0,                                            /* tp_descr_get */
-    0,                                            /* tp_descr_set */
-    0,                                            /* tp_dictoffset */
-    0,                                            /* tp_init */
-    PyType_GenericAlloc,                          /* tp_alloc */
-    iterevents_new,                               /* tp_new */
-    0,                                            /* tp_free */
-    0,                                            /* tp_is_gc */
-    0,                                            /* tp_bases */
-    0,                                            /* tp_mro */
-    0,                                            /* tp_cache */
-    0,                                            /* tp_subclass */
-    0,                                            /* tp_subclasses */
-    0,                                            /* tp_del */
-    0,                                            /* tp_version_tag */
-    0,                                            /* tp_finalize */
-#ifdef _PY38_AND_LATER
-    0, /* tp_vectorcall */
-#endif
-#ifdef _PY38
-    0, /* tp_print */
-#endif
-};
-
 static PyMethodDef module_methods[] = { { "start", (PyCFunction)memalloc_start, METH_VARARGS, memalloc_start__doc__ },
                                         { "stop", (PyCFunction)memalloc_stop, METH_NOARGS, memalloc_stop__doc__ },
                                         { "heap", (PyCFunction)memalloc_heap_py, METH_NOARGS, memalloc_heap_py__doc__ },
@@ -534,15 +357,6 @@ PyInit__memalloc(void)
     if (!memalloc_ddframe_class_init()) {
         return NULL;
     }
-
-    if (PyType_Ready(&MemallocIterEvents_Type) < 0)
-        return NULL;
-    Py_INCREF((PyObject*)&MemallocIterEvents_Type);
-#ifdef _PY39_AND_LATER
-    PyModule_AddType(m, &MemallocIterEvents_Type);
-#else
-    PyModule_AddObject(m, "iter_events", (PyObject*)&MemallocIterEvents_Type);
-#endif
 
     return m;
 }
