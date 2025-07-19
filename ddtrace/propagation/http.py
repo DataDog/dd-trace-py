@@ -19,6 +19,8 @@ from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
+from ddtrace.internal.telemetry import telemetry_writer
+from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
@@ -149,6 +151,20 @@ def _dd_id_to_b3_id(dd_id):
         # https://github.com/openzipkin/b3-propagation#traceid
         return "{:032x}".format(dd_id)
     return "{:016x}".format(dd_id)
+
+
+def _record_http_telemetry(metric_name: str, header_style: str) -> None:
+    """Record telemetry metric for HTTP propagation operations.
+
+    :param metric_name: The name of the metric to record
+    :param tags: Tuple of tag key-value pairs to include with the metric
+    """
+    telemetry_writer.add_count_metric(
+        namespace=TELEMETRY_NAMESPACE.TRACERS,
+        name=metric_name,
+        value=1,
+        tags=(("header_style", header_style),),
+    )
 
 
 class _DatadogMultiHeader:
@@ -287,6 +303,9 @@ class _DatadogMultiHeader:
                 # We hit an encoding error, add a tag to the context to indicate this happened
                 span_context._meta["_dd.propagation_error"] = "encoding_error"
                 log.warning("failed to encode x-datadog-tags", exc_info=True)
+
+        # Record telemetry for successful injection
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_DATADOG)
 
     @staticmethod
     def _extract(headers):
@@ -445,6 +464,9 @@ class _B3MultiHeader:
             elif sampling_priority > 1:
                 headers[_HTTP_HEADER_B3_FLAGS] = "1"
 
+        # Record telemetry for successful injection
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_MULTI)
+
     @staticmethod
     def _extract(headers):
         # type: (Dict[str, str]) -> Optional[Context]
@@ -560,6 +582,9 @@ class _B3SingleHeader:
             elif sampling_priority > 1:
                 single_header += "-d"
         headers[_HTTP_HEADER_B3_SINGLE] = single_header
+
+        # Record telemetry for successful injection
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_B3_SINGLE)
 
     @staticmethod
     def _extract(headers):
@@ -873,6 +898,9 @@ class _TraceContext:
             else:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
+        # Record telemetry for successful injection
+        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_W3C_TRACECONTEXT)
+
 
 class _BaggageHeader:
     """Helper class to inject/extract Baggage Headers"""
@@ -897,6 +925,13 @@ class _BaggageHeader:
         try:
             if len(baggage_items) > DD_TRACE_BAGGAGE_MAX_ITEMS:
                 log.warning("Baggage item limit exceeded, dropping excess items")
+                # Record telemetry for baggage item count exceeding limit
+                telemetry_writer.add_count_metric(
+                    namespace=TELEMETRY_NAMESPACE.TRACERS,
+                    name="context_header_style.truncated",
+                    value=1,
+                    tags=(("truncation_reason", "baggage_item_count_exceeded"),),
+                )
                 baggage_items = itertools.islice(baggage_items, DD_TRACE_BAGGAGE_MAX_ITEMS)  # type: ignore
 
             encoded_items: List[str] = []
@@ -906,6 +941,13 @@ class _BaggageHeader:
                 item_size = len(item.encode("utf-8")) + (1 if encoded_items else 0)  # +1 for comma if not first item
                 if total_size + item_size > DD_TRACE_BAGGAGE_MAX_BYTES:
                     log.warning("Baggage header size exceeded, dropping excess items")
+                    # Record telemetry for baggage header size exceeding limit
+                    telemetry_writer.add_count_metric(
+                        namespace=TELEMETRY_NAMESPACE.TRACERS,
+                        name="context_header_style.truncated",
+                        value=1,
+                        tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
+                    )
                     break  # stop adding items when size limit is reached
                 encoded_items.append(item)
                 total_size += item_size
@@ -913,8 +955,22 @@ class _BaggageHeader:
             header_value = ",".join(encoded_items)
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
+            # Record telemetry for successful baggage injection
+            _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_BAGGAGE)
+
         except Exception:
             log.warning("Failed to encode and inject baggage header")
+
+    @staticmethod
+    def _record_malformed_and_return_empty() -> Context:
+        """Record telemetry for malformed baggage header and return empty context."""
+        telemetry_writer.add_count_metric(
+            namespace=TELEMETRY_NAMESPACE.TRACERS,
+            name="context_header_style.malformed",
+            value=1,
+            tags=(("header_style", _PROPAGATION_STYLE_BAGGAGE),),
+        )
+        return Context(baggage={})
 
     @staticmethod
     def _extract(headers: Dict[str, str]) -> Context:
@@ -927,12 +983,12 @@ class _BaggageHeader:
         baggages = header_value.split(",")
         for key_value in baggages:
             if "=" not in key_value:
-                return Context(baggage={})
+                return _BaggageHeader._record_malformed_and_return_empty()
             key, value = key_value.split("=", 1)
             key = urllib.parse.unquote(key.strip())
             value = urllib.parse.unquote(value.strip())
             if not key or not value:
-                return Context(baggage={})
+                return _BaggageHeader._record_malformed_and_return_empty()
             baggage[key] = value
 
         return Context(baggage=baggage)
@@ -964,6 +1020,7 @@ class HTTPPropagator(object):
                 propagator = _PROP_STYLES[prop_style]
                 context = propagator._extract(normalized_headers)  # type: ignore
                 if context:
+                    _record_http_telemetry("context_header_style.extracted", prop_style)
                     contexts.append(context)
                     styles_w_ctx.append(prop_style)
         return contexts, styles_w_ctx
@@ -1130,6 +1187,8 @@ class HTTPPropagator(object):
                     propagator = _PROP_STYLES[prop_style]
                     context = propagator._extract(normalized_headers)
                     style = prop_style
+                    if context:
+                        _record_http_telemetry("context_header_style.extracted", prop_style)
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
@@ -1150,6 +1209,8 @@ class HTTPPropagator(object):
             if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
+                    # Record telemetry for successful baggage extraction
+                    _record_http_telemetry("context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE)
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
