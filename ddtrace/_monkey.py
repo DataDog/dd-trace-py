@@ -169,6 +169,7 @@ _MODULES_FOR_CONTRIB = {
     "langgraph": (
         "langgraph",
         "langgraph.graph",
+        "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
 }

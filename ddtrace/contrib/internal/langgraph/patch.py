@@ -229,13 +229,17 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
+        instance=instance,
+        is_graph=True,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
+        )
         span.finish()
         raise
 
@@ -248,7 +252,11 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
             except StopIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=response,
+                    operation="graph",
                 )
                 span.finish()
                 break
@@ -256,7 +264,11 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
                     span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=None,
+                    operation="graph",
                 )
                 span.finish()
                 raise
@@ -273,13 +285,17 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         pin,
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
+        instance=instance,
+        is_graph=True,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
+        integration.llmobs_set_tags(
+            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
+        )
         span.finish()
         raise
 
@@ -292,7 +308,11 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
             except StopAsyncIteration:
                 response = item[-1] if isinstance(item, tuple) else item
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=response, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=response,
+                    operation="graph",
                 )
                 span.finish()
                 break
@@ -300,12 +320,26 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 if LangGraphParentCommandError is None or not isinstance(e, LangGraphParentCommandError):
                     span.set_exc_info(*sys.exc_info())
                 integration.llmobs_set_tags(
-                    span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph"
+                    span,
+                    args=args,
+                    kwargs={**kwargs, "name": name, "instance": instance},
+                    response=None,
+                    operation="graph",
                 )
                 span.finish()
                 raise
 
     return _astream()
+
+
+@with_traced_module
+def patched_create_react_agent(langgraph, pin, func, instance, args, kwargs):
+    integration: LangGraphIntegration = langgraph._datadog_integration
+    agent = func(*args, **kwargs)
+
+    integration.llmobs_handle_agent_manifest(agent, args, kwargs)
+
+    return agent
 
 
 @with_traced_module
@@ -324,9 +358,25 @@ def patched_pregel_loop_tick(langgraph, pin, func, instance, args, kwargs):
 
 
 def patch():
-    if getattr(langgraph, "_datadog_patch", False):
-        return
+    graph_patched = getattr(langgraph, "_datadog_patch", False)
 
+    if not graph_patched:
+        _patch_graph_modules(langgraph)
+
+    try:
+        from langgraph import prebuilt
+
+        prebuilt_patched = getattr(prebuilt, "_datadog_patch", False)
+        if not prebuilt_patched:
+            wrap(prebuilt, "create_react_agent", patched_create_react_agent(langgraph))
+            setattr(prebuilt, "_datadog_patch", True)
+    except (ImportError, AttributeError):
+        # this is possible when the module is not fully loaded yet,
+        # as prebuilt imports langgraph.graph under the hood
+        pass
+
+
+def _patch_graph_modules(langgraph):
     langgraph._datadog_patch = True
 
     Pin().onto(langgraph)
@@ -351,23 +401,26 @@ def patch():
 
 
 def unpatch():
-    if not getattr(langgraph, "_datadog_patch", False):
-        return
+    if getattr(langgraph, "_datadog_patch", False):
+        langgraph._datadog_patch = False
 
-    langgraph._datadog_patch = False
+        from langgraph import prebuilt
+        from langgraph.pregel import Pregel
+        from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
 
-    from langgraph.pregel import Pregel
-    from langgraph.pregel.loop import PregelLoop
-    from langgraph.utils.runnable import RunnableSeq
+        unwrap(RunnableSeq, "invoke")
+        unwrap(RunnableSeq, "ainvoke")
+        unwrap(RunnableSeq, "astream")
+        unwrap(Pregel, "stream")
+        unwrap(Pregel, "astream")
+        unwrap(PregelLoop, "tick")
 
-    unwrap(RunnableSeq, "invoke")
-    unwrap(RunnableSeq, "ainvoke")
-    unwrap(RunnableSeq, "astream")
-    unwrap(Pregel, "stream")
-    unwrap(Pregel, "astream")
-    unwrap(PregelLoop, "tick")
+        if LANGGRAPH_VERSION >= (0, 3, 29):
+            unwrap(langgraph.utils.runnable, "_consume_aiter")
 
-    if LANGGRAPH_VERSION >= (0, 3, 29):
-        unwrap(langgraph.utils.runnable, "_consume_aiter")
+        delattr(langgraph, "_datadog_integration")
 
-    delattr(langgraph, "_datadog_integration")
+    if hasattr(langgraph, "prebuilt") and getattr(langgraph.prebuilt, "_datadog_patch", False):
+        langgraph.prebuilt._datadog_patch = False
+        unwrap(prebuilt, "create_react_agent")

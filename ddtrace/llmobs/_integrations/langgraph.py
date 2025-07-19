@@ -9,10 +9,12 @@ from typing import Union
 from typing import cast
 from weakref import WeakKeyDictionary
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -34,10 +36,34 @@ logger = get_logger(__name__)
 PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
 PREGEL_TASKS = "__pregel_tasks"  # name of ephemeral channel that pregel `Send` commands write to
 
+EXCLUDED_MODEL_SETTINGS_KEYS = [
+    "model",
+    "model_name",
+    "_type",
+]
+
 
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, Dict[str, Any]] = WeakKeyDictionary()
+    _react_agents_manifests: WeakKeyDictionary[Any, Dict[str, Any]] = WeakKeyDictionary()
+    _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
+
+    def trace(
+        self,
+        pin: Pin,
+        operation_id: str,
+        submit_to_llmobs: bool = False,
+        is_graph: bool = False,
+        instance=None,
+        **kwargs,
+    ) -> Span:
+        span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
+
+        if instance and is_graph:
+            self._graph_spans_to_graph_instances[span] = instance
+
+        return span
 
     def _llmobs_set_tags(
         self,
@@ -82,6 +108,56 @@ class LangGraphIntegration(BaseLLMIntegration):
             }
         )
 
+        if operation == "graph":
+            agent = kwargs.get("instance")
+            agent_manifest = self._get_agent_manifest(span, agent, args, config)
+            span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
+
+    def _get_agent_manifest(self, span: Span, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """
+        Gets the agent manifest for a given agent.
+
+        If the agent is a react agent, we have already stored the manifest in the _react_agents weak key dictionary.
+        Otherwise, we try and do some inference to get the manifest.
+        """
+        if agent is None:
+            return None
+
+        agent_manifest = self._react_agents_manifests.get(agent)
+        if agent_manifest is None:
+            tools = _get_tools_from_tool_nodes(agent)
+            agent_manifest = {"name": agent.name or "LangGraph", "tools": tools}
+            self._react_agents_manifests[agent] = agent_manifest
+
+        if "framework" not in agent_manifest:
+            agent_manifest["framework"] = "LangGraph"
+        if "max_iterations" not in agent_manifest:
+            agent_manifest["max_iterations"] = _get_attr(config, "max_iterations", 25)
+
+        if (
+            "dependencies" not in agent_manifest
+            and isinstance(args, tuple)
+            and len(args) > 0
+            and isinstance(args[0], dict)
+        ):
+            agent_manifest["dependencies"] = list(args[0].keys())
+
+        if "handoffs" in agent_manifest:
+            return agent_manifest
+
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        if parent_span is None:
+            return agent_manifest
+
+        parent_graph = self._graph_spans_to_graph_instances.get(parent_span)
+        if parent_graph is None:
+            return agent_manifest
+
+        handoffs = _get_agent_handoffs(agent, parent_graph)
+        agent_manifest["handoffs"] = handoffs
+
+        return agent_manifest
+
     def _get_node_metadata_from_span(self, span: Span, instance_id: str) -> Dict[str, Any]:
         """
         Get the node metadata for a given span and its node instance id.
@@ -96,6 +172,34 @@ class LangGraphIntegration(BaseLLMIntegration):
         )
         invoked_node["span"] = {"trace_id": format_trace_id(span.trace_id), "span_id": str(span.span_id)}
         return invoked_node
+
+    def llmobs_handle_agent_manifest(self, agent, args: tuple, kwargs: dict):
+        if not self.llmobs_enabled:
+            return
+
+        model = get_argument_value(args, kwargs, 0, "model")
+        model_name, model_provider, model_settings = _get_model_info(model)
+
+        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools") or []
+        system_prompt: Optional[str] = kwargs.get("prompt")
+        name: Optional[str] = kwargs.get("name")
+
+        tools = [{"name": tool.name, "description": tool.description} for tool in agent_tools]
+
+        agent_manifest = {
+            "model": model_name,
+            "model_provider": model_provider,
+            "model_settings": model_settings,
+            "tools": tools,
+        }
+
+        if system_prompt:
+            agent_manifest["instructions"] = system_prompt
+
+        if name:
+            agent_manifest["name"] = name
+
+        self._react_agents_manifests[agent] = agent_manifest
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
@@ -227,6 +331,141 @@ class LangGraphIntegration(BaseLLMIntegration):
                 }
             )
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
+
+
+def _get_agent_handoffs(agent, agent_parent) -> List[Union[str, Dict[str, Any]]]:
+    handoffs: List[Union[str, Dict[str, Any]]] = []
+
+    disallowed_handoff_nodes = [agent.name, "__start__", "__end__"]
+
+    if agent_parent is None or agent is None:
+        return handoffs
+
+    builder = getattr(agent_parent, "builder", None)
+    if builder is None:
+        return handoffs
+
+    agent_name = getattr(agent, "name", None)
+    if agent_name is None:
+        return handoffs
+
+    edges_handoffs = _get_handoffs_from_edges(builder, agent_name, disallowed_handoff_nodes)
+    handoffs.extend(edges_handoffs)
+
+    branches_handoffs = _get_handoffs_from_branches(builder, agent_name, disallowed_handoff_nodes, agent_parent)
+    handoffs.extend(branches_handoffs)
+
+    return handoffs
+
+
+def _get_handoffs_from_edges(
+    builder, agent_name: str, disallowed_handoff_nodes: List[str]
+) -> List[Union[str, Dict[str, Any]]]:
+    handoffs: List[Union[str, Dict[str, Any]]] = []
+
+    edges: Optional[Set[Tuple[str, str]]] = getattr(builder, "edges", None)
+    if edges is None:
+        return handoffs
+
+    for from_node, to_node in edges:
+        if from_node == agent_name and to_node not in disallowed_handoff_nodes:
+            handoffs.append(to_node)
+    return handoffs
+
+
+def _get_handoffs_from_branches(
+    builder,
+    agent_name: str,
+    disallowed_handoff_nodes: List[str],
+    agent_parent,
+) -> List[Union[str, Dict[str, Any]]]:
+    handoffs: List[Union[str, Dict[str, Any]]] = []
+
+    branches: Optional[Dict[str, Dict[str, Any]]] = getattr(builder, "branches", None)
+    if branches is None:
+        return handoffs
+
+    conditional_edges = dict(branches)
+    conditional_edge = conditional_edges.get(agent_name, {})
+
+    parent_nodes_dict = getattr(agent_parent, "nodes", {}) or {}
+    parent_nodes = parent_nodes_dict.keys()
+
+    if not conditional_edge:
+        return handoffs
+
+    for routing_func, branch in conditional_edge.items():
+        node_ends_from_handoff_dict = getattr(branch, "ends", {}) or {}
+        node_ends_from_handoff = node_ends_from_handoff_dict.values()
+
+        possible_handoff_nodes = node_ends_from_handoff or parent_nodes
+        if not possible_handoff_nodes:
+            continue
+
+        possible_handoff_nodes = [node for node in possible_handoff_nodes if node not in disallowed_handoff_nodes]
+        if not possible_handoff_nodes:
+            handoffs.append({"tool_name": routing_func})
+        else:
+            for node in possible_handoff_nodes:
+                handoffs.append({"tool_name": routing_func, "agent_name": node})
+
+    return handoffs
+
+
+def _get_model_info(model) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
+    """Get the model name, provider, and settings from a langchain llm"""
+    model_name = getattr(model, "model_name", None)
+    model_provider = _get_model_provider(model)
+    model_settings = _get_model_settings(model)
+    return model_name, model_provider, model_settings
+
+
+def _get_model_provider(model) -> Optional[str]:
+    """Get the model provider from a langchain llm"""
+    model_provider_info_fn = getattr(model, "_get_ls_params", None)
+    if model_provider_info_fn is None or not callable(model_provider_info_fn):
+        return None
+
+    model_provider_info: Dict[str, Any] = model_provider_info_fn()
+    return model_provider_info.get("ls_provider", None)
+
+
+def _get_model_settings(model) -> Dict[str, Any]:
+    """Get the model settings from a langchain llm"""
+    invocation_params_fn = getattr(model, "_get_invocation_params", None)
+    if invocation_params_fn is None or not callable(invocation_params_fn):
+        return {}
+
+    invocation_params: dict = invocation_params_fn()
+    return {key: value for key, value in invocation_params.items() if key not in EXCLUDED_MODEL_SETTINGS_KEYS and value}
+
+
+def _get_tools_from_tool_nodes(agent) -> List[str]:
+    """Get the tools from the ToolNode(s) of an agent/graph"""
+    tool_names: Set[str] = set()
+    if agent is None:
+        return list(tool_names)
+
+    builder = getattr(agent, "builder", None)
+    if builder is None:
+        return list(tool_names)
+
+    nodes: Optional[Dict[str, Any]] = getattr(builder, "nodes", None)
+    if nodes is None:
+        return list(tool_names)
+
+    for node in nodes.values():
+        runnable = getattr(node, "runnable", None)
+        if runnable is None:
+            continue
+
+        tools_by_name: Optional[Dict[str, Any]] = getattr(runnable, "tools_by_name", None)
+        if tools_by_name is None:
+            continue
+
+        tool_names.update(tools_by_name.keys())
+
+    return list(tool_names)
 
 
 def _get_trigger_ids_from_finished_tasks(
