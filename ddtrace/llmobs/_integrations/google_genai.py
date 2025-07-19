@@ -14,12 +14,12 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
-from ddtrace.llmobs._integrations.google_genai_utils import extract_embedding_metrics_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_generation_metrics_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
-from ddtrace.llmobs._integrations.google_genai_utils import normalize_contents
+from ddtrace.llmobs._integrations.google_utils import DEFAULT_MODEL_ROLE
+from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
+from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name_google
+from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 
@@ -71,7 +71,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        provider_name, model_name = extract_provider_and_model_name(kwargs)
+        provider_name, model_name = extract_provider_and_model_name_google(kwargs=kwargs)
         span._set_ctx_items(
             {
                 SPAN_KIND: operation,
@@ -120,7 +120,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_messages_from_contents(self, contents, default_role: str) -> List[Dict[str, Any]]:
         messages = []
-        for content in normalize_contents(contents):
+        for content in normalize_contents_google_genai(contents):
             role = content.get("role") or default_role
             for part in content.get("parts", []):
                 messages.append(extract_message_from_part_google_genai(part, role))

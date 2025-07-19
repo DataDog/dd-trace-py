@@ -6,7 +6,7 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
+from ddtrace.llmobs._integrations.google_utils import DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._utils import _get_attr
 
 
