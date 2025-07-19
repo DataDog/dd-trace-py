@@ -17,7 +17,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
-from .._logger import LogInjectionState
 from .._logger import get_log_injection_state
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
@@ -378,7 +377,7 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=LogInjectionState.STRUCTURED,
+            default=True,
             envs=["DD_LOGS_INJECTION"],
             modifier=get_log_injection_state,
         ),

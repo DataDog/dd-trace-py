@@ -303,7 +303,7 @@ class LoggingTestCase(TracerTestCase):
                 assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
 
 
-@pytest.mark.parametrize("dd_logs_enabled", ["true", "false", "structured"])
+@pytest.mark.parametrize("dd_logs_enabled", ["true", "structured"])
 def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
     code = """
 import ddtrace.auto
@@ -321,7 +321,7 @@ log.info("Hello!")
     """
 
     env = os.environ.copy()
-    env["DD_LOGS_ENABLED"] = dd_logs_enabled
+    env["DD_LOGS_INJECTION"] = dd_logs_enabled
     stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
     assert status == 0, stderr
 

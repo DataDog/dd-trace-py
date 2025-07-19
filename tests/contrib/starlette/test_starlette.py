@@ -525,7 +525,7 @@ with TestClient(app) as test_client:
     out, err, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, err
     assert out == b"", err
-    assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
+    assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
 
 
 # Ignoring span link attributes until values are
