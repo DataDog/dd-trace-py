@@ -99,6 +99,14 @@ def langchain_openai(langchain):
 
 
 @pytest.fixture
+def openai_url() -> str:
+    """
+    Use the request recording endpoint of the testagent to capture requests to OpenAI
+    """
+    return "http://localhost:9126/vcr/openai"
+
+
+@pytest.fixture
 def langchain_cohere(langchain):
     try:
         import langchain_cohere
