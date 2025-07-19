@@ -140,6 +140,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             del sp["trace_id"]
             del sp["span_id"]
             del sp["parent_id"]
+        elif sp["meta"].get(EVENT_TYPE) == SpanTypes.TEST:
+            sp["parent_id"] = 0
         else:
             sp["trace_id"] = int(sp.get("trace_id") or "1")
             sp["parent_id"] = int(sp.get("parent_id") or "1")
