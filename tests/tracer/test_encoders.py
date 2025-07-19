@@ -70,6 +70,8 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
             parent_id=parent_id,
+            # All spans in a trace must share a trace_id
+            trace_id=root.trace_id if root else None,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
