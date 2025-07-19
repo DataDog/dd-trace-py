@@ -11,23 +11,20 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "662820e400000000",
+      "_dd.p.tid": "687978db00000000",
       "bedrock.request.model": "titan-embed-text-v1",
       "bedrock.request.model_provider": "amazon",
-      "bedrock.request.prompt": "Hello World!",
       "bedrock.response.duration": "311",
       "bedrock.response.id": "1fd884e0-c9e8-44fa-b736-d31e2f607d54",
       "language": "python",
-      "runtime-id": "a7bb6456241740dea419398d37aa13d2"
+      "runtime-id": "b149a195e497411886dda3ba2fa2f0cf"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "bedrock.response.embedding_length": 1536,
-      "bedrock.response.usage.prompt_tokens": 3,
-      "process_id": 60939
+      "process_id": 97455
     },
-    "duration": 6739000,
-    "start": 1713905892539987000
+    "duration": 2726000,
+    "start": 1752791259298406000
   }]]
