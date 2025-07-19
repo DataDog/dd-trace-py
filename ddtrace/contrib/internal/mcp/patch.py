@@ -27,6 +27,19 @@ def _supported_versions() -> Dict[str, str]:
 
 
 @with_traced_module
+def traced_send_request(mcp, pin, func, instance, args, kwargs):
+    """Injects distributed tracing headers into MCP request metadata"""
+    integration = mcp._datadog_integration
+
+    if not args:
+        return func(*args, **kwargs)
+
+    request = args[0]
+    modified_request = integration.inject_distributed_headers(request)
+    return func(*((modified_request,) + args[1:]), **kwargs)
+
+
+@with_traced_module
 async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
 
@@ -51,6 +64,7 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
+    integration.extract_and_activate_distributed_headers(kwargs)
 
     span = integration.trace(pin, SERVER_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
@@ -80,7 +94,9 @@ def patch():
 
     from mcp.client.session import ClientSession
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
+    from mcp.shared.session import BaseSession
 
+    wrap(BaseSession, "send_request", traced_send_request(mcp))
     wrap(ClientSession, "call_tool", traced_call_tool(mcp))
     wrap(ToolManager, "call_tool", traced_tool_manager_call_tool(mcp))
 
@@ -93,7 +109,9 @@ def unpatch():
 
     from mcp.client.session import ClientSession
     from mcp.server.fastmcp.tools.tool_manager import ToolManager
+    from mcp.shared.session import BaseSession
 
+    unwrap(BaseSession, "send_request")
     unwrap(ClientSession, "call_tool")
     unwrap(ToolManager, "call_tool")
 
