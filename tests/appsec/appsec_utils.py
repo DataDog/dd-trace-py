@@ -31,6 +31,7 @@ def gunicorn_server(
     workers="1",
     use_threads=False,
     use_gevent=False,
+    assert_debug=False,
     env=None,
 ):
     cmd = ["gunicorn", "-w", workers, "--log-level", "debug"]
@@ -51,6 +52,7 @@ def gunicorn_server(
         token=token,
         env=env,
         port=port,
+        assert_debug=assert_debug,
     )
 
 

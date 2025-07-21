@@ -257,7 +257,7 @@ def test_iast_code_injection_with_stacktrace(server):
                 "use_threads": False,
                 "use_gevent": False,
                 "env": {
-                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "_DD_IAST_DENY_MODULES": "ddtrace.,tests.,jinja2.,werkzeug.,urllib.,markupsafe.",
                     "DD_APM_TRACING_ENABLED": "false",
                 },
             },
@@ -269,14 +269,22 @@ def test_iast_code_injection_with_stacktrace(server):
                 "use_threads": True,
                 "use_gevent": False,
                 "env": {
-                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "_DD_IAST_DENY_MODULES": "ddtrace.,tests.,jinja2.,werkzeug.,urllib.,markupsafe.",
                     "DD_APM_TRACING_ENABLED": "false",
                 },
             },
         ),
         (
             gunicorn_server,
-            {"workers": "3", "use_threads": True, "use_gevent": True, "env": {"DD_APM_TRACING_ENABLED": "false"}},
+            {
+                "workers": "3",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "_DD_IAST_DENY_MODULES": "ddtrace.,tests.,jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "DD_APM_TRACING_ENABLED": "false",
+                },
+            },
         ),
         (
             gunicorn_server,
@@ -285,7 +293,7 @@ def test_iast_code_injection_with_stacktrace(server):
                 "use_threads": True,
                 "use_gevent": True,
                 "env": {
-                    "_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe.",
+                    "_DD_IAST_DENY_MODULES": "ddtrace.,tests.,jinja2.,werkzeug.,urllib.,markupsafe.",
                     "DD_APM_TRACING_ENABLED": "false",
                 },
             },
@@ -296,7 +304,7 @@ def test_iast_code_injection_with_stacktrace(server):
                 "workers": "1",
                 "use_threads": True,
                 "use_gevent": True,
-                "env": {"_DD_IAST_DENY_MODULES": "jinja2.,werkzeug.,urllib.,markupsafe."},
+                "env": {"_DD_IAST_DENY_MODULES": "ddtrace.,tests.,jinja2.,werkzeug.,urllib.,markupsafe."},
             },
         ),
         (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
