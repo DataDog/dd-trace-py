@@ -666,6 +666,9 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
 
+    if 'n' in request_params:
+        span.set_tag_str("num_generations", request_params['n'])
+
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx.span
@@ -675,12 +678,6 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     if "embed" not in model_name:
         integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
-
-
-def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
-    span = ctx.span
-    span.set_tag_str("bedrock.response.id", reqid)
-    span.set_tag_str("bedrock.response.duration", latency)
 
 
 def _propagate_context(ctx, headers):
@@ -724,9 +721,6 @@ def _on_botocore_bedrock_process_response_converse(
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
-    metadata: Dict[str, Any],
-    body: Dict[str, List[Dict]],
-    should_set_choice_ids: bool,
 ) -> None:
     span = ctx.span
     model_name = ctx["model_name"]
@@ -902,7 +896,6 @@ def listen():
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
