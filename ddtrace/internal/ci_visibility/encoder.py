@@ -174,11 +174,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         return all_spans_with_trace_info
 
-    def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
-        # type: (List[List[Span]], int) -> List[Tuple[int, List[Dict[str, Any]]]]
-        """Convert all traces to spans with xdist filtering applied. Wrapper for backward compatibility."""
-        return self._convert_traces_to_spans_indexed(traces, 0, len(traces), new_parent_session_span_id)
-
     def _create_payload_from_spans(self, spans):
         # type: (List[Dict[str, Any]]) -> bytes
         """Create a payload from the given spans."""

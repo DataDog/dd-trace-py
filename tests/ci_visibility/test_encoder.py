@@ -295,31 +295,6 @@ def test_build_payload_all_spans_filtered():
             os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
-def test_build_payload_indexed_conversion():
-    """Test that the indexed conversion produces same results as original."""
-    traces = [
-        [Span(name="test1", span_id=0x111111, service="test")],
-        [Span(name="test2", span_id=0x222222, service="test")],
-        [Span(name="test3", span_id=0x333333, service="test")],
-    ]
-
-    encoder = CIVisibilityEncoderV01(0, 0)
-
-    # Test indexed conversion
-    indexed_result = encoder._convert_traces_to_spans_indexed(traces, 1, 3, 0)
-
-    # Test original conversion with slice
-    original_result = encoder._convert_traces_to_spans(traces[1:3], 0)
-
-    # Results should be equivalent (adjusting for index differences)
-    assert len(indexed_result) == len(original_result)
-
-    for (idx_trace_idx, idx_spans), (orig_trace_idx, orig_spans) in zip(indexed_result, original_result):
-        assert len(idx_spans) == len(orig_spans)
-        # Indexed version should have correct trace indices
-        assert idx_trace_idx >= 1
-
-
 def test_build_payload_no_infinite_recursion():
     """Test that recursion always terminates, even with edge cases."""
     # Single large trace that can't be split further
@@ -343,22 +318,6 @@ def test_build_payload_no_infinite_recursion():
         assert count == 1
         assert payload is not None
         # Payload can exceed max size when it's a single unsplittable trace
-
-
-def test_convert_traces_to_spans_backward_compatibility():
-    """Test that the old _convert_traces_to_spans method still works."""
-    traces = [
-        [Span(name="test1", span_id=0x111111, service="test")],
-        [Span(name="test2", span_id=0x222222, service="test")],
-    ]
-
-    encoder = CIVisibilityEncoderV01(0, 0)
-    result = encoder._convert_traces_to_spans(traces, 0)
-
-    assert len(result) == 2
-    for trace_idx, spans in result:
-        assert len(spans) == 1
-        assert trace_idx in [0, 1]
 
 
 def test_encode_traces_civisibility_v2_coverage_per_test():
