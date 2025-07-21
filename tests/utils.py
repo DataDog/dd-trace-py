@@ -1,6 +1,6 @@
+import base64
 import contextlib
 from contextlib import contextmanager
-import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
 import importlib.metadata as importlib_metadata
@@ -16,6 +16,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Tuple
+from typing import TypedDict
 from typing import cast
 from urllib import parse
 import urllib.parse
@@ -543,6 +544,8 @@ class DummyWriterMixin:
     def __init__(self, *args, **kwargs):
         self.spans = []
         self.traces = []
+        self.json_encoder = JSONEncoder()
+        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         if spans:
@@ -571,8 +574,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def __init__(self, *args, **kwargs):
         # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent_config.trace_agent_url
+        if len(args) == 0 and "intake_url" not in kwargs:
+            kwargs["intake_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -583,8 +586,6 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         kwargs["response_callback"] = lambda *args, **kwargs: None
         AgentWriter.__init__(self, *args, **kwargs)
         DummyWriterMixin.__init__(self, *args, **kwargs)
-        self.json_encoder = JSONEncoder()
-        self.msgpack_encoder = Encoder(4 << 20, 4 << 20)
 
     def write(self, spans=None):
         DummyWriterMixin.write(self, spans=spans)
@@ -603,7 +604,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
 
 
@@ -638,7 +639,7 @@ class DummyTracer(Tracer):
     @property
     def agent_url(self):
         # type: () -> str
-        return self._span_aggregator.writer.agent_url
+        return self._span_aggregator.writer.intake_url
 
     @property
     def encoder(self):
@@ -1027,6 +1028,15 @@ class SnapshotFailed(Exception):
     pass
 
 
+class TestAgentRequest(TypedDict):
+    method: str
+    url: str
+    headers: Dict[str, str]
+    body: bytes
+    status: int
+    response: bytes
+
+
 class TestAgentClient:
     def __init__(self, base_url: str, token: Optional[str] = None):
         self._base_url = base_url
@@ -1059,15 +1069,49 @@ class TestAgentClient:
                 conn.close()
         return 0, b""
 
-    def requests(self) -> List[Dict[str, Any]]:
+    def requests(self) -> List[TestAgentRequest]:
         status, resp = self._request("GET", self._url("/test/session/requests"))
         assert status == 200, "Failed to get test session requests"
         data = json.loads(resp)
         return cast(List[Dict[str, Any]], data)
 
+    def telemetry_requests(self, telemetry_type: Optional[str] = None) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            if "dd-telemetry-request-type" not in req["headers"]:
+                continue
+
+            if telemetry_type is None:
+                reqs.append(req)
+            elif req["headers"]["dd-telemetry-request-type"] == telemetry_type:
+                reqs.append(req)
+        return reqs
+
+    def crash_reports(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.telemetry_requests(telemetry_type="logs"):
+            # Parse the json data in order to filter based on "origin" key,
+            # but we give the user back just the raw body
+            try:
+                data = json.loads(base64.b64decode(req["body"]))
+            except Exception:
+                continue
+
+            if data.get("origin") != "Crashtracker":
+                continue
+
+            req["body"] = base64.b64decode(req["body"])
+            reqs.append(req)
+        return reqs
+
     def clear(self) -> None:
-        status, _ = self._request("GET", self._url("/test/session/clear"))
-        assert status == 200, "Failed to clear test session traces"
+        status, body = self._request("GET", self._url("/test/session/clear"))
+        assert status == 200, (
+            "Failed to clear test session traces:\n"
+            f"url: {self._url('/test/session/clear')}\n"
+            f"status: {status}\n"
+            f"body: {body.decode('utf-8')}"
+        )
 
 
 class SnapshotTest:
@@ -1081,7 +1125,7 @@ class SnapshotTest:
         self.tracer = tracer
         self._client = TestAgentClient(base_url=self.tracer.agent_trace_url, token=token)
 
-    def requests(self) -> List[Any]:
+    def requests(self) -> List[Dict[str, Any]]:
         return self._client.requests()
 
     def clear(self):
@@ -1111,7 +1155,7 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
@@ -1399,43 +1443,6 @@ def get_128_bit_trace_id_from_headers(headers):
     return _DatadogMultiHeader._put_together_trace_id(
         meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
     )
-
-
-def _get_skipped_item(item, skip_reason):
-    if not inspect.isfunction(item) and not inspect.isclass(item):
-        raise ValueError(f"Unexpected skipped object: {item}")
-
-    if not hasattr(item, "pytestmark"):
-        item.pytestmark = []
-
-    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
-
-    return item
-
-
-def _should_skip(until: int, condition=None):
-    until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
-        return True
-    return condition is not None and condition
-
-
-def flaky(until: int, condition: bool = None, reason: str = None):
-    return skip_if_until(until, condition=condition, reason=reason)
-
-
-def skip_if_until(until: int, condition=None, reason=None):
-    """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(until=until, condition=condition)
-
-    def decorator(function_or_class):
-        if not skip:
-            return function_or_class
-
-        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
 
 
 def _build_env(env=None, file_path=FILE_PATH):

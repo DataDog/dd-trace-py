@@ -41,6 +41,8 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
         stack_v2.track_greenlet(greenlet_id, greenlet.name or type(greenlet).__qualname__, frame)  # type: ignore[attr-defined]
     except AttributeError as e:
         raise GreenletTrackingError("Cannot track greenlet with no name attribute") from e
+    except Exception as e:
+        raise GreenletTrackingError("Cannot track greenlet") from e
 
     # Untrack on completion
     try:
@@ -48,6 +50,8 @@ def track_gevent_greenlet(greenlet: _Greenlet) -> _Greenlet:
     except AttributeError:
         # This greenlet cannot be linked (e.g. the Hub)
         pass
+    except Exception as e:
+        raise GreenletTrackingError("Cannot link greenlet for untracking") from e
 
     _greenlet_frames[greenlet_id] = frame
 
@@ -120,11 +124,20 @@ def link_greenlets(greenlet_id: int, parent_id: int) -> None:
 class Greenlet(_Greenlet):
     @classmethod
     def spawn(cls, *args: t.Any, **kwargs: t.Any) -> _Greenlet:
-        return track_gevent_greenlet(super().spawn(*args, **kwargs))
+        greenlet = super().spawn(*args, **kwargs)
+        try:
+            return track_gevent_greenlet(greenlet)
+        except GreenletTrackingError:
+            # If we cannot track the greenlet, we just return it as is.
+            return greenlet
 
     @classmethod
     def spawn_later(cls, *args: t.Any, **kwargs: t.Any) -> _Greenlet:
-        return track_gevent_greenlet(super().spawn_later(*args, **kwargs))
+        greenlet = super().spawn_later(*args, **kwargs)
+        try:
+            return track_gevent_greenlet(greenlet)
+        except GreenletTrackingError:
+            return greenlet
 
     def join(self, *args: t.Any, **kwargs: t.Any) -> None:
         target_id = thread.get_ident(self)
@@ -137,7 +150,11 @@ class Greenlet(_Greenlet):
 
 def wrap_spawn(original: t.Callable[..., _Greenlet]) -> t.Callable[..., _Greenlet]:
     def _(*args: t.Any, **kwargs: t.Any) -> _Greenlet:
-        return track_gevent_greenlet(original(*args, **kwargs))
+        greenlet = original(*args, **kwargs)
+        try:
+            return track_gevent_greenlet(greenlet)
+        except GreenletTrackingError:
+            return greenlet
 
     return _
 

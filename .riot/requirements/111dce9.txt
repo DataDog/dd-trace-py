@@ -20,13 +20,13 @@ h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
 httpx-sse==0.4.1
-hypothesis==6.135.20
+hypothesis==6.135.24
 idna==3.10
 iniconfig==2.1.0
 jsonpatch==1.33
 jsonpointer==3.0.0
 langchain==0.3.26
-langchain-community==0.3.26
+langchain-community==0.3.27
 langchain-core==0.3.67
 langchain-experimental==0.3.4
 langchain-text-splitters==0.3.8
