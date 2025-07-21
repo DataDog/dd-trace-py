@@ -330,6 +330,7 @@ venv = Venv(
                 "simplejson": latest,
                 "grpcio": latest,
                 "pytest-asyncio": latest,
+                "gevent": latest,
             },
             env={
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
