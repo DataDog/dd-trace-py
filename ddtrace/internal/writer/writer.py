@@ -12,7 +12,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 from typing import TextIO
-from typing import Tuple
 
 import ddtrace
 from ddtrace import config
