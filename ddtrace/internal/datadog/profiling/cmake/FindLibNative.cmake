@@ -44,19 +44,21 @@ if(WIN32)
             INTERFACE_INCLUDE_DIRECTORIES "${DEST_INCLUDE_DIR}"
         )
     else()
-        set_target_properties(_native PROPERTIES
-            IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-            INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-        )
+        message(WARNING "No .lib found — falling back to dummy interface target")
+        add_library(_native INTERFACE)
+        target_include_directories(_native INTERFACE "${DEST_INCLUDE_DIR}")
+        set(_native_DLL_PATH "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
+        # add_library(_native SHARED IMPORTED GLOBAL)
+        # set_target_properties(_native PROPERTIES
+        #     IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+        #     INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
+        # )
     endif()
 else()
-    add_library(_native INTERFACE)
-    target_include_directories(_native INTERFACE "${DEST_INCLUDE_DIR}")
-    # If you want consumers to know the DLL path:
-    set(_native_DLL_PATH "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
-    # set_target_properties(_native PROPERTIES
-    #     IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-    #     INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-    # )
+    add_library(_native SHARED IMPORTED GLOBAL)
+    set_target_properties(_native PROPERTIES
+        IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+        INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
+    )
 endif()
 
