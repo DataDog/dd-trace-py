@@ -564,7 +564,7 @@ def test_public_modules_in_ddtrace_contrib():
     # The following modules contain attributes that are exposed to ddtrace users. All other modules in ddtrace.contrib
     # are internal.
     assert public_modules == {
-        'ddtrace.contrib.__init__',
+        "ddtrace.contrib.__init__",
         "ddtrace.contrib.trace_utils",
         "ddtrace.contrib.celery",
         "ddtrace.contrib.tornado",
@@ -572,7 +572,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
-        'ddtrace.contrib.integration_registry.__init__',
+        "ddtrace.contrib.integration_registry.__init__",
         "ddtrace.contrib.integration_registry.mappings",
         "ddtrace.contrib.integration_registry.utils",
         "ddtrace.contrib.aiohttp",
