@@ -162,7 +162,7 @@ dependencies = [
  "bitflags",
  "cexpr",
  "clang-sys",
- "itertools 0.12.1",
+ "itertools",
  "lazy_static",
  "lazycell",
  "log",
@@ -172,7 +172,7 @@ dependencies = [
  "regex",
  "rustc-hash",
  "shlex",
- "syn 2.0.100",
+ "syn",
  "which",
 ]
 
@@ -190,9 +190,9 @@ checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "blazesym"
-version = "0.2.0-rc.2"
+version = "0.2.0-rc.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "deb42921128af76c2ced7c723edfb0411695a96d2bfcdda21c3a6543f98b715a"
+checksum = "86d5caf72227115ce486e764e9199d6eab3437c51dacd78c3fae78ca1340c27d"
 dependencies = [
  "cpp_demangle",
  "gimli",
@@ -204,8 +204,8 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "cbindgen",
  "serde",
@@ -232,19 +232,19 @@ checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
 
 [[package]]
 name = "cbindgen"
-version = "0.27.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fce8dd7fcfcbf3a0a87d8f515194b49d6135acab73e18bd380d1d93bb1a15eb"
+checksum = "975982cdb7ad6a142be15bdf84aea7ec6a9e5d4d797c004d43185b24cfe4e684"
 dependencies = [
  "clap",
- "heck 0.4.1",
+ "heck",
  "indexmap",
  "log",
  "proc-macro2",
  "quote",
  "serde",
  "serde_json",
- "syn 2.0.100",
+ "syn",
  "tempfile",
  "toml",
 ]
@@ -427,8 +427,8 @@ checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
 name = "datadog-alloc"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -437,8 +437,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-crashtracker"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -459,6 +459,9 @@ dependencies = [
  "schemars",
  "serde",
  "serde_json",
+ "symbolic-common",
+ "symbolic-demangle",
+ "thiserror",
  "tokio",
  "uuid",
  "windows",
@@ -466,8 +469,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-crashtracker-ffi"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "build_common",
@@ -476,7 +479,6 @@ dependencies = [
  "ddcommon-ffi",
  "function_name",
  "libc",
- "log",
  "serde",
  "serde_json",
  "symbolic-common",
@@ -486,26 +488,30 @@ dependencies = [
 
 [[package]]
 name = "datadog-ddsketch"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "prost",
 ]
 
 [[package]]
 name = "datadog-library-config"
-version = "0.0.1"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "0.0.2"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
+ "memfd",
+ "rand",
+ "rmp",
+ "rmp-serde",
  "serde",
  "serde_yaml",
 ]
 
 [[package]]
 name = "datadog-profiling"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -513,8 +519,8 @@ dependencies = [
  "bytes",
  "chrono",
  "datadog-alloc",
+ "datadog-profiling-protobuf",
  "ddcommon",
- "derivative",
  "futures",
  "http",
  "http-body-util",
@@ -534,8 +540,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-ffi"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "build_common",
@@ -553,9 +559,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "datadog-profiling-protobuf"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+dependencies = [
+ "prost",
+]
+
+[[package]]
 name = "ddcommon"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "cc",
@@ -571,18 +585,14 @@ dependencies = [
  "hyper-rustls",
  "hyper-util",
  "libc",
- "log",
- "memfd",
  "nix",
  "pin-project",
- "rand",
  "regex",
- "rmp",
- "rmp-serde",
  "rustls",
  "rustls-native-certs",
  "serde",
  "static_assertions",
+ "thiserror",
  "tokio",
  "tokio-rustls",
  "tower-service",
@@ -591,8 +601,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon-ffi"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "build_common",
@@ -605,8 +615,8 @@ dependencies = [
 
 [[package]]
 name = "ddtelemetry"
-version = "18.0.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v18.0.0#60583218a8de6768f67d04fcd5bc6443f67f516b"
+version = "19.1.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
 dependencies = [
  "anyhow",
  "base64",
@@ -647,17 +657,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bef552e6f588e446098f6ba40d89ac146c8c7b64aade83c051ee00bb5d2bc18d"
 dependencies = [
  "uuid",
-]
-
-[[package]]
-name = "derivative"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcc3dd5e9e9c0b295d6e1e4d811fb6f157d5ffd784b8d202fc62eac8035a770b"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -795,7 +794,7 @@ checksum = "162ee34ebcb7c64a8abebc059ce0fee27c2262618d7b60ed8faf72fef13c3650"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -878,12 +877,6 @@ dependencies = [
  "equivalent",
  "foldhash",
 ]
-
-[[package]]
-name = "heck"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "95505c38b4572b2d910cecb0281560f54b440a19336cbbcb27bf6ce6adc6f5a8"
 
 [[package]]
 name = "heck"
@@ -1066,15 +1059,6 @@ name = "itertools"
 version = "0.10.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
 dependencies = [
  "either",
 ]
@@ -1275,7 +1259,7 @@ checksum = "ed3955f1a9c7c0c15e092f9c887db08b1fc683305fdf6eb6684f22555355e202"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1352,7 +1336,7 @@ checksum = "6e918e4ff8c4549eb882f14b3a4bc8c8bc93de829416eacf579f1207a8fbf861"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1392,7 +1376,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5316f57387668042f561aae71480de936257848f9c43ce528e311d89a07cadeb"
 dependencies = [
  "proc-macro2",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1421,10 +1405,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8a56d757972c98b346a9b766e3f02746cde6dd1cd1d1d563472929fdd74bec4d"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools",
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1484,7 +1468,7 @@ dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1493,11 +1477,11 @@ version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "822ece1c7e1012745607d5cf0bcb2874769f0f7cb34c4cde03b9358eb9ef911a"
 dependencies = [
- "heck 0.5.0",
+ "heck",
  "proc-macro2",
  "pyo3-build-config 0.24.2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1612,9 +1596,9 @@ dependencies = [
 
 [[package]]
 name = "rustc-demangle"
-version = "0.1.24"
+version = "0.1.25"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "719b953e2095829ee67db738b3bfa9fa368c94900df327b3f07fe6e794d2fe1f"
+checksum = "989e6739f80c4ad5b13e0fd7fe89531180375b18520cc8c82080e4dc4035b84f"
 
 [[package]]
 name = "rustc-hash"
@@ -1735,7 +1719,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_derive_internals",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1778,7 +1762,7 @@ checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1789,7 +1773,7 @@ checksum = "18d26a20a969b9e3fdf2fc2d9f21eda6c40e2de84c9408bb5d3b05d499aae711"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -1913,17 +1897,6 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "1.0.109"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "72b64191b275b66ffe2469e8af2c1cfe3bafa67b529ead792a6d0160888b4237"
-dependencies = [
- "proc-macro2",
- "quote",
- "unicode-ident",
-]
-
-[[package]]
-name = "syn"
 version = "2.0.100"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b09a44accad81e1ba1cd74a32461ba89dee89095ba17b32f5d03683b1b1fc2a0"
@@ -1991,7 +1964,7 @@ checksum = "4fee6c4efc90059e10f81e6d42c60a18f76588c3d74cb83a0b242a2b6c7504c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -2018,7 +1991,7 @@ checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -2217,7 +2190,7 @@ dependencies = [
  "log",
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
  "wasm-bindgen-shared",
 ]
 
@@ -2239,7 +2212,7 @@ checksum = "8ae87ea40c9f689fc23f209965b6fb8a99ad69aeeb0231408be24920604395de"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -2331,7 +2304,7 @@ checksum = "83577b051e2f49a058c308f17f273b570a6a758386fc291b5f6a934dd84e48c1"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -2342,7 +2315,7 @@ checksum = "a47fddd13af08290e67f4acabf4b459f647552718f683a7b415d290ac744a836"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -2353,7 +2326,7 @@ checksum = "bd9211b69f8dcdfa817bfd14bf1c97c9188afa36f4750130fcdf3f400eca9fa8"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]
@@ -2570,7 +2543,7 @@ checksum = "a996a8f63c5c4448cd959ac1bab0aaa3306ccfd060472f85943ee0750f0169be"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.100",
+ "syn",
 ]
 
 [[package]]

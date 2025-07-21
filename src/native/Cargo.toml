@@ -25,7 +25,6 @@ datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog",rev = "v
     "demangler"
 ]}
 
-
 [build-dependencies]
 pyo3-build-config = "0.21.2"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0", features = ["cbindgen"] }
