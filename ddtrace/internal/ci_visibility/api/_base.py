@@ -233,6 +233,11 @@ class TestVisibilityItemBase(abc.ABC):
         self._set_span_tags()
 
         self._add_all_tags_to_span()
+
+        while (current_span := self._tracer.current_span()) and current_span is not self._span:
+            # Force nested spans to finish.
+            current_span.finish(finish_time=override_finish_time)
+
         self._span.finish(finish_time=override_finish_time)
 
         parent_span = self.get_parent_span()
