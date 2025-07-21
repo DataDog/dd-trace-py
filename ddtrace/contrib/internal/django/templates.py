@@ -13,7 +13,7 @@ from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.logging import get_logger
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping.context import WrappingContext
 
