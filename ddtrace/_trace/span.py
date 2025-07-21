@@ -844,9 +844,14 @@ class Span(object):
     def __enter__(self) -> "Span":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self,
+        exc_type: Type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
         try:
-            if exc_type:
+            if exc_type is not None and exc_val is not None:
                 self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
         except Exception:
