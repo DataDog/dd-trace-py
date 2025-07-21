@@ -654,7 +654,7 @@ def test_websocket_only_sends(test_spans, snapshot_app):
         DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false",
     )
 )
-@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length", "meta._dd.p.dm"])
 def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
     from tests.contrib.fastapi.test_fastapi import _run_websocket_test
 
