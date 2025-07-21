@@ -382,15 +382,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             if not (payloads := client.encoder.encode()):
                 return
 
-            [(_, n_traces)] = payloads
-
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
-        for payload in payloads:
+        for payload in encoded_traces:
             encoded_data, n_traces = payload
             self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
 

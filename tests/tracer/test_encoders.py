@@ -388,6 +388,20 @@ def test_msgpack_span_property_variations(encoding, span):
     assert decode(refencoder.encode_traces([trace])) == decode(encoded_traces[0][0])
 
 
+@allencodings
+def test_long_span_start(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
+
+    # Start a span a very long time ago
+    span = Span(None)
+    span.start = -62135596700
+    span.finish()
+
+    trace = [span]
+    encoder.put(trace)
+    assert decode(encoder.encode()[0][0]) is not None
+
+
 class SubString(str):
     pass
 
