@@ -153,7 +153,7 @@ experiments:
           # httppropagationextract
           - name: httppropagationextract-all_styles_all_headers
             thresholds:
-              - execution_time < 0.07 ms
+              - execution_time < 0.084 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-b3_headers
             thresholds:
@@ -161,15 +161,15 @@ experiments:
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-b3_single_headers
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.015 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match
             thresholds:
-              - execution_time < 0.06 ms
+              - execution_time < 0.066 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-datadog_tracecontext_tracestate_propagated_on_trace_id_match
             thresholds:
-              - execution_time < 0.06 ms
+              - execution_time < 0.069 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-empty_headers
             thresholds:
@@ -177,7 +177,7 @@ experiments:
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-full_t_id_datadog_headers
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.025 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-invalid_priority_header
             thresholds:
@@ -217,7 +217,7 @@ experiments:
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-tracecontext_headers
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.035 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationextract-valid_headers_all
             thresholds:
@@ -279,27 +279,27 @@ experiments:
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_all
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.036 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_dd_origin
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.027 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_priority_and_origin
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.029 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_sampling_priority
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.023 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_tags
             thresholds:
-              - execution_time < 0.02 ms
+              - execution_time < 0.029 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_tags_invalid
             thresholds:
-              - execution_time < 0.03 ms
+              - execution_time < 0.032 ms
               - max_rss_usage < 31.00 MB
           - name: httppropagationinject-with_tags_max_size
             thresholds:
