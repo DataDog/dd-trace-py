@@ -78,7 +78,7 @@ class MCPIntegration(BaseLLMIntegration):
             return
 
         try:
-            request_context = context.request_context
+            request_context = _get_attr(context, "request_context")
             meta = _get_attr(request_context, "meta", None)
             if not meta:
                 return
