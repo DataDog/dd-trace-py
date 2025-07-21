@@ -20,7 +20,7 @@ COMMON_RESPONSE_LLM_METADATA = {
     "text": {"format": {"type": "text"}},
 }
 
-EXPECTED_AGENT_TO_AGENT_MANIFEST = {
+AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Simple Agent": {
         "framework": "OpenAI",
         "name": "Simple Agent",
@@ -80,7 +80,7 @@ EXPECTED_AGENT_TO_AGENT_MANIFEST = {
 
 def _expected_agent_metadata(agent_name: str) -> Dict:
     return {
-        "agent_manifest": EXPECTED_AGENT_TO_AGENT_MANIFEST[agent_name]
+        "agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]
     }
 
 

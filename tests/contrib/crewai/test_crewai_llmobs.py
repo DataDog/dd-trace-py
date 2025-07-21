@@ -3,7 +3,7 @@ import mock
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
-EXPECTED_AGENT_TO_AGENT_MANIFEST = {
+AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Senior Research Scientist": {
         "framework": "CrewAI",
         "name": "Senior Research Scientist",
@@ -67,7 +67,7 @@ def expected_agent_span_args(role):
         "input_value": mock.ANY,
         "output_value": mock.ANY,
         "metadata": {
-            "agent_manifest": EXPECTED_AGENT_TO_AGENT_MANIFEST[role]
+            "agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[role]
         },
         "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
         "span_links": True,
