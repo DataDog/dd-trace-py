@@ -160,9 +160,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["tools"] = self._get_agent_tools(agent._function_tools)
         if kwargs.get("deps", None):
             agent_dependencies = kwargs.get("deps", None)
-            manifest["dependencies"] = (
-                agent_dependencies.__dict__ if hasattr(agent_dependencies, "__dict__") else agent_dependencies
-            )
+            manifest["dependencies"] = getattr(agent_dependencies, "__dict__", agent_dependencies)
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
@@ -175,8 +173,8 @@ class PydanticAIIntegration(BaseLLMIntegration):
             tool_dict["name"] = tool_name
             if hasattr(tool_instance, "description"):
                 tool_dict["description"] = tool_instance.description
-            function_schema = getattr(tool_instance, "function_schema", None)
-            json_schema = getattr(function_schema, "json_schema", None)
+            function_schema = getattr(tool_instance, "function_schema", {})
+            json_schema = getattr(function_schema, "json_schema", {})
             required_params = {param: True for param in json_schema.get("required", [])}
             parameters = {}
             for param, schema in json_schema.get("properties", {}).items():
