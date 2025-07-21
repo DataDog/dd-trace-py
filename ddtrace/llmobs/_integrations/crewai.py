@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from weakref import WeakKeyDictionary
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
@@ -26,6 +27,16 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 
+OP_NAMES_TO_SPAN_KIND = {
+    "crew": "workflow",
+    "task": "task",
+    "agent": "agent",
+    "tool": "tool",
+    "flow": "workflow",
+    "flow_method": "task",
+}
+
+
 class CrewAIIntegration(BaseLLMIntegration):
     _integration_name = "crewai"
     # the CrewAI integration's task span linking relies on keeping track of an internal Datadog crew ID,
@@ -33,6 +44,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     _crews_to_task_span_ids: Dict[str, List[str]] = {}  # maps crew ID to list of task span_ids
     _crews_to_tasks: Dict[str, Dict[str, Any]] = {}  # maps crew ID to dictionary of task_id to span_id and span_links
     _planning_crew_ids: List[str] = []  # list of crew IDs that correspond to planning crew instances
+    _flow_span_to_method_to_span_dict: WeakKeyDictionary[Span, Dict[str, Dict[str, Any]]] = WeakKeyDictionary()
 
     def trace(self, pin: Pin, operation_id: str, submit_to_llmobs: bool = False, **kwargs: Dict[str, Any]) -> Span:
         if kwargs.get("_ddtrace_ctx"):
@@ -56,6 +68,15 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._crews_to_task_span_ids.get(crew_id, []).append(str(span.span_id))
             task_node = self._crews_to_tasks.get(crew_id, {}).setdefault(str(task_id), {})
             task_node["span_id"] = str(span.span_id)
+        if kwargs.get("operation") == "flow":
+            self._flow_span_to_method_to_span_dict[span] = {}
+        if kwargs.get("operation") == "flow_method":
+            span_name = kwargs.get("span_name", "")
+            method_name: str = span_name if isinstance(span_name, str) else ""
+            if span._parent is None:
+                return span
+            span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(method_name, {})
+            span_dict["span_id"] = str(span.span_id)
         return span
 
     def _get_current_ctx(self, pin):
@@ -74,7 +95,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        span._set_ctx_item(SPAN_KIND, "workflow" if operation == "crew" else operation)
+        span._set_ctx_item(SPAN_KIND, OP_NAMES_TO_SPAN_KIND.get(operation, "task"))
         if operation == "crew":
             crew_id = _get_crew_id(span, "crew")
             self._llmobs_set_tags_crew(span, args, kwargs, response)
@@ -88,9 +109,13 @@ class CrewAIIntegration(BaseLLMIntegration):
             self._llmobs_set_tags_agent(span, args, kwargs, response)
         elif operation == "tool":
             self._llmobs_set_tags_tool(span, args, kwargs, response)
+        elif operation == "flow":
+            self._llmobs_set_tags_flow(span, args, kwargs, response)
+        elif operation == "flow_method":
+            self._llmobs_set_tags_flow_method(span, args, kwargs, response)
 
     def _llmobs_set_tags_crew(self, span, args, kwargs, response):
-        crew_instance = kwargs.get("instance")
+        crew_instance = kwargs.pop("_dd.instance", None)
         crew_id = _get_crew_id(span, "crew")
         task_span_ids = self._crews_to_task_span_ids.get(crew_id, [])
         if task_span_ids:
@@ -117,7 +142,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_task(self, span, args, kwargs, response):
         crew_id = _get_crew_id(span, "task")
-        task_instance = kwargs.get("instance")
+        task_instance = kwargs.pop("_dd.instance", None)
         task_id = getattr(task_instance, "id", None)
         task_name = getattr(task_instance, "name", "")
         task_description = getattr(task_instance, "description", "")
@@ -151,7 +176,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         """Set span links and metadata for agent spans.
         Agent spans are 1:1 with its parent (task/tool) span, so we link them directly here, even on the parent itself.
         """
-        agent_instance = kwargs.get("instance")
+        agent_instance = kwargs.get("_dd.instance", None)
         self._tag_agent_manifest(span, agent_instance)
         agent_role = getattr(agent_instance, "role", "")
         task_description = getattr(kwargs.get("task"), "description", "")
@@ -183,7 +208,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, response)
 
     def _llmobs_set_tags_tool(self, span, args, kwargs, response):
-        tool_instance = kwargs.get("instance")
+        tool_instance = kwargs.pop("_dd.instance", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
         span._set_ctx_items(
@@ -246,6 +271,69 @@ class CrewAIIntegration(BaseLLMIntegration):
                 tool_dict["description"] = tool.description
             formatted_tools.append(tool_dict)
         return formatted_tools
+
+    def _llmobs_set_tags_flow(self, span, args, kwargs, response):
+        span._set_ctx_items({NAME: span.name or "CrewAI Flow", OUTPUT_VALUE: str(response)})
+        return
+
+    def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
+        flow_instance = kwargs.pop("_dd.instance", None)
+        input_dict = {"args": [str(arg) for arg in args[2:]], "kwargs": {k: str(v) for k, v in kwargs.items()}}
+        span_links = (
+            self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
+        )
+        if span.name in getattr(flow_instance, "_start_methods", []):
+            span_links.append(
+                {
+                    "span_id": str(span._parent.span_id),
+                    "trace_id": format_trace_id(span.trace_id),
+                    "attributes": {"from": "input", "to": "input"},
+                }
+            )
+        span._set_ctx_items(
+            {
+                NAME: span.name or "Flow Method",
+                INPUT_VALUE: input_dict,
+                OUTPUT_VALUE: str(response),
+                SPAN_LINKS: span_links,
+            }
+        )
+        return
+
+    def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
+        trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
+        if not self.llmobs_enabled or not trigger_method:
+            return
+        trigger_span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).get(trigger_method)
+        if not trigger_span_dict:
+            return
+        listeners = getattr(flow_instance, "_listeners", [])
+        # Check trigger method against each listener methods' triggers
+        for listener_name, (_, listener_triggers) in listeners.items():
+            if trigger_method not in listener_triggers:
+                continue
+            span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).setdefault(listener_name, {})
+            span_dict["trace_id"] = format_trace_id(flow_span.trace_id)
+            span_links = span_dict.setdefault("span_links", [])
+            span_links.append(
+                {
+                    "span_id": str(trigger_span_dict["span_id"]),
+                    "trace_id": format_trace_id(flow_span.trace_id),
+                    "attributes": {"from": "output", "to": "input"},
+                }
+            )
+        # If no listeners are triggered/AND_triggered, then link trigger span to its parent.
+        if not any(trigger_method in listener_triggers for _, (_, listener_triggers) in listeners.items()):
+            flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
+            flow_span_span_links.append(
+                {
+                    "span_id": str(trigger_span_dict["span_id"]),
+                    "trace_id": format_trace_id(flow_span.trace_id),
+                    "attributes": {"from": "output", "to": "output"},
+                }
+            )
+            flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
+        return
 
     def _llmobs_set_span_link_on_task(self, span, args, kwargs):
         """Set span links for the next queued task in a CrewAI workflow.

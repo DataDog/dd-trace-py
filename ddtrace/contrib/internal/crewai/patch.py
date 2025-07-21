@@ -44,7 +44,7 @@ def traced_kickoff(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["instance"] = instance
+        kwargs["_dd.instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="crew")
         span.finish()
     return result
@@ -71,7 +71,7 @@ def traced_task_execute(crewai, pin, func, instance, args, kwargs):
     finally:
         if getattr(instance, "_ddtrace_ctx", None):
             delattr(instance, "_ddtrace_ctx")
-        kwargs["instance"] = instance
+        kwargs["_dd.instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="task")
         span.finish()
     return result
@@ -107,7 +107,7 @@ def traced_agent_execute(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["instance"] = instance
+        kwargs["_dd.instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="agent")
         span.finish()
     return result
@@ -126,7 +126,7 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["instance"] = instance
+        kwargs["_dd.instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="tool")
         span.finish()
     return result
@@ -136,8 +136,9 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
 async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
-    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=False):
+    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
         result = await func(*args, **kwargs)
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow")
         return result
 
 
@@ -145,9 +146,24 @@ async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
 async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
-    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow_method", submit_to_llmobs=False):
+    with integration.trace(
+        pin, "CrewAI Flow", span_name=span_name, operation="flow_method", submit_to_llmobs=True
+    ) as span:
         result = await func(*args, **kwargs)
+        kwargs["_dd.instance"] = instance
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow_method")
         return result
+
+
+@with_traced_module
+def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
+    integration = crewai._datadog_integration
+    result = func(*args, **kwargs)
+    if get_argument_value(args, kwargs, 1, "router_only", optional=True) is False:
+        # TODO: Work for routers too?
+        current_span = pin.tracer.current_span()
+        integration._llmobs_set_span_link_on_flow(current_span, args, kwargs, instance)
+    return result
 
 
 def patch():
@@ -168,6 +184,7 @@ def patch():
     wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_run(crewai))
     wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff(crewai))
     wrap(crewai, "Flow._execute_method", traced_flow_method(crewai))
+    wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods(crewai))
 
 
 def unpatch():
