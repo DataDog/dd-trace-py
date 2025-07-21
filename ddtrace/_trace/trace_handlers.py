@@ -666,8 +666,8 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
 
-    if 'n' in request_params:
-        span.set_tag_str("num_generations", request_params['n'])
+    if "n" in request_params:
+        span.set_tag_str("num_generations", str(request_params["n"]))
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
