@@ -126,6 +126,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if start_idx >= end_idx:
             return []
 
+        trace_count = end_idx - start_idx
+
         # Convert traces to spans with filtering (using indexes)
         all_spans_with_trace_info = self._convert_traces_to_spans_indexed(
             traces, start_idx, end_idx, new_parent_session_span_id
