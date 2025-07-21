@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations import CrewAIIntegration
 from ddtrace.trace import Pin
 
@@ -131,6 +132,24 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
     return result
 
 
+@with_traced_module
+async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
+    integration = crewai._datadog_integration
+    span_name = getattr(type(instance), "__name__", "CrewAI Flow")
+    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=False):
+        result = await func(*args, **kwargs)
+        return result
+
+
+@with_traced_module
+async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
+    integration = crewai._datadog_integration
+    span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
+    with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow_method", submit_to_llmobs=False):
+        result = await func(*args, **kwargs)
+        return result
+
+
 def patch():
     if getattr(crewai, "_datadog_patch", False):
         return
@@ -147,6 +166,8 @@ def patch():
     wrap(crewai, "Task.execute_async", traced_task_execute_async(crewai))
     wrap(crewai, "Agent.execute_task", traced_agent_execute(crewai))
     wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_run(crewai))
+    wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff(crewai))
+    wrap(crewai, "Flow._execute_method", traced_flow_method(crewai))
 
 
 def unpatch():
