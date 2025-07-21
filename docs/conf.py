@@ -16,7 +16,7 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-
+import glob
 from datetime import datetime
 import os
 import os.path
@@ -134,10 +134,12 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    # Excludes files that require third-party packages not included with ddtrace,
-    # preventing Sphinx build failures due to module not found errors.
-    "ddtrace/contrib/internal/**",
-    "!ddtrace/contrib/internal/*/__init__.py",
+]
+# Excludes files that require third-party packages not included with ddtrace,
+# preventing Sphinx build failures due to module not found errors.
+exclude_patterns += [
+    path for path in glob.glob("ddtrace/contrib/internal/**/*.py", recursive=True)
+    if not path.endswith("__init__.py")
 ]
 
 
