@@ -5,6 +5,7 @@ import openai as openai_module
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.utils import _est_tokens
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -246,8 +247,8 @@ class TestLLMObsOpenaiV1:
 
     def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
+            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
+                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
                     mock_encoding.return_value.encode.side_effect = lambda x: [1, 2]
                     mock_est.return_value = 2
                     model = "ada"
@@ -542,8 +543,8 @@ class TestLLMObsOpenaiV1:
         """
 
         with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_streamed.yaml"):
-            with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-                with mock.patch("ddtrace.contrib.internal.openai.utils._est_tokens") as mock_est:
+            with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
+                with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
                     mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
                     mock_est.return_value = 8
                     model = "gpt-3.5-turbo"
@@ -1777,6 +1778,92 @@ class TestLLMObsOpenaiV1:
             ],
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_responses_reasoning_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
+
+        stream = client.responses.create(
+            input="If one plus a number is 10, what is the number?",
+            model="o4-mini",
+            reasoning={"effort": "medium", "summary": "detailed"},
+            stream=True,
+        )
+
+        for event in stream:
+            pass
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name="o4-mini-2025-04-16",
+                model_provider="openai",
+                input_messages=[{"content": "If one plus a number is 10, what is the number?", "role": "user"}],
+                output_messages=[
+                    {"role": "reasoning", "content": mock.ANY},
+                    {"role": "assistant", "content": "The number is 9, since 1 + x = 10 ⇒ x = 10 − 1 = 9."},
+                ],
+                metadata={
+                    "reasoning": {"effort": "medium", "summary": "detailed"},
+                    "stream": True,
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tools": [],
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}},
+                    "reasoning_tokens": 128,
+                },
+                token_metrics={
+                    "input_tokens": mock.ANY,
+                    "output_tokens": mock.ANY,
+                    "total_tokens": mock.ANY,
+                    "cache_read_input_tokens": mock.ANY,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
+        # special assertion on rough reasoning content
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        reasoning_content = json.loads(span_event["meta"]["output"]["messages"][0]["content"])
+        assert reasoning_content["summary"] is not None
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
+    )
+    def test_responses_tool_message_input(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        client = openai.OpenAI(base_url="http://127.0.0.1:9126/vcr/openai")
+
+        client.responses.create(
+            input=[
+                {"role": "user", "content": "What's the weather like in San Francisco?"},
+                {
+                    "type": "function_call",
+                    "call_id": "call_123",
+                    "name": "get_weather",
+                    "arguments": '{"location": "San Francisco, CA"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_123",
+                    "output": '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}',
+                },
+            ],
+            model="gpt-4.1",
+            temperature=0,
+        )
+
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        span_event = mock_llmobs_writer.enqueue.call_args[0][0]
+        assert (
+            span_event["meta"]["input"]["messages"][2]["content"]
+            == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
+        )
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -1798,3 +1885,55 @@ def test_agentless_enabled_does_not_submit_metrics(openai, ddtrace_global_config
             user="ddtrace-test",
         )
     assert mock_llmobs_writer.enqueue.call_count == 1
+
+
+def test_est_tokens():
+    """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
+    assert _est_tokens("") == 0  # oracle: 1
+    assert _est_tokens("hello") == 1  # oracle: 1
+    assert _est_tokens("hello, world") == 3  # oracle: 3
+    assert _est_tokens("hello world") == 2  # oracle: 2
+    assert _est_tokens("Hello world, how are you?") == 6  # oracle: 7
+    assert _est_tokens("    hello    ") == 3  # oracle: 8
+    assert (
+        _est_tokens(
+            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."  # noqa E501
+        )
+        == 54
+    )  # oracle: 44
+    assert (
+        _est_tokens(
+            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."  # noqa: E501
+        )
+        == 33
+    )  # oracle: 33
+    assert (
+        _est_tokens(
+            "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
+            "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
+            "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
+            "the gpt-3-encoder package for node.js works for most GPT-3 models."
+        )
+        == 83
+    )  # oracle: 87
+
+    # Expected to be a disparity since our assumption is based on english words
+    assert (
+        _est_tokens(
+            """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
+ maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
+ vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
+ Nullam ultricies dolor sit amet nisl molestie, a porta metus suscipit. Vivamus eget luctus mauris. Proin commodo
+ elementum ex a pretium. Nam vitae ipsum sed dolor congue fermentum. Sed quis bibendum sapien, dictum venenatis urna.
+ Morbi molestie lacinia iaculis. Proin lorem mauris, interdum eget lectus a, auctor volutpat nisl. Suspendisse ac
+ tincidunt sapien. Cras congue ipsum sit amet congue ullamcorper. Proin hendrerit at erat vulputate consequat."""
+        )
+        == 175
+    )  # oracle 281
+
+    assert (
+        _est_tokens(
+            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"  # noqa: E501
+        )
+        == 97
+    )  # oracle: 92
