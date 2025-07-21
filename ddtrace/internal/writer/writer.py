@@ -406,13 +406,18 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         # Should gzip the payload if intake accepts it
         if self._intake_accepts_gzip:
-            original_size = len(encoded)
-            # Replace the value to send with the gzipped the value
-            encoded = gzip.compress(encoded, compresslevel=6)
-            log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+            try:
+                original_size = len(encoded)
+                # Replace the value to send with the gzipped the value
+                encoded = gzip.compress(encoded, compresslevel=6)
+                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
 
-            # And add the header
-            self._headers["Content-Encoding"] = "gzip"
+                # And add the header
+                self._headers["Content-Encoding"] = "gzip"
+            except Exception:
+                log.error("failed to compress traces with encoder %r", client.encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", n_traces)
+                return
 
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
