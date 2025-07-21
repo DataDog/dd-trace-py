@@ -135,8 +135,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         manifest = {}
         manifest["framework"] = "PydanticAI"
-        if hasattr(agent, "name"):
-            manifest["name"] = agent.name or "PydanticAI Agent"
+        manifest["name"] = agent.role if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
         if span.get_tag("pydantic_ai.request.model"):
             manifest["model"] = span.get_tag("pydantic_ai.request.model")
         if span.get_tag("pydantic_ai.request.provider"):

@@ -362,7 +362,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         except ImportError:
             return None
 
-        if not hasattr(agent, "tools"):
+        if not hasattr(agent, "tools") or not agent.tools:
             return None
 
         tools = []
@@ -415,7 +415,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         except ImportError:
             return None
 
-        if not hasattr(agent, "handoffs"):
+        if not hasattr(agent, "handoffs") or not agent.handoffs:
             return None
 
         handoffs = []

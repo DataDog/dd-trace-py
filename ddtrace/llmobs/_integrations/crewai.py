@@ -203,8 +203,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
         manifest = {}
         manifest["framework"] = "CrewAI"
-        if hasattr(agent, "role"):
-            manifest["name"] = agent.role or "CrewAI Agent"
+        manifest["name"] = agent.role if hasattr(agent, "role") and agent.role else "CrewAI Agent"
         if hasattr(agent, "goal"):
             manifest["goal"] = agent.goal
         if hasattr(agent, "backstory"):
