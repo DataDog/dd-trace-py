@@ -3,7 +3,21 @@ from unittest import mock
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
-def _expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None) -> Dict:
+def expected_calculate_square_tool():
+    return [
+        {
+            "name": "calculate_square_tool",
+            "description": "Calculates the square of a number",
+            "parameters": {
+                "x": {
+                    "type": "integer",
+                    "required": True
+                }
+            }
+        }
+    ]
+
+def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> Dict:
     metadata = {
         "agent_manifest": {
             "framework": "PydanticAI",
@@ -13,7 +27,7 @@ def _expected_agent_metadata(instructions=None, system_prompt=None, model_settin
             "model_settings": model_settings,
             "instructions": instructions,
             "system_prompts": (system_prompt,) if system_prompt else (),
-            "tools": mock.ANY,
+            "tools": tools if tools is not None else [],
         }
     }
     return metadata
@@ -28,13 +42,14 @@ def expected_run_agent_span_event(
     system_prompt=None,
     model_settings=None,
     span_links=None,
+    tools=None
 ):
     return _expected_llmobs_non_llm_span_event(
         span,
         "agent",
         input_value=input_value,
         output_value=output,
-        metadata=_expected_agent_metadata(instructions, system_prompt, model_settings),
+        metadata=expected_agent_metadata(instructions, system_prompt, model_settings, tools),
         token_metrics=token_metrics,
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
         span_links=span_links,
