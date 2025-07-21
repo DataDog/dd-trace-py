@@ -399,7 +399,7 @@ def test_long_span_start(encoding):
 
     trace = [span]
     encoder.put(trace)
-    assert decode(encoder.encode()[0]) is not None
+    assert decode(encoder.encode()[0][0]) is not None
 
 
 class SubString(str):
