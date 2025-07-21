@@ -24,9 +24,6 @@ file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/*.so" "${SOURCE_LIB_DIR}/*.lib" "${SOURCE
 
 message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
 
-# Add imported library target
-add_library(_native SHARED IMPORTED GLOBAL)
-
 if(WIN32)
     if(NOT DEFINED NATIVE_IMPLIB)
         set(NATIVE_IMPLIB ${CMAKE_SOURCE_DIR}/../../../../../src/native/target/release/_native.lib)
@@ -34,6 +31,7 @@ if(WIN32)
 
     if(EXISTS "${NATIVE_IMPLIB}")
         message(WARNING "NATIVE_IMPLIB: ${NATIVE_IMPLIB}")
+        add_library(_native SHARED IMPORTED GLOBAL)
         set_target_properties(_native PROPERTIES
             IMPORTED_LOCATION_RELEASE "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
             IMPORTED_IMPLIB_RELEASE "${NATIVE_IMPLIB}"
@@ -52,9 +50,13 @@ if(WIN32)
         )
     endif()
 else()
-    set_target_properties(_native PROPERTIES
-        IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-        INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-    )
+    add_library(_native INTERFACE)
+    target_include_directories(_native INTERFACE "${DEST_INCLUDE_DIR}")
+    # If you want consumers to know the DLL path:
+    set(_native_DLL_PATH "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
+    # set_target_properties(_native PROPERTIES
+    #     IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+    #     INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
+    # )
 endif()
 
