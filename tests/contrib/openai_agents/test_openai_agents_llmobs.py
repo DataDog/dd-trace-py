@@ -20,31 +20,74 @@ COMMON_RESPONSE_LLM_METADATA = {
     "text": {"format": {"type": "text"}},
 }
 
+EXPECTED_AGENT_TO_AGENT_MANIFEST = {
+    "Simple Agent": {
+        "framework": "OpenAI",
+        "name": "Simple Agent",
+        "instructions": "You are a helpful assistant who answers questions concisely and accurately.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY, # different versions of the library have different model settings
+    },
+    "Addition Agent": {
+        "framework": "OpenAI",
+        "name": "Addition Agent",
+        "instructions": "You are a helpful assistant specialized in addition calculations.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "add",
+                "description": "Add two numbers together",
+                "strict_json_schema": True,
+                "parameters": {"a": {"type": "integer", "title": "A", "required": True}, "b": {"type": "integer", "title": "B", "required": True}},
+            }
+        ],
+    },
+    "Researcher": {
+        "framework": "OpenAI",
+        "name": "Researcher",
+        "instructions": "You are a helpful assistant that can research a topic using your research tool. Always research the topic before summarizing.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "research",
+                "description": "Research the internet on a topic.",
+                "strict_json_schema": True,
+                "parameters": {"query": {"type": "string", "title": "Query", "required": True}},
+            }
+        ],
+        "handoffs": [
+            {
+                "handoff_description": None, 
+                "agent_name": "Summarizer"
+            },
+        ],
+    },
+    "Summarizer": {
+        "framework": "OpenAI",
+        "name": "Summarizer",
+        "instructions": "You are a helpful assistant that can summarize a research results.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+    },
+}
 
-def _expected_agent_metadata(tools: List[str], handoffs: List[str]) -> Dict:
-    metadata = {
-        "agent_manifest": {
-            "framework": "OpenAI",
-            "name": mock.ANY,
-            "instructions": mock.ANY,
-            "handoff_description": None,
-            "model": "gpt-4o",
-            "model_settings": mock.ANY,
-        }
+
+def _expected_agent_metadata(agent_name: str) -> Dict:
+    return {
+        "agent_manifest": EXPECTED_AGENT_TO_AGENT_MANIFEST[agent_name]
     }
-    if tools:
-        metadata["agent_manifest"]["tools"] = mock.ANY
-    if handoffs:
-        metadata["agent_manifest"]["handoffs"] = mock.ANY
-    return metadata
 
 
 def _assert_expected_agent_run(
     expected_span_names: List[str],
     spans,
     llmobs_events,
-    handoffs: List[str] = None,
-    tools: List[str] = None,
     llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
     tool_calls: List[dict] = None,
     previous_tool_events: List[dict] = None,
@@ -67,7 +110,7 @@ def _assert_expected_agent_run(
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="agent",
-        metadata=_expected_agent_metadata(tools, handoffs),
+        metadata=_expected_agent_metadata(llmobs_events[0]["name"]),
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     if not previous_tool_events:
@@ -144,8 +187,6 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -193,8 +234,6 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -235,8 +274,6 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -290,8 +327,6 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[2:],
         llmobs_events[2:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -333,8 +368,6 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=["add"],
         llm_calls=[
             (
                 [
@@ -403,8 +436,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
         spans[1:6],
         llmobs_events[1:6],
-        handoffs=["Summarizer"],
-        tools=["research"],
         llm_calls=[
             (
                 [
@@ -473,8 +504,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         ["Summarizer", "Summarizer (LLM)"],
         spans[6:],
         llmobs_events[6:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 mock.ANY,
@@ -510,8 +539,6 @@ async def test_llmobs_single_agent_with_tool_errors(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=["add"],
         llm_calls=[
             (
                 [
@@ -591,8 +618,6 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         ],
         spans[1:6],
         llmobs_events[1:6],
-        handoffs=["Summarizer"],
-        tools=["research"],
         tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
         is_chat=True,
     )
@@ -600,8 +625,6 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         ["Summarizer", "OpenAI.createChatCompletion"],
         spans[6:],
         llmobs_events[6:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 mock.ANY,
