@@ -2,6 +2,7 @@ from typing import Dict
 from unittest import mock
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 def _expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None) -> Dict:
     metadata = {
         "agent_manifest": {
@@ -16,6 +17,7 @@ def _expected_agent_metadata(instructions=None, system_prompt=None, model_settin
         }
     }
     return metadata
+
 
 def expected_run_agent_span_event(
     span,

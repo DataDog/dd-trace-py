@@ -181,7 +181,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
-    
+
     def _llmobs_set_tags_tool(self, span, args, kwargs, response):
         tool_instance = kwargs.get("instance")
         tool_name = getattr(tool_instance, "name", "")
@@ -200,7 +200,7 @@ class CrewAIIntegration(BaseLLMIntegration):
     def _tag_agent_manifest(self, span, agent):
         if not agent:
             return
-        
+
         manifest = {}
         manifest["framework"] = "CrewAI"
         if hasattr(agent, "role"):
@@ -234,7 +234,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             manifest["tools"] = self._get_agent_tools(agent.tools)
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
-    
+
     def _get_agent_tools(self, tools):
         if not tools or not isinstance(tools, list):
             return []

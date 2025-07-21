@@ -10,6 +10,7 @@ from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [dict(_llmobs_enabled=True, _llmobs_ml_app="<ml-app-name>", _llmobs_agentless_enabled=True)],

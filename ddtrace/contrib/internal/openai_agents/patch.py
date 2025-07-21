@@ -24,22 +24,27 @@ def get_version() -> str:
 
     return getattr(version, "__version__", "")
 
+
 def _supported_versions() -> Dict[str, str]:
     return {"agents": ">=0.0.2"}
 
+
 OPENAI_AGENTS_VERSION = parse_version(get_version())
+
 
 @with_traced_module_async
 async def patched_run_single_turn(agents, pin, func, instance, args, kwargs):
     return await _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0)
 
+
 @with_traced_module_async
 async def patched_run_single_turn_streamed(agents, pin, func, instance, args, kwargs):
     return await _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=1)
-    
-    
+
+
 async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0):
     from ddtrace import tracer
+
     s = tracer.current_span()
     r = await func(*args, **kwargs)
 
@@ -48,6 +53,7 @@ async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, ag
 
     s._set_ctx_item(AGENT_MANIFEST, agent_manifest)
     return r
+
 
 def patch():
     """

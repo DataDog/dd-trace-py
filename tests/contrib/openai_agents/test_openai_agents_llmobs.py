@@ -20,6 +20,7 @@ COMMON_RESPONSE_LLM_METADATA = {
     "text": {"format": {"type": "text"}},
 }
 
+
 def _expected_agent_metadata(tools: List[str], handoffs: List[str]) -> Dict:
     metadata = {
         "agent_manifest": {
@@ -36,7 +37,6 @@ def _expected_agent_metadata(tools: List[str], handoffs: List[str]) -> Dict:
     if handoffs:
         metadata["agent_manifest"]["handoffs"] = mock.ANY
     return metadata
-
 
 
 def _assert_expected_agent_run(

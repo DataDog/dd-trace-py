@@ -6,6 +6,7 @@ from agents import (
     ComputerTool,
 )
 
+
 def create_agent_manifest(agent):
     manifest = {}
     manifest["framework"] = "OpenAI"
@@ -31,17 +32,18 @@ def create_agent_manifest(agent):
     handoffs = extract_handoffs_from_agent(agent)
     if handoffs:
         manifest["handoffs"] = handoffs
-    
+
     guardrails = extract_guardrails_from_agent(agent)
     if guardrails:
         manifest["guardrails"] = guardrails
-        
+
     return manifest
+
 
 def extract_model_settings_from_agent(agent):
     if not hasattr(agent, "model_settings"):
         return None
-    
+
     # convert model_settings to dict if it's not already
     model_settings = agent.model_settings
     if type(model_settings) != dict:
@@ -49,13 +51,14 @@ def extract_model_settings_from_agent(agent):
             model_settings = model_settings.__dict__
         else:
             return None
-    
+
     return make_json_compatible(model_settings)
+
 
 def extract_tools_from_agent(agent):
     if not hasattr(agent, "tools"):
         return None
-    
+
     tools = []
     for tool in agent.tools:
         tool_dict = {}
@@ -95,14 +98,15 @@ def extract_tools_from_agent(agent):
                         param_dict["required"] = True
                     parameters[param] = param_dict
                 tool_dict["parameters"] = parameters
-        tools.append(tool_dict)                     
-    
+        tools.append(tool_dict)
+
     return tools
+
 
 def extract_handoffs_from_agent(agent):
     if not hasattr(agent, "handoffs"):
         return None
-    
+
     handoffs = []
     for handoff in agent.handoffs:
         handoff_dict = {}
@@ -123,6 +127,7 @@ def extract_handoffs_from_agent(agent):
 
     return handoffs
 
+
 def extract_guardrails_from_agent(agent):
     guardrails = []
     if hasattr(agent, "input_guardrails"):
@@ -130,6 +135,7 @@ def extract_guardrails_from_agent(agent):
     if hasattr(agent, "output_guardrails"):
         guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
     return guardrails
+
 
 def make_json_compatible(obj):
     if isinstance(obj, dict):

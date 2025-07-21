@@ -14,16 +14,9 @@ EXPECTED_AGENT_SPAN_ARGS = {
             "goal": mock.ANY,
             "backstory": mock.ANY,
             "model": "gpt-4o-mini",
-            "model_settings": {
-                "max_tokens": None,
-                "temperature": None
-            },
-            "handoffs": {
-                "allow_delegation": False
-            },
-            "code_execution_permissions": {
-                "code_execution_mode": "safe"
-            },
+            "model_settings": {"max_tokens": None, "temperature": None},
+            "handoffs": {"allow_delegation": False},
+            "code_execution_permissions": {"code_execution_mode": "safe"},
             "max_iterations": 25,
             "tools": mock.ANY,
         }
@@ -31,6 +24,7 @@ EXPECTED_AGENT_SPAN_ARGS = {
     "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
     "span_links": True,
 }
+
 
 def _assert_basic_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
@@ -73,7 +67,9 @@ def _assert_tool_crew_events(llmobs_events, spans):
     }
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        spans[2], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS
+    )
     assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
         spans[3],
         span_kind="tool",
@@ -107,7 +103,9 @@ def _assert_async_crew_events(llmobs_events, spans):
     }
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
     assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        spans[2], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS
+    )
     assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
         spans[3],
         span_kind="tool",
@@ -117,7 +115,9 @@ def _assert_async_crew_events(llmobs_events, spans):
         tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
     )
     assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **expected_span_args)
-    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(spans[5], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS)
+    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
+        spans[5], span_kind="agent", **EXPECTED_AGENT_SPAN_ARGS
+    )
 
 
 def _assert_async_crew_links(llmobs_events):

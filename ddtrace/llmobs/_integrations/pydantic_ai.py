@@ -83,6 +83,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any]
     ) -> None:
         from pydantic_ai.agent import AgentRun
+
         agent_instance = kwargs.get("instance", None)
         agent_name = getattr(agent_instance, "name", None)
         self._tag_agent_manifest(span, kwargs, agent_instance)
@@ -131,7 +132,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
             return
-        
+
         manifest = {}
         manifest["framework"] = "PydanticAI"
         if hasattr(agent, "name"):
@@ -150,10 +151,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["tools"] = self._get_agent_tools(agent._function_tools)
         if kwargs.get("deps", None):
             agent_dependencies = kwargs.get("deps", None)
-            manifest["dependencies"] = agent_dependencies.__dict__ if hasattr(agent_dependencies, "__dict__") else agent_dependencies
-        
+            manifest["dependencies"] = (
+                agent_dependencies.__dict__ if hasattr(agent_dependencies, "__dict__") else agent_dependencies
+            )
+
         span._set_ctx_item(AGENT_MANIFEST, manifest)
-    
+
     def _get_agent_tools(self, tools: Any) -> List[Dict[str, Any]]:
         if not tools:
             return []
@@ -177,7 +180,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             tool_dict["parameters"] = parameters
             formatted_tools.append(tool_dict)
         return formatted_tools
-
 
     def extract_usage_metrics(self, response: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         response = kwargs.get("streamed_run_result", None) or response
