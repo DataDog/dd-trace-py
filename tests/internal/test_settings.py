@@ -100,7 +100,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
             "rc": {
                 "tracing_sampling_rules": [
                     {
-                        "sample_rate": "0.73",
+                        "sample_rate": 0.73,
                         "service": "*",
                         "name": "*",
                         "resource": "*",
@@ -110,7 +110,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
                 ]
             },
             "expected": {
-                "_trace_sampling_rules": '[{"sample_rate": "0.73", "service": "*", "name": "*", '
+                "_trace_sampling_rules": '[{"sample_rate": 0.73, "service": "*", "name": "*", '
                 '"resource": "*", "tags": {}, "provenance": "customer"}]',
             },
             "expected_source": {"_trace_sampling_rules": "remote_config"},
