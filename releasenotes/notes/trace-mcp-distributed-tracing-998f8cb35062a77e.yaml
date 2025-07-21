@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: Adds distributed tracing support for MCP tool calls across client-server boundaries
+    LLM Observability: Adds distributed tracing support for MCP tool calls across client-server boundaries.
