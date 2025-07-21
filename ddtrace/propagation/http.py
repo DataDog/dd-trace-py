@@ -1124,6 +1124,15 @@ class HTTPPropagator(object):
             else:
                 root_span = core.tracer.current_root_span()
 
+                if root_span is not None and root_span.context is not span_context:
+                    log.error(
+                        "The passed in span_context is not the active context. The span must be passed in with"
+                        "non_active_span in order to be sampled. span_context: {}, non_active_span.context: {}",
+                        span_context,
+                        root_span.context,
+                    )
+                    root_span = None
+
             if root_span is not None and root_span.context.sampling_priority is None:
                 core.tracer.sample(root_span)
         else:
