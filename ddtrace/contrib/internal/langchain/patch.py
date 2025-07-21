@@ -1085,6 +1085,7 @@ def patch():
         "language_models.chat_models.BaseChatModel.astream",
         traced_chat_stream(langchain),
     )
+    wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", traced_base_prompt_template_invoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
 
@@ -1123,6 +1124,7 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
+    unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     if langchain_openai:
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     if langchain_pinecone:
@@ -1134,3 +1136,11 @@ def unpatch():
     core.dispatch("langchain.unpatch", tuple())
 
     delattr(langchain, "_datadog_integration")
+
+@with_traced_module
+def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    print("hello")
+    prompt = func(*args, **kwargs)
+    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
