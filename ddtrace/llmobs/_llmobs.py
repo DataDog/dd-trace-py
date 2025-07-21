@@ -298,11 +298,13 @@ class LLMObs(Service):
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
         if span._get_ctx_item(INPUT_PROMPT) is not None:
             prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
+            print('PROMPT JSON STR for span id', span.span_id, span_kind, prompt_json_str)
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."
                 )
             else:
+                print('passed')
                 meta["input"]["prompt"] = prompt_json_str
         if span.error:
             meta.update(

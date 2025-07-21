@@ -1,3 +1,5 @@
+from ddtrace.llmobs._constants import INPUT_PROMPT
+from ddtrace.llmobs._utils import validate_prompt
 from collections import defaultdict
 import json
 from typing import Any
@@ -13,7 +15,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS, TAGS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -187,11 +189,13 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
+            self._llmobs_set_prompt_tag(span, args, kwargs, response)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
             # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
             is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
+            self._llmobs_set_prompt_tag(span, args, kwargs, response)
             update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
@@ -764,3 +768,55 @@ class LangChainIntegration(BaseLLMIntegration):
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
+
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        span = LLMObs._instance._current_span()
+        parent_instance = self._instances.get(span)
+        print('ccc', instance)
+        # if the span is a chain, _add_my_tag(span, is_chain, True)
+        if not _is_chain_instance(parent_instance):
+            return
+
+        variables = args[0] if not isinstance(args[0], str) else {'dummy_var': args[0]}
+        template = instance.template
+        print("TEMPLATE", template)
+        print("VARS", variables)
+
+        prompt = {
+            "variables": variables,
+            "template": template,
+            "id": "my_unnamed_prompt",
+            "version": "0.0.0",
+            "rag_context_variables": [],
+            "rag_query_variables": [],
+        }
+        prompt_key = _get_prompt_key(result)
+        span._set_ctx_item(MY_PROMPT_TAG, {prompt_key:prompt})
+        _add_my_tag(span, "has_template", "true")
+    
+    def _llmobs_set_prompt_tag(self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
+        prompt = args[0][0]
+        print('CHILD RECIEVED PROMPT', prompt)
+        prompt_key = _get_prompt_key(prompt)
+        parent_span = _get_nearest_llmobs_ancestor(span)
+        if not parent_span or not _is_chain_instance(self._instances.get(parent_span)):
+            return
+        prompt_templates = parent_span._get_ctx_item(MY_PROMPT_TAG)
+        print('PARENT PROMPT TEMPLATES', prompt_templates)
+        if prompt_templates and prompt_key in prompt_templates:
+            try:
+                prompt = validate_prompt(prompt_templates[prompt_key])
+                print('VALIDATED PROMPT', prompt)
+                span._set_ctx_item(INPUT_PROMPT, prompt)
+            except Exception as e:
+                print('ERROR VALIDATING PROMPT', e)
+
+MY_PROMPT_TAG = "ml_obs.stored_prompt"
+def _add_my_tag(span: Span, tagName: str, tagValue: str):
+    print("hellohello")
+    tags = span._get_ctx_item(TAGS) or {}
+    tags[tagName] = tagValue
+    span._set_ctx_item(TAGS, tags)
+
+def _get_prompt_key(result):
+    return result if isinstance(result, str) else result.to_string()
