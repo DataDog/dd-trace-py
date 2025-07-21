@@ -305,7 +305,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             return
         agent_manifest = self._create_agent_manifest(agent)
         span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
-    
+
     def _create_agent_manifest(self, agent):
         manifest = {}
         manifest["framework"] = "OpenAI"
@@ -337,7 +337,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             manifest["guardrails"] = guardrails
 
         return manifest
-    
+
     def _extract_model_settings_from_agent(self, agent):
         if not hasattr(agent, "model_settings"):
             return None
