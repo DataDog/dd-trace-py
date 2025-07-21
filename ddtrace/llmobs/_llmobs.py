@@ -48,6 +48,8 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -75,9 +77,11 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordRaw as DatasetRecord
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -109,11 +113,13 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "google_generativeai": "google_generativeai",
+    "google_genai": "google_genai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
@@ -161,7 +167,8 @@ class LLMObsSpan:
 class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
-    _app_key: str = os.environ.get("DD_APP_KEY", "")
+    _app_key: str = os.getenv("DD_APP_KEY", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
 
     def __init__(
         self,
@@ -236,6 +243,11 @@ class LLMObs(Service):
             raise KeyError("Span kind not found in span context")
 
         llmobs_span = LLMObsSpan()
+        _dd_attrs = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        }
 
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
@@ -250,6 +262,12 @@ class LLMObs(Service):
             llmobs_span.input = [
                 {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
             ]
+
+        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            _dd_attrs["scope"] = "experiments"
+            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+            if span_kind == "experiment" and expected_output:
+                meta["expected_output"] = expected_output
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -344,11 +362,7 @@ class LLMObs(Service):
             "meta": meta,
             "metrics": metrics,
             "tags": [],
-            "_dd": {
-                "span_id": str(span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "apm_trace_id": format_trace_id(span.trace_id),
-            },
+            "_dd": _dd_attrs,
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -461,6 +475,7 @@ class LLMObs(Service):
         site: Optional[str] = None,
         api_key: Optional[str] = None,
         app_key: Optional[str] = None,
+        project_name: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
         span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
@@ -477,6 +492,7 @@ class LLMObs(Service):
         :param str site: Your datadog site.
         :param str api_key: Your datadog api key.
         :param str app_key: Your datadog application key.
+        :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
         :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
@@ -493,6 +509,7 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
+        cls._project_name = project_name or cls._project_name
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
@@ -567,11 +584,17 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, name: str) -> Dataset:
-        return cls._instance._dne_client.dataset_pull(name)
+        ds = cls._instance._dne_client.dataset_get_with_records(name)
+        return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str) -> Dataset:
-        return cls._instance._dne_client.dataset_create(name, description)
+    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+        ds = cls._instance._dne_client.dataset_create(name, description)
+        for r in records:
+            ds.append(r)
+        if len(records) > 0:
+            ds.push()
+        return ds
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
@@ -581,10 +604,12 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[Dict[str, NonNoneJSONType]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
+        project_name: Optional[str] = None,
+        tags: Optional[List[str]] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -594,13 +619,17 @@ class LLMObs(Service):
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
         :param description: A description of the experiment.
+        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
+                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
+                             or `LLMObs.enable(project_name=...)`.
+        :param tags: A list of string tags to associate with the experiment.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
         params = sig.parameters
-        if "input_data" not in params:
-            raise TypeError("Task function must have an 'input_data' parameter.")
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
@@ -611,7 +640,18 @@ class LLMObs(Service):
             required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(required_params))
-        return Experiment(name, task, dataset, evaluators, description=description, _llmobs=cls)
+        if project_name is None:
+            project_name = cls._project_name
+        return Experiment(
+            name,
+            task,
+            dataset,
+            evaluators,
+            project_name=project_name,
+            tags=tags,
+            description=description,
+            _llmobs_instance=cls._instance,
+        )
 
     @classmethod
     def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
@@ -1095,6 +1135,33 @@ class LLMObs(Service):
         return cls._instance._start_span(
             "retrieval", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator
         )
+
+    @classmethod
+    def _experiment(
+        cls,
+        name: Optional[str] = None,
+        session_id: Optional[str] = None,
+        ml_app: Optional[str] = None,
+        experiment_id: Optional[str] = None,
+    ) -> Span:
+        """
+        Trace an LLM experiment, only used internally by the experiments SDK.
+        :param str name: The name of the traced operation. If not provided, a default value of "agent" will be set.
+        :param str session_id: The ID of the underlying user session. Required for tracking sessions.
+        :param str ml_app: The name of the ML application that the agent is orchestrating. If not provided, the default
+                           value will be set to the value of `DD_LLMOBS_ML_APP`.
+        :param str experiment_id: The ID of the experiment to associate with this span and its children.
+        :returns: The Span object representing the traced operation.
+        """
+        if cls.enabled is False:
+            log.warning(SPAN_START_WHILE_DISABLED_WARNING)
+        span = cls._instance._start_span("experiment", name=name, session_id=session_id, ml_app=ml_app)
+
+        # Set experiment_id in baggage if provided
+        if experiment_id:
+            span.context.set_baggage_item(EXPERIMENT_ID_KEY, experiment_id)
+
+        return span
 
     @classmethod
     def annotate(
