@@ -1,7 +1,6 @@
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 import wrapt
 
@@ -36,44 +35,41 @@ class Pin(object):
 
     def __init__(
         self,
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
-        _config=None,  # type: Optional[Dict[str, Any]]
-    ):
-        # type: (...) -> None
-        self.tags = tags
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        _config: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self.tags = tags or {}
         self._tracer = ddtrace.tracer
-        self._target = None  # type: Optional[int]
+        self._target: Optional[int] = None
         # keep the configuration attribute internal because the
         # public API to access it is not the Pin class
-        self._config = _config or {}  # type: Dict[str, Any]
+        self._config: Dict[str, Any] = _config or {}
         # [Backward compatibility]: service argument updates the `Pin` config
         self._config["service_name"] = service
         self._initialized = True
 
     @property
-    def service(self):
-        # type: () -> str
+    def service(self) -> str:
         """Backward compatibility: accessing to `pin.service` returns the underlying
         configuration value.
         """
         return self._config["service_name"]
 
-    def __setattr__(self, name, value):
+    def __setattr__(self, name: str, value: Any) -> None:
         if getattr(self, "_initialized", False) and name not in ("_target", "_tracer"):
             raise AttributeError("can't mutate a pin, use override() or clone() instead")
         super(Pin, self).__setattr__(name, value)
 
     @property
-    def tracer(self):
+    def tracer(self) -> Any:
         return self._tracer
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "Pin(service=%s, tags=%s, tracer=%s)" % (self.service, self.tags, self.tracer)
 
     @staticmethod
-    def _find(*objs):
-        # type: (Any) -> Optional[Pin]
+    def _find(*objs: Any) -> Optional["Pin"]:
         """
         Return the first :class:`ddtrace.trace.Pin` found on any of the provided objects or `None` if none were found
 
@@ -92,8 +88,7 @@ class Pin(object):
         return None
 
     @staticmethod
-    def get_from(obj):
-        # type: (Any) -> Optional[Pin]
+    def get_from(obj: Any) -> Optional["Pin"]:
         """Return the pin associated with the given object. If a pin is attached to
         `obj` but the instance is not the owner of the pin, a new pin is cloned and
         attached. This ensures that a pin inherited from a class is a copy for the new
@@ -134,11 +129,10 @@ class Pin(object):
     @classmethod
     def override(
         cls,
-        obj,  # type: Any
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
-    ):
-        # type: (...) -> None
+        obj: Any,
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+    ) -> None:
         """Override an object with the given attributes.
 
         That's the recommended way to customize an already instrumented client, without
@@ -153,12 +147,11 @@ class Pin(object):
     @classmethod
     def _override(
         cls,
-        obj,  # type: Any
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,
-    ):
-        # type: (...) -> None
+        obj: Any,
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        tracer: Optional[Any] = None,
+    ) -> None:
         """
         Internal method that allows overriding the global tracer in tests
         """
@@ -179,8 +172,7 @@ class Pin(object):
         """Return true if this pin's tracer is enabled."""
         return bool(self.tracer) and (self.tracer.enabled or asm_config._apm_opt_out)
 
-    def onto(self, obj, send=True):
-        # type: (Any, bool) -> None
+    def onto(self, obj: Any, send: bool = True) -> None:
         """Patch this pin onto the given object. If send is true, it will also
         queue the metadata to be sent to the server.
         """
@@ -199,8 +191,7 @@ class Pin(object):
         except AttributeError:
             log.debug("can't pin onto object. skipping", exc_info=True)
 
-    def remove_from(self, obj):
-        # type: (Any) -> None
+    def remove_from(self, obj: Any) -> None:
         # Remove pin from the object.
         try:
             pin_name = _DD_PIN_PROXY_NAME if isinstance(obj, wrapt.ObjectProxy) else _DD_PIN_NAME
@@ -213,19 +204,18 @@ class Pin(object):
 
     def clone(
         self,
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
-    ):
-        # type: (...) -> Pin
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+    ) -> "Pin":
         """Return a clone of the pin with the given attributes replaced."""
         return self._clone(service=service, tags=tags)
 
     def _clone(
         self,
-        service=None,  # type: Optional[str]
-        tags=None,  # type: Optional[Dict[str, str]]
-        tracer=None,
-    ):
+        service: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
+        tracer: Optional[Any] = None,
+    ) -> "Pin":
         """Internal method that can clone the tracer from an existing Pin. This is used in tests"""
         # do a shallow copy of Pin dicts
         if not tags and self.tags:

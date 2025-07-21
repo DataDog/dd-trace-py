@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where spans would have incorrect timestamps and durations when ``freezegun`` was
+    in use. With this change, the ``freezegun`` integration is not necessary anymore.
