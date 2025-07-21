@@ -70,8 +70,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self.buffer.append(item)
 
     def encode_traces(self, traces):
-        payloads = self._build_payload(traces)
-        return payloads[0][0] if payloads else None
+        """
+        Only used for LogWriter, not called for CI Visibility currently
+        """
+        raise NotImplementedError()
 
     def encode(self) -> List[Tuple[Optional[bytes], int]]:
         with self._lock:
