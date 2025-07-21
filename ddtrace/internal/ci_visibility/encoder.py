@@ -65,25 +65,24 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         with self._lock:
             self.buffer = []
 
-    def put(self, spans):
+    def put(self, item):
         with self._lock:
-            self.buffer.append(spans)
+            self.buffer.append(item)
 
     def encode_traces(self, traces):
-        return self._build_payload(traces=traces)[0]
+        payloads = self._build_payload(traces)
+        return payloads[0][0] if payloads else None
 
     def encode(self) -> List[Tuple[Optional[bytes], int]]:
         with self._lock:
             if not self.buffer:
                 return []
             payloads = []
-            while self.buffer:
-                with StopWatch() as sw:
-                    payload, count = self._build_payload(self.buffer)
-                    payloads.append((payload, count))
-                record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
-                if count:
-                    self.buffer = self.buffer[count:]
+            with StopWatch() as sw:
+                result_payloads = self._build_payload(self.buffer)
+                payloads.extend(result_payloads)
+            record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
+            self._init_buffer()
             return payloads
 
     def _get_parent_session(self, traces):
@@ -94,39 +93,78 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return 0
 
     def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
+        # type: (List[List[Span]]) -> List[Tuple[Optional[bytes], int]]
+        """
+        Build multiple payloads from traces, splitting when necessary to stay under size limits.
+        Uses index-based recursive approach to avoid copying slices.
+
+        Returns a list of (payload_bytes, trace_count) tuples, where each payload contains
+        as many traces as possible without exceeding _MAX_PAYLOAD_SIZE.
+        """
         if not traces:
-            return (None, 0)
+            return [(None, 0)]
 
         new_parent_session_span_id = self._get_parent_session(traces)
-        return self._send_all_or_half_spans(traces, new_parent_session_span_id)
+        return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
 
-    def _send_all_or_half_spans(self, traces, new_parent_session_span_id):
-        # Convert all traces to spans with filtering
-        all_spans_with_trace_info = self._convert_traces_to_spans(traces, new_parent_session_span_id)
-        total_traces = len(traces)
+    def _build_payloads_recursive(self, traces, start_idx, end_idx, new_parent_session_span_id):
+        # type: (List[List[Span]], int, int, int) -> List[Tuple[Optional[bytes], int]]
+        """
+        Recursively build payloads using start/end indexes to avoid slice copying.
+
+        Args:
+            traces: Full list of traces
+            start_idx: Start index (inclusive)
+            end_idx: End index (exclusive)
+            new_parent_session_span_id: Parent session span ID
+
+        Returns:
+            List of (payload_bytes, trace_count) tuples
+        """
+        if start_idx >= end_idx:
+            return []
+
+        # Prevent infinite recursion - if we have only one trace, we must process it
+        trace_count = end_idx - start_idx
+        if trace_count <= 0:
+            return []
+
+        # Convert traces to spans with filtering (using indexes)
+        all_spans_with_trace_info = self._convert_traces_to_spans_indexed(
+            traces, start_idx, end_idx, new_parent_session_span_id
+        )
 
         # Get all spans (flattened)
         all_spans = [span for _, trace_spans in all_spans_with_trace_info for span in trace_spans]
 
         if not all_spans:
-            log.debug("No spans to encode after filtering, returning empty payload")
-            return None, total_traces
+            log.debug("No spans to encode after filtering, skipping chunk")
+            return []
 
-        # Try to fit all spans first (optimistic case)
+        # Try to create payload from all spans
         payload = self._create_payload_from_spans(all_spans)
-        if len(payload) <= self._MAX_PAYLOAD_SIZE or total_traces <= 1:
-            record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(all_spans))
-            return payload, total_traces
 
-        mid = (total_traces + 1) // 2
-        return self._send_all_or_half_spans(traces[:mid], new_parent_session_span_id)
+        if len(payload) <= self._MAX_PAYLOAD_SIZE or trace_count == 1:
+            # Payload fits or we can't split further (single trace)
+            record_endpoint_payload_events_count(endpoint=self.ENDPOINT_TYPE, count=len(all_spans))
+            return [(payload, trace_count)]
+        else:
+            # Payload is too large, split in half recursively
+            mid_idx = start_idx + (trace_count + 1) // 2
 
-    def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
-        # type: (List[List[Span]], Optional[int]) -> List[Tuple[int, List[Dict[str, Any]]]]
-        """Convert all traces to spans with xdist filtering applied."""
+            # Process both halves recursively
+            left_payloads = self._build_payloads_recursive(traces, start_idx, mid_idx, new_parent_session_span_id)
+            right_payloads = self._build_payloads_recursive(traces, mid_idx, end_idx, new_parent_session_span_id)
+
+            # Combine results
+            return left_payloads + right_payloads
+
+    def _convert_traces_to_spans_indexed(self, traces, start_idx, end_idx, new_parent_session_span_id):
+        # type: (List[List[Span]], int, int, int) -> List[Tuple[int, List[Dict[str, Any]]]]
+        """Convert traces to spans with xdist filtering applied, using indexes to avoid slicing."""
         all_spans_with_trace_info = []
-        for trace_idx, trace in enumerate(traces):
+        for trace_idx in range(start_idx, end_idx):
+            trace = traces[trace_idx]
             trace_spans = [
                 self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
                 for span in trace
@@ -135,6 +173,11 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             all_spans_with_trace_info.append((trace_idx, trace_spans))
 
         return all_spans_with_trace_info
+
+    def _convert_traces_to_spans(self, traces, new_parent_session_span_id):
+        # type: (List[List[Span]], int) -> List[Tuple[int, List[Dict[str, Any]]]]
+        """Convert all traces to spans with xdist filtering applied. Wrapper for backward compatibility."""
+        return self._convert_traces_to_spans_indexed(traces, 0, len(traces), new_parent_session_span_id)
 
     def _create_payload_from_spans(self, spans):
         # type: (List[Dict[str, Any]]) -> bytes
@@ -152,7 +195,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return msgpack_packb(payload)
 
     def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
-        # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
+        # type: (Span, Optional[str], int) -> Dict[str, Any]
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -220,10 +263,10 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
     def _set_itr_suite_skipping_mode(self, new_value):
         self.itr_suite_skipping_mode = new_value
 
-    def put(self, spans):
+    def put(self, item):
         spans_with_coverage = [
             span
-            for span in spans
+            for span in item
             if COVERAGE_TAG_NAME in span.get_tags() or span.get_struct_tag(COVERAGE_TAG_NAME) is not None
         ]
         if not spans_with_coverage:
@@ -273,11 +316,11 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
     def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> Tuple[Optional[bytes], int]
+        # type: (List[List[Span]]) -> List[Tuple[Optional[bytes], int]]
         data = self._build_data(traces)
         if not data:
-            return None, 0
-        return b"\r\n".join(self._build_body(data)), len(data)
+            return [(None, 0)]
+        return [(b"\r\n".join(self._build_body(data)), len(data))]
 
     def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
         # type: (Span, Optional[str], Optional[int]) -> Dict[str, Any]
