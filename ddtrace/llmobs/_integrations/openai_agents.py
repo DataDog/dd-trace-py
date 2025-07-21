@@ -8,7 +8,9 @@ import weakref
 
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -296,3 +298,160 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
     def clear_state(self) -> None:
         self.oai_to_llmobs_span.clear()
         self.llmobs_traces.clear()
+
+    def tag_agent_manifest(self, span: Span, args: List[Any], kwargs: Dict[str, Any], agent_index: int) -> None:
+        agent = get_argument_value(args, kwargs, agent_index, "agent", None)
+        if not agent or not self.llmobs_enabled:
+            return
+        agent_manifest = self._create_agent_manifest(agent)
+        span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
+    
+    def _create_agent_manifest(self, agent):
+        manifest = {}
+        manifest["framework"] = "OpenAI"
+
+        if hasattr(agent, "name"):
+            manifest["name"] = agent.name
+        if hasattr(agent, "instructions"):
+            manifest["instructions"] = agent.instructions
+        if hasattr(agent, "handoff_description"):
+            manifest["handoff_description"] = agent.handoff_description
+        if hasattr(agent, "model"):
+            model = agent.model
+            manifest["model"] = model if isinstance(model, str) else getattr(model, "model", "")
+
+        model_settings = self._extract_model_settings_from_agent(agent)
+        if model_settings:
+            manifest["model_settings"] = model_settings
+
+        tools = self._extract_tools_from_agent(agent)
+        if tools:
+            manifest["tools"] = tools
+
+        handoffs = self._extract_handoffs_from_agent(agent)
+        if handoffs:
+            manifest["handoffs"] = handoffs
+
+        guardrails = self._extract_guardrails_from_agent(agent)
+        if guardrails:
+            manifest["guardrails"] = guardrails
+
+        return manifest
+    
+    def _extract_model_settings_from_agent(self, agent):
+        if not hasattr(agent, "model_settings"):
+            return None
+
+        # convert model_settings to dict if it's not already
+        model_settings = agent.model_settings
+        if type(model_settings) != dict:
+            if hasattr(model_settings, "__dict__"):
+                model_settings = model_settings.__dict__
+            else:
+                return None
+
+        return self._make_json_compatible(model_settings)
+
+    def _extract_tools_from_agent(self, agent):
+        try:
+            from agents import (
+                WebSearchTool,
+                FileSearchTool,
+                ComputerTool,
+            )
+        except ImportError:
+            return None
+
+        if not hasattr(agent, "tools"):
+            return None
+
+        tools = []
+        for tool in agent.tools:
+            tool_dict = {}
+            if isinstance(tool, WebSearchTool):
+                if hasattr(tool, "user_location"):
+                    tool_dict["user_location"] = tool.user_location
+                if hasattr(tool, "search_context_size"):
+                    tool_dict["search_context_size"] = tool.search_context_size
+            elif isinstance(tool, FileSearchTool):
+                if hasattr(tool, "vector_store_ids"):
+                    tool_dict["vector_store_ids"] = tool.vector_store_ids
+                if hasattr(tool, "max_num_results"):
+                    tool_dict["max_num_results"] = tool.max_num_results
+                if hasattr(tool, "include_search_results"):
+                    tool_dict["include_search_results"] = tool.include_search_results
+            elif isinstance(tool, ComputerTool):
+                if hasattr(tool, "name"):
+                    tool_dict["name"] = tool.name
+            else:
+                if hasattr(tool, "name"):
+                    tool_dict["name"] = tool.name
+                if hasattr(tool, "description"):
+                    tool_dict["description"] = tool.description
+                if hasattr(tool, "strict_json_schema"):
+                    tool_dict["strict_json_schema"] = tool.strict_json_schema
+                if hasattr(tool, "params_json_schema"):
+                    parameter_schema = tool.params_json_schema
+                    required_params = {param: True for param in parameter_schema.get("required", [])}
+                    parameters = {}
+                    for param, schema in parameter_schema.get("properties", {}).items():
+                        param_dict = {}
+                        if "type" in schema:
+                            param_dict["type"] = schema["type"]
+                        if "title" in schema:
+                            param_dict["title"] = schema["title"]
+                        if param in required_params:
+                            param_dict["required"] = True
+                        parameters[param] = param_dict
+                    tool_dict["parameters"] = parameters
+            tools.append(tool_dict)
+
+        return tools
+
+    def _extract_handoffs_from_agent(self, agent):
+        try:
+            from agents import Agent
+            from agents import Handoff
+        except ImportError:
+            return None
+
+        if not hasattr(agent, "handoffs"):
+            return None
+
+        handoffs = []
+        for handoff in agent.handoffs:
+            handoff_dict = {}
+            if isinstance(handoff, Agent):
+                if hasattr(handoff, "handoff_description"):
+                    handoff_dict["handoff_description"] = handoff.handoff_description
+                if hasattr(handoff, "name"):
+                    handoff_dict["agent_name"] = handoff.name
+            elif isinstance(handoff, Handoff):
+                if hasattr(handoff, "tool_name"):
+                    handoff_dict["tool_name"] = handoff.tool_name
+                if hasattr(handoff, "tool_description"):
+                    handoff_dict["handoff_description"] = handoff.tool_description
+                if hasattr(handoff, "agent_name"):
+                    handoff_dict["agent_name"] = handoff.agent_name
+            if handoff_dict:
+                handoffs.append(handoff_dict)
+
+        return handoffs
+
+    def _extract_guardrails_from_agent(self, agent):
+        guardrails = []
+        if hasattr(agent, "input_guardrails"):
+            guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.input_guardrails])
+        if hasattr(agent, "output_guardrails"):
+            guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
+        return guardrails
+
+    def _make_json_compatible(self, obj):
+        if isinstance(obj, dict):
+            return {str(k): self._make_json_compatible(v) for k, v in obj.items()}
+        elif isinstance(obj, (list, tuple, set)):
+            return [self._make_json_compatible(v) for v in obj]
+        elif isinstance(obj, (int, float, str, bool)) or obj is None:
+            return obj
+        else:
+            return str(obj)

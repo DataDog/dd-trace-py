@@ -11,9 +11,6 @@ from ddtrace.trace import Pin
 from ddtrace.contrib.trace_utils import with_traced_module_async
 from ddtrace.contrib.trace_utils import wrap
 from ddtrace.contrib.trace_utils import unwrap
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.contrib.internal.openai_agents.utils import create_agent_manifest
-from ddtrace.llmobs._constants import AGENT_MANIFEST
 
 
 config._add("openai_agents", {})
@@ -43,16 +40,13 @@ async def patched_run_single_turn_streamed(agents, pin, func, instance, args, kw
 
 
 async def _patched_run_single_turn(agents, pin, func, instance, args, kwargs, agent_index=0):
-    from ddtrace import tracer
+    current_span = pin.tracer.current_span()
+    result = await func(*args, **kwargs)
 
-    s = tracer.current_span()
-    r = await func(*args, **kwargs)
+    integration = agents._datadog_integration
+    integration.tag_agent_manifest(current_span, args, kwargs, agent_index)
 
-    agent = get_argument_value(args, kwargs, agent_index, "agent", None)
-    agent_manifest = create_agent_manifest(agent) if agent else None
-
-    s._set_ctx_item(AGENT_MANIFEST, agent_manifest)
-    return r
+    return result
 
 
 def patch():
@@ -66,7 +60,9 @@ def patch():
 
     Pin().onto(agents)
 
-    add_trace_processor(LLMObsTraceProcessor(OpenAIAgentsIntegration(integration_config=config.openai_agents)))
+    integration = OpenAIAgentsIntegration(integration_config=config.openai_agents)
+    add_trace_processor(LLMObsTraceProcessor(integration))
+    agents._datadog_integration = integration
 
     if OPENAI_AGENTS_VERSION >= (0, 0, 19):
         wrap(agents.run.AgentRunner, "_run_single_turn", patched_run_single_turn(agents))
