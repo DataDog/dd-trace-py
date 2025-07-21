@@ -104,7 +104,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         as many traces as possible without exceeding _MAX_PAYLOAD_SIZE.
         """
         if not traces:
-            return [(None, 0)]
+            return []
 
         new_parent_session_span_id = self._get_parent_session(traces)
         return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
@@ -313,7 +313,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # type: (List[List[Span]]) -> List[Tuple[Optional[bytes], int]]
         data = self._build_data(traces)
         if not data:
-            return [(None, 0)]
+            return []
         return [(b"\r\n".join(self._build_body(data)), len(data))]
 
     def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
