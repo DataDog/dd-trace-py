@@ -3,6 +3,7 @@ from collections import defaultdict
 from itertools import chain
 from threading import RLock
 from typing import Any
+from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -33,11 +34,6 @@ from ddtrace.internal.writer import create_trace_writer
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
-
-try:
-    from typing import DefaultDict  # noqa:F401
-except ImportError:
-    from collections import defaultdict as DefaultDict
 
 log = get_logger(__name__)
 
