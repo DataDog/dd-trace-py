@@ -1,13 +1,12 @@
 import abc
 import contextvars
 from typing import Any
-from typing import Callable
 from typing import Optional
 from typing import Union
 
-from ddtrace._hooks import Hooks
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 
 
@@ -30,46 +29,17 @@ class BaseContextProvider(metaclass=abc.ABCMeta):
     * the ``activate`` method, that sets the current active ``Context``
     """
 
-    def __init__(self) -> None:
-        self._hooks = Hooks()
-
     @abc.abstractmethod
     def _has_active_context(self) -> bool:
         pass
 
     @abc.abstractmethod
     def activate(self, ctx: Optional[ActiveTrace]) -> None:
-        self._hooks.emit(self.activate, ctx)
+        core.dispatch("ddtrace.context_provider.activate", (ctx,))
 
     @abc.abstractmethod
     def active(self) -> Optional[ActiveTrace]:
         pass
-
-    def _on_activate(
-        self, func: Callable[[Optional[Union[Span, Context]]], Any]
-    ) -> Callable[[Optional[Union[Span, Context]]], Any]:
-        """Register a function to execute when a span is activated.
-
-        Can be used as a decorator.
-
-        :param func: The function to call when a span is activated.
-                     The activated span will be passed as argument.
-        """
-        self._hooks.register(self.activate, func)
-        return func
-
-    def _deregister_on_activate(
-        self, func: Callable[[Optional[Union[Span, Context]]], Any]
-    ) -> Callable[[Optional[Union[Span, Context]]], Any]:
-        """Unregister a function registered to execute when a span is activated.
-
-        Can be used as a decorator.
-
-        :param func: The function to stop calling when a span is activated.
-        """
-
-        self._hooks.deregister(self.activate, func)
-        return func
 
     def __call__(self, *args: Any, **kwargs: Any) -> Optional[ActiveTrace]:
         """Method available for backward-compatibility. It proxies the call to
