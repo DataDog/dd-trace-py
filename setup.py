@@ -445,7 +445,7 @@ class CustomBuildExt(build_ext):
                 raise RuntimeError(f"Could not find _native.dll in {target_dir}")
 
             try:
-                link_file = next(target_dir.glob("_native.lib"))
+                link_file = next(target_dir.glob("_native.dll.lib"))
             except StopIteration:
                 print(f"ERROR: _native.lib not found in {target_dir!r}", file=sys.stderr)
                 print("Directory contents:", file=sys.stderr)
