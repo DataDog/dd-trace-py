@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
@@ -46,14 +47,20 @@ class PydanticAIIntegration(BaseLLMIntegration):
             span._set_ctx_item(SPAN_KIND, kind)
         return span
 
-    def _set_base_span_tags(self, span: Span, model: Optional[str] = None, **kwargs) -> None:
+    def _set_base_span_tags(self, span: Span, model: Optional[Any] = None, **kwargs) -> None:
         if model:
-            span.set_tag("pydantic_ai.request.model", getattr(model, "model_name", ""))
-            system = getattr(model, "system", None)
-            if system:
-                system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
-                span.set_tag("pydantic_ai.request.provider", system)
+            model_name, provider = self._get_model_and_provider(model)
+            span.set_tag("pydantic_ai.request.model", model_name)
+            if provider:
+                span.set_tag("pydantic_ai.request.provider", provider)
 
+    def _get_model_and_provider(self, model: Optional[Any]) -> Tuple[str, str]:
+        model_name = getattr(model, "model_name", "")
+        system = getattr(model, "system", None)
+        if system:
+            system = PYDANTIC_AI_SYSTEM_TO_PROVIDER.get(system, system)
+        return model_name, system
+    
     def _llmobs_set_tags(
         self,
         span: Span,
@@ -135,11 +142,14 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         manifest = {}
         manifest["framework"] = "PydanticAI"
-        manifest["name"] = agent.role if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
-        if span.get_tag("pydantic_ai.request.model"):
-            manifest["model"] = span.get_tag("pydantic_ai.request.model")
-        if span.get_tag("pydantic_ai.request.provider"):
-            manifest["model_provider"] = span.get_tag("pydantic_ai.request.provider")
+        manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
+        model = getattr(agent, "model", None)
+        if model:
+            model_name, provider = self._get_model_and_provider(model)
+            if model_name:
+                manifest["model"] = model_name
+            if provider:
+                manifest["model_provider"] = provider
         if hasattr(agent, "model_settings"):
             manifest["model_settings"] = agent.model_settings
         if hasattr(agent, "_instructions"):
