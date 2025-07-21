@@ -74,12 +74,10 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def encode(self):
         with self._lock:
             with StopWatch() as sw:
-                [(payload, buffer_size)] = self._build_payload(self.buffer)
+                result_payloads = self._build_payload(self.buffer)
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
-            if not buffer_size:
-                return []
             self._init_buffer()
-            return [(payload, buffer_size)]
+            return result_payloads
 
     def _get_parent_session(self, traces):
         for trace in traces:
@@ -99,7 +97,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             if (is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE)
         ]
         if not normalized_spans:
-            return [(None, 0)]
+            return []
         record_endpoint_payload_events_count(endpoint=ENDPOINT.TEST_CYCLE, count=len(normalized_spans))
 
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
