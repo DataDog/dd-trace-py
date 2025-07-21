@@ -460,6 +460,8 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
+        # Flush any remaining spans in the writer's queue before reconfiguring.
+        self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 

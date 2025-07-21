@@ -1,0 +1,49 @@
+[[
+  {
+    "name": "long_running_operation",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "long_running_operation",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6854a54200000000",
+      "language": "python",
+      "runtime-id": "b0e0b1b6ceee4ac18dc337bc1f9b6872"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 78381
+    },
+    "duration": 40804000,
+    "start": 1750377794426724000
+  }],
+[
+  {
+    "name": "operation",
+    "service": "my-svc",
+    "resource": "operation",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6854a54200000000",
+      "language": "python",
+      "runtime-id": "b0e0b1b6ceee4ac18dc337bc1f9b6872"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 78381
+    },
+    "duration": 21000,
+    "start": 1750377794426242000
+  }]]

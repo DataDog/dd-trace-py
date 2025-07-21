@@ -28,6 +28,29 @@ def test_single_trace_single_span(tracer):
     tracer.flush()
 
 
+@pytest.mark.subprocess()
+@pytest.mark.snapshot()
+def test_flush_spans_before_writer_recreate():
+    """
+    Test that spans are flushed before the writer is recreated.
+    This is to ensure that spans are not lost when the writer is recreated.
+    """
+    from ddtrace.trace import tracer
+
+    # Create a span that will be queued by the writer before the writer is recreated
+    with tracer.trace("operation", service="my-svc"):
+        pass
+    # Create a long running span that will be finished after the writer is recreated
+    long_running_span = tracer.trace("long_running_operation")
+
+    writer = tracer._span_aggregator.writer
+    # Enable appsec to trigger the recreation of the agent writer
+    tracer.configure(appsec_enabled=True)
+    assert tracer._span_aggregator.writer is not writer, "Writer should be recreated"
+    # Finish the long running span after the writer has been recreated
+    long_running_span.finish()
+
+
 @snapshot(include_tracer=True)
 @pytest.mark.subprocess()
 def test_multiple_traces(tracer):
