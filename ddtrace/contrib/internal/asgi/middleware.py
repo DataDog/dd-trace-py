@@ -9,6 +9,8 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import _SAMPLING_DECISION_MAKER
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -261,6 +263,39 @@ class TraceMiddleware:
             span.set_tags(tags)
             global_root_span = span._local_root or span
 
+            def _set_sampling_inherited(span: Span):
+                span.set_metric("_dd.dm.inherited", 1)
+                span.set_tag_str("_dd.dm.service", global_root_span.service)
+                span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+
+            def _copy_baggage_and_sampling(websocket_span):
+                for key, value in span.context._baggage.items():
+                    websocket_span.context.set_baggage_item(key, value)
+                    websocket_span.set_tag_str(f"baggage.{key}", value)
+
+                if span.context.sampling_priority is not None:
+                    websocket_span.context.sampling_priority = span.context.sampling_priority
+
+                if span.context._meta.get(_ORIGIN_KEY):
+                    websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
+
+                if span.context._meta.get(_SAMPLING_DECISION_MAKER):
+                    websocket_span.set_tag_str(_SAMPLING_DECISION_MAKER, span.context._meta[_SAMPLING_DECISION_MAKER])
+
+            def _clear_current_receive_scope():
+                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                if current_receive_span:
+                    current_receive_span.finish()
+                    scope["datadog"].pop("current_receive_span", None)
+
+            def _set_message_tags_on_span(websocket_span, message):
+                if "text" in message:
+                    websocket_span.set_tag_str("websocket.message.type", "text")
+                    websocket_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
+                elif "binary" in message:
+                    websocket_span.set_tag_str("websocket.message.type", "binary")
+                    websocket_span.set_metric("websocket.message.length", len(message["bytes"]))
+
             @wraps(receive)
             async def wrapped_receive():
                 """
@@ -290,21 +325,13 @@ class TraceMiddleware:
                         # It will be finished after the application processes the message
 
                         # end current receive span before
-                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if current_receive_span:
-                            current_receive_span.finish()
-                            scope["datadog"].pop("current_receive_span", None)
+                        _clear_current_receive_scope()
 
                         core.dispatch("asgi.websocket.receive", (message,))
                         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
-                        if "text" in message:
-                            recv_span.set_tag_str("websocket.message.type", "text")
-                            recv_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
-                        elif "binary" in message:
-                            recv_span.set_tag_str("websocket.message.type", "binary")
-                            recv_span.set_metric("websocket.message.length", len(message["bytes"]))
+                        _set_message_tags_on_span(recv_span, message)
 
                         recv_span.set_metric("websocket.message.frames", 1)
 
@@ -314,23 +341,9 @@ class TraceMiddleware:
 
                         # set sampling
                         if self.integration_config._asgi_websockets_inherit_sampling:
-                            recv_span.set_metric("_dd.dm.inherited", 1)
-                            recv_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                            recv_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                            _set_sampling_inherited(recv_span)
 
-                        if span.context:
-                            for key, value in span.context._baggage.items():
-                                recv_span.context.set_baggage_item(key, value)
-                                recv_span.set_tag_str(f"baggage.{key}", value)
-
-                            if span.context.sampling_priority is not None:
-                                recv_span.context.sampling_priority = span.context.sampling_priority
-
-                            if span.context._meta.get("_dd.origin"):
-                                recv_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
-
-                            if span.context._meta.get("_dd.p.dm"):
-                                recv_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
+                        _copy_baggage_and_sampling(recv_span)
 
                         # Store the receive span in scope so it can be used by send operations
                         if "datadog" not in scope:
@@ -338,17 +351,13 @@ class TraceMiddleware:
 
                         # Store the receive span to be finished after processing message
                         scope["datadog"]["current_receive_span"] = recv_span
-                        # breakpoint()
 
                     elif message["type"] == "websocket.disconnect":
                         # Peer closes the connection: create a new trace root
                         # This should behave like the websocket.receive use case
 
                         # Clean any existing receive span before handling peer disconnect
-                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if current_receive_span:
-                            current_receive_span.finish()
-                            scope["datadog"].pop("current_receive_span", None)
+                        _clear_current_receive_scope()
 
                         disconnect_span = self.tracer.start_span(
                             name="websocket.close",
@@ -367,23 +376,9 @@ class TraceMiddleware:
 
                         # set sampling
                         if self.integration_config._asgi_websockets_inherit_sampling:
-                            disconnect_span.set_metric("_dd.dm.inherited", 1)
-                            disconnect_span.set_tag_str("_dd.dm.service", global_root_span.service)
-                            disconnect_span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+                            _set_sampling_inherited(disconnect_span)
 
-                        if span.context:
-                            for key, value in span.context._baggage.items():
-                                disconnect_span.context.set_baggage_item(key, value)
-                                disconnect_span.set_tag_str(f"baggage.{key}", value)
-
-                            if span.context.sampling_priority is not None:
-                                disconnect_span.context.sampling_priority = span.context.sampling_priority
-
-                            if span.context._meta.get("_dd.origin"):
-                                disconnect_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
-
-                            if span.context._meta.get("_dd.p.dm"):
-                                disconnect_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
+                        _copy_baggage_and_sampling(disconnect_span)
 
                         code = message.get("code")
                         reason = message.get("reason")
@@ -457,12 +452,7 @@ class TraceMiddleware:
                                 trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
                             )
                             send_span.set_metric("websocket.message.frames", 1)
-                            if "text" in message:
-                                send_span.set_tag_str("websocket.message.type", "text")
-                                send_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
-                            elif "binary" in message:
-                                send_span.set_tag_str("websocket.message.type", "binary")
-                                send_span.set_metric("websocket.message.length", len(message["bytes"]))
+                            _set_message_tags_on_span(send_span, message)
 
                     elif (
                         scope["type"] == "websocket"
@@ -503,30 +493,14 @@ class TraceMiddleware:
                                     span.set_tag_str("network.client.ip", client_ip)
                                 except ValueError:
                                     pass
-                            if "text" in message:
-                                close_span.set_tag_str("websocket.message.type", "text")
-                                close_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
-                            elif "binary" in message:
-                                close_span.set_tag_str("websocket.message.type", "binary")
-                                close_span.set_metric("websocket.message.length", len(message["bytes"]))
 
+                            _set_message_tags_on_span(close_span, message)
                             # should act like send span (outgoing message) case
                             close_span.set_link(
                                 trace_id=span.trace_id, span_id=span.span_id, attributes={"dd.kind": "resuming"}
                             )
-                            if span.context:
-                                for key, value in span.context._baggage.items():
-                                    close_span.context.set_baggage_item(key, value)
-                                    close_span.set_tag_str(f"baggage.{key}", value)
+                            _copy_baggage_and_sampling(close_span)
 
-                                if span.context.sampling_priority is not None:
-                                    close_span.context.sampling_priority = span.context.sampling_priority
-
-                                if span.context._meta.get("_dd.origin"):
-                                    close_span.set_tag_str("_dd.origin", span.context._meta["_dd.origin"])
-
-                                if span.context._meta.get("_dd.p.dm"):
-                                    close_span.set_tag_str("_dd.p.dm", span.context._meta["_dd.p.dm"])
                             code = message.get("code")
                             reason = message.get("reason")
                             if code is not None:
@@ -534,11 +508,7 @@ class TraceMiddleware:
                             if reason:
                                 close_span.set_tag("websocket.close.reason", reason)
 
-                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                        if current_receive_span:
-                            current_receive_span.finish()
-                            scope["datadog"].pop("current_receive_span", None)
-
+                        _clear_current_receive_scope()
                         return await send(message)
 
                     response_headers = _extract_headers(message)
@@ -628,7 +598,4 @@ class TraceMiddleware:
                     scope["datadog"]["request_spans"].remove(span)
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
-                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-                if current_receive_span:
-                    current_receive_span.finish()
-                    scope["datadog"].pop("current_receive_span", None)
+                _clear_current_receive_scope()
