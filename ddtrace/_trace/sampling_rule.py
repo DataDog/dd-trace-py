@@ -1,4 +1,3 @@
-import re
 from typing import Any
 from typing import Optional
 from typing import Tuple
@@ -68,9 +67,9 @@ class SamplingRule(object):
             {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
         )
         self.tags = tags
-        self.service = self.choose_matcher(service)
-        self.name = self.choose_matcher(name)
-        self.resource = self.choose_matcher(resource)
+        self.service = self._choose_matcher(service)
+        self.name = self._choose_matcher(name)
+        self.resource = self._choose_matcher(resource)
         self.provenance = provenance
 
     @property
@@ -90,26 +89,6 @@ class SamplingRule(object):
             return True
         if isinstance(pattern, GlobMatcher):
             return pattern.match(str(prop))
-
-        # If the pattern is callable (e.g. a function) then call it passing the prop
-        #   The expected return value is a boolean so cast the response in case it isn't
-        if callable(pattern):
-            try:
-                return bool(pattern(prop))
-            except Exception:
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                # Their function failed to validate, assume it is a False
-                return False
-
-        # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, re.Pattern):
-            try:
-                return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError):
-                # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                return False
-
         # Exact match on the values
         return prop == pattern
 
@@ -199,22 +178,14 @@ class SamplingRule(object):
         else:
             return val
 
-    def choose_matcher(self, prop):
-        # We currently support the ability to pass in a function, a regular expression, or a string
-        # If a string is passed in we create a GlobMatcher to handle the matching
-        if callable(prop) or isinstance(prop, re.Pattern):
-            log.error(
-                "Using methods or regular expressions for SamplingRule matching is not supported: %s ."
-                "Please move to passing in a string for Glob matching.",
-                str(prop),
-            )
-            return "None"
-        # Name and Resource will never be None, but service can be, since we str()
-        #  whatever we pass into the GlobMatcher, we can just use its matching
+    def _choose_matcher(self, prop):
+        if prop is SamplingRule.NO_RULE:
+            return SamplingRule.NO_RULE
         elif prop is None:
-            prop = "None"
-        else:
-            return GlobMatcher(prop) if prop != SamplingRule.NO_RULE else SamplingRule.NO_RULE
+            # Name and Resource will never be None, but service can be, since we str()
+            #  whatever we pass into the GlobMatcher, we can just use its matching
+            return GlobMatcher("None")
+        return GlobMatcher(prop)
 
     def __repr__(self):
         return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
