@@ -217,7 +217,8 @@ class Experiment:
         if not self._llmobs_instance.enabled:
             logger.warning(
                 "Skipping experiment as LLMObs is not enabled. "
-                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
+                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
             )
             return []
         try:
