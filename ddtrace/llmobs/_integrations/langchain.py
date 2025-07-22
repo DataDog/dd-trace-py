@@ -369,15 +369,13 @@ class LangChainIntegration(BaseLLMIntegration):
         if not identifying_params:
             return
         metadata: Dict[str, Any] = {}
-        for _, val in identifying_params.items():
+        for val in identifying_params.values():
             if isinstance(val, dict):
-                params = self._llmobs_extract_parameters(val)
+                metadata = self._llmobs_extract_parameters(val)
             else:
-                params = self._llmobs_extract_parameters(identifying_params)
-            if params["max_tokens"] is not None and params["max_tokens"] != "None":
-                metadata["max_tokens"] = int(params["max_tokens"])
-            if params["temperature"] is not None and params["temperature"] != "None":
-                metadata["temperature"] = float(params["temperature"])
+                metadata = self._llmobs_extract_parameters(identifying_params)
+            if metadata:
+                break
 
         if metadata:
             span._set_ctx_item(METADATA, metadata)
@@ -386,13 +384,16 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata: Dict[str, Any] = {}
         max_tokens = None
         temperature = None
-        for k, v in parameters.items():
-            if k == "temperature":
-                temperature = v
-            elif k in ["max_tokens", "maxTokens", "max_completion_tokens"]:
-                max_tokens = v
-        metadata["max_tokens"] = max_tokens
-        metadata["temperature"] = temperature
+        if "temperature" in parameters:
+            temperature = parameters["temperature"]
+        for max_token_key in ["max_tokens", "maxTokens", "max_completion_tokens"]:
+            if max_token_key in parameters:
+                max_tokens = parameters[max_token_key]
+                break
+        if temperature is not None and temperature != "None":
+            metadata["temperature"] = float(temperature)
+        if max_tokens is not None and max_tokens != "None":
+            metadata["max_tokens"] = int(max_tokens)
 
         return metadata
 
