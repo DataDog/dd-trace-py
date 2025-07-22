@@ -188,6 +188,7 @@ class Span(object):
                 raise TypeError("parent_id must be an integer")
             return
         # just a comment here
+        # now two lines of comment
         self.name = name
         self.service = service
         self._resource = [resource or name]
