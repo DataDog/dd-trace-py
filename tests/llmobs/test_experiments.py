@@ -212,6 +212,11 @@ def test_project_get(llmobs):
     assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
 
 
+def test_project_get_fails_returns_empty_string(llmobs):
+    project_id = llmobs._instance._dne_client.project_get(name="non-existent-project")
+    assert project_id == ""
+
+
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
     with pytest.raises(TypeError, match="task must be a callable function."):
         llmobs.experiment("test_experiment", 123, test_dataset_one_record, [dummy_evaluator])
