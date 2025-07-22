@@ -454,7 +454,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
-            raise ValueError(f"Project {name} not found")
+            raise FileNotFoundError(f"Project {name} not found")
         return data[0]["id"]
 
     def experiment_create(
