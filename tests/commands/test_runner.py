@@ -226,7 +226,7 @@ class DdtraceRunTest(BaseTestCase):
         p.wait()
         assert p.returncode == 0
         assert p.stdout.read() == b""
-        assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
+        assert b" 'debug': True" in p.stderr.read()
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")

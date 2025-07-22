@@ -48,7 +48,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
-    "freezegun": True,
+    "freezegun": False,  # deprecated, to be removed in ddtrace 4.x
     "google_generativeai": True,
     "google_genai": True,
     "gevent": True,
@@ -63,6 +63,7 @@ PATCH_MODULES = {
     "mysqldb": True,
     "pymysql": True,
     "mariadb": True,
+    "mcp": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,

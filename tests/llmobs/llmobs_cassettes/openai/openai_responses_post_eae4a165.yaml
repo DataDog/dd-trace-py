@@ -1,0 +1,131 @@
+interactions:
+- request:
+    body: "{\"input\":[{\"role\":\"user\",\"content\":\"What's the weather like in
+      San Francisco?\"},{\"type\":\"function_call\",\"call_id\":\"call_123\",\"name\":\"get_weather\",\"arguments\":\"{\\\"location\\\":
+      \\\"San Francisco, CA\\\"}\"},{\"type\":\"function_call_output\",\"call_id\":\"call_123\",\"output\":\"{\\\"temperature\\\":
+      \\\"72\xB0F\\\", \\\"conditions\\\": \\\"sunny\\\", \\\"humidity\\\": \\\"65%\\\"}\"}],\"model\":\"gpt-4.1\",\"temperature\":0}"
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '377'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.91.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.91.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-read-timeout
+      : - '600'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: "{\n  \"id\": \"resp_6877d32f31dc819ea4e5cf74c466d6540f2016d5048a992c\",\n
+        \ \"object\": \"response\",\n  \"created_at\": 1752683311,\n  \"status\":
+        \"completed\",\n  \"background\": false,\n  \"error\": null,\n  \"incomplete_details\":
+        null,\n  \"instructions\": null,\n  \"max_output_tokens\": null,\n  \"max_tool_calls\":
+        null,\n  \"model\": \"gpt-4.1-2025-04-14\",\n  \"output\": [\n    {\n      \"id\":
+        \"msg_6877d32f8770819e8806f52d36cb92900f2016d5048a992c\",\n      \"type\":
+        \"message\",\n      \"status\": \"completed\",\n      \"content\": [\n        {\n
+        \         \"type\": \"output_text\",\n          \"annotations\": [],\n          \"logprobs\":
+        [],\n          \"text\": \"The weather in San Francisco is currently sunny
+        with a temperature of 72\\u00b0F and humidity at 65%. Let me know if you need
+        a forecast for the next few days!\"\n        }\n      ],\n      \"role\":
+        \"assistant\"\n    }\n  ],\n  \"parallel_tool_calls\": true,\n  \"previous_response_id\":
+        null,\n  \"reasoning\": {\n    \"effort\": null,\n    \"summary\": null\n
+        \ },\n  \"service_tier\": \"default\",\n  \"store\": false,\n  \"temperature\":
+        0.0,\n  \"text\": {\n    \"format\": {\n      \"type\": \"text\"\n    }\n
+        \ },\n  \"tool_choice\": \"auto\",\n  \"tools\": [],\n  \"top_logprobs\":
+        0,\n  \"top_p\": 1.0,\n  \"truncation\": \"disabled\",\n  \"usage\": {\n    \"input_tokens\":
+        60,\n    \"input_tokens_details\": {\n      \"cached_tokens\": 0\n    },\n
+        \   \"output_tokens\": 36,\n    \"output_tokens_details\": {\n      \"reasoning_tokens\":
+        0\n    },\n    \"total_tokens\": 96\n  },\n  \"user\": null,\n  \"metadata\":
+        {}\n}"
+    headers:
+      CF-RAY:
+      - 9602df85ccebc964-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 16 Jul 2025 16:28:32 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=YbG4Y8TVS1PLvu6ftIrYhJmcO2nf4.wnEVtlU_67FRk-1752683312-1.0.1.1-UeYj4qKsjcqpFyBARoMv4Ohw0SvJd6EGwqQ5gp3UbZ6wYGPcdHokuCs_u3sXsu_ifosiv2p7q2vXjTSJFq0aXSGsoFjv6sQeMJdqksD17Uk;
+        path=/; expires=Wed, 16-Jul-25 16:58:32 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=CQbfNdVhby5T6uZtrfXQfyxjyxqNYgLddpQwSt7QQCE-1752683312839-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1643'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999921'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_d7eef42d75beaa6f97e3e5428ffa2136
+    status:
+      code: 200
+      message: OK
+version: 1

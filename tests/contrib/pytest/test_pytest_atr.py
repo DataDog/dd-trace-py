@@ -11,13 +11,14 @@ from xml.etree import ElementTree
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_atr()),

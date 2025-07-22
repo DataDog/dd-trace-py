@@ -48,6 +48,7 @@ from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -76,10 +77,11 @@ from ddtrace.llmobs._constants import TAGS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
-from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordInputType
+from ddtrace.llmobs._experiment import DatasetRecordRaw as DatasetRecord
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -111,11 +113,13 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "google_generativeai": "google_generativeai",
+    "google_genai": "google_genai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
@@ -239,6 +243,11 @@ class LLMObs(Service):
             raise KeyError("Span kind not found in span context")
 
         llmobs_span = LLMObsSpan()
+        _dd_attrs = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        }
 
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
@@ -253,6 +262,12 @@ class LLMObs(Service):
             llmobs_span.input = [
                 {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
             ]
+
+        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            _dd_attrs["scope"] = "experiments"
+            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+            if span_kind == "experiment" and expected_output:
+                meta["expected_output"] = expected_output
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -347,11 +362,7 @@ class LLMObs(Service):
             "meta": meta,
             "metrics": metrics,
             "tags": [],
-            "_dd": {
-                "span_id": str(span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "apm_trace_id": format_trace_id(span.trace_id),
-            },
+            "_dd": _dd_attrs,
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -578,39 +589,24 @@ class LLMObs(Service):
 
     @classmethod
     def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
-        ds = cls._instance._dne_client.dataset_create_with_records(name, description, records)
-        ds._dne_client = cls._instance._dne_client
+        ds = cls._instance._dne_client.dataset_create(name, description)
+        for r in records:
+            ds.append(r)
+        if len(records) > 0:
+            ds.push()
         return ds
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
-    def _create_experiment(
-        self,
-        name: str,
-        dataset_id: str,
-        project_name: str,
-        dataset_version: int = 0,
-        exp_config: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[List[str]] = None,
-        description: Optional[str] = None,
-    ) -> Tuple[str, str]:
-        project_id = self._dne_client.project_get(project_name)
-        if not project_id:
-            project_id = self._dne_client.project_create(project_name)
-        experiment_id, experiment_run_name = self._dne_client.experiment_create(
-            name, dataset_id, project_id, dataset_version, exp_config, tags, description
-        )
-        return experiment_id, experiment_run_name
-
     @classmethod
     def experiment(
         cls,
         name: str,
-        task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
         project_name: Optional[str] = None,
         tags: Optional[List[str]] = None,
