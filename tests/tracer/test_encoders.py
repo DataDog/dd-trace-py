@@ -70,6 +70,8 @@ def gen_trace(nspans=1000, ntags=50, key_size=15, value_size=20, nmetrics=10):
             resource="/fsdlajfdlaj/afdasd%s" % i,
             service="myservice",
             parent_id=parent_id,
+            # All spans in a trace must share a trace_id
+            trace_id=root.trace_id if root else None,
         ) as span:
             span._parent = root
             span.set_tags({rands(key_size): rands(value_size) for _ in range(0, ntags)})
@@ -374,6 +376,20 @@ def test_msgpack_span_property_variations(encoding, span):
     trace = [span]
     encoder.put(trace)
     assert decode(refencoder.encode_traces([trace])) == decode(encoder.encode()[0])
+
+
+@allencodings
+def test_long_span_start(encoding):
+    encoder = MSGPACK_ENCODERS[encoding](1 << 10, 1 << 10)
+
+    # Start a span a very long time ago
+    span = Span(None)
+    span.start = -62135596700
+    span.finish()
+
+    trace = [span]
+    encoder.put(trace)
+    assert decode(encoder.encode()[0]) is not None
 
 
 class SubString(str):
