@@ -632,17 +632,14 @@ class LLMObs(Service):
                 header_columns = rows.fieldnames
                 missing_input_columns = [col for col in input_data_columns if col not in header_columns]
                 missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+                missing_metadata_columns = [col for col in metadata_columns if col not in metadata_columns]
 
                 if any(col not in header_columns for col in input_data_columns):
                     raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
                 if any(col not in header_columns for col in expected_output_columns):
                     raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
-
-                metadata_columns = [
-                    col
-                    for col in header_columns
-                    if col not in input_data_columns and col not in expected_output_columns
-                ]
+                if any(col not in header_columns for col in metadata_columns):
+                    raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
 
                 for row in rows:
                     ds.append(
