@@ -4183,135 +4183,129 @@ class PytestTestCase(PytestTestCaseBase):
         result = self.subprocess_run("--ddtrace", file_name)
         assert result.ret == 0
 
-    def test_pytest_coverage_data_format_handling(self):
-        """Test that coverage data format issues are handled correctly with proper logging."""
-        from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
-        from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
-        # Create a mock session object
-        mock_session = mock.MagicMock()
-        mock_session.exitstatus = 0
+def test_pytest_coverage_data_format_handling_none_value():
+    """Test that coverage data format issues are handled correctly with proper logging for None value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
-        ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
 
-        # Test case 1: coverage data is None
-        with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-            {PCT_COVERED_KEY: None},
-        ), mock.patch(
-            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-            return_value=ci_visibility_instance,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-        ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-        ) as mock_set_covered_lines_pct, mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.log"
-        ) as mock_log:
-            _pytest_sessionfinish(mock_session, 0)
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
 
-            mock_log.debug.assert_called_with("Unable to retrieve coverage data for the session span")
-            mock_set_covered_lines_pct.assert_not_called()
+    # Test case 1: coverage data is None
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: None},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
 
-        # Test case 2: coverage data is not a float (e.g., string)
-        invalid_value = "not_a_float"
-        with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
-            {PCT_COVERED_KEY: invalid_value},
-        ), mock.patch(
-            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-            return_value=ci_visibility_instance,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-        ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-        ) as mock_set_covered_lines_pct, mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.log"
-        ) as mock_log:
-            _pytest_sessionfinish(mock_session, 0)
+        mock_log.debug.assert_called_with("Unable to retrieve coverage data for the session span")
+        mock_set_covered_lines_pct.assert_not_called()
 
-            mock_log.warning.assert_called_with(
-                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
-                "builtins",
-                "str",
-                invalid_value,
-            )
-            mock_set_covered_lines_pct.assert_not_called()
 
-        # Test case 3: coverage data is an integer
-        valid_value = 75
-        with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
-        ), mock.patch(
-            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-            return_value=ci_visibility_instance,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-        ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-        ) as mock_set_covered_lines_pct, mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.log"
-        ) as mock_log:
-            _pytest_sessionfinish(mock_session, 0)
+def test_pytest_coverage_data_format_handling_invalid_type():
+    """Test that coverage data format issues are handled correctly with proper logging for invalid value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 
-            # No warning or debug should be called for valid case
-            mock_log.warning.assert_not_called()
-            mock_log.debug.assert_not_called()
-            mock_set_covered_lines_pct.assert_called_once_with(valid_value)
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
 
-        # Test case 4: coverage data is a valid float
-        valid_value = 85.5
-        with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
-        ), mock.patch(
-            "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
-            return_value=ci_visibility_instance,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
-        ), mock.patch(
-            "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
-        ) as mock_set_covered_lines_pct, mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.log"
-        ) as mock_log:
-            _pytest_sessionfinish(mock_session, 0)
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
 
-            # No warning or debug should be called for valid case
-            mock_log.warning.assert_not_called()
-            mock_log.debug.assert_not_called()
-            mock_set_covered_lines_pct.assert_called_once_with(valid_value)
+    # Test case 2: coverage data is not a float (e.g., string)
+    invalid_value = "not_a_float"
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: invalid_value},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        mock_log.warning.assert_called_with(
+            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+            "builtins",
+            "str",
+            invalid_value,
+        )
+        mock_set_covered_lines_pct.assert_not_called()
+
+
+@pytest.mark.parametrize("valid_value", [75, 86.01])
+def test_pytest_coverage_data_format_handling_valid_values(valid_value):
+    """Test that coverage data format issues are handled correctly with proper logging."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        # No warning or debug should be called for valid case
+        mock_log.warning.assert_not_called()
+        mock_log.debug.assert_not_called()
+        mock_set_covered_lines_pct.assert_called_once_with(valid_value)
