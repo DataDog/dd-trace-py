@@ -121,32 +121,32 @@ class SamplingRule(object):
             return True
 
         # perf: Do not copy the span._meta and span._metrics dictionaries
-        meta = span._meta
-        metrics = span._metrics
+        meta = span._meta or {}
+        metrics = span._metrics or {}
 
         if meta is None and metrics is None:
             return False
 
         tag_match = False
         for tag_key in self._tag_value_matchers.keys():
-            value = meta.get(tag_key)
-            # it's because we're not checking metrics first before continuing
+            value = meta.get(tag_key, metrics.get(tag_key))
             if value is None:
-                value = metrics.get(tag_key)
-                if value is None:
-                    continue
-                # Floats: Matching floating point values with a non-zero decimal part is not supported.
-                # For floating point values with a non-zero decimal part, any all * pattern always returns true.
-                # Other patterns always return false.
-                if isinstance(value, float):
-                    if not value.is_integer():
-                        if all(c == "*" for c in self._tag_value_matchers[tag_key].pattern):
-                            tag_match = True
-                            continue
-                        else:
-                            return False
+                # FIXME(munir): This is a bug, if an expected tag is not present in the span,
+                # tag_match should be False.
+                continue
+
+            # Floats: Matching floating point values with a non-zero decimal part is not supported.
+            # For floating point values with a non-zero decimal part, any all * pattern always returns true.
+            # Other patterns always return false.
+            if isinstance(value, float):
+                if not value.is_integer():
+                    if all(c == "*" for c in self._tag_value_matchers[tag_key].pattern):
+                        tag_match = True
+                        continue
                     else:
-                        value = int(value)
+                        return False
+                else:
+                    value = int(value)
 
             tag_match = self._tag_value_matchers[tag_key].match(str(value))
             # if we don't match with all specified tags for a rule, it's not a match
