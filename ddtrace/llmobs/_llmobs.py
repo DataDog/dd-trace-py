@@ -45,6 +45,7 @@ from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
+from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -168,7 +169,7 @@ class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "default-project")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -509,7 +510,7 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        cls._project_name = project_name or cls._project_name
+        cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
