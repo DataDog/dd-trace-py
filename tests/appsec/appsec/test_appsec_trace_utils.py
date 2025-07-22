@@ -59,7 +59,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert not root_span.get_tag("%s.track" % failure_prefix)
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            assert root_span._context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert root_span.get_tag(user.NAME) == "John"
@@ -91,7 +91,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert user_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
             assert user_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert not user_span.get_tag("%s.track" % failure_prefix)
-            assert user_span.context.sampling_priority == constants.USER_KEEP
+            assert user_span._context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert user_span.get_tag(user.ID) == "1234" and parent_span.get_tag(user.ID) is None
             assert user_span.get_tag(user.NAME) == "John" and parent_span.get_tag(user.NAME) is None
@@ -153,7 +153,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
             assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
             assert root_span.get_tag("%s.success.foo" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC) == "bar"
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            assert root_span._context.sampling_priority == constants.USER_KEEP
             # set_user tags
             assert root_span.get_tag(user.ID) == "1234"
             assert not root_span.get_tag(user.NAME)
@@ -199,7 +199,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s" % (failure_prefix, "username")) == "John Test"
             assert root_span.get_tag("%s.%s" % (failure_prefix, "email")) == "john@test.net"
 
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            assert root_span._context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
             assert not root_span.get_tag(user.ID)
             assert not root_span.get_tag(user.NAME)

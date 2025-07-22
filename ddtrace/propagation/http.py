@@ -1114,20 +1114,7 @@ class HTTPPropagator(object):
                 span_context,
                 non_active_span.context,
             )
-
             span_context = non_active_span.context
-
-        if core.tracer and hasattr(core.tracer, "sample"):
-            root_span: Optional[Span] = None
-            if non_active_span is not None:
-                root_span = non_active_span._local_root
-            else:
-                root_span = core.tracer.current_root_span()
-
-            if root_span is not None and root_span.context.sampling_priority is None:
-                core.tracer.sample(root_span)
-        else:
-            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:

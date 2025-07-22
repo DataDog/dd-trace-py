@@ -147,11 +147,11 @@ def test_otel_start_current_span_without_default_args(oteltracer):
 def test_otel_get_span_context_sets_sampling_decision(oteltracer):
     with oteltracer.start_span("otel-server") as otelspan:
         # Sampling priority is not set on span creation
-        assert otelspan._ddspan.context.sampling_priority is None
+        assert otelspan._ddspan._context.sampling_priority is None
         # Ensure the sampling priority is always consistent with traceflags
         span_context = otelspan.get_span_context()
         # Sampling priority is evaluated when the SpanContext is first accessed
-        sp = otelspan._ddspan.context.sampling_priority
+        sp = otelspan._ddspan._context.sampling_priority
         assert sp is not None
         if sp > 0:
             assert span_context.trace_flags == 1
@@ -160,7 +160,7 @@ def test_otel_get_span_context_sets_sampling_decision(oteltracer):
         # Ensure the sampling priority is always consistent
         for _ in range(1000):
             otelspan.get_span_context()
-            assert otelspan._ddspan.context.sampling_priority == sp
+            assert otelspan._ddspan._context.sampling_priority == sp
 
 
 def test_distributed_trace_inject(oteltracer):  # noqa:F811

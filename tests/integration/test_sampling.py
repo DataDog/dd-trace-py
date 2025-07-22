@@ -293,9 +293,9 @@ def test_rate_limiter_on_spans(tracer):
     tracer.flush()
     # Since the rate limiter is set to 10, first ten spans should be kept
     for span in spans:
-        assert span.context.sampling_priority > 0
+        assert span._context.sampling_priority > 0
     # 11th span should be dropped
-    assert dropped_span.context.sampling_priority < 0
+    assert dropped_span._context.sampling_priority < 0
 
 
 @pytest.mark.subprocess()
@@ -319,5 +319,5 @@ def test_rate_limiter_on_long_running_spans(tracer):
         span_m29.start = 1616999414  # Mar 29 2021
         span_m29.finish(1617333414)  # April 2 2021
 
-    assert span_m29.context.sampling_priority > 0
-    assert span_m30.context.sampling_priority > 0
+    assert span_m29._context.sampling_priority > 0
+    assert span_m30._context.sampling_priority > 0

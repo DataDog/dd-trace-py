@@ -23,9 +23,9 @@ def traced_function(rule, tracer=None, name="test_name", service="test_service",
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
         # because trace sampling takes precedence over single-span sampling
         if trace_sampling:
-            span.context.sampling_priority = 1
+            span._context.sampling_priority = 1
         else:
-            span.context.sampling_priority = 0
+            span._context.sampling_priority = 0
             if rule.match(span):
                 rule.sample(span)
     return span

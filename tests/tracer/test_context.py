@@ -66,15 +66,15 @@ def test_traceparent_basic():
         assert sampled_hex == sampled_expected
 
     span = Span("span_a")
-    span.context.sampling_priority = -1
+    span._context.sampling_priority = -1
     validate_traceparent(span.context, "00")
 
     span = Span("span_b")
-    span.context.sampling_priority = 0
+    span._context.sampling_priority = 0
     validate_traceparent(span.context, "00")
 
     span = Span("span_c")
-    span.context.sampling_priority = 1
+    span._context.sampling_priority = 1
     validate_traceparent(span.context, "01")
 
 

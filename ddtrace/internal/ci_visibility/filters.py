@@ -31,7 +31,7 @@ class TraceCiVisibilityFilter(TraceFilter):
         if not local_root or local_root.span_type != SpanTypes.TEST:
             return None
 
-        local_root.context.dd_origin = ci.CI_APP_TEST_ORIGIN
+        local_root._context.dd_origin = ci.CI_APP_TEST_ORIGIN
         _set_sampling_tags(local_root, True, 1.0, SamplingMechanism.DEFAULT)
         for span in trace:
             span.set_tags(self._tags)

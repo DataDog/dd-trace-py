@@ -37,7 +37,7 @@ class BaseLLMIntegration:
         return LLMObs.enabled
 
     def is_pc_sampled_span(self, span: Span) -> bool:
-        if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+        if span._context.sampling_priority is not None and span._context.sampling_priority <= 0:
             return False
         return self._span_pc_sampler.sample(span)
 

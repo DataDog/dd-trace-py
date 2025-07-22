@@ -136,7 +136,7 @@ class Span(OtelSpan):
     def get_span_context(self):
         # type: () -> SpanContext
         """Returns an OpenTelemetry SpanContext"""
-        if self._ddspan.context.sampling_priority is None:
+        if self._ddspan._context.sampling_priority is None:
             # With the introduction of lazy sampling, spans are now sampled on serialization. With this change
             # a spans trace flags could be propagated before a sampling
             # decision is made. Since the default sampling decision is to unsample spans this can result
@@ -144,12 +144,12 @@ class Span(OtelSpan):
             # the span context is accessed.
             ddtracer.sample(self._ddspan._local_root or self._ddspan)
 
-        if self._ddspan.context.sampling_priority is None:
+        if self._ddspan._context.sampling_priority is None:
             tf = TraceFlags.get_default()
             log.warning(
                 "Span context is missing a sampling decision, defaulting to unsampled: %s", str(self._ddspan.context)
             )
-        elif self._ddspan.context.sampling_priority > 0:
+        elif self._ddspan._context.sampling_priority > 0:
             tf = TraceFlags(TraceFlags.SAMPLED)
         else:
             tf = TraceFlags.get_default()

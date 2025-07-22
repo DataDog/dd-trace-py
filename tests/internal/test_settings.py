@@ -300,7 +300,7 @@ assert span.get_tag("_dd.p.dm") == "-11"
 with tracer.trace("does_not_match_remote_rules") as span:
     pass
 assert span.get_tag("_dd.p.dm") == "-0"
-assert span.context.sampling_priority == 1
+assert span._context.sampling_priority == 1
 
 # Agent sampling rules do not contain any sampling rules
 call_apm_tracing_rc(_base_rc_config({}), config)
@@ -328,7 +328,7 @@ assert span.get_tag("_dd.p.dm") == "-11"
 with tracer.trace("test") as span:
     pass
 assert span.get_tag("_dd.p.dm") == "-0"
-assert span.context.sampling_priority == 1
+assert span._context.sampling_priority == 1
         """,
         env=env,
     )

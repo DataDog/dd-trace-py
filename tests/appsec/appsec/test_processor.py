@@ -97,7 +97,7 @@ def test_retain_traces(tracer):
         print(">>> set HTTP meta", flush=True)
         set_http_meta(span, {}, raw_uri="http://example.com/.git", status_code="404")
 
-    assert span.context.sampling_priority == USER_KEEP
+    assert span._context.sampling_priority == USER_KEEP
 
 
 def test_valid_json(tracer):

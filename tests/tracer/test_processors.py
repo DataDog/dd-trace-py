@@ -611,8 +611,8 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     root = tracer.trace("root")
 
     # When trace sampling marks it as a drop
-    root.context.sampling_priority = AUTO_REJECT
-    assert root.context.sampling_priority <= 0
+    root._context.sampling_priority = AUTO_REJECT
+    assert root._context.sampling_priority <= 0
 
     # Child is checked against the span sampling rules, and then is kept
     child = tracer.trace("child")
@@ -623,7 +623,7 @@ def test_single_span_sampling_processor_w_tracer_sampling_after_processing():
     root.set_tag(MANUAL_KEEP_KEY)
     root.finish()
     assert_span_sampling_decision_tags(child, None, None, None)
-    assert child.context.sampling_priority == USER_KEEP
+    assert child._context.sampling_priority == USER_KEEP
 
 
 def test_single_span_sampling_processor_no_rules():
@@ -659,7 +659,7 @@ def test_single_span_sampling_processor_w_stats_computation():
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):
     with tracer.trace(name) as span:
         # If the trace sampler samples the trace, then we shouldn't add the span sampling tags
-        span.context.sampling_priority = trace_sampling_priority
+        span._context.sampling_priority = trace_sampling_priority
 
         span.service = service
     return span

@@ -40,8 +40,8 @@ class TestApiSecurityManager:
         root_span._meta = {}
         env.span = MagicMock(spec=Span)
         env.span._local_root = root_span
-        env.span.context.sampling_priority = None
-        root_span.context.sampling_priority = None
+        env.span._context.sampling_priority = None
+        root_span._context.sampling_priority = None
         env.waf_addresses = {}
         env.blocked = None
         return env
@@ -83,7 +83,7 @@ class TestApiSecurityManager:
         Expects that _should_collect_schema is called but call_waf_callback is not called.
         """
         root_span = mock_environment.span._local_root
-        root_span.context.sampling_priority = sampling_priority
+        root_span._context.sampling_priority = sampling_priority
 
         api_manager._should_collect_schema.return_value = False
         api_manager._schema_callback(mock_environment)
@@ -97,7 +97,7 @@ class TestApiSecurityManager:
         Expects schema collection to occur and metadata to be added to the root span.
         """
         root_span = mock_environment.span._local_root
-        root_span.context.sampling_priority = sampling_priority
+        root_span._context.sampling_priority = sampling_priority
 
         mock_waf_result = MagicMock()
         mock_waf_result.api_security = {"_dd.appsec.s.req.body": {"type": "object"}}
@@ -138,7 +138,7 @@ class TestApiSecurityManager:
         api_manager._asm_context.call_waf_callback.return_value = mock_waf_result
 
         api_manager._should_collect_schema.return_value = should_collect_return
-        mock_environment.span._local_root.context.sampling_priority = sampling_priority
+        mock_environment.span._local_root._context.sampling_priority = sampling_priority
 
         with override_global_config(values=dict(_apm_tracing_enabled=False)):
             with patch("ddtrace.appsec._api_security.api_manager._asm_manual_keep") as mock_keep:

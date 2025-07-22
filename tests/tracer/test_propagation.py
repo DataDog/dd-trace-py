@@ -64,7 +64,7 @@ def test_inject(tracer):  # noqa: F811
 
         assert int(headers[HTTP_HEADER_TRACE_ID]) == span.trace_id
         assert int(headers[HTTP_HEADER_PARENT_ID]) == span.span_id
-        assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span.context.sampling_priority
+        assert int(headers[HTTP_HEADER_SAMPLING_PRIORITY]) == span._context.sampling_priority
         assert headers[HTTP_HEADER_ORIGIN] == span.context.dd_origin
         # The ordering is non-deterministic, so compare as a list of tags
         tags = set(headers[_HTTP_HEADER_TAGS].split(","))
@@ -298,7 +298,7 @@ def test_extract(tracer):  # noqa: F811
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span._context.sampling_priority == 1
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
@@ -308,7 +308,7 @@ def test_extract(tracer):  # noqa: F811
         with tracer.trace("child_span") as child_span:
             assert child_span.trace_id == 1234
             assert child_span.parent_id != 5678
-            assert child_span.context.sampling_priority == 1
+            assert child_span._context.sampling_priority == 1
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
@@ -353,7 +353,7 @@ def test_asm_standalone_minimum_trace_per_minute_has_no_downstream_propagation(
                 assert span.trace_id == 1234
                 assert span.parent_id == 5678
                 # Priority is unset
-                assert span.context.sampling_priority is None
+                assert span._context.sampling_priority is None
                 assert "_sampling_priority_v1" not in span._metrics
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
@@ -492,7 +492,7 @@ def test_asm_standalone_missing_appsec_tag_no_appsec_event_propagation_resets(
                 assert span.trace_id == 1234
                 assert span.parent_id == 5678
                 # Priority is unset
-                assert span.context.sampling_priority is None
+                assert span._context.sampling_priority is None
                 assert "_sampling_priority_v1" not in span._metrics
                 assert span.context.dd_origin == "synthetics"
                 assert "_dd.p.test" in span.context._meta
@@ -543,7 +543,7 @@ def test_asm_standalone_missing_appsec_tag_appsec_event_present_trace_kept(
             _asm_manual_keep(span)
             assert span.trace_id == 1234
             assert span.parent_id == 5678
-            assert span.context.sampling_priority == USER_KEEP
+            assert span._context.sampling_priority == USER_KEEP
             assert span.context.dd_origin == "synthetics"
             assert "_dd.p.ts" in span.context._meta
             assert span.context._meta["_dd.p.ts"] == "02"
@@ -600,7 +600,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert span.trace_id == 1234
                 assert span.parent_id == 5678
                 # Enforced user keep regardless of upstream priority
-                assert span.context.sampling_priority == USER_KEEP
+                assert span._context.sampling_priority == USER_KEEP
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
@@ -610,7 +610,7 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 with tracer.trace("child_span") as child_span:
                     assert child_span.trace_id == 1234
                     assert child_span.parent_id != 5678
-                    assert child_span.context.sampling_priority == USER_KEEP
+                    assert child_span._context.sampling_priority == USER_KEEP
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
@@ -669,7 +669,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 _asm_manual_keep(span)
                 assert span.trace_id == 1234
                 assert span.parent_id == 5678
-                assert span.context.sampling_priority == USER_KEEP  # user keep always
+                assert span._context.sampling_priority == USER_KEEP  # user keep always
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
@@ -679,7 +679,7 @@ def test_asm_standalone_present_appsec_tag_appsec_event_present_propagation_forc
                 with tracer.trace("child_span") as child_span:
                     assert child_span.trace_id == 1234
                     assert child_span.parent_id != 5678
-                    assert child_span.context.sampling_priority == USER_KEEP  # user keep always
+                    assert child_span._context.sampling_priority == USER_KEEP  # user keep always
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
@@ -896,7 +896,7 @@ def test_extract_unicode(tracer):  # noqa: F811
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span._context.sampling_priority == 1
 
         assert span.context.dd_origin == "synthetics"
         assert type(span.context.dd_origin) is str
@@ -909,7 +909,7 @@ def test_extract_unicode(tracer):  # noqa: F811
         with tracer.trace("child_span") as child_span:
             assert child_span.trace_id == 1234
             assert child_span.parent_id != 5678
-            assert child_span.context.sampling_priority == 1
+            assert child_span._context.sampling_priority == 1
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
@@ -962,7 +962,7 @@ def test_WSGI_extract(tracer):  # noqa: F811
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span._context.sampling_priority == 1
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
@@ -987,7 +987,7 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span._context.sampling_priority == 1
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
@@ -1012,7 +1012,7 @@ def test_extract_tags_large(tracer):  # noqa: F811
     with tracer.trace("local_root_span") as span:
         assert span.trace_id == 1234
         assert span.parent_id == 5678
-        assert span.context.sampling_priority == 1
+        assert span._context.sampling_priority == 1
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",

@@ -213,7 +213,10 @@ class Span(object):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
-        self._context = context.copy(self.trace_id, self.span_id) if context else None
+        if context:
+            self._context = context.copy(self.trace_id, self.span_id)
+        else:
+            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
@@ -227,15 +230,11 @@ class Span(object):
         self._store: Optional[Dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
-        context = self._context
-        if context is None:
-            return
-
-        with context:
-            for tag in context._meta:
-                self._meta.setdefault(tag, context._meta[tag])
-            for metric in context._metrics:
-                self._metrics.setdefault(metric, context._metrics[metric])
+        with self._context:
+            for tag in self._context._meta:
+                self._meta.setdefault(tag, self._context._meta[tag])
+            for metric in self._context._metrics:
+                self._metrics.setdefault(metric, self._context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -329,7 +328,7 @@ class Span(object):
             cb(self)
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
-        self.context.sampling_priority = decision
+        self._context.sampling_priority = decision
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
@@ -341,7 +340,7 @@ class Span(object):
         sampling_mechanism: int,
     ) -> Optional[Text]:
         value = "-%d" % sampling_mechanism
-        self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+        self._context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
         return value
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
@@ -732,8 +731,8 @@ class Span(object):
     @property
     def context(self) -> Context:
         """Return the trace context for this span."""
-        if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+        if self._context.sampling_priority is None:
+            core.dispatch("trace.sample_span", (self,))
         return self._context
 
     @property

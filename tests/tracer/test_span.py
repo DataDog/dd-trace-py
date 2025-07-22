@@ -424,7 +424,7 @@ class SpanTestCase(TracerTestCase):
 
         s2 = Span(name="test.span2", span_id=1, trace_id=2)
         s2.context._meta["tracestate"] = "congo=t61rcWkgMzE"
-        s2.context.sampling_priority = 1
+        s2._context.sampling_priority = 1
 
         link_attributes = {
             "link.name": "s1_to_s2",
@@ -901,12 +901,12 @@ def test_manual_context_usage():
     span1 = Span("span1")
     span2 = Span("span2", context=span1.context)
 
-    span2.context.sampling_priority = 2
-    assert span1.context.sampling_priority == 2
+    span2._context.sampling_priority = 2
+    assert span1._context.sampling_priority == 2
 
-    span1.context.sampling_priority = 1
-    assert span2.context.sampling_priority == 1
-    assert span1.context.sampling_priority == 1
+    span1._context.sampling_priority = 1
+    assert span2._context.sampling_priority == 1
+    assert span1._context.sampling_priority == 1
 
 
 def test_set_exc_info_with_str_override():

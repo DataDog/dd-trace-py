@@ -263,7 +263,7 @@ class LLMObs(Service):
                 {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
             ]
 
-        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+        if span._context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
             expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
             if span_kind == "experiment" and expected_output:

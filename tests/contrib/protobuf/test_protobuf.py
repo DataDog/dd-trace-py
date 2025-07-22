@@ -50,7 +50,7 @@ def test_basic_schema_serialize(protobuf, tracer, test_spans):
 
     # Serialize
     with tracer.trace("other_message.serialize") as span:
-        span.context.sampling_priority = AUTO_KEEP
+        span._context.sampling_priority = AUTO_KEEP
         other_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
@@ -99,7 +99,7 @@ def test_complex_schema_serialize(protobuf, tracer, test_spans):
 
     # Serialize
     with tracer.trace("message_pb2.serialize") as span:
-        span.context.sampling_priority = AUTO_KEEP
+        span._context.sampling_priority = AUTO_KEEP
         my_message.SerializeToString()
 
     assert len(test_spans.spans) == 1, "There should be exactly one trace"
@@ -132,7 +132,7 @@ def test_basic_schema_deserialize(protobuf, tracer, test_spans):
 
     # Deserialize
     with tracer.trace("other_message.deserialize") as span:
-        span.context.sampling_priority = AUTO_KEEP
+        span._context.sampling_priority = AUTO_KEEP
         other_message.ParseFromString(bytes_data)
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"
@@ -185,7 +185,7 @@ def test_advanced_schema_deserialize(protobuf, tracer, test_spans):
 
     # Deserialize
     with tracer.trace("my_message.deserialize") as span:
-        span.context.sampling_priority = AUTO_KEEP
+        span._context.sampling_priority = AUTO_KEEP
         my_message.ParseFromString(bytes_data)
 
     assert len(test_spans.spans) == 1, "There should be exactly one span"

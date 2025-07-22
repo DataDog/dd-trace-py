@@ -126,10 +126,10 @@ class Tracer(OtelTracer):
         if links:
             for link in links:
                 dd_span.set_link(
-                    link.context.trace_id,
-                    link.context.span_id,
-                    link.context.trace_state.to_header(),
-                    link.context.trace_flags,
+                    link._context.trace_id,
+                    link._context.span_id,
+                    link._context.trace_state.to_header(),
+                    link._context.trace_flags,
                     link.attributes,
                 )
         return Span(

@@ -74,7 +74,7 @@ class SchemaExtractor(SchemaIterator):
         if not data_streams_processor().can_sample_schema(operation):
             return
 
-        prio = span.context.sampling_priority
+        prio = span._context.sampling_priority
         if prio is None or prio <= 0:
             return
 

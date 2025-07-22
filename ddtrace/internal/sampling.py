@@ -239,7 +239,7 @@ def is_single_span_sampled(span):
 
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
-    if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+    if not span._context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
         span._set_sampling_decision_maker(mechanism)
 
     # Set the sampling psr rate
@@ -255,7 +255,7 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
 
-    span.context.sampling_priority = priorities[priority_index]
+    span._context.sampling_priority = priorities[priority_index]
 
 
 def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:

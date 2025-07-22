@@ -223,7 +223,7 @@ def test_tracetagsprocessor_only_adds_new_tags():
     from ddtrace.trace import tracer
 
     with tracer.trace(name="web.request") as span:
-        span.context.sampling_priority = AUTO_KEEP
+        span._context.sampling_priority = AUTO_KEEP
         span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
 
     tracer.flush()

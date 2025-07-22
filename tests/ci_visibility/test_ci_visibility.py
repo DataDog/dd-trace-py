@@ -95,7 +95,7 @@ def test_filters_test_spans():
     assert root_test_span.get_tag(ci.LIBRARY_VERSION) == ddtrace.__version__
     assert root_test_span.get_tag("hello") == "world"
     assert root_test_span.context.dd_origin == ci.CI_APP_TEST_ORIGIN
-    assert root_test_span.context.sampling_priority == AUTO_KEEP
+    assert root_test_span._context.sampling_priority == AUTO_KEEP
 
 
 def test_filters_non_test_spans():

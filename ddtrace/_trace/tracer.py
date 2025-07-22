@@ -205,6 +205,8 @@ class Tracer(object):
 
         self._new_process = False
 
+        core.on("trace.sample_span", callback=self._sample)
+
         metadata = PyTracerMetadata(
             runtime_id=get_runtime_id(),
             tracer_version=get_version(),
@@ -265,7 +267,7 @@ class Tracer(object):
 
     def _sample_before_fork(self) -> None:
         span = self.current_root_span()
-        if span is not None and span.context.sampling_priority is None:
+        if span is not None and span._context.sampling_priority is None:
             self.sample(span)
 
     @contextmanager
@@ -497,7 +499,7 @@ class Tracer(object):
             # strong span reference (which will never be finished) is replaced
             # with a context representing the span.
             if isinstance(child_of, Span):
-                new_ctx = child_of.context
+                new_ctx = child_of._context
                 # If the child_of span was active then activate the new context
                 # containing it so that the strong span referenced is removed
                 # from the execution.
@@ -510,7 +512,7 @@ class Tracer(object):
             if isinstance(child_of, Context):
                 context = child_of
             else:
-                context = child_of.context
+                context = child_of._context
                 parent = child_of
         else:
             context = Context(is_remote=False)

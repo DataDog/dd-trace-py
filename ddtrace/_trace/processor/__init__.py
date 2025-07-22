@@ -148,16 +148,13 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
-            root_ctx = chunk_root._context
+            # Samples span if a sampling decision has not been made yet
+            root_ctx = chunk_root.context
 
             if self.apm_opt_out:
                 for span in trace:
                     if span._local_root_value is None:
                         span.set_metric(MK_APM_ENABLED, 0)
-
-            # only trace sample if we haven't already sampled
-            if root_ctx and root_ctx.sampling_priority is None:
-                self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled and not self.apm_opt_out:
@@ -172,7 +169,7 @@ class TraceSamplingProcessor(TraceProcessor):
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
                 for span in trace:
-                    if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
+                    if span._context.sampling_priority <= 0:
                         for rule in self.single_span_rules:
                             if rule.match(span):
                                 rule.sample(span)
@@ -415,7 +412,7 @@ class SpanAggregator(SpanProcessor):
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
         unfinished_spans = [
-            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
+            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s._context.sampling_priority}"  # noqa: E501
             for t in self._traces.values()
             for s in t.spans
             if not s.finished

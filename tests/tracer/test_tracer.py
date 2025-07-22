@@ -1637,7 +1637,7 @@ def test_context_priority(tracer, test_spans):
     """Assigning a sampling_priority should not affect if the trace is sent to the agent"""
     for p in [USER_REJECT, AUTO_REJECT, AUTO_KEEP, USER_KEEP, None, 999]:
         with tracer.trace("span_%s" % p) as span:
-            span.context.sampling_priority = p
+            span._context.sampling_priority = p
 
         # Spans should always be written regardless of sampling priority since
         # the agent needs to know the sampling decision.
@@ -1649,25 +1649,25 @@ def test_context_priority(tracer, test_spans):
 
 def test_spans_sampled_out(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.context.sampling_priority = 0
+        span._context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 0
+            span._context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 0
+            span._context.sampling_priority = 0
 
     spans = test_spans.pop()
     assert len(spans) == 3
     for span in spans:
-        assert span.context.sampling_priority <= 0
+        assert span._context.sampling_priority <= 0
 
 
 def test_spans_sampled_one(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.context.sampling_priority = 0
+        span._context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 0
+            span._context.sampling_priority = 0
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 1
+            span._context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3
@@ -1675,11 +1675,11 @@ def test_spans_sampled_one(tracer, test_spans):
 
 def test_spans_sampled_all(tracer, test_spans):
     with tracer.trace("root") as span:
-        span.context.sampling_priority = 1
+        span._context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 1
+            span._context.sampling_priority = 1
         with tracer.trace("child") as span:
-            span.context.sampling_priority = 1
+            span._context.sampling_priority = 1
 
     spans = test_spans.pop()
     assert len(spans) == 3

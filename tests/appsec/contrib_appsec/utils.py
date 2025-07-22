@@ -192,7 +192,7 @@ class Contrib_TestClass_For_Threats:
             self.update_tracer(interface)
             response = interface.client.get("/", headers={"User-Agent": user_agent})
             assert response.status_code == (403 if user_agent == "dd-test-scanner-log-block" and asm_enabled else 200)
-        span_priority = root_span()._span.context.sampling_priority
+        span_priority = root_span()._span._context.sampling_priority
         assert (span_priority == 2) if asm_enabled and priority else (span_priority < 2)
 
     def test_querystrings(self, interface: Interface, root_span):
@@ -1232,7 +1232,7 @@ class Contrib_TestClass_For_Threats:
                 ) in telemetry_calls
 
                 if not apm_tracing_enabled:
-                    span_sampling_priority = root_span()._span.context.sampling_priority
+                    span_sampling_priority = root_span()._span._context.sampling_priority
                     sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
                     assert (
                         span_sampling_priority == constants.USER_KEEP
@@ -1839,7 +1839,7 @@ class Contrib_TestClass_For_Threats:
             # test for trace tagging with dynamic value
             assert get_tag("dd.appsec.custom_tag_value") == f"tag_this_trace_{random_value}"
             # test for sampling priority changes. Appsec should not change the sampling priority (keep=false)
-            span_sampling_priority = root_span()._span.context.sampling_priority
+            span_sampling_priority = root_span()._span._context.sampling_priority
             sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
