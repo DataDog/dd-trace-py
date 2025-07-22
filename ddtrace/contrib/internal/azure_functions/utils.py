@@ -67,7 +67,7 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
 
 def message_list_has_single_context(msg_list: List[azure_functions.ServiceBusMessage]):
     first_context = HTTPPropagator.extract(msg_list[0].application_properties)
-    for message in msg_list:
+    for message in msg_list[1:]:
         context = HTTPPropagator.extract(message.application_properties)
         if first_context != context:
             return False
