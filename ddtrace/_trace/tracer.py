@@ -124,6 +124,7 @@ def _default_span_processors_factory(
 
         span_processors.append(AppSecIastSpanProcessor())
 
+    # When using the NativeWriter stats are computed by the native code.
     if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.

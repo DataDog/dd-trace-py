@@ -114,14 +114,31 @@ class TraceExporter:
         ...
     def shutdown(self, timeout_ns: int) -> None:
         """
-        Shutdown the TraceExporter, releasing any resources and ensuring all pending traces are sent.
+        Shutdown the TraceExporter, releasing any resources and ensuring all pending stats are sent.
         This method should be called before the application exits to ensure proper cleanup.
         :param timeout_ns: The maximum time to wait for shutdown in nanoseconds.
         """
         ...
-    def drop(self) -> None: ...
-    def run_worker(self) -> None: ...
-    def stop_worker(self) -> None: ...
+    def drop(self) -> None:
+        """
+        Drop the TraceExporter, releasing any resources without sending pending stats.
+        """
+        ...
+    def run_worker(self) -> None:
+        """
+        Start the rust worker threads.
+        This starts the runtime required to process rust async tasks including stats and telemetry sending.
+        The runtime will also be created when calling `send`,
+        this method can be used to start the runtime before sending any traces.
+        """
+        ...
+    def stop_worker(self) -> None:
+        """
+        Stop the rust worker threads.
+        This stops the async runtime and must be called before forking to avoid deadlocks after forking.
+        This should be called even if `run_worker` has been called as the runtime will be started when calling `send`.
+        """
+        ...
 
 class TraceExporterBuilder:
     """
@@ -305,8 +322,3 @@ class SerializationError(Exception):
     """
 
     ...
-
-class EncodingNotSupportedError(Exception):
-    """
-    Raised when the agent return a 404 or 415 error code, indicating the encoding format is not supported.
-    """
