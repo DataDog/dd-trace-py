@@ -48,7 +48,7 @@ class VersionTagFilter(Filter):
 
 # append the ddtrace path to syspath
 # this is required when building the docs manually
-if not (os.getenv("CIRCLECI") == "true" or os.getenv("READTHEDOCS") == "True"):
+if os.getenv("READTHEDOCS") == "True":
     sys.path.insert(0, os.path.abspath(".."))
 
 
