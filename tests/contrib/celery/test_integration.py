@@ -573,6 +573,65 @@ class CeleryIntegrationTask(CeleryBaseTestCase):
 
             assert run_span.service == "task-queue"
 
+    def test_trace_with_task_error(self):
+        """
+        Test demonstrating the current behavior of the on_error callback.
+        When calling on_error, the subsequent error task is not traced.
+        When calling the "error task" directly, it is traced.
+        """
+        error_callback = False
+
+        @self.app.task
+        def fn_task():
+            raise ValueError("Task failed")
+
+        @self.app.task
+        def err_task(task, err, tb):
+            nonlocal error_callback
+            span = self.tracer.start_span("err_task_custom_span")
+            error_callback = True
+            span.finish()
+            return "error happened"
+
+        t = fn_task.s().on_error(err_task.s()).delay()
+        try:
+            t.get(timeout=self.ASYNC_GET_TIMEOUT)
+        except ValueError:
+            pass
+
+        assert error_callback is True
+        traces = self.pop_traces()
+        assert len(traces) == 3
+        span1 = traces[0][0]
+        span2 = traces[1][0]
+        span3 = traces[2][0]
+        assert span1.name == "celery.apply"
+        assert span1.error == 0
+        # Span 2 is just the custom span
+        assert span2.name == "err_task_custom_span"
+        assert span2.error == 0
+        assert span3.name == "celery.run"
+        assert span3.error == 1
+        assert span3.resource == "tests.contrib.celery.test_integration.fn_task"
+        assert span3.get_tag("error.type") == "builtins.ValueError"
+
+        # If the error task is called directly, it gets traced.
+        t2 = err_task.s("task_1", "ValueError: Bad task", "traceback_info").delay()
+        assert t2.get(timeout=self.ASYNC_GET_TIMEOUT) == "error happened"
+        traces = self.pop_traces()
+        assert len(traces) == 3
+        span1 = traces[0][0]
+        span2 = traces[1][0]
+        span3 = traces[2][0]
+        assert span1.name == "celery.apply"
+        assert span1.error == 0
+        assert span2.name == "err_task_custom_span"
+        assert span2.error == 0
+        assert span3.name == "celery.run"
+        assert span3.error == 0
+        assert span3.resource == "tests.contrib.celery.test_integration.err_task"
+        assert span3.get_tag("error.type") is None
+
     def test_trace_in_task(self):
         @self.app.task
         def fn_task():
