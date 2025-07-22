@@ -56,7 +56,7 @@ class ProductManager:
         if hasattr(eps, "select"):  # Python 3.10+
             plugins = eps.select(group="ddtrace.product")
         else:  # Python <3.10
-            plugins = eps.get("ddtrace.product", [])
+            plugins = [ep for _, eplist in eps.items() for ep in eplist]  # type: ignore[assignment]
 
         for product_plugin in plugins:
             if product_plugin.group != "ddtrace.product":
