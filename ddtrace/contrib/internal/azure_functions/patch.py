@@ -83,6 +83,8 @@ def _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
         event = kwargs.get(trigger_arg_name)
+        # TODO: handle consuming list like service bus
+        # TODO: maybe create azure utils for this?
         return create_context(
             "azure.functions.patched_event_hub", pin, resource_name, headers=event.metadata.get("Properties")
         )

@@ -880,6 +880,7 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
         span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
+# TODO: combine?
 def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
     span = ctx.span
     span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
