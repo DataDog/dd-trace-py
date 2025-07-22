@@ -592,8 +592,6 @@ class LLMObs(Service):
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
-        if len(records) > 0:
-            ds.push()
         return ds
 
     @classmethod

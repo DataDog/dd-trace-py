@@ -57,6 +57,7 @@ def test_dataset_name(request) -> str:
 @pytest.fixture
 def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[Dataset, None, None]:
     ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=test_dataset_records)
+    ds.push()
 
     # When recording the requests, we need to wait for the dataset to be queryable.
     wait_for_backend()
@@ -72,6 +73,7 @@ def test_dataset_one_record(llmobs):
         DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})
     ]
     ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
+    ds.push()
     wait_for_backend()
 
     yield ds
