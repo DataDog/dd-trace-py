@@ -192,7 +192,7 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output  # Use empty string for single output
                 column_tuples.add(("expected_output", ""))
 
-            for k, v in record.get("metadata", {}):
+            for k, v in record.get("metadata", {}).items():
                 flat_record[("metadata", k)] = v
                 column_tuples.add(("metadata", k))
 
