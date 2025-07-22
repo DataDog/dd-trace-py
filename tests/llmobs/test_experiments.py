@@ -202,13 +202,13 @@ def test_dataset_delete(llmobs, test_dataset):
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
 
 
-def test_project_create(llmobs):
-    project_id = llmobs._instance._dne_client.project_create(name="test-project")
-    assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
+def test_project_create_new_project(llmobs):
+    project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project-dne-sdk")
+    assert project_id == "29892594-46a2-4539-893d-5dc75f5968b7"
 
 
-def test_project_get(llmobs):
-    project_id = llmobs._instance._dne_client.project_get(name="test-project")
+def test_project_get_existing_project(llmobs):
+    project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project")
     assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
 
 
@@ -304,7 +304,7 @@ def test_experiment_create(llmobs, test_dataset_one_record):
         [dummy_evaluator],
         project_name="test-project",
     )
-    project_id = llmobs._instance._dne_client.project_get("test-project")
+    project_id = llmobs._instance._dne_client.project_create_or_get("test-project")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
         exp.name, exp._dataset._id, project_id, exp._dataset._version, exp._config
     )

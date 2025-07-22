@@ -824,8 +824,16 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             run_coverage_report()
 
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if not isinstance(lines_pct_value, float):
-            log.warning("Tried to add total covered percentage to session span but the format was unexpected")
+        if lines_pct_value is None:
+            log.debug("Unable to retrieve coverage data for the session span")
+        elif not isinstance(lines_pct_value, (float, int)):
+            t = type(lines_pct_value)
+            log.warning(
+                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+                t.__module__,
+                t.__name__,
+                lines_pct_value,
+            )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 

@@ -1040,10 +1040,16 @@ def test_start_span_hooks():
     def store_span(span):
         result["span"] = span
 
-    span = t.start_span("hello")
+    try:
+        span = t.start_span("hello")
 
-    assert span == result["span"]
-    span.finish()
+        assert span == result["span"]
+        span.finish()
+    finally:
+        # Cleanup after the test is done
+        # DEV: Since we use the core API for these hooks,
+        #      they are not isolated to a single tracer instance
+        t.deregister_on_start_span(store_span)
 
 
 def test_deregister_start_span_hooks():

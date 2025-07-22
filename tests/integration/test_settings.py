@@ -193,7 +193,7 @@ call_apm_tracing_rc(
         {
             "tracing_sampling_rules": [
                 {
-                    "sample_rate": "0.5",
+                    "sample_rate": 0.5,
                     "service": "*",
                     "name": "*",
                     "resource": "*",
@@ -218,7 +218,7 @@ assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
     assert {
         "name": "DD_TRACE_SAMPLING_RULES",
         "origin": "remote_config",
-        "value": '[{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", '
+        "value": '[{"sample_rate": 0.5, "service": "*", "name": "*", "resource": "*", '
         '"tags": {}, "provenance": "customer"}]',
     } in events_trace_sample_rate
 

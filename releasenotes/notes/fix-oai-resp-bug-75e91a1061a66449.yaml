@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability, openai: This fix resolves an issue where openai tracing caused an ``AttributeError`` while parsing ``NoneType`` streamed chunk deltas.

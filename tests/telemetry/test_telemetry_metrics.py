@@ -1,3 +1,4 @@
+import os
 from time import sleep
 
 from mock.mock import ANY
@@ -444,3 +445,197 @@ def test_send_multiple_log_metric_no_duplicates_for_each_interval_check_time(tel
             telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.WARNING, "test error 1")
 
         _assert_logs(test_agent_session, expected_payload)
+
+
+def test_http_propagation_extraction_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Test that HTTP propagation extraction records telemetry metrics correctly"""
+    code = """
+from ddtrace.propagation.http import HTTPPropagator
+
+# Create headers with different propagation styles
+headers = {
+    "x-datadog-trace-id": "123456789",
+    "x-datadog-parent-id": "987654321",
+    "x-datadog-sampling-priority": "1",
+    "baggage": "key1=value1,key2=value2,key3=value3",
+}
+
+# Extract context from headers using default propagation styles
+context = HTTPPropagator.extract(headers)
+"""
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Get extraction telemetry metrics
+    extraction_metrics = test_agent_session.get_metrics("context_header_style.extracted")
+    assert extraction_metrics is not None
+    assert len(extraction_metrics) == 2
+
+    # Check datadog extraction metric
+    datadog_metrics = [m for m in extraction_metrics if "header_style:datadog" in m["tags"]]
+    assert len(datadog_metrics) == 1
+    assert datadog_metrics[0]["type"] == "count"
+    assert datadog_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:datadog" in datadog_metrics[0]["tags"]
+
+    # Check baggage extraction metric
+    baggage_metrics = [m for m in extraction_metrics if "header_style:baggage" in m["tags"]]
+    assert len(baggage_metrics) == 1
+    assert baggage_metrics[0]["type"] == "count"
+    assert baggage_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:baggage" in baggage_metrics[0]["tags"]
+
+
+def test_http_propagation_injection_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Test that HTTP propagation injection records telemetry metrics correctly"""
+    code = """
+from ddtrace._trace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
+
+# Create a context with trace and span IDs
+context = Context(trace_id=123456789, span_id=987654321, sampling_priority=1)
+
+# Add baggage items to test baggage injection as well
+context.set_baggage_item("key1", "value1")
+context.set_baggage_item("key2", "value2")
+
+# Inject headers using default propagation styles
+headers = {}
+HTTPPropagator.inject(context, headers)
+"""
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Get injection telemetry metrics
+    injection_metrics = test_agent_session.get_metrics("context_header_style.injected")
+    assert injection_metrics is not None
+    assert len(injection_metrics) == 3  # datadog, tracecontext, and baggage (default injection styles)
+
+    # Check datadog injection metric
+    datadog_metrics = [m for m in injection_metrics if "header_style:datadog" in m["tags"]]
+    assert len(datadog_metrics) == 1
+    assert datadog_metrics[0]["type"] == "count"
+    assert datadog_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:datadog" in datadog_metrics[0]["tags"]
+
+    # Check tracecontext injection metric
+    tracecontext_metrics = [m for m in injection_metrics if "header_style:tracecontext" in m["tags"]]
+    assert len(tracecontext_metrics) == 1
+    assert tracecontext_metrics[0]["type"] == "count"
+    assert tracecontext_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:tracecontext" in tracecontext_metrics[0]["tags"]
+
+    # Check baggage injection metric
+    baggage_metrics = [m for m in injection_metrics if "header_style:baggage" in m["tags"]]
+    assert len(baggage_metrics) == 1
+    assert baggage_metrics[0]["type"] == "count"
+    assert baggage_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:baggage" in baggage_metrics[0]["tags"]
+
+
+def test_baggage_max_items_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Test that baggage max items limit violation records telemetry correctly"""
+    code = """
+from ddtrace._trace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
+
+# Test max items exceeded
+baggage_items = {}
+for i in range(DD_TRACE_BAGGAGE_MAX_ITEMS + 5):  # Exceed max items
+    baggage_items[f"key{i}"] = f"value{i}"
+
+context_items = Context(trace_id=123456789, span_id=987654321, baggage=baggage_items)
+headers_items = {}
+HTTPPropagator.inject(context_items, headers_items)
+"""
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Get baggage truncation metrics
+    truncated_metrics = test_agent_session.get_metrics("context_header_style.truncated")
+
+    # Check max items exceeded metric
+    assert truncated_metrics is not None
+    item_truncated_metrics = [
+        m for m in truncated_metrics if "truncation_reason:baggage_item_count_exceeded" in m["tags"]
+    ]
+    assert len(item_truncated_metrics) == 1
+    assert item_truncated_metrics[0]["type"] == "count"
+    assert item_truncated_metrics[0]["points"][0][1] == 1.0
+    assert "truncation_reason:baggage_item_count_exceeded" in item_truncated_metrics[0]["tags"]
+
+
+def test_baggage_max_bytes_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Test that baggage max bytes limit violation records telemetry correctly"""
+    code = """
+from ddtrace._trace.context import Context
+from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
+
+# Test max bytes exceeded
+large_value = "x" * (DD_TRACE_BAGGAGE_MAX_BYTES // 2)  # Large value to exceed bytes limit
+baggage_bytes = {"key1": large_value, "key2": large_value, "key3": large_value}
+
+context_bytes = Context(trace_id=123456789, span_id=987654321, baggage=baggage_bytes)
+headers_bytes = {}
+HTTPPropagator.inject(context_bytes, headers_bytes)
+"""
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Get baggage truncation metrics
+    truncated_metrics = test_agent_session.get_metrics("context_header_style.truncated")
+
+    # Check max bytes exceeded metric
+    assert truncated_metrics is not None
+    byte_truncated_metrics = [
+        m for m in truncated_metrics if "truncation_reason:baggage_byte_count_exceeded" in m["tags"]
+    ]
+    assert len(byte_truncated_metrics) == 1
+    assert byte_truncated_metrics[0]["type"] == "count"
+    assert byte_truncated_metrics[0]["points"][0][1] == 1.0
+    assert "truncation_reason:baggage_byte_count_exceeded" in byte_truncated_metrics[0]["tags"]
+
+
+def test_baggage_malformed_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    """Test that malformed baggage headers record telemetry correctly"""
+    code = """
+from ddtrace.propagation.http import HTTPPropagator
+
+# Test malformed baggage extraction
+malformed_headers = {"baggage": "invalid,test=value"}
+HTTPPropagator.extract(malformed_headers)
+"""
+
+    env = os.environ.copy()
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    # Get malformed baggage metrics
+    malformed_metrics = test_agent_session.get_metrics("context_header_style.malformed")
+
+    # Check malformed baggage metric
+    assert malformed_metrics is not None
+    assert len(malformed_metrics) == 1
+    assert malformed_metrics[0]["type"] == "count"
+    assert malformed_metrics[0]["points"][0][1] == 1.0
+    assert "header_style:baggage" in malformed_metrics[0]["tags"]

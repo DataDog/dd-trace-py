@@ -46,7 +46,6 @@ register_post_preload(manager.post_preload_products)
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
-    log.debug("crashtracking enabled via environment variable")
     try:
         from ddtrace.internal.core import crashtracking
 
