@@ -2886,10 +2886,11 @@ venv = Venv(
         ),
         Venv(
             name="mcp",
-            command="pytest {cmdargs} tests/contrib/mcp",
+            command="pytest -n 8 {cmdargs} tests/contrib/mcp",
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
+                "pytest-xdist": latest,
             },
             venvs=[
                 Venv(
