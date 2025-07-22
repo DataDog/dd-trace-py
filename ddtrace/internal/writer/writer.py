@@ -256,13 +256,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     headers,
                 )
                 resp = self._conn.getresponse()
-                log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
+                log.log(
+                    log_level,
+                    "Got response: %d %s sent %s in %.5fs to %s",
+                    resp.status,
+                    resp.reason,
+                    _human_size(len(data)),
+                    t,
+                    self._intake_endpoint(client),
+                )
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -386,6 +393,31 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
+
+        for payload in encoded_traces:
+            encoded_data, n_traces = payload
+            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+
+    def _flush_single_payload(
+        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+    ) -> None:
+        if encoded is None:
+            return
+
+        # Should gzip the payload if intake accepts it
+        if self._intake_accepts_gzip:
+            try:
+                original_size = len(encoded)
+                # Replace the value to send with the gzipped the value
+                encoded = gzip.compress(encoded, compresslevel=6)
+                log.debug("Original size in bytes: %s, Compressed size: %s", original_size, len(encoded))
+
+                # And add the header
+                self._headers["Content-Encoding"] = "gzip"
+            except Exception:
+                log.error("failed to compress traces with encoder %r", client.encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", n_traces)
+                return
 
         for payload in encoded_traces:
             encoded_data, n_traces = payload
