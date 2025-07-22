@@ -798,7 +798,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         """
-        Set the test session token and recreate the writer with the new configuration.
+        Set the test session token and recreate the exporter with the new configuration.
         :param token: The test session token to use for authentication.
         """
         self._test_session_token = token
@@ -831,6 +831,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             sync_mode=self._sync_mode,
             api_version=api_version,
             report_metrics=self._report_metrics,
+            response_callback=self._response_cb,
             test_session_token=self._test_session_token,
             stats_opt_out=self._stats_opt_out,
         )
@@ -917,6 +918,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self._downgrade(code, client)
             else:
                 raise e
+        finally:
+            self._metrics["sent_traces"] += count
 
         if self._response_cb:
             response = Response(body=response_body)

@@ -648,6 +648,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 
 @skip_if_testagent
+@skip_if_native_writer
 @parametrize_with_all_encodings()
 def test_writer_flush_queue_generates_debug_log():
     import logging
@@ -655,13 +656,13 @@ def test_writer_flush_queue_generates_debug_log():
 
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
+    from ddtrace.internal.writer import create_trace_writer
     from ddtrace.settings._agent import config as agent_config
     from tests.utils import AnyFloat
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    writer = AgentWriter(agent_config.trace_agent_url)
+    writer = create_trace_writer()
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])

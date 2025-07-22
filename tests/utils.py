@@ -1477,7 +1477,7 @@ def check_test_agent_status():
         return False
 
 
-def flush_test_tracer_spans(writer: AgentWriter):
+def flush_test_tracer_spans(writer: AgentWriterInterface):
     writer.flush_queue(raise_exc=True)
 
 
