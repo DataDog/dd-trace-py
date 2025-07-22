@@ -434,7 +434,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
-    def project_create(self, name: str) -> str:
+    def project_create_or_get(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"
         resp = self.request(
             "POST",
@@ -445,17 +445,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         return response_data["data"]["id"]
-
-    def project_get(self, name: str) -> str:
-        path = f"/api/unstable/llm-obs/v1/projects?filter[name]={quote(name)}"
-        resp = self.request("GET", path)
-        if resp.status != 200:
-            raise ValueError(f"Failed to get project {name}: {resp.status} {resp.get_json()}")
-        response_data = resp.get_json()
-        data = response_data["data"]
-        if not data:
-            raise ValueError(f"Project {name} not found")
-        return data[0]["id"]
 
     def experiment_create(
         self,
@@ -544,10 +533,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payload = []
+        for event in events:
+            event_data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
+            if event.get("_dd", {}).get("scope") == "experiments":
+                event_data["_dd.scope"] = "experiments"
+            payload.append(event_data)
+        return payload
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:

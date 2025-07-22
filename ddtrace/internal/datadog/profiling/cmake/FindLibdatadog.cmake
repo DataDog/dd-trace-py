@@ -17,20 +17,20 @@ include(FetchContent)
 # Set version if not already set
 if(NOT DEFINED TAG_LIBDATADOG)
     set(TAG_LIBDATADOG
-        "v18.0.0"
+        "v19.1.0"
         CACHE STRING "libdatadog github tag")
 endif()
 
 if(NOT DEFINED DD_CHECKSUMS)
     set(DD_CHECKSUMS
-        "4b64b58162d215a4f16b6ced4d602667565ebe20015341219daa998e3cf4e0a8 libdatadog-aarch64-alpine-linux-musl.tar.gz"
-        "1b63df9650c2d087ec291198616a9bc2237b52ad532244eccbf5923a0662815b libdatadog-aarch64-apple-darwin.tar.gz"
-        "f544316a2b58476979a3b05f0236837790320c385a73f1e111f8736b95ca3a87 libdatadog-aarch64-unknown-linux-gnu.tar.gz"
-        "8af91ff3f7d266a6acc55b3a12a927a3d1b6ab51845b3d54333965086453c1c6 libdatadog-x86_64-alpine-linux-musl.tar.gz"
-        "9402b83ecee3a73da8b4bccee1c57a3a8ac6e6d175d50fbee08d458eeda69c16 libdatadog-x86_64-apple-darwin.tar.gz"
-        "c7c7f0ce597d515ce6aa8bcf3edd12a009c2c02dd5e715ea318a3bcf3221a65d libdatadog-x86_64-unknown-linux-gnu.tar.gz"
-        "1d1be67b92327618bd8023abc36f51484a951c3ab069841b7cb09b5484e36f1f69c189895da5b8f16fe853c7b99cd1be5e24ff99bed195d0cfd57dd0f62b8a95 libdatadog-x64-windows.zip"
-        "9015e0a4747a91d5c7334955e2d5e2006207fb683a7534b9ea65a7accdb7d24e5869a9d58df3a918e2ffc739630fac3c6d293664b7f12b32f3977d7bd12b2c44 libdatadog-x86-windows.zip"
+        "7c69a37cb335260610b61ae956192a6dbd104d05a8278c8ff894dbfebc2efd53 libdatadog-aarch64-alpine-linux-musl.tar.gz"
+        "b992a11b90ec5927646a0c96b74fe9fcd63e7e471307e74a670ddf42fc10eaf9 libdatadog-aarch64-apple-darwin.tar.gz"
+        "606b23f4de7defacd5d4a381816f8d7bfe26112c97fcdf21ec2eb998a6c5fbbd libdatadog-aarch64-unknown-linux-gnu.tar.gz"
+        "2008886021ddee573c0d539626d1d58d41e2a7dbc8deca22b3662da52de6f4d9 libdatadog-x86_64-alpine-linux-musl.tar.gz"
+        "6a12ef60fd7b00544343c2b6761ef801ad2e1237075711bd16dfb7247464bc43 libdatadog-x86_64-apple-darwin.tar.gz"
+        "4e5b05515ab180aec0819608aa5d277ff710055819654147a9d69caea27a0dbc libdatadog-x86_64-unknown-linux-gnu.tar.gz"
+        "9b33697d3a9949c81a5eadf6fd6334adba4b262acb8887651021443c5f5b35b06dc7e2bdde5cee1b7a1f4862f0896436130b7f4940050e4dbccf8e7e0b2f129e libdatadog-x64-windows.zip"
+        "ace14ad5b0525c11f86d166b5696b8dcfd48cb5bb1c4435e71eba982c3da21c4f42ac6b6ec5fdf53f09a353a3339e2a31cc57003637578bc73815def808768b1 libdatadog-x86-windows.zip"
     )
 endif()
 
