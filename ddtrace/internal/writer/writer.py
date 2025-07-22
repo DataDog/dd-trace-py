@@ -1046,7 +1046,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 # TODO: Does it make sense or should we log the final payload from the trace exporter
                 if config._trace_writer_log_err_payload:
                     msg += ", payload %s"
-                    log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
+                    log_args += (binascii.hexlify(encoded_data).decode(),)  # type: ignore
 
                 log.error(msg, *log_args)
             finally:
