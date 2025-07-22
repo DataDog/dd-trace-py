@@ -118,7 +118,7 @@ class WAF(ABC):
     @abstractmethod
     def __init__(
         self,
-        rules: Dict[str, Any],
+        rules: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
         metrics,

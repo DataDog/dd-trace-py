@@ -174,6 +174,12 @@ class ddwaf_object(ctypes.Structure):
     def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
 
+    @classmethod
+    def create_from_json(cls, object_bytes: bytes) -> "ddwaf_object":
+        obj = cls.__new__(cls)
+        ddwaf_object_from_json(obj, object_bytes, len(object_bytes))
+        return obj
+
     @property
     def struct(self) -> DDWafRulesType:
         """Generate a python structure from ddwaf_object"""
@@ -527,6 +533,15 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
         (1, "map"),
         (1, "key"),
         (1, "object"),
+    ),
+)
+
+ddwaf_object_from_json = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_size_t)(
+    ("ddwaf_object_from_json", ddwaf),
+    (
+        (1, "object"),
+        (1, "json_str"),
+        (1, "length"),
     ),
 )
 
