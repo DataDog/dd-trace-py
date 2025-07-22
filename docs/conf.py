@@ -16,8 +16,8 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-import glob
 from datetime import datetime
+import glob
 import os
 import os.path
 import re
@@ -134,6 +134,7 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
+    "**/__pycache__/*"
 ]
 
 # autodoc_mock_imports contains a list of modules to be mocked up.
