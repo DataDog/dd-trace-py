@@ -301,6 +301,9 @@ def test_iast_code_injection_with_stacktrace(server):
     ),
 )
 def test_iast_vulnerable_request_downstream(server, config):
+    """Gevent has a lot of problematic interactions with the tracer. When IAST applies AST transformations to a file
+    and reloads the module using compile and exec, it can interfere with Gevent’s monkey patching
+    """
     token = "test_iast_vulnerable_request_downstream"
     _ = start_trace(token)
     with server(iast_enabled="true", token=token, port=8050, **config) as context:
