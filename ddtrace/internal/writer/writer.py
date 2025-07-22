@@ -1015,8 +1015,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         try:
-            encoded, n_traces = client.encoder.encode()
-            if encoded is None:
+            if not (encoded_traces := client.encoder.encode()):
                 return
         except Exception:
             # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
@@ -1024,31 +1023,35 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._metrics_dist("encoder.dropped.traces", n_traces)
             return
 
-        try:
-            self._send_payload(encoded, n_traces, client)
-        except Exception as e:
-            self._metrics_dist("http.errors", tags=["type:err"])
-            self._metrics_dist("http.dropped.bytes", len(encoded))
-            self._metrics_dist("http.dropped.traces", n_traces)
-            if raise_exc:
-                raise
+        for payload in encoded_traces:
+            encoded_data, n_traces = payload
+            if encoded_data is None:
+                continue
+            try:
+                self._send_payload(encoded_data, n_traces, client)
+            except Exception as e:
+                self._metrics_dist("http.errors", tags=["type:err"])
+                self._metrics_dist("http.dropped.bytes", len(encoded_data))
+                self._metrics_dist("http.dropped.traces", n_traces)
+                if raise_exc:
+                    raise
 
-            msg = "failed to send, dropping %d traces to intake at %s: %s"
-            log_args = (
-                n_traces,
-                self._intake_endpoint(client),
-                str(e),
-            )
-            # Append the payload if requested
-            # TODO: Does it make sense or should we log the final payload from the trace exporter
-            if config._trace_writer_log_err_payload:
-                msg += ", payload %s"
-                log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
+                msg = "failed to send, dropping %d traces to intake at %s: %s"
+                log_args = (
+                    n_traces,
+                    self._intake_endpoint(client),
+                    str(e),
+                )
+                # Append the payload if requested
+                # TODO: Does it make sense or should we log the final payload from the trace exporter
+                if config._trace_writer_log_err_payload:
+                    msg += ", payload %s"
+                    log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-            log.error(msg, *log_args)
-        finally:
-            self._metrics_dist("http.sent.bytes", len(encoded))
-            self._metrics_dist("http.sent.traces", n_traces)
+                log.error(msg, *log_args)
+            finally:
+                self._metrics_dist("http.sent.bytes", len(encoded_data))
+                self._metrics_dist("http.sent.traces", n_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
