@@ -642,7 +642,6 @@ def test_writer_flush_queue_generates_debug_log():
     import mock
 
     from ddtrace.internal.writer import create_trace_writer
-    from ddtrace.settings._agent import config as agent_config
     from tests.utils import AnyFloat
     from tests.utils import AnyInt
     from tests.utils import AnyStr

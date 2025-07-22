@@ -43,6 +43,10 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import NativeWriter
+from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
+from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._database_monitoring import dbm_config
