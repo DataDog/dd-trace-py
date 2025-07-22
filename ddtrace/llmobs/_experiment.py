@@ -220,10 +220,12 @@ class Experiment:
                 "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
             )
             return []
-        project_id = self._llmobs_instance._dne_client.project_get(self._project_name)
-        if not project_id:
+        try:
+            project_id = self._llmobs_instance._dne_client.project_get(self._project_name)
+        except FileNotFoundError:
             project_id = self._llmobs_instance._dne_client.project_create(self._project_name)
         self._project_id = project_id
+
         experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
             self.name,
             self._dataset._id,

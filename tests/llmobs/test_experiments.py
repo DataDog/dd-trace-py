@@ -213,8 +213,8 @@ def test_project_get(llmobs):
 
 
 def test_project_get_fails_returns_empty_string(llmobs):
-    project_id = llmobs._instance._dne_client.project_get(name="non-existent-project")
-    assert project_id == ""
+    with pytest.raises(FileNotFoundError, match="Project non-existent-project not found"):
+        llmobs._instance._dne_client.project_get(name="non-existent-project")
 
 
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):

@@ -450,11 +450,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         path = f"/api/unstable/llm-obs/v1/projects?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            return ""
+            raise ValueError(f"Failed to pull project {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         data = response_data["data"]
         if not data:
-            return ""
+            raise FileNotFoundError(f"Project {name} not found")
         return data[0]["id"]
 
     def experiment_create(
