@@ -1,5 +1,5 @@
 from ddtrace.llmobs._constants import INPUT_PROMPT
-from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import validate_prompt
 from collections import defaultdict
 import json
 from typing import Any
@@ -15,7 +15,7 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import INPUT_DOCUMENTS, TAGS
+from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
@@ -793,7 +793,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
 
     # on llm invoke, take any template from the input prompt value and make it available to llm.generate()
-    def handle_llm_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
         prompt =args[0]
         template = getattr(prompt, "_dd", None)
         if template:
@@ -806,7 +806,7 @@ class LangChainIntegration(BaseLLMIntegration):
         if prompt_value_meta is not None and "template" in prompt_value_meta:
             prompt = prompt_value_meta["template"]
             try:
-                prompt = _validate_prompt(prompt)
+                prompt = validate_prompt(prompt)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
             except Exception as e:
                 log.warning('Failed to validate prompt', e)

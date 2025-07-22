@@ -99,9 +99,8 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     )
     completions = None
 
-    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
-
     integration.record_instance(instance, span)
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
 
     try:
         completions = func(*args, **kwargs)
@@ -680,6 +679,7 @@ def unpatch():
     langchain._datadog_patch = False
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
+    unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
@@ -718,6 +718,6 @@ def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwa
 @with_traced_module
 def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
-    prompt = func(*args, **kwargs)
-    integration.handle_llm_invoke(instance, prompt, args, kwargs)
-    return prompt
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = func(*args, **kwargs)
+    return response
