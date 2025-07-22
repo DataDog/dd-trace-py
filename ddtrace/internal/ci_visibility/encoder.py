@@ -3,7 +3,6 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from uuid import uuid4
 
@@ -46,7 +45,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
-        self._metadata = {}  # type: dict[str, dict[str, str]]
+        self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
         self._is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
         self._init_buffer()
@@ -313,7 +312,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
     ) -> dict[str, Any]:
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
-        files: Dict[str, Any] = {}
+        files: dict[str, Any] = {}
 
         files_struct_tag_value = span.get_struct_tag(COVERAGE_TAG_NAME)
         if files_struct_tag_value is not None and "files" in files_struct_tag_value:
