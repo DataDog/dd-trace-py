@@ -153,6 +153,12 @@ class Dataset:
         self._deleted_record_ids.append(record_id)
         del self._records[index]
 
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
         ...
