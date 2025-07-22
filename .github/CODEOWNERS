@@ -163,6 +163,8 @@ ddtrace/contrib/internal/litellm                              @DataDog/ml-observ
 ddtrace/contrib/_litellm.py                                   @DataDog/ml-observability
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/_pydantic_ai.py                               @DataDog/ml-observability
+ddtrace/contrib/internal/mcp                                  @DataDog/ml-observability
+ddtrace/contrib/_mcp.py                                       @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
@@ -181,6 +183,7 @@ tests/contrib/crewai                                          @DataDog/ml-observ
 tests/contrib/openai_agents                                   @DataDog/ml-observability
 tests/contrib/litellm                                         @DataDog/ml-observability
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
+tests/contrib/mcp                                             @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
