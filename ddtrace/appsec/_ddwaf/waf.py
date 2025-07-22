@@ -62,7 +62,7 @@ class DDWaf(WAF):
         )
         diagnostics = ddwaf_object()
         object_creation_start = time.time_ns()
-        ruleset_map_object = ddwaf_object.create_from_json(ruleset_bytes)
+        ruleset_map_object = ddwaf_object.create_without_limits(json.loads(ruleset_bytes))
         object_creation_end = time.time_ns()
         DeferredSpans.append(DeferredSpan("asm_object_creation", object_creation_start, object_creation_end))
         self._builder = py_ddwaf_builder_init(config)
