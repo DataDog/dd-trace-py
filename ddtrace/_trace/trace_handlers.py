@@ -875,7 +875,7 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
     span.set_tag_str(MESSAGING_OPERATION, "receive")
     span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
 
-    if message_id:
+    if message_id is not None:
         span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
