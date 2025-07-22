@@ -187,6 +187,7 @@ class Span(object):
             if config._raise:
                 raise TypeError("parent_id must be an integer")
             return
+        # just a comment here
         self.name = name
         self.service = service
         self._resource = [resource or name]
