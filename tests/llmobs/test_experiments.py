@@ -28,11 +28,11 @@ def wait_for_backend():
         time.sleep(2)
 
 
-def dummy_task(input_data, config):
+def dummy_task(input_data):
     return input_data
 
 
-def faulty_task(input_data, config):
+def faulty_task(input_data):
     raise ValueError("This is a test error")
 
 
@@ -336,13 +336,13 @@ def test_dataset_delete(llmobs, test_dataset):
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
 
 
-def test_project_create(llmobs):
-    project_id = llmobs._instance._dne_client.project_create(name="test-project")
-    assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
+def test_project_create_new_project(llmobs):
+    project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project-dne-sdk")
+    assert project_id == "29892594-46a2-4539-893d-5dc75f5968b7"
 
 
-def test_project_get(llmobs):
-    project_id = llmobs._instance._dne_client.project_get(name="test-project")
+def test_project_get_existing_project(llmobs):
+    project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project")
     assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
 
 
@@ -352,15 +352,9 @@ def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
 
 
 def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+    with pytest.raises(TypeError, match="Task function must accept 'input_data' parameters."):
 
         def my_task(not_input):
-            pass
-
-        llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
-    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
-
-        def my_task(input_data, not_config):
             pass
 
         llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
@@ -402,6 +396,66 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_output])
 
 
+def test_project_name_set(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="ml-app", project_name="test-project-123")
+assert LLMObs._project_name == "test-project-123"
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
+def test_project_name_set_env(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            "DD_TRACE_ENABLED": "0",
+            "DD_LLMOBS_PROJECT_NAME": "test-project-123",
+            "DD_LLMOBS_ENABLED": "1",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+assert LLMObs._project_name == "test-project-123"
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
+def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0", "DD_LLMOBS_ENABLED": "1"})
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
+
+assert LLMObs._project_name == DEFAULT_PROJECT_NAME
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
 def test_experiment_init(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
@@ -409,7 +463,6 @@ def test_experiment_init(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [dummy_evaluator],
         description="lorem ipsum",
-        project_name="test-project",
     )
     assert exp.name == "test_experiment"
     assert exp._task == dummy_task
@@ -422,23 +475,17 @@ def test_experiment_init(llmobs, test_dataset_one_record):
     assert exp._id is None
 
 
-def test_experiment_create_no_project_name_raises(llmobs, test_dataset_one_record):
-    project_name = llmobs._project_name
-    llmobs._project_name = None
-    with pytest.raises(ValueError, match="project_name must be provided for the experiment"):
-        llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name=None)
-    llmobs._project_name = project_name  # reset to original value for other tests
-
-
 def test_experiment_create(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
         dummy_task,
         test_dataset_one_record,
         [dummy_evaluator],
-        project_name="test-project",
+        description="This is a test experiment",
+        tags={"tag1": "value1", "tag2": "value2"},
+        config={"models": ["gpt-4.1"]},
     )
-    project_id = llmobs._instance._dne_client.project_get("test-project")
+    project_id = llmobs._instance._dne_client.project_create_or_get("test-project")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
         exp.name, exp._dataset._id, project_id, exp._dataset._version, exp._config
     )
@@ -458,7 +505,13 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     ],
 )
 def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], project_name="test-project")
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset,
+        [dummy_evaluator],
+        config={"models": ["gpt-4.1"]},
+    )
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 2
     assert task_results[0] == {
@@ -490,9 +543,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     assert task_results == [
@@ -516,9 +567,7 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
@@ -527,9 +576,7 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
@@ -542,9 +589,7 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
@@ -552,9 +597,7 @@ def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record)
 
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     merged_results = exp._merge_results(task_results, eval_results)
@@ -581,9 +624,7 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     merged_results = exp._merge_results(task_results, eval_results)
@@ -630,10 +671,8 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-        )
-        exp._tags = ["ddtrace.version:1.2.3"]  # FIXME: this is a hack to set the tags for the experiment
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
         exp_results = exp.run()
     assert len(exp_results) == 1
     exp_result = exp_results[0]
@@ -645,9 +684,7 @@ def test_experiment_run(llmobs, test_dataset_one_record):
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record):
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     exp._id = "1234567890"
     exp._run_task(1, raise_errors=False)
     assert len(llmobs_events) == 1
