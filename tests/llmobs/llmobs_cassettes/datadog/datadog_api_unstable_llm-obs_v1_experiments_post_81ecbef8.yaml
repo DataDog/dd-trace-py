@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"data": {"type": "experiments", "attributes": {"name": "test_experiment",
+      "description": "", "dataset_id": "9e29a063-0274-44c4-a32d-b1764a91c6c4", "project_id":
+      "dc4158e7-c60f-446e-bcf1-540aa68ffa0f", "dataset_version": 0, "config": {},
+      "metadata": {"tags": []}, "ensure_unique": true}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '288'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/experiments
+  response:
+    body:
+      string: '{"data":{"id":"b4fc1bdb-81d2-4737-bd1e-e991d13af7a9","type":"experiments","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"config":{},"created_at":"2025-07-17T04:02:43.201226413Z","dataset_id":"9e29a063-0274-44c4-a32d-b1764a91c6c4","dataset_version":0,"description":"","experiment":"test_experiment","metadata":{"tags":[]},"name":"test_experiment-1752724963201","project_id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","updated_at":"2025-07-17T04:02:43.201226512Z"}}}'
+    headers:
+      content-length:
+      - '483'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Thu, 17 Jul 2025 04:02:43 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
