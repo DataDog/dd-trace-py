@@ -11,7 +11,7 @@ There's a skeleton module in ``templates/integration`` that can serve as a helpf
 for new integrations. You can copy it to ``contrib`` and replace ``foo`` with the name of the library you're
 integrating with::
 
-      cp -r templates/integration ddtrace/contrib/<integration>
+      cp -r templates/integration ddtrace/contrib/internal/<integration>
 
 Integrations must avoid changing the contract between the application and the integrated library. That is, they
 should be completely invisible to the application code. This means integration code should, for example,
@@ -19,6 +19,13 @@ re-raise exceptions after catching them.
 
 Integrations shouldn't include any code that references concepts that are specific to Datadog Products. Examples
 include Tracing Spans and the AppSec WAF.
+
+Integrations should avoid exposing a public API unless it is absolutely necessary. Users should be able to configure
+the integration by setting environment variables or using the Pin API. For cases where a public API is necessary, integrations
+should expose the API in ``ddtrace.contrib.<integration_name>.py``. 
+
+Integrations should define a ``ddtrace.contrib.internal.<integration>.__init__.py`` module that contains a doc string describing the integration
+and it's supported configurations. This module should be referenced in the ``docs/integrations.rst`` file.
 
 What tools does an integration rely on?
 ---------------------------------------
