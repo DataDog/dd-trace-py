@@ -148,7 +148,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
 def _finish_span(
     ctx: core.ExecutionContext,
-    exc_info: Tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ):
     """
     Finish the span in the context.
