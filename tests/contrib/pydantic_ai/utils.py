@@ -8,14 +8,10 @@ def expected_calculate_square_tool():
         {
             "name": "calculate_square_tool",
             "description": "Calculates the square of a number",
-            "parameters": {
-                "x": {
-                    "type": "integer",
-                    "required": True
-                }
-            }
+            "parameters": {"x": {"type": "integer", "required": True}},
         }
     ]
+
 
 def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> Dict:
     metadata = {
@@ -42,7 +38,7 @@ def expected_run_agent_span_event(
     system_prompt=None,
     model_settings=None,
     span_links=None,
-    tools=None
+    tools=None,
 ):
     return _expected_llmobs_non_llm_span_event(
         span,

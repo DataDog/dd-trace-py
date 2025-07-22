@@ -27,7 +27,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "instructions": "You are a helpful assistant who answers questions concisely and accurately.",
         "handoff_description": None,
         "model": "gpt-4o",
-        "model_settings": mock.ANY, # different versions of the library have different model settings
+        "model_settings": mock.ANY,  # different versions of the library have different model settings
     },
     "Addition Agent": {
         "framework": "OpenAI",
@@ -41,7 +41,10 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
                 "name": "add",
                 "description": "Add two numbers together",
                 "strict_json_schema": True,
-                "parameters": {"a": {"type": "integer", "title": "A", "required": True}, "b": {"type": "integer", "title": "B", "required": True}},
+                "parameters": {
+                    "a": {"type": "integer", "title": "A", "required": True},
+                    "b": {"type": "integer", "title": "B", "required": True},
+                },
             }
         ],
     },
@@ -61,10 +64,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
             }
         ],
         "handoffs": [
-            {
-                "handoff_description": None, 
-                "agent_name": "Summarizer"
-            },
+            {"handoff_description": None, "agent_name": "Summarizer"},
         ],
     },
     "Summarizer": {
@@ -79,9 +79,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
 
 
 def _expected_agent_metadata(agent_name: str) -> Dict:
-    return {
-        "agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]
-    }
+    return {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}
 
 
 def _assert_expected_agent_run(
