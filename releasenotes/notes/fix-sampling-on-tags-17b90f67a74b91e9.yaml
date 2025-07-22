@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    sampling: Fixed Trace Sampling rules to require all expected tags to be present for a match, instead of matching when only some tags are present.
