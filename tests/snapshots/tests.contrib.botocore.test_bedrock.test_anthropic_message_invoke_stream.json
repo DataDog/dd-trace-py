@@ -11,20 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "687978b700000000",
+      "_dd.p.tid": "687f904c00000000",
       "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
       "bedrock.request.model_provider": "anthropic",
-      "bedrock.response.duration": "",
-      "bedrock.response.id": "1708c260-6ca9-46ce-8799-1ce6c03cae0d",
       "language": "python",
-      "runtime-id": "b149a195e497411886dda3ba2fa2f0cf"
+      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 97455
+      "process_id": 25551
     },
-    "duration": 3334000,
-    "start": 1752791223972128000
+    "duration": 3377000,
+    "start": 1753190476842317000
   }]]
