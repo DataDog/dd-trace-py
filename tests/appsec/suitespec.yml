@@ -38,7 +38,7 @@ suites:
       - tests/appsec/iast/*
     retry: 2
     runner: riot
-    timeout: 40m
+    timeout: 30m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -152,7 +152,7 @@ suites:
     runner: riot
     services:
       - testagent
-    timeout: 50m
+    timeout: 40m
   appsec_integrations_django:
     parallelism: 22
     paths:
