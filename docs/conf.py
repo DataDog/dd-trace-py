@@ -134,7 +134,7 @@ exclude_patterns = [
     "_build",
     "Thumbs.db",
     ".DS_Store",
-    "**/__pycache__/*"
+    "**/__pycache__/*",
 ]
 
 # autodoc_mock_imports contains a list of modules to be mocked up.
@@ -142,13 +142,10 @@ exclude_patterns = [
 # preventing Sphinx build failures due to module not found errors. Allows __init__.py files to be included
 # since these are often used to define integration-level docstrings.
 autodoc_mock_imports = [
-    path.replace(os.path.sep, ".").strip(".py")
-    for path in glob.glob("ddtrace/contrib/internal/**/*.py", recursive=True)
+    path.replace(os.path.sep, ".")[:-3].strip(".")
+    for path in glob.glob("../ddtrace/contrib/internal/**/*.py", recursive=True)
     if not path.endswith("__init__.py")
 ]
-# Add dependencies that are referenced outside of ddtrace.contrib.internal
-autodoc_mock_imports.extend(["aiohttp"])
-
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.
