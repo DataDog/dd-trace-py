@@ -5,6 +5,7 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -16,12 +17,12 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.trace import Pin
 
 
@@ -69,47 +70,6 @@ def unpatch():
     if getattr(aiobotocore.client, "_datadog_patch", False):
         aiobotocore.client._datadog_patch = False
         unwrap(aiobotocore.client.AioBaseClient, "_make_api_call")
-
-# Helper to build AWS hostname from service, region and parameters
-def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
-    """Return hostname for given AWS service according to Datadog peer hostname rules.
-
-    Logic mirrors the JS mapping provided by the user:
-
-        events   -> events.<region>.amazonaws.com
-        sqs      -> sqs.<region>.amazonaws.com
-        sns      -> sns.<region>.amazonaws.com
-        kinesis  -> kinesis.<region>.amazonaws.com
-        dynamodb -> dynamodb.<region>.amazonaws.com
-        s3       -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
-                   s3.<region>.amazonaws.com          (otherwise)
-
-    Unknown services or missing region return ``None``.
-    """
-
-    if not region:
-        return None
-
-    aws_service = service.lower()
-
-    if aws_service in {"eventbridge", "events"}:
-        return f"events.{region}.amazonaws.com"
-    if aws_service == "sqs":
-        return f"sqs.{region}.amazonaws.com"
-    if aws_service == "sns":
-        return f"sns.{region}.amazonaws.com"
-    if aws_service == "kinesis":
-        return f"kinesis.{region}.amazonaws.com"
-    if aws_service in {"dynamodb", "dynamodbdocument"}:
-        return f"dynamodb.{region}.amazonaws.com"
-    if aws_service == "s3":
-        bucket = params.get("Bucket") if params else None
-        if bucket:
-            return f"{bucket}.s3.{region}.amazonaws.com"
-        return f"s3.{region}.amazonaws.com"
-
-    return None
-
 
 
 class WrappedClientResponseContentProxy(wrapt.ObjectProxy):
@@ -227,4 +187,3 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             span.set_tag_str("aws.requestid2", request_id2)
 
         return result
-

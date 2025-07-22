@@ -12,8 +12,8 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.serverless import in_aws_lambda
+from ddtrace.internal.utils.formats import deep_getattr
 
 
 _PAYLOAD_TAGGER = AWSPayloadTagging()
@@ -23,17 +23,16 @@ _PAYLOAD_TAGGER = AWSPayloadTagging()
 def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
     """Return hostname for given AWS service according to Datadog peer hostname rules.
 
-    Logic mirrors the JS mapping provided by the user:
+    Only returns hostnames for specific AWS services:
+        - eventbridge/events -> events.<region>.amazonaws.com
+        - sqs               -> sqs.<region>.amazonaws.com
+        - sns               -> sns.<region>.amazonaws.com
+        - kinesis           -> kinesis.<region>.amazonaws.com
+        - dynamodb          -> dynamodb.<region>.amazonaws.com
+        - s3                -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
+                              s3.<region>.amazonaws.com          (otherwise)
 
-        events   -> events.<region>.amazonaws.com
-        sqs      -> sqs.<region>.amazonaws.com
-        sns      -> sns.<region>.amazonaws.com
-        kinesis  -> kinesis.<region>.amazonaws.com
-        dynamodb -> dynamodb.<region>.amazonaws.com
-        s3       -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
-                   s3.<region>.amazonaws.com          (otherwise)
-
-    Unknown services or missing region return ``None``.
+    Other services return ``None``.
     """
 
     if not region:
@@ -41,6 +40,7 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, 
 
     aws_service = service.lower()
 
+    # Only set peer.service for specific services
     if aws_service in {"eventbridge", "events"}:
         return f"events.{region}.amazonaws.com"
     if aws_service == "sqs":
@@ -57,6 +57,7 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, 
             return f"{bucket}.s3.{region}.amazonaws.com"
         return f"s3.{region}.amazonaws.com"
 
+    # Return None for all other services
     return None
 
 
