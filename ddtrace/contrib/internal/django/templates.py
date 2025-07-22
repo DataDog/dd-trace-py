@@ -64,7 +64,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
         super().__enter__()
 
         if not config.django.instrument_templates:
-            return
+            return self
 
         # Get the template instance (self parameter of the render method)
         # Note: instance is a django.template.base.Template
@@ -113,8 +113,6 @@ class DjangoTemplateWrappingContext(WrappingContext):
             # Close the context and any open span
             ctx = self.get("ctx")
             ctx.__exit__(exc_type, exc_val, exc_tb)
-            if ctx.span:
-                ctx.span.__exit__(exc_type, exc_val, exc_tb)
         except Exception:
             log.exception("Failed to close Django template render wrapping context")
 
