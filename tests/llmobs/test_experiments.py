@@ -302,7 +302,10 @@ def test_experiment_create(llmobs, test_dataset_one_record):
         dummy_task,
         test_dataset_one_record,
         [dummy_evaluator],
+        description="This is a test experiment",
         project_name="test-project",
+        tags={"tag1":"value1", "tag2":"value2"},
+        config={"models": ["gpt-4.1"]},
     )
     project_id = llmobs._instance._dne_client.project_create_or_get("test-project")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
@@ -499,7 +502,7 @@ def test_experiment_run(llmobs, test_dataset_one_record):
         exp = llmobs.experiment(
             "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
         )
-        exp._tags = ["ddtrace.version:1.2.3"]  # FIXME: this is a hack to set the tags for the experiment
+        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
         exp_results = exp.run()
     assert len(exp_results) == 1
     exp_result = exp_results[0]

@@ -21,6 +21,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._utils import convert_tags_dict_to_list
 
 
 if TYPE_CHECKING:
@@ -180,7 +181,7 @@ class Experiment:
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
@@ -189,8 +190,8 @@ class Experiment:
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
-        self._tags: List[str] = [f"ddtrace.version:{ddtrace.__version__}"]
-        self._tags.extend(tags or [])
+        self._tags: Dict[str, str] = tags or {}
+        self._tags["ddtrace.version"] = str(ddtrace.__version__)
         self._config: Dict[str, JSONType] = config or {}
         self._llmobs_instance = _llmobs_instance
 
@@ -230,17 +231,19 @@ class Experiment:
             self._project_id,
             self._dataset._version,
             self._config,
-            self._tags,
+            convert_tags_dict_to_list(self._tags),
             self._description,
         )
         self._id = experiment_id
-        self._tags.append(f"experiment_id:{experiment_id}")
+        self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
         experiment_results = self._merge_results(task_results, evaluations)
         experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
-        self._llmobs_instance._dne_client.experiment_eval_post(self._id, experiment_evals, self._tags)
+        self._llmobs_instance._dne_client.experiment_eval_post(
+            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
         return experiment_results
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
@@ -256,7 +259,14 @@ class Experiment:
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = {"dataset_id": self._dataset._id, "dataset_record_id": record_id, "experiment_id": self._id}
+            tags = deepcopy(self._tags)
+            tags.update(
+                {
+                    "dataset_id": str(self._dataset._id),
+                    "dataset_record_id": str(record_id),
+                    "experiment_id": str(self._id),
+                }
+            )
             output_data = None
             try:
                 output_data = self._task(input_data, self._config)
@@ -342,7 +352,7 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], self._tags)}
+            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(self._tags))}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
@@ -383,7 +393,7 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": self._tags,
+            "tags": convert_tags_dict_to_list(self._tags),
             "experiment_id": self._id,
         }
 

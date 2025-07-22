@@ -168,7 +168,7 @@ class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "default-project")
 
     def __init__(
         self,
@@ -609,7 +609,8 @@ class LLMObs(Service):
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
         project_name: Optional[str] = None,
-        tags: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[ExperimentConfigType] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
@@ -622,7 +623,8 @@ class LLMObs(Service):
         :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
                              configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
                              or `LLMObs.enable(project_name=...)`.
-        :param tags: A list of string tags to associate with the experiment.
+        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
+        :param config: A configuration dictionary for experiment task functions.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -650,6 +652,7 @@ class LLMObs(Service):
             project_name=project_name,
             tags=tags,
             description=description,
+            config=config,
             _llmobs_instance=cls._instance,
         )
 
