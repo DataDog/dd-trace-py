@@ -605,11 +605,10 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
-        project_name: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
     ) -> Experiment:
@@ -621,18 +620,15 @@ class LLMObs(Service):
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
         :param description: A description of the experiment.
-        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
-                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
-                             or `LLMObs.enable(project_name=...)`.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
-        :param config: A configuration dictionary that is passed to experiment task functions.
+        :param config: A configuration dictionary describing the experiment.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
         params = sig.parameters
-        if "input_data" not in params or "config" not in params:
-            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
+        if "input_data" not in params:
+            raise TypeError("Task function must accept 'input_data' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(callable(evaluator) for evaluator in evaluators):
@@ -643,14 +639,12 @@ class LLMObs(Service):
             required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(required_params))
-        if project_name is None:
-            project_name = cls._project_name
         return Experiment(
             name,
             task,
             dataset,
             evaluators,
-            project_name=project_name,
+            project_name=cls._project_name,
             tags=tags,
             description=description,
             config=config,
