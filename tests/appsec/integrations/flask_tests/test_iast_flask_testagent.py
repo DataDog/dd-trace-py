@@ -52,14 +52,11 @@ def test_iast_stacktrace_error():
     assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize(
-    "server",
-    (gunicorn_server, flask_server),
-)
+@pytest.mark.parametrize("server", (gunicorn_server, flask_server))
 def test_iast_cmdi(server):
     token = "test_iast_cmdi"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050) as context:
+    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability?filename=path_traversal_test_file.txt")
@@ -91,17 +88,11 @@ def test_iast_cmdi(server):
     assert vulnerability["hash"]
 
 
-@pytest.mark.parametrize(
-    "server, config",
-    (
-        (gunicorn_server, {}),
-        (flask_server, {}),
-    ),
-)
-def test_iast_cmdi_secure(server, config):
+@pytest.mark.parametrize("server", (gunicorn_server, flask_server))
+def test_iast_cmdi_secure(server):
     token = "test_iast_cmdi_secure"
     _ = start_trace(token)
-    with server(iast_enabled="true", token=token, port=8050, **config) as context:
+    with server(iast_enabled="true", token=token, port=8050, use_ddtrace_cmd=False) as context:
         _, flask_client, pid = context
 
         response = flask_client.get("/iast-cmdi-vulnerability-secure?filename=path_traversal_test_file.txt")
@@ -117,7 +108,7 @@ def test_iast_cmdi_secure(server, config):
     clear_session(token)
 
 
-@pytest.mark.parametrize("server", ((gunicorn_server, flask_server)))
+@pytest.mark.parametrize("server", (gunicorn_server, flask_server))
 def test_iast_header_injection_secure(server):
     """Test that header injection is prevented in a real Flask application.
 
