@@ -198,7 +198,7 @@ class ExecutionContext(object):
 
     def __exit__(
         self,
-        exc_type: Optional[type[BaseException]],
+        exc_type: Optional[type],
         exc_value: Optional[BaseException],
         traceback: Optional[types.TracebackType],
     ) -> bool:

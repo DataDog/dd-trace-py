@@ -537,7 +537,7 @@ def end_context(span: Span):
 
 
 def _on_context_ended(
-    ctx, _exc_info: Tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]]
+    ctx, _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]
 ):
     env = ctx.get_local_item(_ASM_CONTEXT)
     if env is not None:

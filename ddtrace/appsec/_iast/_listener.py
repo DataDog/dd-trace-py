@@ -25,7 +25,7 @@ from ddtrace.internal import core
 def iast_listen():
     def _iast_context_end(
         ctx: core.ExecutionContext,
-        _exc_info: Tuple[Optional[type[BaseException]], Optional[BaseException], Optional[TracebackType]],
+        _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
     ):
         _iast_end_request(ctx)
 
