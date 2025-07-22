@@ -94,13 +94,12 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
-        # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
-        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
-            if not self._pattern_matches(prop, pattern):
-                return False
-        else:
-            return True
+        # perf: If a pattern is not matched we can skip the rest of the checks and return False
+        return all(
+            self._pattern_matches(prop, pattern)
+            for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource))
+        )
 
     def matches(self, span: Span) -> bool:
         """
@@ -111,16 +110,20 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        tags_match = self.tags_match(span)
-        return tags_match and self._matches((span.service, span.name, span.resource))
+        # perf: Check the cached matches before searching tags
+        return self._matches((span.service, span.name, span.resource)) and self.tags_match(span)
 
     def tags_match(self, span: Span) -> bool:
-        tag_match = True
-        if self._tag_value_matchers:
-            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
-        return tag_match
+        """
+        Return if this span matches the tags defined in this rule
+        """
+        if not self._tag_value_matchers:
+            return True
 
-    def check_tags(self, meta, metrics):
+        # perf: Do not copy the span._meta and span._metrics dictionaries
+        meta = span._meta
+        metrics = span._metrics
+
         if meta is None and metrics is None:
             return False
 
