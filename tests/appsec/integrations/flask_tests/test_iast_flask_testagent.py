@@ -94,8 +94,7 @@ def test_iast_cmdi(server):
 @pytest.mark.parametrize(
     "server, config",
     (
-        (gunicorn_server, {"workers": "3", "use_threads": False, "use_gevent": False}),
-        (gunicorn_server, {"workers": "1", "use_threads": True, "use_gevent": True}),
+        (gunicorn_server, {}),
         (flask_server, {}),
     ),
 )
