@@ -84,6 +84,20 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     tags: List[str]
 
 
+class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
+    span_id: str
+    trace_id: str
+    timestamp_ms: int
+    metric_type: str
+    label: str
+    categorical_value: str
+    score_value: float
+    boolean_value: bool
+    error: Optional[Dict[str, str]]
+    tags: List[str]
+    experiment_id: str
+
+
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
     """Determine whether to use agentless mode based on agent availability and capabilities."""
     if user_defined_agentless_enabled is not None:
@@ -141,6 +155,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
+            if self._app_key:
+                self._headers["DD-APPLICATION-KEY"] = self._app_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
@@ -277,6 +293,7 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
 
 
 class LLMObsExperimentsClient(BaseLLMObsWriter):
+    EVENT_TYPE = "experiment"
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
@@ -417,7 +434,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
-    def project_create(self, name: str) -> str:
+    def project_create_or_get(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"
         resp = self.request(
             "POST",
@@ -428,17 +445,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         return response_data["data"]["id"]
-
-    def project_get(self, name: str) -> str:
-        path = f"/api/unstable/llm-obs/v1/projects?filter[name]={quote(name)}"
-        resp = self.request("GET", path)
-        if resp.status != 200:
-            raise ValueError(f"Failed to get project {name}: {resp.status} {resp.get_json()}")
-        response_data = resp.get_json()
-        data = response_data["data"]
-        if not data:
-            raise ValueError(f"Project {name} not found")
-        return data[0]["id"]
 
     def experiment_create(
         self,
@@ -477,6 +483,31 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
         return experiment_id, experiment_run_name
 
+    def experiment_eval_post(
+        self, experiment_id: str, events: List[LLMObsExperimentEvalMetricEvent], tags: List[str]
+    ) -> None:
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": {
+                        "scope": "experiments",
+                        "metrics": cast(List[JSONType], events),
+                        "tags": cast(List[JSONType], tags),
+                    },
+                }
+            },
+        )
+        if resp.status not in (200, 202):
+            raise ValueError(
+                f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
+            )
+        logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
+        return None
+
 
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
@@ -502,10 +533,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payload = []
+        for event in events:
+            event_data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
+            if event.get("_dd", {}).get("scope") == "experiments":
+                event_data["_dd.scope"] = "experiments"
+            payload.append(event_data)
+        return payload
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
