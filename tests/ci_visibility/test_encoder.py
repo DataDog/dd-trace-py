@@ -123,12 +123,11 @@ def test_encode_traces_civisibility_v01_empty_traces():
     assert encoded_traces == [], "Expected empty list when payload is None"
 
 
-# New tests for _build_payload functionality
 def test_build_payload_empty_traces():
     """Test _build_payload with empty traces list."""
     encoder = CIVisibilityEncoderV01(0, 0)
     payloads = encoder._build_payload([])
-    assert payloads == [(None, 0)]
+    assert payloads == [], "Expected empty list when payload is None"
 
 
 def test_build_payload_single_trace():
