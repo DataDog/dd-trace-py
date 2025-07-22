@@ -722,14 +722,12 @@ def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
 ) -> None:
-    span = ctx.span
-    model_name = ctx["model_name"]
-    integration = ctx["bedrock_integration"]
-    if "embed" in model_name:
-        span.finish()
-        return
-    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
-    span.finish()
+    with ctx.span as span:
+        model_name = ctx["model_name"]
+        integration = ctx["bedrock_integration"]
+        if "embed" in model_name:
+            return
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
