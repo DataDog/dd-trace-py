@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    tracing: ``ddtrace.settings__init__`` imports are deprecated and will be removed in version 4.0.0.
+    tracing: ``ddtrace.settings.__init__`` imports are deprecated and will be removed in version 4.0.0.
