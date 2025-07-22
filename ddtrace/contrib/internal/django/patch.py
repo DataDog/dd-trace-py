@@ -14,6 +14,7 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+import sys
 from typing import Dict
 
 import wrapt
@@ -81,6 +82,7 @@ config._add(
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        views={},
     ),
 )
 
@@ -610,6 +612,15 @@ def instrument_view(django, view):
 
     return _instrument_view(django, view)
 
+def extract_request_method_list(view):
+    try:
+        while "view_func" in view.__code__.co_freevars:
+            view = view.__closure__[view.__code__.co_freevars.index("view_func")].cell_contents
+        if "request_method_list" in view.__code__.co_freevars:
+            return view.__closure__[view.__code__.co_freevars.index("request_method_list")].cell_contents
+        return []
+    except Exception:
+        return []
 
 def _instrument_view(django, view):
     """Helper to wrap Django views."""
@@ -621,10 +632,13 @@ def _instrument_view(django, view):
 
     # Patch view HTTP methods and lifecycle methods
     http_method_names = getattr(view, "http_method_names", ("get", "delete", "post", "options", "head"))
+    request_method_list = extract_request_method_list(view)
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
+    print(f"\n>> VIEWS {view}, {dir(view)} {request_method_list}", file=sys.stderr, flush=True)
     for name in list(http_method_names) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
+            print(f"VIEWS {view}, {name}, {func}", file=sys.stderr, flush=True)
             if not func or isinstance(func, wrapt.ObjectProxy):
                 continue
 
@@ -670,7 +684,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
             from_args = True
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
-
+        print(f"VIEWS_PATH {args} {kwargs}", file=sys.stderr, flush=True)
         if from_args:
             args = list(args)
             args[1] = instrument_view(django, view)
