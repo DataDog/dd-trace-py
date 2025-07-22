@@ -2,6 +2,7 @@ import abc
 from collections import defaultdict
 from itertools import chain
 from typing import Any
+from typing import DefaultDict
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -34,11 +35,6 @@ from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
 
-try:
-    from typing import DefaultDict  # noqa:F401
-except ImportError:
-    from collections import defaultdict as DefaultDict
-
 log = get_logger(__name__)
 
 
@@ -47,7 +43,7 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         """Default post initializer which logs the representation of the
         TraceProcessor at the ``logging.DEBUG`` level.
         """
-        log.debug("initialized trace processor %r", self)
+        pass
 
     @abc.abstractmethod
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
@@ -68,7 +64,7 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
         """
-        log.debug("initialized processor %r", self)
+        pass
 
     @abc.abstractmethod
     def on_span_start(self, span: Span) -> None:

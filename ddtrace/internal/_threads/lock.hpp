@@ -33,8 +33,6 @@ Lock_init(Lock* self, PyObject* args, PyObject* kwargs)
 
     // Register the lock for reset after fork
     {
-        AllowThreads _;
-
         std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.insert(self);
@@ -60,8 +58,6 @@ Lock_dealloc(Lock* self)
 {
     // Unregister the lock from the global set
     {
-        AllowThreads _;
-
         std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.erase(self);
@@ -224,8 +220,6 @@ RLock_init(RLock* self, PyObject* args, PyObject* kwargs)
 
     // Register the re-entrant lock for reset after fork
     {
-        AllowThreads _;
-
         std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.insert(self);
@@ -250,8 +244,6 @@ static void
 RLock_dealloc(RLock* self)
 {
     {
-        AllowThreads _;
-
         std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.erase(self);
@@ -406,34 +398,6 @@ lock_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
     for (RLock* rlock : rlock_set) {
         RLock_reset(rlock);
     }
-
-    _lock_set_mutex.unlock();
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject*
-lock_begin_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
-{
-    // This function is called before a fork to ensure that the lock set mutex
-    // is not held by any thread.
-    {
-        AllowThreads _;
-
-        _lock_set_mutex.lock();
-    }
-
-    Py_RETURN_NONE;
-}
-
-// ----------------------------------------------------------------------------
-static PyObject*
-lock_end_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
-{
-    // This function is called after a fork to ensure that the lock set mutex
-    // is released and can be used by the new process.
-    _lock_set_mutex.unlock();
 
     Py_RETURN_NONE;
 }

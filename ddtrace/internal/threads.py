@@ -4,8 +4,6 @@ from ddtrace.internal import forksafe
 from ddtrace.internal._threads import Lock
 from ddtrace.internal._threads import PeriodicThread
 from ddtrace.internal._threads import RLock
-from ddtrace.internal._threads import begin_reset_locks
-from ddtrace.internal._threads import end_reset_locks
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal._threads import reset_locks
 
@@ -37,6 +35,4 @@ def _() -> None:
     periodic_threads.clear()
 
 
-forksafe.register_before_fork(begin_reset_locks)
 forksafe.register(reset_locks)
-forksafe.register_after_parent(end_reset_locks)

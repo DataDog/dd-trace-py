@@ -45,23 +45,6 @@ def test_no_impl():
         BadProcessor()
 
 
-def test_default_init():
-    class MyProcessor(SpanProcessor):
-        def on_span_start(self, span):  # type: (Span) -> None
-            pass
-
-        def on_span_finish(self, data):  # type: (Any) -> Any
-            pass
-
-    with mock.patch("ddtrace._trace.processor.log") as log:
-        p = MyProcessor()
-
-    calls = [
-        mock.call("initialized processor %r", p),
-    ]
-    log.debug.assert_has_calls(calls)
-
-
 def test_aggregator_single_span():
     class Proc(TraceProcessor):
         def process_trace(self, trace):
