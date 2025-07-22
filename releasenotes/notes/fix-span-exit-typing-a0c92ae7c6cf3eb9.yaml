@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes the typing of ``Span.__exit__`` to match ``contextlib.AbstractContextManager.__exit__``. 
+    When a Span contextmanager is exited, Span error tags will not be set if exc_type or exc_value is None.
