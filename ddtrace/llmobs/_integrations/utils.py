@@ -505,7 +505,7 @@ def get_metadata_from_kwargs(
     kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
 ) -> Dict[str, Any]:
     metadata = {}
-    keys_to_include = COMMON_METADATA_KEYS
+    keys_to_include: Tuple[str, ...] = COMMON_METADATA_KEYS
     if integration_name == "openai":
         keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
