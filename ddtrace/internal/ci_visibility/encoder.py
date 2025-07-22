@@ -87,15 +87,14 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self._init_buffer()
             return payloads
 
-    def _get_parent_session(self, traces):
+    def _get_parent_session(self, traces: List[List[Span]]) -> int:
         for trace in traces:
             for span in trace:
                 if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None and span.parent_id != 0:
                     return span.parent_id
         return 0
 
-    def _build_payload(self, traces):
-        # type: (List[List[Span]]) -> List[Tuple[Optional[bytes], int]]
+    def _build_payload(self, traces: List[List[Span]]) -> List[Tuple[Optional[bytes], int]]:
         """
         Build multiple payloads from traces, splitting when necessary to stay under size limits.
         Uses index-based recursive approach to avoid copying slices.
@@ -109,8 +108,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         new_parent_session_span_id = self._get_parent_session(traces)
         return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
 
-    def _build_payloads_recursive(self, traces, start_idx, end_idx, new_parent_session_span_id):
-        # type: (List[List[Span]], int, int, int) -> List[Tuple[Optional[bytes], int]]
+    def _build_payloads_recursive(
+        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> List[Tuple[Optional[bytes], int]]:
         """
         Recursively build payloads using start/end indexes to avoid slice copying.
 
@@ -158,8 +158,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             # Combine results
             return left_payloads + right_payloads
 
-    def _convert_traces_to_spans_indexed(self, traces, start_idx, end_idx, new_parent_session_span_id):
-        # type: (List[List[Span]], int, int, int) -> List[Tuple[int, List[Dict[str, Any]]]]
+    def _convert_traces_to_spans_indexed(
+        self, traces: list[list[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> list[tuple[int, list[dict[str, Any]]]]:
         """Convert traces to spans with xdist filtering applied, using indexes to avoid slicing."""
         all_spans_with_trace_info = []
         for trace_idx in range(start_idx, end_idx):
@@ -173,8 +174,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         return all_spans_with_trace_info
 
-    def _create_payload_from_spans(self, spans):
-        # type: (List[Dict[str, Any]]) -> bytes
+    def _create_payload_from_spans(self, spans: list[dict[str, Any]]) -> bytes:
         """Create a payload from the given spans."""
         return CIVisibilityEncoderV01._pack_payload(
             {
@@ -188,8 +188,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _pack_payload(payload):
         return msgpack_packb(payload)
 
-    def _convert_span(self, span, dd_origin=None, new_parent_session_span_id=0):
-        # type: (Span, Optional[str], int) -> Dict[str, Any]
+    def _convert_span(
+        self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
+    ) -> dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
