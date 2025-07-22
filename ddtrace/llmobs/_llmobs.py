@@ -625,7 +625,7 @@ class LLMObs(Service):
                              configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
                              or `LLMObs.enable(project_name=...)`.
         :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
-        :param config: A configuration dictionary for experiment task functions.
+        :param config: A configuration dictionary that is passed to experiment task functions.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")

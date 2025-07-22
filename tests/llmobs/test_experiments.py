@@ -269,7 +269,23 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_output])
 
 
-def test_project_name_set(monkeypatch):
+def test_project_name_set(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="ml-app", project_name="test-project-123")
+assert LLMObs._project_name == "test-project-123"
+""",
+        env=env,
+    )
+    assert status == 0, err
+
     llmobs_service.enable(ml_app="ml-app", project_name="test-project-123")
     assert llmobs_service._project_name == "test-project-123"
     llmobs_service.disable()

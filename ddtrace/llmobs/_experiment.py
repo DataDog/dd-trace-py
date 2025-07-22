@@ -259,14 +259,12 @@ class Experiment:
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = deepcopy(self._tags)
-            tags.update(
-                {
-                    "dataset_id": str(self._dataset._id),
-                    "dataset_record_id": str(record_id),
-                    "experiment_id": str(self._id),
-                }
-            )
+            tags = {
+                **self._tags,
+                "dataset_id": str(self._dataset._id),
+                "dataset_record_id": str(record_id),
+                "experiment_id": str(self._id),
+            }
             output_data = None
             try:
                 output_data = self._task(input_data, self._config)
