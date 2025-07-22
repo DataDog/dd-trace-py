@@ -516,6 +516,8 @@ static PyTypeObject PeriodicThreadType = {
 // ----------------------------------------------------------------------------
 static PyMethodDef _threads_methods[] = {
     { "reset_locks", (PyCFunction)lock_reset_locks, METH_NOARGS, "Reset all locks (generally after a fork)" },
+    { "begin_reset_locks", (PyCFunction)lock_begin_reset_locks, METH_NOARGS, "Begin resetting locks (before a fork)" },
+    { "end_reset_locks", (PyCFunction)lock_end_reset_locks, METH_NOARGS, "End resetting locks (after a fork)" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 

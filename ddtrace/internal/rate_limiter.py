@@ -3,7 +3,6 @@ from __future__ import division
 from dataclasses import dataclass
 from dataclasses import field
 import random
-import threading
 import time
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
@@ -204,7 +203,7 @@ class BudgetRateLimiterWithJitter:
     budget: float = field(init=False)
     max_budget: float = field(init=False)
     last_time: float = field(init=False, default_factory=time.monotonic)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    _lock: Lock = field(init=False, default_factory=Lock)
 
     def __post_init__(self):
         if self.limit_rate == float("inf"):

@@ -7,7 +7,7 @@
 #include <mutex>
 #include <set>
 
-std::unique_ptr<std::mutex> _lock_set_mutex = std::make_unique<std::mutex>();
+std::mutex _lock_set_mutex;
 
 // ----------------------------------------------------------------------------
 // Lock class
@@ -35,12 +35,23 @@ Lock_init(Lock* self, PyObject* args, PyObject* kwargs)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.insert(self);
     }
 
     return 0;
+}
+
+// ----------------------------------------------------------------------------
+static inline void
+_Lock_maybe_leak(Lock* self)
+{
+    // This function is used to ensure that the mutex is not leaked if it is
+    // still locked when the lock object is deallocated.
+    if (self->_locked) {
+        self->_mutex.release(); // DEV: This releases the unique_ptr, not the mutex!
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -51,10 +62,12 @@ Lock_dealloc(Lock* self)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         lock_set.erase(self);
     }
+
+    _Lock_maybe_leak(self);
 
     self->_mutex = nullptr;
 
@@ -153,6 +166,7 @@ Lock_exit(Lock* self, PyObject* args, PyObject* kwargs)
 static inline void
 Lock_reset(Lock* self)
 {
+    _Lock_maybe_leak(self);
     self->_mutex = std::make_unique<std::timed_mutex>();
     self->_locked = 0;
 }
@@ -212,12 +226,23 @@ RLock_init(RLock* self, PyObject* args, PyObject* kwargs)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.insert(self);
     }
 
     return 0;
+}
+
+// ----------------------------------------------------------------------------
+static inline void
+_RLock_maybe_leak(RLock* self)
+{
+    // This function is used to ensure that the mutex is not leaked if it is
+    // still locked when the re-entrant lock object is deallocated.
+    if (self->_locked) {
+        self->_mutex.release(); // DEV: This releases the unique_ptr, not the mutex!
+    }
 }
 
 // ----------------------------------------------------------------------------
@@ -227,11 +252,12 @@ RLock_dealloc(RLock* self)
     {
         AllowThreads _;
 
-        std::lock_guard<std::mutex> guard(*_lock_set_mutex);
+        std::lock_guard<std::mutex> guard(_lock_set_mutex);
 
         rlock_set.erase(self);
     }
 
+    _RLock_maybe_leak(self);
     self->_mutex = nullptr;
 
     Py_TYPE(self)->tp_free((PyObject*)self);
@@ -329,6 +355,7 @@ RLock_exit(RLock* self, PyObject* args, PyObject* kwargs)
 static inline void
 RLock_reset(RLock* self)
 {
+    _RLock_maybe_leak(self);
     self->_mutex = std::make_unique<std::recursive_timed_mutex>();
     self->_locked = 0;
 }
@@ -380,8 +407,33 @@ lock_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
         RLock_reset(rlock);
     }
 
-    // Reset the lock set mutex too!
-    _lock_set_mutex = std::make_unique<std::mutex>();
+    _lock_set_mutex.unlock();
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+lock_begin_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // This function is called before a fork to ensure that the lock set mutex
+    // is not held by any thread.
+    {
+        AllowThreads _;
+
+        _lock_set_mutex.lock();
+    }
+
+    Py_RETURN_NONE;
+}
+
+// ----------------------------------------------------------------------------
+static PyObject*
+lock_end_reset_locks(PyObject* Py_UNUSED(self), PyObject* Py_UNUSED(args))
+{
+    // This function is called after a fork to ensure that the lock set mutex
+    // is released and can be used by the new process.
+    _lock_set_mutex.unlock();
 
     Py_RETURN_NONE;
 }
