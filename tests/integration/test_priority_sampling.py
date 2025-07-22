@@ -31,7 +31,9 @@ def _turn_tracer_into_dummy(tracer):
     tracer._span_aggregator.writer.traces = []
     tracer._span_aggregator.writer.json_encoder = JSONEncoder()
     tracer._span_aggregator.writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-    tracer._span_aggregator.writer.write = monkeypatched_write.__get__(tracer._span_aggregator.writer,  NativeWriter if config._trace_writer_native else AgentWriter)
+    tracer._span_aggregator.writer.write = monkeypatched_write.__get__(
+        tracer._span_aggregator.writer, NativeWriter if config._trace_writer_native else AgentWriter
+    )
 
 
 def _prime_tracer_with_priority_sample_rate_from_agent(t, service):

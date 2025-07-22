@@ -986,6 +986,7 @@ def test_writer_recreate_keeps_headers():
     assert "Datadog-Client-Computed-Stats" in writer._headers
     assert writer._headers["Datadog-Client-Computed-Stats"] == "yes"
 
+
 def test_native_writer_recreate_keeps_stats_opt_out():
     writer = NativeWriter("http://dne:1234", stats_opt_out=True)
     assert writer._stats_opt_out
