@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+import dataclasses
 import http.client as httplib  # noqa: E402
 import itertools
 import os
@@ -19,6 +20,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._telemetry import config
+import ddtrace.settings.asm as asm_config_module
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -418,6 +420,20 @@ class TelemetryWriter(PeriodicService):
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
 
+    def _add_endpoints_event(self):
+        """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
+        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+            return
+
+        if not asm_config_module.endpoint_collection.endpoints:
+            return
+
+        with self._service_lock:
+            payload = dataclasses.asdict(asm_config_module.endpoint_collection)
+            asm_config_module.endpoint_collection.reset()
+
+        self.add_event(payload, "app-endpoints")
+
     def _app_product_change(self):
         # type: () -> None
         """Adds a Telemetry event which reports the enablement of an APM product"""
@@ -660,6 +676,7 @@ class TelemetryWriter(PeriodicService):
             self._app_client_configuration_changed_event(configurations)
 
         self._app_dependencies_loaded_event()
+        self._add_endpoints_event()
 
         if shutting_down:
             self._app_closing_event()

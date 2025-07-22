@@ -612,6 +612,7 @@ def instrument_view(django, view):
 
     return _instrument_view(django, view)
 
+
 def extract_request_method_list(view):
     try:
         while "view_func" in view.__code__.co_freevars:
@@ -621,6 +622,7 @@ def extract_request_method_list(view):
         return []
     except Exception:
         return []
+
 
 def _instrument_view(django, view):
     """Helper to wrap Django views."""
