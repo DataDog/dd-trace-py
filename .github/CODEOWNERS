@@ -163,6 +163,7 @@ ddtrace/contrib/internal/litellm                              @DataDog/ml-observ
 ddtrace/contrib/_litellm.py                                   @DataDog/ml-observability
 ddtrace/contrib/internal/pydantic_ai                          @DataDog/ml-observability
 ddtrace/contrib/_pydantic_ai.py                               @DataDog/ml-observability
+ddtrace/aiobs/                                                @DataDog/ml-observability
 tests/llmobs                                                  @DataDog/ml-observability
 tests/contrib/openai                                          @DataDog/ml-observability
 tests/contrib/langchain                                       @DataDog/ml-observability
