@@ -166,7 +166,7 @@ class Dataset:
             import pandas as pd
         except ImportError as e:
             raise ImportError(
-                "pandas is required to convert dataset to DataFrame. " "Please install it with `pip install pandas`"
+                "pandas is required to convert dataset to DataFrame. Please install via `pip install pandas`"
             ) from e
 
         column_tuples = set()
