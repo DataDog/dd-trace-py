@@ -99,6 +99,8 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     )
     completions = None
 
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+
     integration.record_instance(instance, span)
 
     try:
@@ -626,6 +628,7 @@ def patch():
     from langchain_core.tools import BaseTool  # noqa:F401
 
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", traced_llm_invoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap(
         "langchain_core",
@@ -708,7 +711,13 @@ def unpatch():
 @with_traced_module
 def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
-    print("hello")
     prompt = func(*args, **kwargs)
     integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
+
+@with_traced_module
+def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    prompt = func(*args, **kwargs)
+    integration.handle_llm_invoke(instance, prompt, args, kwargs)
     return prompt
