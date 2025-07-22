@@ -2,6 +2,7 @@ import dataclasses
 import errno
 from json.decoder import JSONDecodeError
 import os
+from time import time_ns
 from typing import TYPE_CHECKING
 from typing import Any
 from typing import Dict
@@ -12,6 +13,8 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace.appsec.metrics import DeferredSpan
+from ddtrace.appsec.metrics import DeferredSpans
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 
@@ -121,9 +124,12 @@ class AppSecSpanProcessor(SpanProcessor):
                 import ddtrace.appsec._metrics as metrics  # noqa: E402
 
                 self.metrics = metrics
+                ddwaf_init_start = time_ns()
                 self._ddwaf = DDWaf(
                     self._rules, self.obfuscation_parameter_key_regexp, self.obfuscation_parameter_value_regexp, metrics
                 )
+                ddwaf_init_end = time_ns()
+                DeferredSpans.append(DeferredSpan("asm_init", ddwaf_init_start, ddwaf_init_end))
                 self.metrics._set_waf_init_metric(self._ddwaf.info, self._ddwaf.initialized)
         except Exception:
             # Partial of DDAS-0005-00
