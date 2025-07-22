@@ -368,14 +368,13 @@ class LangChainIntegration(BaseLLMIntegration):
         identifying_params = kwargs.pop("_dd.identifying_params", None)
         if not identifying_params:
             return
-        metadata: Dict[str, Any] = {}
+        metadata = self._llmobs_extract_parameters(identifying_params)
         for val in identifying_params.values():
-            if isinstance(val, dict):
-                metadata = self._llmobs_extract_parameters(val)
-            else:
-                metadata = self._llmobs_extract_parameters(identifying_params)
             if metadata:
                 break
+            if not isinstance(val, dict):
+                continue
+            metadata = self._llmobs_extract_parameters(val)
 
         if metadata:
             span._set_ctx_item(METADATA, metadata)
