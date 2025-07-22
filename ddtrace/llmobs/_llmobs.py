@@ -42,13 +42,14 @@ from ddtrace.internal.telemetry.constants import TELEMETRY_APM_PRODUCT
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.llmobs import _constants as constants, DatasetRecord
+from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -602,66 +603,46 @@ class LLMObs(Service):
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
 
-        csv.field_size_limit(10 * 1024 * 1024)  # 10mb
+        csv.field_size_limit(EXPERIMENT_CSV_FIELD_MAX_SIZE)  # 10mb
 
         try:
-            # First check if the file exists and is not empty before parsing
             with open(csv_path, mode="r") as csvfile:
                 content = csvfile.readline().strip()
                 if not content:
                     raise ValueError("CSV file appears to be empty or header is missing.")
 
-            with open(csv_path, mode="r") as csvfile:
-                try:
-                    rows = csv.DictReader(csvfile, delimiter=csv_delimiter)
+                csvfile.seek(0)
 
-                    # Check header presence before trying to read rows
-                    if rows.fieldnames is None:
-                        # Treat files with no header at all as effectively empty
-                        raise ValueError("CSV file appears to be empty or header is missing.")
+                rows = csv.DictReader(csvfile, delimiter=csv_delimiter)
 
-                    header_columns = rows.fieldnames
-                    missing_input_columns = [col for col in input_data_columns if col not in header_columns]
-                    missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+                if rows.fieldnames is None:
+                    raise ValueError("CSV file appears to be empty or header is missing.")
 
-                    if missing_input_columns:
-                        raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
-                    if missing_output_columns:
-                        raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
+                header_columns = rows.fieldnames
+                missing_input_columns = [col for col in input_data_columns if col not in header_columns]
+                missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
 
-                    # Determine metadata columns (all columns not used for input or expected output)
-                    metadata_columns = [
-                        col
-                        for col in header_columns
-                        if col not in input_data_columns and col not in expected_output_columns
-                    ]
+                if any(col not in header_columns for col in input_data_columns):
+                    raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
+                if any(col not in header_columns for col in expected_output_columns):
+                    raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
 
-                    for row in rows:
-                        try:
-                            ds.append(
-                                DatasetRecord(
-                                    input_data={col: row[col] for col in input_data_columns},
-                                    expected_output={col: row[col] for col in expected_output_columns},
-                                    metadata={col: row[col] for col in metadata_columns},
-                                    record_id="",
-                                )
-                            )
+                metadata_columns = [
+                    col
+                    for col in header_columns
+                    if col not in input_data_columns and col not in expected_output_columns
+                ]
 
-                        except KeyError as ke:
-                            # Missing columns in a data row indicates malformed CSV
-                            raise KeyError(f"Error parsing CSV file: missing column {ke} in a row")
-                        except Exception as e:
-                            # Other errors during row processing also indicate CSV issues
-                            raise ValueError(f"Error parsing CSV file (row processing): {e}")
+                for row in rows:
+                    ds.append(
+                        DatasetRecord(
+                            input_data={col: row[col] for col in input_data_columns},
+                            expected_output={col: row[col] for col in expected_output_columns},
+                            metadata={col: row[col] for col in metadata_columns},
+                            record_id="",
+                        )
+                    )
 
-                except csv.Error as e:
-                    # Catch CSV-specific parsing errors
-                    raise ValueError(f"Error parsing CSV file: {e}")
-
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"CSV file not found: {csv_path}") from e
-        except PermissionError as e:
-            raise PermissionError(f"Permission denied when reading CSV file: {csvfile}") from e
         finally:
             # Always restore the original field size limit
             csv.field_size_limit(original_field_size_limit)
