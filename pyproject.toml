@@ -43,6 +43,9 @@ dependencies = [
 opentracing = [
     "opentracing>=2.0.0",
 ]
+opentelemetry = [
+    "opentelemetry-exporter-otlp>=1.0.0",
+]
 openai = [
     "tiktoken",
 ]

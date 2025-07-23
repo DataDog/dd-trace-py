@@ -4,6 +4,7 @@ use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};
 use std::sync::Once;
+use std::time::Duration;
 
 use datadog_crashtracker::{
     CrashtrackerConfiguration, CrashtrackerReceiverConfig, Metadata, StacktraceCollection,
@@ -78,7 +79,7 @@ impl CrashtrackerConfigurationPy {
         additional_files: Vec<String>,
         create_alt_stack: bool,
         use_alt_stack: bool,
-        timeout_ms: u32,
+        timeout_ms: u64,
         resolve_frames: StacktraceCollectionPy,
         endpoint: Option<&str>,
         unix_socket_path: Option<String>,
@@ -94,8 +95,9 @@ impl CrashtrackerConfigurationPy {
                 endpoint,
                 resolve_frames,
                 datadog_crashtracker::default_signals(),
-                timeout_ms,
+                Some(Duration::from_millis(timeout_ms)),
                 unix_socket_path,
+                true, /* demangle_names */
             )?),
         })
     }

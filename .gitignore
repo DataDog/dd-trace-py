@@ -113,6 +113,7 @@ celerybeat-schedule*
 !.env
 
 # virtualenv
+.venv*
 venv/
 ENV/
 
@@ -135,6 +136,9 @@ ENV/
 
 # Cursor
 .cursor/
+
+# Claude
+CLAUDE.local.md
 
 # Riot
 .riot/venv*
@@ -186,3 +190,4 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 
 # .env file
 .env
+.envrc
