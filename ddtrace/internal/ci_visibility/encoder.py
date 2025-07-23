@@ -49,7 +49,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         super(CIVisibilityEncoderV01, self).__init__()
         self._metadata: dict[str, dict[str, str]] = {}
         self._lock = threading.RLock()
-        self._is_not_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is None
+        self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
 
     def __len__(self):
@@ -166,7 +166,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             trace_spans = [
                 self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
                 for span in trace
-                if self._is_not_xdist_worker or span.get_tag(EVENT_TYPE) != SESSION_TYPE
+                if (not self._is_xdist_worker) or (span.get_tag(EVENT_TYPE) != SESSION_TYPE)
             ]
             all_spans_with_trace_info.append((trace_idx, trace_spans))
 
