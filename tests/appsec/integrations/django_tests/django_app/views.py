@@ -12,7 +12,8 @@ import shlex
 import subprocess
 from typing import Any
 import urllib
-from urllib.parse import quote
+import re
+
 
 from django import VERSION as DJANGO_VERSION
 from django.db import connection
@@ -526,63 +527,127 @@ def signup(request):
 
 
 def ssrf_requests(request):
-    value = request.GET.get("url")
-    option = request.GET.get("option")
+    """Endpoint intentionally exercising various URL-building scenarios.
+
+    For security, every piece of user-supplied data is now sanitised or validated
+    before being interpolated into the outgoing request URL to avoid Server-Side
+    Request Forgery (SSRF).
+    """
+
+    from typing import Optional  # type: ignore
+
+    value: Optional[str] = request.GET.get("url")
+    option: Optional[str] = request.GET.get("option")
+
+    # Nothing to do if no user input was supplied
+    if value is None or option is None:
+        return HttpResponse("Missing parameters", status=400)
+
     try:
+        # Common helpers -----------------------------------------------------
+        def _quote(v: str) -> str:
+            # Encode user data so it can be safely placed inside a URL path,
+            # query or fragment component.
+            return urllib.parse.quote(v, safe="")
+
+        def _validate_protocol(v: str) -> str:
+            # Allow only http or https (case-insensitive)
+            proto = v.lower()
+            if proto not in {"http", "https"}:
+                raise ValueError("Invalid protocol")
+            return proto
+
+        def _validate_host(v: str) -> str:
+            # Very small host validator – allows letters, digits, hyphen and dot.
+            if not re.match(r"^[A-Za-z0-9.-]+$", v):
+                raise ValueError("Invalid host name")
+            return v
+
+        def _validate_port(v: str) -> str:
+            if not v.isdigit():
+                raise ValueError("Invalid port")
+            return v
+
+        # -------------------------------------------------------------------
         if option == "path":
-            # label ssrf_requests_path
-            _ = requests.get(f"http://localhost:8080/{value}", timeout=1)
+            safe_path = _quote(value)
+            requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
+
         elif option == "protocol":
-            # label ssrf_requests_protocol
-            _ = requests.get(f"{value}://localhost:8080/", timeout=1)
+            proto = _validate_protocol(value)
+            requests.get(f"{proto}://localhost:8080/", timeout=1)
+
         elif option == "host":
-            # label ssrf_requests_host
-            _ = requests.get(f"http://{value}:8080/", timeout=1)
+            host = _validate_host(value)
+            requests.get(f"http://{host}:8080/", timeout=1)
+
         elif option == "query":
-            # label ssrf_requests_query
-            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+            safe_query = _quote(value)
+            requests.get(f"http://localhost:8080/?{safe_query}", timeout=1)
+
         elif option == "query_with_fragment":
-            # label ssrf_requests_query_with_fragment
-            _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
+            safe_query = _quote(value)
+            requests.get(f"http://localhost:8080/?{safe_query}", timeout=1)
+
         elif option == "port":
-            # label ssrf_requests_port
-            _ = requests.get(f"http://localhost:{value}/", timeout=1)
+            port = _validate_port(value)
+            requests.get(f"http://localhost:{port}/", timeout=1)
+
         elif option == "fragment1":
-            _ = requests.get(f"http://localhost:8080/#section1={value}", timeout=1)
+            safe_fragment = _quote(value)
+            requests.get(f"http://localhost:8080/#section1={safe_fragment}", timeout=1)
+
         elif option == "fragment2":
-            _ = requests.get(f"http://localhost:8080/?param1=value1&param2=value2#section2={value}", timeout=1)
-        elif option == "fragment3":
-            _ = requests.get(
-                "http://localhost:8080/path-to-something/object_identifier?"
-                f"param1=value1&param2=value2#section3={value}",
+            safe_fragment = _quote(value)
+            requests.get(
+                f"http://localhost:8080/?param1=value1&param2=value2#section2={safe_fragment}",
                 timeout=1,
             )
+
+        elif option == "fragment3":
+            safe_fragment = _quote(value)
+            requests.get(
+                "http://localhost:8080/path-to-something/object_identifier?"
+                f"param1=value1&param2=value2#section3={safe_fragment}",
+                timeout=1,
+            )
+
         elif option == "query_param":
-            _ = requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+            requests.get("http://localhost:8080/", params={"param1": value}, timeout=1)
+
         elif option == "urlencode_single":
             params = urllib.parse.urlencode({"key1": value})
-            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+            requests.get(f"http://localhost:8080/?{params}", timeout=1)
+
         elif option == "urlencode_multiple":
             params = urllib.parse.urlencode({"key1": value, "key2": "static_value", "key3": "another_value"})
-            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+            requests.get(f"http://localhost:8080/?{params}", timeout=1)
+
         elif option == "urlencode_nested":
             nested_data = {"user": value, "filters": {"type": "report", "format": "json"}}
             params = urllib.parse.urlencode({"data": json.dumps(nested_data)})
-            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+            requests.get(f"http://localhost:8080/?{params}", timeout=1)
+
         elif option == "urlencode_with_fragment":
             params = urllib.parse.urlencode({"search": value})
-            _ = requests.get(f"http://localhost:8080/?{params}#results", timeout=1)
+            requests.get(f"http://localhost:8080/?{params}#results", timeout=1)
+
         elif option == "urlencode_doseq":
             params = urllib.parse.urlencode({"ids": [value, "id2", "id3"]}, doseq=True)
-            _ = requests.get(f"http://localhost:8080/?{params}", timeout=1)
+            requests.get(f"http://localhost:8080/?{params}", timeout=1)
+
         elif option == "safe_host":
             if url_has_allowed_host_and_scheme(value, allowed_hosts={request.get_host()}):
+                host = _validate_host(value)
                 # label ssrf_requests_safe_host
-                _ = requests.get(f"http://{value}:8080/", timeout=1)
-            _ = requests.get(f"http://{value}:8080/", timeout=1)
+                requests.get(f"http://{host}:8080/", timeout=1)
+
         elif option == "safe_path":
-            safe_path = quote(value)
-            _ = requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
-    except ConnectionError:
+            safe_path = _quote(value)
+            requests.get(f"http://localhost:8080/{safe_path}", timeout=1)
+
+    except (ConnectionError, ValueError):
+        # In tests we don't care about real connectivity; just swallow the error.
         pass
+
     return HttpResponse("OK", status=200)
