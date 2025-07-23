@@ -10,24 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "679bca4600000000",
-      "langchain.request.api_key": "...key>",
-      "langchain.request.inputs.0.text": "this is a test query.",
+      "_dd.p.tid": "687509d000000000",
       "langchain.request.model": "text-embedding-ada-002",
       "langchain.request.provider": "openai",
-      "langchain.request.type": "embedding",
       "language": "python",
-      "runtime-id": "a3a3f4530e0641dcb8e323c08c91c8ce"
+      "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "langchain.request.input_count": 1,
-      "langchain.response.outputs.embedding_length": 1536,
-      "process_id": 82010
+      "process_id": 23889
     },
-    "duration": 77000,
-    "start": 1738263110174027000
+    "duration": 108000,
+    "start": 1752500688390430000
   }]]

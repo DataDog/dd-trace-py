@@ -1,5 +1,5 @@
 """
-The freezegun integration reconfigures freezegun's default ignore list to ignore ddtrace.
+The freezegun integration updates freezegun's default ignore list to ignore ddtrace.
 
 Enabling
 ~~~~~~~~

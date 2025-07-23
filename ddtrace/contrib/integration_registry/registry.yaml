@@ -393,6 +393,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: gunicorn
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - gunicorn
+  tested_versions_by_dependency:
+    gunicorn:
+      min: 20.0.4
+      max: 23.0.0
+
 - integration_name: google_genai
   is_external_package: true
   is_tested: true

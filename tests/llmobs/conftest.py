@@ -250,7 +250,7 @@ def llmobs_backend(_llmobs_backend):
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {}
+    yield {"project_name": "test-project"}
 
 
 @pytest.fixture

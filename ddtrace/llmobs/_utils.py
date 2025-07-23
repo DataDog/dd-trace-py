@@ -234,6 +234,12 @@ def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]
     return messages
 
 
+def convert_tags_dict_to_list(tags: Dict[str, str]) -> List[str]:
+    if not tags:
+        return []
+    return [f"{key}:{value}" for key, value in tags.items()]
+
+
 @dataclass
 class ToolCall:
     """

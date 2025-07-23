@@ -31,7 +31,7 @@ How do I run the test suite?
 
 Install and run `docker <https://www.docker.com/products/docker>`_ .
 
-This repo includes a Docker container definition that provides a prebuilt test environment.
+This repo includes a Docker container definition that provides a pre-built test environment.
 You can access it by running
 
 .. code-block:: bash
