@@ -1669,6 +1669,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
@@ -1745,6 +1751,12 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
             side_effect=_fetch_test_to_skip_side_effect(_itr_data),
@@ -1826,6 +1838,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
@@ -1901,6 +1919,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
