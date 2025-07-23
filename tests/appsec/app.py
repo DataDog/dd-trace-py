@@ -224,6 +224,14 @@ def view_cmdi_secure():
     return Response("OK")
 
 
+@app.route("/iast-unvalidated_redirect-header", methods=["GET"])
+def view_iast_unvalidated_redirect_insecure_header():
+    location = request.args.get("location")
+    response = Response("OK")
+    response.headers["Location"] = location
+    return response
+
+
 @app.route("/iast-header-injection-vulnerability", methods=["POST"])
 def iast_header_injection_vulnerability():
     header = request.form.get("header")

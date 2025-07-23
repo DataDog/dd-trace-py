@@ -10,6 +10,7 @@ from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.products import manager  # noqa:F401
 from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker  # noqa:F401
+from ddtrace.settings.asm import config as asm_config  # noqa:F401
 from ddtrace.settings.crashtracker import config as crashtracker_config
 from ddtrace.settings.profiling import config as profiling_config  # noqa:F401
 from ddtrace.trace import tracer
@@ -60,6 +61,15 @@ if profiling_config.enabled:
         import ddtrace.profiling.auto  # noqa: F401
     except Exception:
         log.error("failed to enable profiling", exc_info=True)
+
+
+if asm_config._iast_enabled:
+    log.debug("iast enabled via environment variable")
+    try:
+        import ddtrace.appsec._iast.auto  # noqa: F401
+    except Exception:
+        log.error("failed to enable iast", exc_info=True)
+
 
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()

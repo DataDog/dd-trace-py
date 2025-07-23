@@ -1,5 +1,6 @@
 import ast
 import os
+import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -22,7 +23,7 @@ from .visitor import AstVisitor
 _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
-
+IAST_PATCHING_LAZY_LOADED = True
 
 log = get_logger(__name__)
 
@@ -57,10 +58,26 @@ def initialize_iast_lists():
     The function specifically:
     1. Builds the user allowlist from _DD_IAST_PATCH_MODULES environment variable
     2. Builds the user denylist from _DD_IAST_DENY_MODULES environment variable
+    3. Imports and sets the packages_distributions function for first-party package detection
 
     This approach is safer than C-level initialization in init_globals() which can
     lead to inconsistent state or crashes due to GIL-related issues.
     """
+    # Import and set the packages_distributions function for the C extension
+    try:
+        if sys.version_info < (3, 10):
+            import importlib_metadata as metadata
+        else:
+            import importlib.metadata as metadata
+
+        iastpatch.set_packages_distributions_func(metadata.packages_distributions)
+    except ImportError:
+        # If metadata module is not available, the C extension will handle
+        # first-party detection gracefully by returning False
+        log.debug("Could not import metadata module for first-party detection")
+    except Exception:
+        log.debug("Failed to set packages_distributions function in C extension", exc_info=True)
+
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
@@ -229,6 +246,11 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         - Skips binary/native modules
         - Can be controlled via IAST.ENV_NO_DIR_PATCH environment variable to disable __dir__ wrapping
     """
+    global IAST_PATCHING_LAZY_LOADED
+    if IAST_PATCHING_LAZY_LOADED:
+        initialize_iast_lists()
+        IAST_PATCHING_LAZY_LOADED = False
+
     module_name = module.__name__
 
     module_origin = origin(module)
@@ -293,6 +315,3 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         return "", None
 
     return module_path, new_ast
-
-
-initialize_iast_lists()

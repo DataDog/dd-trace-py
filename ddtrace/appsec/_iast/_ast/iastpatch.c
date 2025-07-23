@@ -15,6 +15,7 @@ static size_t user_denylist_count = 0;
 /* --- Global Cache for packages_distributions --- */
 static char** cached_packages = NULL;
 static size_t cached_packages_count = 0;
+static PyObject* cached_packages_distributions_func = NULL;
 
 /* Static Lists */
 static const char* static_allowlist[] = {
@@ -279,7 +280,7 @@ get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
    and then compares the first component of the given module name against that list.
 */
 static int
-is_first_party(const char* module_name)
+is_first_party(const char* module_name, PyObject* packages_distributions_func)
 {
     // If the module name contains "vendor." or "vendored.", return false.
     if (strstr(module_name, "vendor.") || strstr(module_name, "vendored.")) {
@@ -288,24 +289,7 @@ is_first_party(const char* module_name)
 
     // If the packages list is not cached, call packages_distributions and cache its result.
     if (cached_packages == NULL) {
-        PyObject* metadata;
-        if (PY_VERSION_HEX < 0x030A0000) { // Python < 3.10
-            metadata = PyImport_ImportModule("importlib_metadata");
-        } else {
-            metadata = PyImport_ImportModule("importlib.metadata");
-        }
-
-        if (!metadata) {
-            return 0;
-        }
-
-        PyObject* func = PyObject_GetAttrString(metadata, "packages_distributions");
-        Py_DECREF(metadata);
-        if (!func) {
-            return 0;
-        }
-        PyObject* result = PyObject_CallObject(func, NULL);
-        Py_DECREF(func);
+        PyObject* result = PyObject_CallObject(packages_distributions_func, NULL);
         if (!result)
             return 0;
 
@@ -570,7 +554,7 @@ py_should_iast_patch(PyObject* self, PyObject* args)
     }
 
     /* Allow if it's a first-party module */
-    if (is_first_party(module_name)) {
+    if (cached_packages_distributions_func != NULL && is_first_party(module_name, cached_packages_distributions_func)) {
         return PyLong_FromLong(ALLOWED_FIRST_PARTY_ALLOWLIST);
     }
 
@@ -642,6 +626,39 @@ py_get_user_allowlist(PyObject* self, PyObject* args)
     return py_list;
 }
 
+static PyObject*
+py_set_packages_distributions_func(PyObject* self, PyObject* args)
+{
+    PyObject* packages_distributions_func;
+    if (!PyArg_ParseTuple(args, "O", &packages_distributions_func)) {
+        return NULL;
+    }
+    
+    // Clear any existing cached packages when setting a new packages_distributions function
+    if (cached_packages != NULL) {
+        free_list(cached_packages, cached_packages_count);
+        cached_packages = NULL;
+        cached_packages_count = 0;
+    }
+    
+    // Store the new packages_distributions function
+    Py_XDECREF(cached_packages_distributions_func);
+    Py_INCREF(packages_distributions_func);
+    cached_packages_distributions_func = packages_distributions_func;
+    
+    Py_RETURN_NONE;
+}
+
+static PyObject*
+py_get_packages_distributions_func(PyObject* self, PyObject* args)
+{
+    if (cached_packages_distributions_func == NULL) {
+        Py_RETURN_NONE;
+    }
+    Py_INCREF(cached_packages_distributions_func);
+    return cached_packages_distributions_func;
+}
+
 static PyMethodDef IastPatchMethods[] = {
     { "build_list_from_env",
       py_build_list_from_env,
@@ -655,6 +672,14 @@ static PyMethodDef IastPatchMethods[] = {
       py_get_user_allowlist,
       METH_NOARGS,
       "Returns the current user allowlist as a Python list." },
+    { "set_packages_distributions_func",
+      py_set_packages_distributions_func,
+      METH_VARARGS,
+      "Sets the packages_distributions function." },
+    { "get_packages_distributions_func",
+      py_get_packages_distributions_func,
+      METH_NOARGS,
+      "Returns the packages_distributions function." },
     { NULL, NULL, 0, NULL }
 };
 
