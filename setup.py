@@ -460,7 +460,8 @@ class CustomBuildExt(build_ext):
         if not library:
             raise RuntimeError("Not able to find native library")
 
-        self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        # Use abi3 suffix for cross-version compatibility
+        self.suffix = self._get_abi3_suffix()
         native_name = f"_native{self.suffix}"
 
         # Set SONAME (needed for auditwheel)
@@ -490,6 +491,48 @@ class CustomBuildExt(build_ext):
         for path in os.environ.get("PATH", "").split(os.pathsep):
             return os.path.isfile(os.path.join(path, bin_file))
         return False
+
+    def _get_abi3_suffix(self):
+        """Generate abi3 suffix for cross-version compatibility."""
+        import platform
+
+        # Get the platform-specific extension
+        if sys.platform == "win32":
+            ext = ".dll"
+        elif sys.platform == "darwin":
+            ext = ".dylib"
+        else:
+            ext = ".so"
+
+        # Get architecture
+        arch = platform.machine()
+        if arch == "x86_64":
+            arch = "x86_64"
+        elif arch == "aarch64" or arch == "arm64":
+            arch = "aarch64"
+        else:
+            arch = platform.machine()
+
+        # Get platform name
+        if sys.platform == "win32":
+            platform_name = "win"
+        elif sys.platform == "darwin":
+            platform_name = "darwin"
+        else:
+            # For Linux, detect glibc vs musl
+            try:
+                import ctypes
+
+                libc = ctypes.CDLL("libc.so.6")
+                # Try to get glibc version
+                libc.gnu_get_libc_version()
+                platform_name = "linux-gnu"
+            except (OSError, AttributeError):
+                # If we can't load glibc, assume musl
+                platform_name = "linux-musl"
+
+        # Construct abi3 suffix
+        return f".cpython-abi3-{arch}-{platform_name}{ext}"
 
     @staticmethod
     def try_strip_symbols(so_file):
