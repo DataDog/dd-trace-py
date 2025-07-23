@@ -633,19 +633,19 @@ py_set_packages_distributions_func(PyObject* self, PyObject* args)
     if (!PyArg_ParseTuple(args, "O", &packages_distributions_func)) {
         return NULL;
     }
-    
+
     // Clear any existing cached packages when setting a new packages_distributions function
     if (cached_packages != NULL) {
         free_list(cached_packages, cached_packages_count);
         cached_packages = NULL;
         cached_packages_count = 0;
     }
-    
+
     // Store the new packages_distributions function
     Py_XDECREF(cached_packages_distributions_func);
     Py_INCREF(packages_distributions_func);
     cached_packages_distributions_func = packages_distributions_func;
-    
+
     Py_RETURN_NONE;
 }
 
