@@ -2139,6 +2139,9 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ):
             self.inline_run("--ddtrace")
 
@@ -2213,6 +2216,9 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
         ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
         ):
@@ -2265,6 +2271,9 @@ class PytestTestCase(PytestTestCaseBase):
         self.testdir.chdir()
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
