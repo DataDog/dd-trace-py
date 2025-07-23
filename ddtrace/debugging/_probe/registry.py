@@ -150,7 +150,8 @@ class ProbeRegistry(dict):
                 self._log_probe_status_unlocked(entry)
 
     def _remove_pending(self, probe: Probe) -> None:
-        if (location := _get_probe_location(probe)) is None:
+        location = _get_probe_location(probe)
+        if location is None:
             # If the probe has no location information, then it cannot be
             # pending.
             return
