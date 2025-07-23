@@ -1,4 +1,5 @@
 import dataclasses
+from typing import List
 
 
 @dataclasses.dataclass(frozen=True)
@@ -15,7 +16,7 @@ class HttpEndPoint:
 
 @dataclasses.dataclass()
 class HttpEndPointsCollection:
-    endpoints: list[HttpEndPoint] = dataclasses.field(default_factory=list, init=False)
+    endpoints: List[HttpEndPoint] = dataclasses.field(default_factory=list, init=False)
     is_first: bool = dataclasses.field(default=True, init=False)
 
     def reset(self):
