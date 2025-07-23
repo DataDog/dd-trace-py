@@ -804,7 +804,7 @@ Logs
          by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
      
      version_added:
-       v3.11.0: Adds suport for submiting logs via an OTLP Exporter.
+       v3.12.0: Adds support for submitting logs via an OTLP Exporter.
 
    DD_TRACE_DEBUG:
      type: Boolean
