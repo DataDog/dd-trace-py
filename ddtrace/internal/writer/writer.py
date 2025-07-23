@@ -1025,13 +1025,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
         for payload in encoded_traces:
             encoded_data, n_traces = payload
-            if encoded_data is None:
-                continue
+            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+
+    def _flush_single_payload(
+        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+    ) -> None:
+            if encoded is None:
+                return
             try:
-                self._send_payload(encoded_data, n_traces, client)
+                self._send_payload(encoded, n_traces, client)
             except Exception as e:
                 self._metrics_dist("http.errors", tags=["type:err"])
-                self._metrics_dist("http.dropped.bytes", len(encoded_data))
+                self._metrics_dist("http.dropped.bytes", len(encoded))
                 self._metrics_dist("http.dropped.traces", n_traces)
                 if raise_exc:
                     raise
@@ -1050,7 +1055,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
                 log.error(msg, *log_args)
             finally:
-                self._metrics_dist("http.sent.bytes", len(encoded_data))
+                self._metrics_dist("http.sent.bytes", len(encoded))
                 self._metrics_dist("http.sent.traces", n_traces)
 
     def periodic(self):

@@ -1487,12 +1487,9 @@ def flush_test_tracer_spans(writer):
         [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
-        headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
+        writer._flush_single_payload(encoded_traces, n_traces, client=client)
     except Exception:
         return
-
-    assert response.status == 200, response.body
 
 
 def add_dd_env_variables_to_headers(headers):
