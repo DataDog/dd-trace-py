@@ -3,11 +3,12 @@ from __future__ import division
 from dataclasses import dataclass
 from dataclasses import field
 import random
-import threading
 import time
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
 from typing import Optional  # noqa:F401
+
+from ddtrace.internal.threads import Lock
 
 
 class RateLimiter(object):
@@ -52,7 +53,7 @@ class RateLimiter(object):
         self.tokens_total = 0
         self.prev_window_rate = None  # type: Optional[float]
 
-        self._lock = threading.Lock()
+        self._lock = Lock()
 
     def is_allowed(self) -> bool:
         """
@@ -202,7 +203,7 @@ class BudgetRateLimiterWithJitter:
     budget: float = field(init=False)
     max_budget: float = field(init=False)
     last_time: float = field(init=False, default_factory=time.monotonic)
-    _lock: threading.Lock = field(init=False, default_factory=threading.Lock)
+    _lock: Lock = field(init=False, default_factory=Lock)
 
     def __post_init__(self):
         if self.limit_rate == float("inf"):

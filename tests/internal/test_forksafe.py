@@ -5,6 +5,7 @@ import sys
 import pytest
 
 from ddtrace.internal import forksafe
+from ddtrace.internal import threads
 
 
 def test_forksafe():
@@ -173,7 +174,7 @@ lock_release_exc_type = RuntimeError
 def test_lock_basic():
     # type: (...) -> None
     """Check that a forksafe.Lock implements the correct threading.Lock interface"""
-    lock = forksafe.Lock()
+    lock = threads.Lock()
     assert lock.acquire()
     assert lock.release() is None
     with pytest.raises(lock_release_exc_type):
@@ -185,7 +186,7 @@ def test_lock_fork():
 
     This test fails with a regular threading.Lock.
     """
-    lock = forksafe.Lock()
+    lock = threads.Lock()
     lock.acquire()
 
     pid = os.fork()
@@ -208,7 +209,7 @@ def test_lock_fork():
 def test_rlock_basic():
     # type: (...) -> None
     """Check that a forksafe.RLock implements the correct threading.RLock interface"""
-    lock = forksafe.RLock()
+    lock = threads.RLock()
     assert lock.acquire()
     assert lock.acquire()
     assert lock.release() is None
@@ -222,7 +223,7 @@ def test_rlock_fork():
 
     This test fails with a regular threading.RLock.
     """
-    lock = forksafe.RLock()
+    lock = threads.RLock()
     lock.acquire()
     lock.acquire()
 

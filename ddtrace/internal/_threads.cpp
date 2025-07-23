@@ -86,6 +86,10 @@ class PyRef
 };
 
 // ----------------------------------------------------------------------------
+
+#include "_threads/lock.hpp"
+
+// ----------------------------------------------------------------------------
 class Event
 {
   public:
@@ -511,6 +515,7 @@ static PyTypeObject PeriodicThreadType = {
 
 // ----------------------------------------------------------------------------
 static PyMethodDef _threads_methods[] = {
+    { "reset_locks", (PyCFunction)lock_reset_locks, METH_NOARGS, "Reset all locks (generally after a fork)" },
     { NULL, NULL, 0, NULL } /* Sentinel */
 };
 
@@ -533,6 +538,12 @@ PyInit__threads(void)
     if (PyType_Ready(&PeriodicThreadType) < 0)
         return NULL;
 
+    if (PyType_Ready(&LockType) < 0)
+        return NULL;
+
+    if (PyType_Ready(&RLockType) < 0)
+        return NULL;
+
     _periodic_threads = PyDict_New();
     if (_periodic_threads == NULL)
         return NULL;
@@ -541,6 +552,7 @@ PyInit__threads(void)
     if (m == NULL)
         goto error;
 
+    // Periodic thread
     Py_INCREF(&PeriodicThreadType);
     if (PyModule_AddObject(m, "PeriodicThread", (PyObject*)&PeriodicThreadType) < 0) {
         Py_DECREF(&PeriodicThreadType);
@@ -549,6 +561,20 @@ PyInit__threads(void)
 
     if (PyModule_AddObject(m, "periodic_threads", _periodic_threads) < 0)
         goto error;
+
+    // Lock
+    Py_INCREF(&LockType);
+    if (PyModule_AddObject(m, "Lock", (PyObject*)&LockType) < 0) {
+        Py_DECREF(&LockType);
+        goto error;
+    }
+
+    // RLock
+    Py_INCREF(&RLockType);
+    if (PyModule_AddObject(m, "RLock", (PyObject*)&RLockType) < 0) {
+        Py_DECREF(&RLockType);
+        goto error;
+    }
 
     return m;
 
