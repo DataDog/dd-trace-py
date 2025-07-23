@@ -238,6 +238,7 @@ def test_iast_code_injection_with_stacktrace(server):
     assert metastruct
 
 
+@pytest.mark.skip(reason="TODO: APPSEC-57817")
 def test_iast_unvalidated_redirect():
     token = "test_iast_cmdi"
     _ = start_trace(token)

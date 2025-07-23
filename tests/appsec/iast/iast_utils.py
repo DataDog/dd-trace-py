@@ -21,6 +21,7 @@ from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
+from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
@@ -74,8 +75,7 @@ def _iast_patched_module_and_patched_source(module_name, new_module_object=False
 def _iast_patched_module(module_name, new_module_object=False, should_patch_iast=False):
     if should_patch_iast:
         patch_iast()
-    iastpatch.build_list_from_env(IAST.PATCH_MODULES)
-    iastpatch.build_list_from_env(IAST.DENY_MODULES)
+    initialize_iast_lists()
     res = iastpatch.should_iast_patch(module_name)
     if res >= iastpatch.ALLOWED_USER_ALLOWLIST:
         module, _ = _iast_patched_module_and_patched_source(module_name, new_module_object)
