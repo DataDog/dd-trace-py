@@ -6,7 +6,6 @@ FROM debian:bookworm-slim
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.1
 ARG RIOT_VERSION=0.20.1
-ARG PYENV_VERSION=2.6.4
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
@@ -94,7 +93,7 @@ RUN curl https://sh.rustup.rs -sSf | \
 COPY .python-version /home/bits/
 
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v${PYENV_VERSION}" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.4" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
