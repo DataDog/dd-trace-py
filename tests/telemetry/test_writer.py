@@ -79,7 +79,7 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = test_agent_session.get_configurations(name=env_var)
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
@@ -296,12 +296,13 @@ import ddtrace.settings.exception_replay
 
     # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
     # skip validating this config
-    configurations = test_agent_session.get_configurations(ignores=["DD_TRACE_AGENT_URL"])
+    configurations = test_agent_session.get_configurations(
+        ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
+    )
     assert configurations
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
@@ -469,7 +470,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
@@ -672,28 +672,25 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True)
-        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
-        telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
+        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
+        telemetry_writer.add_configuration("appsec_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
-        received_configurations.sort(key=lambda c: c["name"])
-        # assert the latest configuration value is send to the agent
-        assert received_configurations == [
-            {
-                "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
-                "origin": "unknown",
-                "value": "datadog",
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": False,
-            },
-        ]
+        received_configurations.sort(key=lambda c: c["seq_id"])
+        # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
+        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["origin"] == "env_var"
+        assert received_configurations[0]["value"] is True
+        assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
+        assert received_configurations[1]["origin"] == "default"
+        assert received_configurations[1]["value"] == "datadog"
+        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["origin"] == "code"
+        assert received_configurations[2]["value"] is False
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -921,7 +918,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
     assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
