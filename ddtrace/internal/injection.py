@@ -110,7 +110,8 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
     for i in locs:
-        if isinstance(instr := code[i], Instr) and instr.name.startswith("END_"):
+        instr = code[i]
+        if isinstance(instr, Instr) and instr.name.startswith("END_"):
             # This is the end of a block, e.g. a for loop. We have already
             # instrumented the block on entry, so we skip instrumenting the
             # end as well.
