@@ -434,7 +434,6 @@ class PytestTestCase(PytestTestCaseBase):
             "metadata": {},
         }
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_skip(self):
         """Test skip case."""
         py_file = self.testdir.makepyfile(
@@ -1642,7 +1641,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(test_suite_spans) == 1
         assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -1709,7 +1707,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1781,7 +1778,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(files[1]["segments"]) == 1
         assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1875,7 +1871,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -2105,7 +2100,6 @@ class PytestTestCase(PytestTestCaseBase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") is None
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_tests_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2193,7 +2187,6 @@ class PytestTestCase(PytestTestCaseBase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_none_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2247,7 +2240,6 @@ class PytestTestCase(PytestTestCaseBase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2443,7 +2435,6 @@ class PytestTestCase(PytestTestCaseBase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2617,7 +2608,6 @@ class PytestTestCase(PytestTestCaseBase):
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_tests_forced_run_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -2895,7 +2885,6 @@ class PytestTestCase(PytestTestCaseBase):
         )[0]
         assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_none_skipped_in_test_level(self):
         """When no tests are skipped, the test.itr.tests_skipping.tests_skipped tag should be false"""
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -2996,7 +2985,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_suite_not_skipped_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
