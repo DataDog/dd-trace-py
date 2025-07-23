@@ -451,8 +451,14 @@ class Span(object):
         must be strings (or stringable)
         """
         if tags:
-            for k, v in iter(tags.items()):
+            for k, v in tags.items():
                 self.set_tag(k, v)
+
+    def _set_tags_str(self, tags: Dict[_TagNameType, Text]) -> None:
+        """Set a dictionary of tags on the given span. Keys and Values must be strings,"""
+        if tags:
+            for k, v in tags.items():
+                self.set_tag_str(k, v)
 
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""

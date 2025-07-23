@@ -1,6 +1,8 @@
 """
 Generic dbapi tracing code.
 """
+
+from typing import Dict
 import wrapt
 
 from ddtrace import config
@@ -91,13 +93,14 @@ class TracedCursor(wrapt.ObjectProxy):
                 s.set_metric(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            s.set_tags(pin.tags)
-            s.set_tags(extra_tags)
-
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
-
-            # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+            tags: Dict[str, str] = {
+                COMPONENT: self._self_config.integration_name,
+                # set span.kind to the type of request being performed
+                SPAN_KIND: SpanKind.CLIENT,
+            }
+            tags.update(pin.tags)
+            tags.update(extra_tags)
+            s._set_tags_str(tags)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -294,13 +297,14 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            s.set_tag_str(COMPONENT, self._self_config.integration_name)
-
-            # set span.kind to the type of request being performed
-            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-
-            s.set_tags(pin.tags)
-            s.set_tags(extra_tags)
+            tags: Dict[str, str] = {
+                COMPONENT: self._self_config.integration_name,
+                # set span.kind to the type of request being performed
+                SPAN_KIND: SpanKind.CLIENT,
+            }
+            tags.update(pin.tags)
+            tags.update(extra_tags)
+            s._set_tags_str(tags)
 
             return method(*args, **kwargs)
 
