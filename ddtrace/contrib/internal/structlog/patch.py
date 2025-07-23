@@ -4,7 +4,6 @@ import structlog
 
 import ddtrace
 from ddtrace import config
-from ddtrace._logger import LogInjectionState
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.contrib.internal.trace_utils import wrap as _w
 from ddtrace.internal.utils import get_argument_value
@@ -27,9 +26,8 @@ def _supported_versions() -> Dict[str, str]:
 
 
 def _tracer_injection(_, __, event_dict):
-    if config._logs_injection == LogInjectionState.DISABLED:
-        return event_dict
-    event_dict.update(ddtrace.tracer.get_log_correlation_context())
+    if config._logs_injection:
+        event_dict.update(ddtrace.tracer.get_log_correlation_context())
     return event_dict
 
 

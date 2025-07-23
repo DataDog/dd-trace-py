@@ -209,7 +209,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx, (None, None, None))),
         ]
 
     @with_config_raise_value(raise_value=False)
@@ -314,7 +314,7 @@ class TestContextEventsApi(unittest.TestCase):
             ("event.1", (1, 2)),
             ("event.2", ()),
             ("context.started.my.cool.context", (ctx,)),
-            ("context.ended.my.cool.context", (ctx,)),
+            ("context.ended.my.cool.context", (ctx, (None, None, None))),
         ]
 
     def test_core_dispatch_context_ended(self):

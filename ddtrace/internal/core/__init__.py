@@ -197,9 +197,12 @@ class ExecutionContext(object):
         self._parent = value
 
     def __exit__(
-        self, exc_type: Optional[type], exc_value: Optional[BaseException], traceback: Optional[types.TracebackType]
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
     ) -> bool:
-        dispatch("context.ended.%s" % self.identifier, (self,))
+        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
         if self._span is None:
             try:
                 if self._token is not None:
