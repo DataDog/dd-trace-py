@@ -4,15 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [profile.release]
-codegen-units = 1
-opt-level = "z"
+lto = true
+strip = "debuginfo"
+opt-level = 3
 
 [dependencies]
 pyo3 = { version = "0.24.0", features = ["extension-module", "abi3-py38", "anyhow"] }
 datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
 datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
 data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
-data-pipeline-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
 tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v19.1.0" }
 
