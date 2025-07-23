@@ -304,6 +304,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
