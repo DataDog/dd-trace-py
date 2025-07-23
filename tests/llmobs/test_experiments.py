@@ -86,45 +86,42 @@ def test_dataset_create_delete(llmobs):
     llmobs._delete_dataset(dataset_id=dataset._id)
 
 
-def test_dataset_as_dataframe(llmobs):
-    dataset = llmobs.create_dataset(name="test-dataset-3", description="A third test dataset")
-    dataset._records = [
-        DatasetRecord(
-            input_data=[{"role": "system", "content": "i am machine"}, {"role": "user", "content": "hello"}],
-            expected_output="label",
-        )
-    ]
+def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
+    dataset = test_dataset_one_record
     df = dataset.as_dataframe()
     assert len(df.columns) == 2
     assert df.size == 2  # size is num elements in a series
-    llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_csv_dataset_as_dataframe(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset = llmobs.create_dataset_from_csv(
-        csv_path=csv_path,
-        dataset_name="test-dataset-good-csv",
-        description="A good csv dataset",
-        input_data_columns=["in0", "in1", "in2"],
-        expected_output_columns=["out0", "out1"],
-        metadata_columns=["m0"],
-    )
-    assert len(dataset) == 2
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
 
-    df = dataset.as_dataframe()
-    assert len(df.columns) == 6
-    assert sorted(df.columns) == [
-        ("expected_output", "out0"),
-        ("expected_output", "out1"),
-        ("input_data", "in0"),
-        ("input_data", "in1"),
-        ("input_data", "in2"),
-        ("metadata", "m0"),
-    ]
-
-    llmobs._delete_dataset(dataset_id=dataset._id)
+        df = dataset.as_dataframe()
+        assert len(df.columns) == 6
+        assert sorted(df.columns) == [
+            ("expected_output", "out0"),
+            ("expected_output", "out1"),
+            ("input_data", "in0"),
+            ("input_data", "in1"),
+            ("input_data", "in2"),
+            ("metadata", "m0"),
+        ]
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
 
 
 def test_dataset_csv_missing_input_col(llmobs):
@@ -169,87 +166,95 @@ def test_dataset_csv_empty_csv(llmobs):
 def test_dataset_csv(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    dataset = llmobs.create_dataset_from_csv(
-        csv_path=csv_path,
-        dataset_name="test-dataset-good-csv",
-        description="A good csv dataset",
-        input_data_columns=["in0", "in1", "in2"],
-        expected_output_columns=["out0", "out1"],
-    )
-    assert len(dataset) == 2
-    assert len(dataset[0]["input_data"]) == 3
-    assert dataset[0]["input_data"]["in0"] == "r0v1"
-    assert dataset[0]["input_data"]["in1"] == "r0v2"
-    assert dataset[0]["input_data"]["in2"] == "r0v3"
-    assert dataset[1]["input_data"]["in0"] == "r1v1"
-    assert dataset[1]["input_data"]["in1"] == "r1v2"
-    assert dataset[1]["input_data"]["in2"] == "r1v3"
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
 
-    assert len(dataset[0]["expected_output"]) == 2
-    assert dataset[0]["expected_output"]["out0"] == "r0v4"
-    assert dataset[0]["expected_output"]["out1"] == "r0v5"
-    assert dataset[1]["expected_output"]["out0"] == "r1v4"
-    assert dataset[1]["expected_output"]["out1"] == "r1v5"
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
 
-    assert dataset.description == "A good csv dataset"
+        assert dataset.description == "A good csv dataset"
 
-    assert dataset._id is not None
+        assert dataset._id is not None
 
-    wait_for_backend()
-    ds = llmobs.pull_dataset(name=dataset.name)
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
 
-    assert len(ds) == len(dataset)
-    assert ds.name == dataset.name
-    assert ds.description == dataset.description
-    assert ds._version == 1
-
-    llmobs._delete_dataset(dataset_id=dataset._id)
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
 
 
 def test_dataset_csv_pipe_separated(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
-    dataset = llmobs.create_dataset_from_csv(
-        csv_path=csv_path,
-        dataset_name="test-dataset-good-csv-pipe",
-        description="A good pipe separated csv dataset",
-        input_data_columns=["in0", "in1", "in2"],
-        expected_output_columns=["out0", "out1"],
-        metadata_columns=["m0"],
-        csv_delimiter="|",
-    )
-    assert len(dataset) == 2
-    assert len(dataset[0]["input_data"]) == 3
-    assert dataset[0]["input_data"]["in0"] == "r0v1"
-    assert dataset[0]["input_data"]["in1"] == "r0v2"
-    assert dataset[0]["input_data"]["in2"] == "r0v3"
-    assert dataset[1]["input_data"]["in0"] == "r1v1"
-    assert dataset[1]["input_data"]["in1"] == "r1v2"
-    assert dataset[1]["input_data"]["in2"] == "r1v3"
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv-pipe",
+            description="A good pipe separated csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+            csv_delimiter="|",
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
 
-    assert len(dataset[0]["expected_output"]) == 2
-    assert dataset[0]["expected_output"]["out0"] == "r0v4"
-    assert dataset[0]["expected_output"]["out1"] == "r0v5"
-    assert dataset[1]["expected_output"]["out0"] == "r1v4"
-    assert dataset[1]["expected_output"]["out1"] == "r1v5"
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
 
-    assert len(dataset[0]["metadata"]) == 1
-    assert dataset[0]["metadata"]["m0"] == "r0v6"
-    assert dataset[1]["metadata"]["m0"] == "r1v6"
+        assert len(dataset[0]["metadata"]) == 1
+        assert dataset[0]["metadata"]["m0"] == "r0v6"
+        assert dataset[1]["metadata"]["m0"] == "r1v6"
 
-    assert dataset.description == "A good pipe separated csv dataset"
+        assert dataset.description == "A good pipe separated csv dataset"
 
-    assert dataset._id is not None
+        assert dataset._id is not None
 
-    wait_for_backend()
-    ds = llmobs.pull_dataset(name=dataset.name)
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
 
-    assert len(ds) == len(dataset)
-    assert ds.name == dataset.name
-    assert ds.description == dataset.description
-    assert ds._version == 1
-
-    llmobs._delete_dataset(dataset_id=dataset._id)
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_pull_non_existent(llmobs):

@@ -171,7 +171,7 @@ class Dataset:
     def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._records)
 
-    def as_dataframe(self):
+    def as_dataframe(self) -> None:
         try:
             import pandas as pd
         except ImportError as e:
