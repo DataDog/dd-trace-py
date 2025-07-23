@@ -37,13 +37,6 @@ from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
-try:
-    from agents import Agent
-    from agents import Handoff
-    handoffs_available = True
-except ImportError:
-    handoffs_available = False
-
 
 logger = get_logger(__name__)
 
@@ -422,24 +415,18 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         return tools
 
     def _extract_handoffs_from_agent(self, agent):
-        if handoffs_available is False or not hasattr(agent, "handoffs") or not agent.handoffs:
+        if not hasattr(agent, "handoffs") or not agent.handoffs:
             return None
 
         handoffs = []
         for handoff in agent.handoffs:
             handoff_dict = {}
-            if isinstance(handoff, Agent):
-                if hasattr(handoff, "handoff_description"):
-                    handoff_dict["handoff_description"] = handoff.handoff_description
-                if hasattr(handoff, "name"):
-                    handoff_dict["agent_name"] = handoff.name
-            elif isinstance(handoff, Handoff):
-                if hasattr(handoff, "tool_name"):
-                    handoff_dict["tool_name"] = handoff.tool_name
-                if hasattr(handoff, "tool_description"):
-                    handoff_dict["handoff_description"] = handoff.tool_description
-                if hasattr(handoff, "agent_name"):
-                    handoff_dict["agent_name"] = handoff.agent_name
+            if hasattr(handoff, "handoff_description") or hasattr(handoff, "tool_description"):
+                handoff_dict["handoff_description"] = getattr(handoff, "handoff_description", None) or getattr(handoff, "tool_description", None)
+            if hasattr(handoff, "name") or hasattr(handoff, "agent_name"):
+                handoff_dict["agent_name"] = getattr(handoff, "name", None) or getattr(handoff, "agent_name", None)
+            if hasattr(handoff, "tool_name"):
+                handoff_dict["tool_name"] = handoff.tool_name
             if handoff_dict:
                 handoffs.append(handoff_dict)
 
