@@ -20,7 +20,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._telemetry import config
-import ddtrace.settings.asm as asm_config_module
 
 from ...internal import atexit
 from ...internal import forksafe
@@ -422,6 +421,8 @@ class TelemetryWriter(PeriodicService):
 
     def _add_endpoints_event(self):
         """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
+        import ddtrace.settings.asm as asm_config_module
+        
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
             return
 
