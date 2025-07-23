@@ -182,29 +182,29 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record = {}
+            flat_record = {}  # type: Dict[Union[str, Tuple[str, str]], Any]
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):
-                for k, v in input_data.items():
-                    flat_record[("input_data", k)] = v
-                    column_tuples.add(("input_data", k))
+                for input_data_col, input_data_val in input_data.items():
+                    flat_record[("input_data", input_data_col)] = input_data_val
+                    column_tuples.add(("input_data", input_data_col))
             else:
-                flat_record[("input_data", "")] = input_data  # Use empty string for single input
+                flat_record[("input_data", "")] = input_data
                 column_tuples.add(("input_data", ""))
 
             expected_output = record.get("expected_output", {})
             if isinstance(expected_output, dict):
-                for k, v in expected_output.items():
-                    flat_record[("expected_output", k)] = v
-                    column_tuples.add(("expected_output", k))
+                for expected_output_col, expected_output_val in expected_output.items():
+                    flat_record[("expected_output", expected_output_col)] = expected_output_val
+                    column_tuples.add(("expected_output", expected_output_col))
             else:
-                flat_record[("expected_output", "")] = expected_output  # Use empty string for single output
+                flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            for k, v in record.get("metadata", {}).items():
-                flat_record[("metadata", k)] = v
-                column_tuples.add(("metadata", k))
+            for metadata_col, metadata_val in record.get("metadata", {}).items():
+                flat_record[("metadata", metadata_col)] = metadata_val
+                column_tuples.add(("metadata", metadata_col))
 
             data_rows.append(flat_record)
 
