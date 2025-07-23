@@ -39,13 +39,21 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+if os.getenv("DD_ASGI_TRACE_WEBSOCKET") is not None:
+    log.warning(
+        "DD_ASGI_TRACE_WEBSOCKET is deprecated and will be removed in a future version. "
+        "Use DD_TRACE_WEBSOCKET_MESSAGES_ENABLED instead."
+    )
+
 config._add(
     "asgi",
     dict(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        _trace_asgi_websocket_messages=asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=False)),
+        _trace_asgi_websocket_messages=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=os.getenv("DD_ASGI_TRACE_WEBSOCKET", False))
+        ),
         _asgi_websockets_inherit_sampling=asbool(
             os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         )
