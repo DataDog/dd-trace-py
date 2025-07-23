@@ -96,8 +96,9 @@ def test_dataset_as_dataframe(llmobs):
     ]
     df = dataset.as_dataframe()
     assert len(df.columns) == 2
-    assert df.size == 2 # size is num elements in a series
+    assert df.size == 2  # size is num elements in a series
     llmobs._delete_dataset(dataset_id=dataset._id)
+
 
 def test_csv_dataset_as_dataframe(llmobs):
     test_path = os.path.dirname(__file__)
@@ -108,13 +109,20 @@ def test_csv_dataset_as_dataframe(llmobs):
         description="A good csv dataset",
         input_data_columns=["in0", "in1", "in2"],
         expected_output_columns=["out0", "out1"],
-        metadata_columns=["m0"]
+        metadata_columns=["m0"],
     )
     assert len(dataset) == 2
 
     df = dataset.as_dataframe()
     assert len(df.columns) == 6
-    assert sorted(df.columns) == [("expected_output", "out0"), ("expected_output", "out1"), ("input_data", "in0"), ("input_data", "in1"), ("input_data", "in2"), ("metadata", "m0")]
+    assert sorted(df.columns) == [
+        ("expected_output", "out0"),
+        ("expected_output", "out1"),
+        ("input_data", "in0"),
+        ("input_data", "in1"),
+        ("input_data", "in2"),
+        ("metadata", "m0"),
+    ]
 
     llmobs._delete_dataset(dataset_id=dataset._id)
 
@@ -122,7 +130,7 @@ def test_csv_dataset_as_dataframe(llmobs):
 def test_dataset_csv_missing_input_col(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    with pytest.raises(ValueError, match=re.escape("Input columns not found in CSV header: [\'in998\', \'in999\']")):
+    with pytest.raises(ValueError, match=re.escape("Input columns not found in CSV header: ['in998', 'in999']")):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
@@ -131,10 +139,11 @@ def test_dataset_csv_missing_input_col(llmobs):
             expected_output_columns=["out0", "out1"],
         )
 
+
 def test_dataset_csv_missing_output_col(llmobs):
     test_path = os.path.dirname(__file__)
     csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-    with pytest.raises(ValueError, match=re.escape("Expected output columns not found in CSV header: [\'out999\']")):
+    with pytest.raises(ValueError, match=re.escape("Expected output columns not found in CSV header: ['out999']")):
         llmobs.create_dataset_from_csv(
             csv_path=csv_path,
             dataset_name="test-dataset-good-csv",
@@ -142,6 +151,7 @@ def test_dataset_csv_missing_output_col(llmobs):
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out999"],
         )
+
 
 def test_dataset_csv_empty_csv(llmobs):
     test_path = os.path.dirname(__file__)
@@ -154,6 +164,7 @@ def test_dataset_csv_empty_csv(llmobs):
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out0"],
         )
+
 
 def test_dataset_csv(llmobs):
     test_path = os.path.dirname(__file__)
@@ -239,6 +250,7 @@ def test_dataset_csv_pipe_separated(llmobs):
     assert ds._version == 1
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
 
 def test_dataset_pull_non_existent(llmobs):
     with pytest.raises(ValueError):
