@@ -1,6 +1,7 @@
 import json
 import os
 
+import mock
 import msgpack
 import pytest
 
@@ -174,9 +175,7 @@ def test_build_payload_large_trace_splitting():
 
     encoder = CIVisibilityEncoderV01(0, 0)
     # Use monkeypatch to temporarily reduce max payload size for testing
-    import unittest.mock
-
-    with unittest.mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 50 * 1024):  # 50KB to force splitting
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 50 * 1024):  # 50KB to force splitting
         payloads = encoder._build_payload(large_traces)
 
         # Should have multiple payloads
@@ -208,9 +207,7 @@ def test_build_payload_recursive_splitting():
 
     encoder = CIVisibilityEncoderV01(0, 0)
     # Set a small payload size to force multiple splits
-    import unittest.mock
-
-    with unittest.mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 10 * 1024):  # 10KB
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 10 * 1024):  # 10KB
         payloads = encoder._build_payload(traces)
 
         # Should have multiple payloads due to splitting
@@ -305,9 +302,7 @@ def test_build_payload_no_infinite_recursion():
 
     encoder = CIVisibilityEncoderV01(0, 0)
     # Set very small payload size
-    import unittest.mock
-
-    with unittest.mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 1024):  # 1KB - much smaller than the trace
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 1024):  # 1KB - much smaller than the trace
         # This should not hang due to infinite recursion
         payloads = encoder._build_payload([large_trace])
 
