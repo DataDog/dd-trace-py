@@ -1030,33 +1030,33 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _flush_single_payload(
         self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
     ) -> None:
-            if encoded is None:
-                return
-            try:
-                self._send_payload(encoded, n_traces, client)
-            except Exception as e:
-                self._metrics_dist("http.errors", tags=["type:err"])
-                self._metrics_dist("http.dropped.bytes", len(encoded))
-                self._metrics_dist("http.dropped.traces", n_traces)
-                if raise_exc:
-                    raise
+        if encoded is None:
+            return
+        try:
+            self._send_payload(encoded, n_traces, client)
+        except Exception as e:
+            self._metrics_dist("http.errors", tags=["type:err"])
+            self._metrics_dist("http.dropped.bytes", len(encoded))
+            self._metrics_dist("http.dropped.traces", n_traces)
+            if raise_exc:
+                raise
 
-                msg = "failed to send, dropping %d traces to intake at %s: %s"
-                log_args = (
-                    n_traces,
-                    self._intake_endpoint(client),
-                    str(e),
-                )
-                # Append the payload if requested
-                # TODO: Does it make sense or should we log the final payload from the trace exporter
-                if config._trace_writer_log_err_payload:
-                    msg += ", payload %s"
-                    log_args += (binascii.hexlify(encoded_data).decode(),)  # type: ignore
+            msg = "failed to send, dropping %d traces to intake at %s: %s"
+            log_args = (
+                n_traces,
+                self._intake_endpoint(client),
+                str(e),
+            )
+            # Append the payload if requested
+            # TODO: Does it make sense or should we log the final payload from the trace exporter
+            if config._trace_writer_log_err_payload:
+                msg += ", payload %s"
+                log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
-                log.error(msg, *log_args)
-            finally:
-                self._metrics_dist("http.sent.bytes", len(encoded))
-                self._metrics_dist("http.sent.traces", n_traces)
+            log.error(msg, *log_args)
+        finally:
+            self._metrics_dist("http.sent.bytes", len(encoded))
+            self._metrics_dist("http.sent.traces", n_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
