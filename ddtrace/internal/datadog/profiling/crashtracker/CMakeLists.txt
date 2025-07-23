@@ -81,7 +81,7 @@ if(LIB_INSTALL_DIR)
 endif()
 
 # Crashtracker receiver binary
-add_executable(crashtracker_exe src/crashtracker.cpp python_runtime_stub.c)
+add_executable(crashtracker_exe python_runtime_stub.c src/crashtracker.cpp)
 target_include_directories(crashtracker_exe PRIVATE .. ${Datadog_INCLUDE_DIRS})
 
 # The CRASHTRACKER_EXE_TARGET_NAME should have been set by dd_wrapper

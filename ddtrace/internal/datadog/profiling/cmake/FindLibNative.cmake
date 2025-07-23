@@ -32,33 +32,27 @@ if(WIN32)
     if(EXISTS "${NATIVE_IMPLIB}")
         message(WARNING "NATIVE_IMPLIB: ${NATIVE_IMPLIB}")
         add_library(_native SHARED IMPORTED GLOBAL)
-        set_target_properties(_native PROPERTIES
-            IMPORTED_LOCATION_RELEASE "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
-            IMPORTED_IMPLIB_RELEASE "${NATIVE_IMPLIB}"
-            IMPORTED_LOCATION_DEBUG "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
-            IMPORTED_IMPLIB_DEBUG "${NATIVE_IMPLIB}"
-            IMPORTED_LOCATION_RELWITHDEBINFO "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
-            IMPORTED_IMPLIB_RELWITHDEBINFO "${NATIVE_IMPLIB}"
-            IMPORTED_LOCATION_MINSIZEREL "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
-            IMPORTED_IMPLIB_MINSIZEREL "${NATIVE_IMPLIB}"
-            INTERFACE_INCLUDE_DIRECTORIES "${DEST_INCLUDE_DIR}"
-        )
+        set_target_properties(
+            _native
+            PROPERTIES IMPORTED_LOCATION_RELEASE "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
+                       IMPORTED_IMPLIB_RELEASE "${NATIVE_IMPLIB}"
+                       IMPORTED_LOCATION_DEBUG "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
+                       IMPORTED_IMPLIB_DEBUG "${NATIVE_IMPLIB}"
+                       IMPORTED_LOCATION_RELWITHDEBINFO "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
+                       IMPORTED_IMPLIB_RELWITHDEBINFO "${NATIVE_IMPLIB}"
+                       IMPORTED_LOCATION_MINSIZEREL "${SOURCE_LIB_DIR}/${LIBRARY_NAME}"
+                       IMPORTED_IMPLIB_MINSIZEREL "${NATIVE_IMPLIB}"
+                       INTERFACE_INCLUDE_DIRECTORIES "${DEST_INCLUDE_DIR}")
     else()
         message(WARNING "No .lib found — falling back to dummy interface target")
         add_library(_native INTERFACE)
         target_include_directories(_native INTERFACE "${DEST_INCLUDE_DIR}")
         set(_native_DLL_PATH "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
-        # add_library(_native SHARED IMPORTED GLOBAL)
-        # set_target_properties(_native PROPERTIES
-        #     IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-        #     INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-        # )
+        # add_library(_native SHARED IMPORTED GLOBAL) set_target_properties(_native PROPERTIES IMPORTED_LOCATION
+        # ${SOURCE_LIB_DIR}/${LIBRARY_NAME} INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR} )
     endif()
 else()
     add_library(_native SHARED IMPORTED GLOBAL)
-    set_target_properties(_native PROPERTIES
-        IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-        INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR}
-    )
+    set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
+                                             INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR})
 endif()
-

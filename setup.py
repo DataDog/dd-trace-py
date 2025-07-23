@@ -2,7 +2,6 @@ import atexit
 import hashlib
 from itertools import chain
 import os
-from os.path import exists, isfile
 import platform
 import re
 import shutil
@@ -16,7 +15,7 @@ import warnings
 
 import cmake
 from setuptools_rust import Binding
-from setuptools_rust import RustExtension, Binding
+from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
 
@@ -45,10 +44,12 @@ except ImportError:
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
+
 # workaround for ModuleNotFound.
 sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
-from build_libnative import build_crate, clean_crate
+from build_libnative import build_crate
+from build_libnative import clean_crate
 
 
 HERE = Path(__file__).resolve().parent
@@ -182,6 +183,7 @@ def load_module_from_project_file(mod_name, fname):
 def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
+
 class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
         super().__init__(attrs)
@@ -196,6 +198,7 @@ class PatchedDistribution(Distribution):
                 binding=Binding.NoBinding,
             )
         ]
+
 
 class ExtensionHashes(build_ext):
     def run(self):
@@ -474,13 +477,12 @@ class CustomBuildExt(build_ext):
         self.output_dir.mkdir(parents=True, exist_ok=True)
         shutil.copy2(library, destination)
 
-        #Rename .lib file so it has the same base name as the dll.
+        # Rename .lib file so it has the same base name as the dll.
         self.windows_link_file = None
         if link_file is not None:
             new_link_file = (target_dir / native_name).with_suffix(".lib")
             shutil.copy2(link_file, new_link_file)
             self.windows_link_file = new_link_file
-
 
     @staticmethod
     def is_installed(bin_file):
@@ -689,7 +691,7 @@ class DebugMetadata:
                 ("DD_COMPILE_MODE", COMPILE_MODE),
                 ("DD_USE_SCCACHE", SCCACHE_COMPILE),
                 ("DD_FAST_BUILD", FAST_BUILD),
-                ("DD_CMAKE_INCREMENTAL_BUILD", CMakeBuild.INCREMENTAL),
+                ("DD_CMAKE_INCREMENTAL_BUILD", CustomBuildExt.INCREMENTAL),
             ]:
                 print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
@@ -725,7 +727,7 @@ def debug_build_extension(fn):
 
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
-    CMakeBuild.build_extension = debug_build_extension(CMakeBuild.build_extension)
+    CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
     build_rust.build_extension = debug_build_extension(build_rust.build_extension)
     atexit.register(DebugMetadata.dump_metadata)
 
@@ -754,7 +756,7 @@ class CMakeExtension(Extension):
     def get_sources(self, cmd: build_ext) -> t.List[Path]:
         """
         Returns the list of source files for this extension.
-        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        This is used by the CustomBuildExt class to determine if the extension needs to be rebuilt.
         """
         full_path = Path(cmd.get_ext_fullpath(self.name))
 
