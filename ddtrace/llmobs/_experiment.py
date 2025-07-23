@@ -15,14 +15,18 @@ from typing import Union
 from typing import cast
 from typing import overload
 
+import ddtrace
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._utils import convert_tags_dict_to_list
 
 
 if TYPE_CHECKING:
     from ddtrace.llmobs import LLMObs
+    from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
 
@@ -46,6 +50,9 @@ class DatasetRecord(DatasetRecordRaw):
 
 class TaskResult(TypedDict):
     idx: int
+    span_id: str
+    trace_id: str
+    timestamp: int
     output: JSONType
     metadata: Dict[str, JSONType]
     error: Dict[str, Optional[str]]
@@ -59,6 +66,9 @@ class EvaluationResult(TypedDict):
 class ExperimentResult(TypedDict):
     idx: int
     record_id: Optional[str]
+    span_id: str
+    trace_id: str
+    timestamp: int
     input: Dict[str, NonNoneJSONType]
     output: JSONType
     expected_output: JSONType
@@ -144,6 +154,12 @@ class Dataset:
         self._deleted_record_ids.append(record_id)
         del self._records[index]
 
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
         ...
@@ -166,12 +182,12 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
+        task: Callable[[DatasetRecordInputType], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
@@ -180,7 +196,8 @@ class Experiment:
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
-        self._tags: List[str] = tags or []
+        self._tags: Dict[str, str] = tags or {}
+        self._tags["ddtrace.version"] = str(ddtrace.__version__)
         self._config: Dict[str, JSONType] = config or {}
         self._llmobs_instance = _llmobs_instance
 
@@ -210,20 +227,29 @@ class Experiment:
                 "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
             )
             return []
-        experiment_id, experiment_run_name = self._llmobs_instance._create_experiment(
-            name=self.name,
-            dataset_id=self._dataset._id,
-            project_name=self._project_name,
-            dataset_version=self._dataset._version,
-            exp_config=self._config,
-            tags=self._tags,
-            description=self._description,
+
+        project_id = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
+        self._project_id = project_id
+
+        experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
+            self.name,
+            self._dataset._id,
+            self._project_id,
+            self._dataset._version,
+            self._config,
+            convert_tags_dict_to_list(self._tags),
+            self._description,
         )
         self._id = experiment_id
+        self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
         experiment_results = self._merge_results(task_results, evaluations)
+        experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
+        self._llmobs_instance._dne_client.experiment_eval_post(
+            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
         return experiment_results
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
@@ -239,24 +265,29 @@ class Experiment:
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = {"dataset_id": self._dataset._id, "dataset_record_id": record_id, "experiment_id": self._id}
+            tags = {
+                **self._tags,
+                "dataset_id": str(self._dataset._id),
+                "dataset_record_id": str(record_id),
+                "experiment_id": str(self._id),
+            }
             output_data = None
             try:
-                output_data = self._task(input_data, self._config)
+                output_data = self._task(input_data)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
             return {
                 "idx": idx,
+                "span_id": span_id,
+                "trace_id": trace_id,
+                "timestamp": span.start_ns,
                 "output": output_data,
                 "metadata": {
-                    "timestamp": span.start_ns,
-                    "duration": span.duration_ns,
                     "dataset_record_index": idx,
                     "experiment_name": self.name,
                     "dataset_name": self._dataset.name,
-                    "span_id": span_id,
-                    "trace_id": trace_id,
                 },
                 "error": {
                     "message": span.get_tag(ERROR_MSG),
@@ -325,12 +356,15 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], self._tags)}
+            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(self._tags))}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
             exp_result: ExperimentResult = {
                 "idx": idx,
+                "span_id": task_result.get("span_id", ""),
+                "trace_id": task_result.get("trace_id", ""),
+                "timestamp": task_result.get("timestamp", 0),
                 "record_id": record.get("record_id", ""),
                 "input": record["input_data"],
                 "expected_output": record["expected_output"],
@@ -341,3 +375,47 @@ class Experiment:
             }
             experiment_results.append(exp_result)
         return experiment_results
+
+    def _generate_metric_from_evaluation(
+        self, eval_name: str, eval_value: JSONType, err: JSONType, span_id: str, trace_id: str, timestamp_ns: int
+    ) -> "LLMObsExperimentEvalMetricEvent":
+        metric_type = None
+        if eval_value is None:
+            metric_type = "categorical"
+        elif isinstance(eval_value, bool):
+            metric_type = "boolean"
+        elif isinstance(eval_value, (int, float)):
+            metric_type = "score"
+        else:
+            metric_type = "categorical"
+            eval_value = str(eval_value).lower()
+        return {
+            "span_id": span_id,
+            "trace_id": trace_id,
+            "timestamp_ms": int(timestamp_ns / 1e6),
+            "metric_type": metric_type,
+            "label": eval_name,
+            f"{metric_type}_value": eval_value,  # type: ignore
+            "error": err,
+            "tags": convert_tags_dict_to_list(self._tags),
+            "experiment_id": self._id,
+        }
+
+    def _generate_metrics_from_exp_results(
+        self, experiment_results: List[ExperimentResult]
+    ) -> List["LLMObsExperimentEvalMetricEvent"]:
+        eval_metrics = []
+        for exp_result in experiment_results:
+            evaluations = exp_result.get("evaluations") or {}
+            span_id = exp_result.get("span_id", "")
+            trace_id = exp_result.get("trace_id", "")
+            timestamp_ns = cast(int, exp_result.get("timestamp", 0))
+            for eval_name, eval_data in evaluations.items():
+                if not eval_data:
+                    continue
+                eval_value = eval_data.get("value")
+                eval_metric = self._generate_metric_from_evaluation(
+                    eval_name, eval_value, eval_data.get("error"), span_id, trace_id, timestamp_ns
+                )
+                eval_metrics.append(eval_metric)
+        return eval_metrics

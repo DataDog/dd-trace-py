@@ -2,16 +2,12 @@ import collections
 from copy import deepcopy
 from typing import Any  # noqa:F401
 from typing import Callable  # noqa:F401
+from typing import DefaultDict  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Set  # noqa:F401
 
 from .internal.logger import get_logger
 
-
-try:
-    from typing import DefaultDict  # noqa:F401
-except ImportError:
-    from collections import defaultdict as DefaultDict
 
 log = get_logger(__name__)
 
