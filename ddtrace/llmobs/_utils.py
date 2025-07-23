@@ -1,4 +1,6 @@
+from dataclasses import asdict
 from dataclasses import dataclass
+from dataclasses import is_dataclass
 import json
 from typing import Dict
 from typing import List
@@ -214,16 +216,24 @@ def safe_json(obj, ensure_ascii=True):
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
-
-def make_json_compatible(obj):
-    if isinstance(obj, dict):
-        return {str(k): make_json_compatible(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple, set)):
-        return [make_json_compatible(v) for v in obj]
-    elif isinstance(obj, (int, float, str, bool)) or obj is None:
-        return obj
+def load_data_value(value):
+    if isinstance(value, (list, tuple, set)):
+        return [load_data_value(item) for item in value]
+    elif isinstance(value, dict):
+        return {str(k): load_data_value(v) for k, v in value.items()}
+    elif hasattr(value, "model_dump"):
+        return value.model_dump()
+    elif is_dataclass(value):
+        return asdict(value)
+    elif isinstance(value, (int, float, str, bool)) or value is None:
+        return value
     else:
-        return str(obj)
+        value_str = safe_json(value)
+        try:
+            return json.loads(value_str)
+        except json.JSONDecodeError:
+            return value_str
+
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:

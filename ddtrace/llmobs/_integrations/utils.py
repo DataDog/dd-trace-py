@@ -1,6 +1,4 @@
-from dataclasses import asdict
 from dataclasses import dataclass
-from dataclasses import is_dataclass
 import json
 import re
 from typing import Any
@@ -27,6 +25,7 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
 
 
@@ -562,7 +561,7 @@ def openai_get_metadata_from_response(
     for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text", "user"]:
         value = getattr(response, field, None)
         if value is not None:
-            metadata[field] = load_oai_span_data_value(value)
+            metadata[field] = load_data_value(value)
 
     usage = getattr(response, "usage", None)
     output_tokens_details = getattr(usage, "output_tokens_details", None)
@@ -795,7 +794,7 @@ class OaiSpanAdapter:
         data = self.data
         if not data:
             return {}
-        return load_oai_span_data_value(data)
+        return load_data_value(data)
 
     @property
     def response_output_text(self) -> str:
@@ -854,10 +853,10 @@ class OaiSpanAdapter:
                 if hasattr(self.response, field):
                     value = getattr(self.response, field)
                     if value is not None:
-                        metadata[field] = load_oai_span_data_value(value)
+                        metadata[field] = load_data_value(value)
 
             if hasattr(self.response, "text") and self.response.text:
-                metadata["text"] = load_oai_span_data_value(self.response.text)
+                metadata["text"] = load_data_value(self.response.text)
 
             if hasattr(self.response, "usage") and hasattr(self.response.usage, "output_tokens_details"):
                 metadata["reasoning_tokens"] = self.response.usage.output_tokens_details.reasoning_tokens
@@ -1072,23 +1071,6 @@ class OaiTraceAdapter:
     def raw_trace(self):
         """Get the raw OpenAI Agents SDK trace."""
         return self._trace
-
-
-def load_oai_span_data_value(value):
-    """Helper function to load values stored in openai span data in a consistent way"""
-    if isinstance(value, list):
-        return [load_oai_span_data_value(item) for item in value]
-    elif hasattr(value, "model_dump"):
-        return value.model_dump()
-    elif is_dataclass(value):
-        return asdict(value)
-    else:
-        value_str = safe_json(value)
-        try:
-            return json.loads(value_str)
-        except json.JSONDecodeError:
-            return value_str
-
 
 @dataclass
 class LLMObsTraceInfo:

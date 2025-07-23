@@ -32,7 +32,7 @@ from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import make_json_compatible
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
@@ -364,7 +364,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             else:
                 return None
 
-        return make_json_compatible(model_settings)
+        return load_data_value(model_settings)
 
     def _extract_tools_from_agent(self, agent):
         if not hasattr(agent, "tools") or not agent.tools:
