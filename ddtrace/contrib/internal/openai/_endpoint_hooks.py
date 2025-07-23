@@ -420,128 +420,52 @@ class _ImageHook(_EndpointHook):
         super()._record_request(pin, integration, instance, span, args, kwargs)
         span.set_tag_str("openai.request.model", "dall-e")
 
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        choices = resp.data
-        span.set_metric("openai.response.images_count", len(choices))
-        if integration.is_pc_sampled_span(span):
-            for idx, choice in enumerate(choices):
-                if getattr(choice, "b64_json", None) is not None:
-                    span.set_tag_str("openai.response.images.%d.b64_json" % idx, "returned")
-                else:
-                    span.set_tag_str("openai.response.images.%d.url" % idx, integration.trunc(choice.url))
-        return resp
 
 
 class _ImageCreateHook(_ImageHook):
-    _request_arg_params = ("api_key", "api_base", "api_type", "api_version", "organization")
-    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user")
+    _request_arg_params = ()
+    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/generations"
     OPERATION_ID = "createImage"
 
 
 class _ImageEditHook(_ImageHook):
-    _request_arg_params = (None, None, "api_key", "api_base", "api_type", "api_version", "organization")
-    _request_kwarg_params = ("prompt", "n", "size", "response_format", "user", "image", "mask")
+    _request_arg_params = ()
+    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/edits"
     OPERATION_ID = "createImageEdit"
 
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-        if not integration.is_pc_sampled_span:
-            return
-        image = args[0] if len(args) >= 1 else kwargs.get("image", "")
-        mask = args[1] if len(args) >= 2 else kwargs.get("mask", "")
-        if image:
-            if hasattr(image, "name"):
-                span.set_tag_str("openai.request.image", integration.trunc(image.name.split("/")[-1]))
-            else:
-                span.set_tag_str("openai.request.image", "")
-        if mask:
-            if hasattr(mask, "name"):
-                span.set_tag_str("openai.request.mask", integration.trunc(mask.name.split("/")[-1]))
-            else:
-                span.set_tag_str("openai.request.mask", "")
 
 
 class _ImageVariationHook(_ImageHook):
-    _request_arg_params = (None, "api_key", "api_base", "api_type", "api_version", "organization")
-    _request_kwarg_params = ("n", "size", "response_format", "user", "image")
+    _request_arg_params = ()
+    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/variations"
     OPERATION_ID = "createImageVariation"
 
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-        if not integration.is_pc_sampled_span:
-            return
-        image = args[0] if len(args) >= 1 else kwargs.get("image", "")
-        if image:
-            if hasattr(image, "name"):
-                span.set_tag_str("openai.request.image", integration.trunc(image.name.split("/")[-1]))
-            else:
-                span.set_tag_str("openai.request.image", "")
-
 
 class _BaseAudioHook(_EndpointHook):
-    _request_arg_params = ("model", None, "api_key", "api_base", "api_type", "api_version", "organization")
-    _response_attrs = ("language", "duration")
+    _request_arg_params = ("model",)
+    _response_attrs = ()
     ENDPOINT_NAME = "audio"
     HTTP_METHOD_TYPE = "POST"
 
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
-        if not integration.is_pc_sampled_span:
-            return
-        audio_file = args[1] if len(args) >= 2 else kwargs.get("file", "")
-        if audio_file and hasattr(audio_file, "name"):
-            span.set_tag_str("openai.request.filename", integration.trunc(audio_file.name.split("/")[-1]))
-        else:
-            span.set_tag_str("openai.request.filename", "")
-
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        text = ""
-        if resp:
-            resp_to_tag = resp.model_dump() if hasattr(resp, "model_dump") else resp
-            if isinstance(resp_to_tag, str):
-                text = resp
-            elif isinstance(resp_to_tag, dict):
-                text = resp_to_tag.get("text", "")
-                if "segments" in resp_to_tag:
-                    span.set_metric("openai.response.segments_count", len(resp_to_tag.get("segments")))
-            if integration.is_pc_sampled_span(span):
-                span.set_tag_str("openai.response.text", integration.trunc(text))
-        return resp
-
 
 class _AudioTranscriptionHook(_BaseAudioHook):
-    _request_kwarg_params = (
-        "prompt",
-        "response_format",
-        "temperature",
-        "language",
-        "user",
-    )
+    _request_kwarg_params = ()
     ENDPOINT_NAME = "audio/transcriptions"
     OPERATION_ID = "createTranscription"
 
 
 class _AudioTranslationHook(_BaseAudioHook):
-    _request_kwarg_params = (
-        "prompt",
-        "response_format",
-        "temperature",
-        "user",
-    )
+    _request_kwarg_params = ()
     ENDPOINT_NAME = "audio/translations"
     OPERATION_ID = "createTranslation"
 
 
 class _ModerationHook(_EndpointHook):
-    _request_arg_params = ("input", "model", "api_key")
-    _request_kwarg_params = ("input", "model")
+    _request_arg_params = ("model",)
+    _request_kwarg_params = ("model",)
     _response_attrs = ("id", "model")
     _response_categories = (
         "hate",
@@ -563,18 +487,6 @@ class _ModerationHook(_EndpointHook):
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
 
-    def _record_response(self, pin, integration, span, args, kwargs, resp, error):
-        resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
-        results = resp.results[0]
-        categories = results.categories
-        scores = results.category_scores
-        for category in self._response_categories:
-            span.set_metric("openai.response.category_scores.%s" % category, getattr(scores, category, 0))
-            span.set_metric("openai.response.categories.%s" % category, int(getattr(categories, category)))
-        span.set_metric("openai.response.flagged", int(results.flagged))
-        return resp
 
 
 class _BaseFileHook(_EndpointHook):
@@ -645,7 +557,7 @@ class _ResponseHook(_BaseCompletionHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
-            return resp
+            return 
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
