@@ -118,6 +118,37 @@ def _parse_response_cookies(response_headers):
     return cookies
 
 
+def _set_sampling_inherited(span: Span, global_root_span: Span):
+    span.set_metric("_dd.dm.inherited", 1)
+    span.set_tag_str("_dd.dm.service", global_root_span.service)
+    span.set_tag_str("_dd.dm.resource", global_root_span.resource)
+
+
+def _copy_baggage_and_sampling(websocket_span: Span, span: Span):
+    if span.context:
+        for key, value in span.context._baggage.items():
+            websocket_span.context.set_baggage_item(key, value)
+            websocket_span.set_tag_str(f"baggage.{key}", value)
+
+        if span.context.sampling_priority is not None:
+            websocket_span.context.sampling_priority = span.context.sampling_priority
+
+        if span.context._meta.get(_ORIGIN_KEY):
+            websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
+
+        if span.context._meta.get(_SAMPLING_DECISION_MAKER):
+            websocket_span.set_tag_str(_SAMPLING_DECISION_MAKER, span.context._meta[_SAMPLING_DECISION_MAKER])
+
+
+def _set_message_tags_on_span(websocket_span, message):
+    if "text" in message:
+        websocket_span.set_tag_str("websocket.message.type", "text")
+        websocket_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
+    elif "binary" in message:
+        websocket_span.set_tag_str("websocket.message.type", "binary")
+        websocket_span.set_metric("websocket.message.length", len(message["bytes"]))
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces the requests.
@@ -262,36 +293,6 @@ class TraceMiddleware:
             span.set_tags(tags)
             global_root_span = span._local_root or span
 
-            def _set_sampling_inherited(span: Span):
-                span.set_metric("_dd.dm.inherited", 1)
-                span.set_tag_str("_dd.dm.service", global_root_span.service)
-                span.set_tag_str("_dd.dm.resource", global_root_span.resource)
-
-            def _copy_baggage_and_sampling(websocket_span):
-                if span.context:
-                    for key, value in span.context._baggage.items():
-                        websocket_span.context.set_baggage_item(key, value)
-                        websocket_span.set_tag_str(f"baggage.{key}", value)
-
-                    if span.context.sampling_priority is not None:
-                        websocket_span.context.sampling_priority = span.context.sampling_priority
-
-                    if span.context._meta.get(_ORIGIN_KEY):
-                        websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
-
-                    if span.context._meta.get(_SAMPLING_DECISION_MAKER):
-                        websocket_span.set_tag_str(
-                            _SAMPLING_DECISION_MAKER, span.context._meta[_SAMPLING_DECISION_MAKER]
-                        )
-
-            def _set_message_tags_on_span(websocket_span, message):
-                if "text" in message:
-                    websocket_span.set_tag_str("websocket.message.type", "text")
-                    websocket_span.set_metric("websocket.message.length", len(message["text"].encode("utf-8")))
-                elif "binary" in message:
-                    websocket_span.set_tag_str("websocket.message.type", "binary")
-                    websocket_span.set_metric("websocket.message.length", len(message["bytes"]))
-
             @wraps(receive)
             async def wrapped_receive():
                 """
@@ -342,9 +343,9 @@ class TraceMiddleware:
 
                         # set sampling
                         if self.integration_config._asgi_websockets_inherit_sampling:
-                            _set_sampling_inherited(recv_span)
+                            _set_sampling_inherited(recv_span, global_root_span)
 
-                        _copy_baggage_and_sampling(recv_span)
+                        _copy_baggage_and_sampling(recv_span, span)
 
                         if "datadog" not in scope:
                             scope["datadog"] = {}
@@ -381,9 +382,9 @@ class TraceMiddleware:
 
                         # set sampling
                         if self.integration_config._asgi_websockets_inherit_sampling:
-                            _set_sampling_inherited(disconnect_span)
+                            _set_sampling_inherited(disconnect_span, global_root_span)
 
-                        _copy_baggage_and_sampling(disconnect_span)
+                        _copy_baggage_and_sampling(disconnect_span, span)
 
                         code = message.get("code")
                         reason = message.get("reason")
@@ -514,7 +515,7 @@ class TraceMiddleware:
                                 span_id=span.span_id,
                                 attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
                             )
-                            _copy_baggage_and_sampling(close_span)
+                            _copy_baggage_and_sampling(close_span, span)
 
                             code = message.get("code")
                             reason = message.get("reason")
