@@ -81,7 +81,6 @@ IS_EDITABLE = False  # Set to True if the package is being installed in editable
 LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
-CRASHTRACKER_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "crashtracker"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
 NATIVE_CRATE = HERE / "src" / "native"
 
@@ -899,23 +898,15 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+        native_features.append("crashtracker")
         native_features.append("profiling")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
                 optional=False,
-            )
-        )
-
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
-                source_dir=CRASHTRACKER_DIR,
-                optional=False,
                 dependencies=[
-                    CRASHTRACKER_DIR / "crashtracker_exe",
-                    CRASHTRACKER_DIR.parent / "libdd_wrapper",
+                    DDUP_DIR.parent / "libdd_wrapper",
                 ],
             )
         )
@@ -945,7 +936,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python

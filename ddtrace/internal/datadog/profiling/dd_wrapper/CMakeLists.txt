@@ -64,11 +64,8 @@ else()
         dd_wrapper SHARED
         src/code_provenance.cpp
         src/code_provenance_interface.cpp
-        src/crashtracker.cpp
-        src/crashtracker_interface.cpp
         src/ddup_interface.cpp
         src/profile.cpp
-        src/receiver_interface.cpp
         src/sample.cpp
         src/sample_manager.cpp
         src/static_sample_pool.cpp
@@ -122,20 +119,6 @@ if(APPLE)
         COMMENT "Fixing library dependency to use @rpath")
 else()
     set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
-endif()
-
-if(NOT WIN32)
-    # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be
-    # inferred at runtime, so we set it here.  Any component which used dd_wrapper will have access to a uniform name.
-    set(CRASHTRACKER_EXE_BASE_NAME "crashtracker_exe")
-    set(CRASHTRACKER_EXE_TARGET_NAME ${CRASHTRACKER_EXE_BASE_NAME}-${PLATFORM_SUFFIX})
-
-    target_compile_definitions(dd_wrapper PRIVATE CRASHTRACKER_EXE_TARGET_NAME="${CRASHTRACKER_EXE_TARGET_NAME}")
-
-    # Also propagate the target name to the parent scope, since it can be used for non-code purposes (e.g., filenames)
-    set(CRASHTRACKER_EXE_TARGET_NAME
-        ${CRASHTRACKER_EXE_TARGET_NAME}
-        PARENT_SCOPE)
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.
