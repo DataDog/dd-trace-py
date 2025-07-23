@@ -43,7 +43,7 @@ def get_app():
     async def websocket(websocket: WebSocket):
         await websocket.accept()
         root_span = tracer.current_root_span()
-        if root_span:  # TODO: remove these
+        if root_span:
             root_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-1")
             root_span.context.set_baggage_item("foo", "bar")
             root_span.context.sampling_priority = 1
