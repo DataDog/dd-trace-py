@@ -10,34 +10,25 @@
     "error": 1,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "68757a3e00000000",
       "component": "openai",
-      "error.message": "Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.",
-      "error.stack": "Traceback (most recent call last):\n  openai.error.AuthenticationError: Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.\n",
-      "error.type": "openai.error.AuthenticationError",
+      "error.message": "Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}",
+      "error.stack": "Traceback (most recent call last):\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/ddtrace/contrib/internal/openai/patch.py\", line 264, in patched_endpoint\n    resp = func(*args, **kwargs)\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.10/site-packages/openai/_utils/_utils.py\", line 299, in wrapper\n    return func(*args, **kwargs)\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.10/site-packages/openai/resources/completions.py\", line 532, in create\n    return self._post(\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.10/site-packages/openai/_base_client.py\", line 1055, in post\n    return cast(ResponseT, self.request(cast_to, opts, stream=stream, stream_cls=stream_cls))\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.10/site-packages/openai/_base_client.py\", line 834, in request\n    return self._request(\n  File \"/Users/jacob.simpher/go/src/github.com/DataDog/dd-trace-py/.riot/venv_py31013_mock_pytest_pytest-mock_coverage_pytest-cov_opentracing_hypothesis6451_vcrpy_urllib3~126_pytest-asyncio0211_pytest-randomly_openai[embeddingsdatalib]100_pillow950_httpx0272/lib/python3.10/site-packages/openai/_base_client.py\", line 877, in _request\n    raise self._make_status_error_from_response(err.response) from None\nopenai.AuthenticationError: Error code: 401 - {'error': {'message': 'Incorrect API key provided: sk-wrong****-key. You can find your API key at https://platform.openai.com/account/api-keys.', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_api_key'}}\n",
+      "error.type": "openai.AuthenticationError",
       "language": "python",
-      "openai.api_base": "https://api.openai.com/v1",
-      "openai.api_type": "open_ai",
-      "openai.base_url": "https://api.openai.com/v1/",
-      "openai.request.client": "OpenAI",
       "openai.request.endpoint": "/v1/completions",
-      "openai.request.max_tokens": "150",
       "openai.request.method": "POST",
       "openai.request.model": "text-curie-001",
-      "openai.request.n": "1",
-      "openai.request.prompt.0": "how does openai tokenize prompts?",
-      "openai.request.stream": "True",
-      "openai.request.temperature": "0.8",
-      "openai.user.api_key": "sk-...-key",
-      "runtime-id": "0a0a92d644714949b7544ee81c6d1bf1"
+      "openai.request.provider": "OpenAI",
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 91222
+      "process_id": 88640
     },
-    "duration": 291271000,
-    "start": 1694536282656608000
+    "duration": 13139000,
+    "start": 1752529470764867000
   }]]

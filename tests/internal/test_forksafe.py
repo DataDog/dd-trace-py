@@ -39,7 +39,7 @@ def test_registry():
 
     The original state is checked to be unmodified in the parent after the fork.
     """
-    state = ["before_fork"]
+    state = ["initial"]
 
     @forksafe.register
     def after_in_child_1():
@@ -53,13 +53,21 @@ def test_registry():
     def after_in_child_3():
         state.append("after_in_child_3")
 
+    @forksafe.register_after_parent
+    def after_in_parent():
+        state.append("after_in_parent")
+
+    @forksafe.register_before_fork
+    def before_fork():
+        state.append("before_fork")
+
     pid = os.fork()
 
     if pid == 0:
-        assert state == ["before_fork", "after_in_child_1", "after_in_child_2", "after_in_child_3"]
+        assert state == ["initial", "before_fork", "after_in_child_1", "after_in_child_2", "after_in_child_3"]
         os._exit(12)
     else:
-        assert state == ["before_fork"]
+        assert state == ["initial", "before_fork", "after_in_parent"]
 
     _, status = os.waitpid(pid, 0)
     exit_code = os.WEXITSTATUS(status)

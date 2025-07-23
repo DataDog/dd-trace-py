@@ -4,6 +4,7 @@ from typing import Text
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._logs import iast_error
+from ddtrace.appsec._iast._logs import iast_propagation_sink_point_debug_log
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
@@ -32,7 +33,6 @@ def patch():
     # TODO: wrap exec functions is very dangerous because it needs and modifies locals and globals from the original
     #  function
     # iast_funcs.wrap_function("builtins", "exec", _iast_coi)
-
     iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_CODE_INJECTION)
@@ -47,27 +47,49 @@ def _iast_coi(wrapped, instance, args, kwargs):
     if len(args) >= 1:
         _iast_report_code_injection(args[0])
 
-    caller_frame = None
-    if len(args) > 1:
-        func_globals = args[1]
-    elif kwargs.get("globals"):
-        func_globals = kwargs.get("globals")
-    else:
-        frames = inspect.currentframe()
-        caller_frame = frames.f_back
-        func_globals = caller_frame.f_globals
-
-    if len(args) > 2:
-        func_locals = args[2]
-    elif kwargs.get("locals"):
-        func_locals = kwargs.get("locals")
-    else:
-        if caller_frame is None:
+    try:
+        caller_frame = None
+        if len(args) > 1:
+            func_globals = args[1]
+        elif kwargs.get("globals"):
+            func_globals = kwargs.get("globals")
+        else:
             frames = inspect.currentframe()
             caller_frame = frames.f_back
-        func_locals = caller_frame.f_locals
+            func_globals = caller_frame.f_globals
 
-    return wrapped(args[0], func_globals, func_locals)
+        func_locals_copy_to_check = None
+        if len(args) > 2:
+            func_locals = args[2]
+        elif kwargs.get("locals"):
+            func_locals = kwargs.get("locals")
+        else:
+            if caller_frame is None:
+                frames = inspect.currentframe()
+                caller_frame = frames.f_back
+            func_locals = caller_frame.f_locals
+            func_locals_copy_to_check = func_locals.copy() if func_locals else None
+    except Exception as e:
+        iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
+        return wrapped(*args, **kwargs)
+
+    res = wrapped(args[0], func_globals, func_locals)
+
+    # We need to perform this `func_locals_copy_to_check` check because of how Python handles `eval()` depending
+    # on whether `locals` is provided. If we have code like `def evaluate(n): return n` and we call
+    # `eval(code, my_globals)`, the new function will be stored in `my_globals["evaluate"]`. However, if we call
+    # `eval(code, my_globals, my_locals)`, then the function will be stored in `my_locals["evaluate"]`. So, if `eval()`
+    # is called without a `locals` argument, we need to transfer the newly created code from the local
+    # context to the global one.
+    try:
+        if func_locals_copy_to_check is not None:
+            diff_keys = set(func_locals) - set(func_locals_copy_to_check)
+            for key in diff_keys:
+                func_globals[key] = func_locals[key]
+    except Exception as e:
+        iast_propagation_sink_point_debug_log(f"Error in _iast_code_injection. {e}")
+
+    return res
 
 
 def _iast_report_code_injection(code_string: Text):

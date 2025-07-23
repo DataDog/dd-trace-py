@@ -168,7 +168,7 @@ def test_wrapt_disable_extensions():
 
     linenos = get_lock_linenos("test_wrapt_disable_extensions", with_stmt=True)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     pprof_utils.assert_lock_events(
         profile,
         expected_acquire_events=[
@@ -237,7 +237,7 @@ def test_lock_gevent_tasks():
     expected_filename = "test_threading.py"
     linenos = get_lock_linenos(test_name)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     pprof_utils.assert_lock_events(
         profile,
         expected_acquire_events=[
@@ -313,7 +313,7 @@ class TestThreadingLockCollector:
         # Calling upload will trigger the exporter to write to a file
         ddup.upload()
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         linenos = get_lock_linenos("test_lock_events")
         pprof_utils.assert_lock_events(
             profile,
@@ -349,7 +349,7 @@ class TestThreadingLockCollector:
 
         linenos = get_lock_linenos("test_lock_acquire_events_class")
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -384,7 +384,7 @@ class TestThreadingLockCollector:
         linenos1 = get_lock_linenos("test_lock_events_tracer_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_2")
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -441,7 +441,7 @@ class TestThreadingLockCollector:
 
         linenos2 = get_lock_linenos("test_lock_events_tracer_non_web")
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -487,7 +487,7 @@ class TestThreadingLockCollector:
         linenos1 = get_lock_linenos("test_lock_events_tracer_late_finish_1")
         linenos2 = get_lock_linenos("test_lock_events_tracer_late_finish_2")
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -542,7 +542,7 @@ class TestThreadingLockCollector:
         linenos1 = get_lock_linenos("test_resource_not_collected_1")
         linenos2 = get_lock_linenos("test_resource_not_collected_2")
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -592,7 +592,7 @@ class TestThreadingLockCollector:
         # for enter/exits, we need to update the lock_linenos for versions >= 3.10
         linenos = get_lock_linenos("test_lock_enter_exit_events", with_stmt=True)
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -630,7 +630,7 @@ class TestThreadingLockCollector:
             ddup.upload()
 
             linenos = get_lock_linenos("foolock", with_stmt=True)
-            profile = pprof_utils.parse_profile(self.output_filename)
+            profile = pprof_utils.parse_newest_profile(self.output_filename)
             acquire_samples = pprof_utils.get_samples_with_value_type(profile, "lock-acquire")
             assert len(acquire_samples) >= 2, "Expected at least 2 lock-acquire samples"
             release_samples = pprof_utils.get_samples_with_value_type(profile, "lock-release")
@@ -673,7 +673,7 @@ class TestThreadingLockCollector:
 
         linenos = get_lock_linenos("test_private_lock", with_stmt=True)
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
 
         pprof_utils.assert_lock_events(
             profile,
@@ -716,7 +716,7 @@ class TestThreadingLockCollector:
             create=linenos_foo.create,
         )
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -743,7 +743,7 @@ class TestThreadingLockCollector:
 
         linenos = get_lock_linenos("test_anonymous_lock", with_stmt=True)
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         pprof_utils.assert_lock_events(
             profile,
             expected_acquire_events=[
@@ -771,7 +771,7 @@ class TestThreadingLockCollector:
 
         ddup.upload()
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         linenos_foo = get_lock_linenos("global_lock", with_stmt=True)
         linenos_bar = get_lock_linenos("bar_lock", with_stmt=True)
 
@@ -806,3 +806,40 @@ class TestThreadingLockCollector:
                 ),
             ],
         )
+
+    def test_upload_resets_profile(self):
+        # This test checks that the profile is cleared after each upload() call
+        # It is added in test_threading.py as LockCollector can easily be
+        # configured to be deterministic with capture_pct=100.
+        with collector_threading.ThreadingLockCollector(capture_pct=100):
+            with threading.Lock():  # !CREATE! !ACQUIRE! !RELEASE! test_upload_resets_profile
+                pass
+        ddup.upload()
+
+        linenos = get_lock_linenos("test_upload_resets_profile", with_stmt=True)
+
+        pprof = pprof_utils.parse_newest_profile(self.output_filename)
+        pprof_utils.assert_lock_events(
+            pprof,
+            expected_acquire_events=[
+                pprof_utils.LockAcquireEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+            expected_release_events=[
+                pprof_utils.LockReleaseEvent(
+                    caller_name=self.test_name,
+                    filename=os.path.basename(__file__),
+                    linenos=linenos,
+                ),
+            ],
+        )
+
+        # Now we call upload() again, and we expect the profile to be empty
+        ddup.upload()
+        # parse_newest_profile raises an AssertionError if the profile doesn't
+        # have any samples
+        with pytest.raises(AssertionError):
+            pprof_utils.parse_newest_profile(self.output_filename)

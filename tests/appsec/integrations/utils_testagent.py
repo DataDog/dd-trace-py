@@ -33,6 +33,6 @@ def _get_span(token):
 
 
 def _get_agent_client():
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     return conn

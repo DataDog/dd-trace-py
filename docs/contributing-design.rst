@@ -14,7 +14,7 @@ and the `profiling <https://github.com/DataDog/dd-trace-py/tree/1.x/ddtrace/prof
 functionality for `Continuous Profiling <https://docs.datadoghq.com/profiler/>`_. Ideally it only contains code
 that is specific to the Datadog product being supported, and no code related to Integrations.
 
-An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/f26a526a6f79870e6e6a21d281f4796a434616bb/ddtrace/contrib>`_
+An **integration** is one of the modules in the `contrib <https://github.com/DataDog/dd-trace-py/tree/v3.10.2/ddtrace/contrib/internal>`_
 directory, hooking our code into the internal logic of a given Python library. Ideally it only contains code
 that is specific to the library being integrated with, and no code related to Products.
 
@@ -51,7 +51,7 @@ The autoinstrumentation entrypoint is ``import ddtrace.bootstrap.sitecustomize``
 ``import ddtrace.auto``, or behind the scenes by ``ddtrace-run``.
 
 ddtrace's sitecustomize script's basic goal is to start the Products that the library implements.
-These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, et cetera. Before starting these Products,
+These are subpackages like ``_trace``, ``profiling``, ``debugging``, ``appsec``, etc. Before starting these Products,
 some setup has to happen, especially the execution of preexisting PEP648 ``sitecustomize`` scripts to maintain
 user-facing guarantees about the runtime environment in which the application will execute. ddtrace's sitecustomize
 also attempts to "leave no trace" on the runtime environment, especially by unloading all of the modules it has
@@ -84,7 +84,7 @@ Step 4: Import Occurs
 
 The next step of autoinstrumentation happens when the application imports an Instrumented Module. The import triggers the
 import hook that was registered in step 3. The function that the hook executes has the primary goal of calling the ``patch()``
-function of the integration module located at ``ddtrace.contrib.<integration-name>.patch``.
+function of the integration module located at ``ddtrace.contrib.internal.<integration-name>.patch``.
 
 The goal of an integration's ``patch()`` function is to invisibly wrap the Instrumented Module with logic that generates the
 data about the module that's necessary for any relevant Products. The most commonly used wrapping approach is based on the
@@ -101,4 +101,4 @@ When the application uses the Instrumented Module after importing it, the wrappe
 data about the running application to be collected in memory, often as a tree of ``ExecutionContext`` objects. Any Product
 that was started in step 2 may access these data and use them to build a payload to send to the relevant intake endpoints.
 The classic example is the ``_trace`` Product, which periodically traverses the context tree for the purpose of creating a ``Trace``
-object that is subsequently serialized and sent to Datadog to power a flamegraph in the Application Observability product.
+object that is subsequently serialized and sent to Datadog to power a flamegraph in the Application Monitoring product.

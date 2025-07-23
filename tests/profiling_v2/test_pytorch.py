@@ -18,7 +18,7 @@ def test_call_script_pytorch_gpu(tmp_path, monkeypatch):
     )
     assert exitcode == 0, f"Profiler exited with code {exitcode}. Stderr: {stderr}"
 
-    profile = pprof_utils.parse_profile(filename)
+    profile = pprof_utils.parse_newest_profile(filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "gpu-time")
     assert len(samples) > 0
     print("number of gpu time samples: ", len(samples))

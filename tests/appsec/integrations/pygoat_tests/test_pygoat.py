@@ -6,6 +6,7 @@ import pytest
 import requests
 
 from tests.appsec.iast.conftest import iast_context_defaults
+from tests.appsec.iast.iast_utils import load_iast_report
 
 
 span_defaults = iast_context_defaults  # So ruff does not remove it
@@ -72,13 +73,13 @@ def assert_vulnerability_in_traces(
     assert spans, "No spans"
     spans = [s for s in spans if "meta" in s]
     assert spans, "No spans with meta"
-    spans = [s for s in spans if "_dd.iast.json" in s["meta"]]
+    spans = [s for s in spans if load_iast_report(s) is not None]
     assert spans, "No spans with iast data"
     # Ignore vulns from login, which is done on every test
     spans = [s for s in spans if s["meta"].get("http.route") != "login/"]
     assert len(spans) == 1, "A single span was expected"
     span = spans[0]
-    vulns = json.loads(span["meta"]["_dd.iast.json"])["vulnerabilities"]
+    vulns = load_iast_report(span)["vulnerabilities"]
     assert vulns, "No vulnerabilities"
     vulns = [v for v in vulns if v["type"] == vuln_type]
     assert vulns, f"No vulnerabilities of type {vuln_type}"

@@ -1,6 +1,9 @@
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Literal  # noqa:F401
 from typing import Optional
+from typing import Union  # noqa:F401
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
@@ -10,6 +13,8 @@ import ddtrace.appsec._iast._iast_request_context_base as base
 from ddtrace.appsec._iast._metrics import _set_metric_iast_request_tainted
 from ddtrace.appsec._iast._overhead_control_engine import oce
 from ddtrace.appsec._iast._span_metrics import _set_span_tag_iast_executed_sink
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.constants import _ORIGIN_KEY
@@ -38,14 +43,25 @@ def get_iast_reporter() -> Optional[IastSpanReporter]:
     return None
 
 
-def _create_and_attach_iast_report_to_span(req_span: "Span", existing_data: Optional[str], merge: bool = False):
+def _create_and_attach_iast_report_to_span(
+    req_span: "Span", existing_data: Optional[Union[str, Dict[str, Any]]], merge: bool = False
+):
     report_data: Optional[IastSpanReporter] = get_iast_reporter()
     if merge and existing_data is not None and report_data is not None:
-        report_data._merge_json(existing_data)
+        if isinstance(existing_data, str):
+            report_data._merge_json(existing_data)
+        elif isinstance(existing_data, dict):
+            report_data._merge_dict(existing_data)
 
     if report_data is not None:
         data = report_data.build_and_scrub_value_parts()
-        req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
+        if asm_config._use_metastruct_for_iast:
+            for source in data.get("sources", []):
+                if isinstance(source.get("origin"), OriginType):
+                    source["origin"] = origin_to_str(source["origin"])
+            req_span.set_struct_tag(IAST.STRUCT, data)
+        else:
+            req_span.set_tag_str(IAST.JSON, report_data._to_str(data))
     _set_metric_iast_request_tainted()
     base._set_span_tag_iast_request_tainted(req_span)
     _set_span_tag_iast_executed_sink(req_span)
@@ -73,7 +89,7 @@ def _iast_end_request(ctx=None, span=None, *args, **kwargs):
             log.debug("iast::propagation::context::Error finishing IAST context. There isn't a SPAN")
             return
         if asm_config._iast_enabled:
-            existing_data = req_span.get_tag(IAST.JSON)
+            existing_data = req_span.get_tag(IAST.JSON) or req_span.get_struct_tag(IAST.STRUCT)
             if existing_data is None:
                 if req_span.get_metric(IAST.ENABLED) is None:
                     if not asm_config.is_iast_request_enabled:

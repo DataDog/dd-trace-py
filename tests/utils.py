@@ -1,7 +1,6 @@
 import base64
 import contextlib
 from contextlib import contextmanager
-import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
@@ -579,8 +578,8 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def __init__(self, *args, **kwargs):
         # original call
-        if len(args) == 0 and "agent_url" not in kwargs:
-            kwargs["agent_url"] = agent_config.trace_agent_url
+        if len(args) == 0 and "intake_url" not in kwargs:
+            kwargs["intake_url"] = agent_config.trace_agent_url
         kwargs["api_version"] = kwargs.get("api_version", "v0.5")
 
         # only flush traces to test agent if ``trace_flush_enabled`` is explicitly set to True
@@ -609,7 +608,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
 
 
@@ -644,7 +643,7 @@ class DummyTracer(Tracer):
     @property
     def agent_url(self):
         # type: () -> str
-        return self._span_aggregator.writer.agent_url
+        return self._span_aggregator.writer.intake_url
 
     @property
     def encoder(self):
@@ -1160,7 +1159,7 @@ def snapshot_context(
     if not tracer:
         tracer = ddtrace.tracer
 
-    parsed = parse.urlparse(tracer._span_aggregator.writer.agent_url)
+    parsed = parse.urlparse(tracer._span_aggregator.writer.intake_url)
     conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
     try:
         # clear queue in case traces have been generated before test case is
@@ -1419,7 +1418,10 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces, _ = client.encoder.encode()
+        if not (encoded_traces := client.encoder.encode()):
+            return
+
+        [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
@@ -1448,43 +1450,6 @@ def get_128_bit_trace_id_from_headers(headers):
     return _DatadogMultiHeader._put_together_trace_id(
         meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
     )
-
-
-def _get_skipped_item(item, skip_reason):
-    if not inspect.isfunction(item) and not inspect.isclass(item):
-        raise ValueError(f"Unexpected skipped object: {item}")
-
-    if not hasattr(item, "pytestmark"):
-        item.pytestmark = []
-
-    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
-
-    return item
-
-
-def _should_skip(until: int, condition=None):
-    until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
-        return True
-    return condition is not None and condition
-
-
-def flaky(until: int, condition: bool = None, reason: str = None):
-    return skip_if_until(until, condition=condition, reason=reason)
-
-
-def skip_if_until(until: int, condition=None, reason=None):
-    """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(until=until, condition=condition)
-
-    def decorator(function_or_class):
-        if not skip:
-            return function_or_class
-
-        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
 
 
 def _build_env(env=None, file_path=FILE_PATH):

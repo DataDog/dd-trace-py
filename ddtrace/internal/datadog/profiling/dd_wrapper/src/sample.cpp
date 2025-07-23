@@ -57,12 +57,6 @@ Datadog::Sample::Sample(SampleType _type_mask, unsigned int _max_nframes)
 }
 
 void
-Datadog::Sample::profile_clear_state()
-{
-    profile_state.cycle_buffers();
-}
-
-void
 Datadog::Sample::push_frame_impl(std::string_view name, std::string_view filename, uint64_t address, int64_t line)
 {
     static const ddog_prof_Mapping null_mapping = { 0, 0, 0, to_slice(""), { 0 }, to_slice(""), { 0 } };

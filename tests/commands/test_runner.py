@@ -226,7 +226,7 @@ class DdtraceRunTest(BaseTestCase):
         p.wait()
         assert p.returncode == 0
         assert p.stdout.read() == b""
-        assert b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
+        assert b" 'debug': True" in p.stderr.read()
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="Profiling unsupported with 3.13")
@@ -330,7 +330,7 @@ def test_info_no_configs():
         b"Application Security enabled: False",
         b"Remote Configuration enabled: False",
         b"Debug logging: False",
-        b"Log injection enabled: structured",
+        b"Log injection enabled: True",
         b"Health metrics enabled: False",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 300",
@@ -386,7 +386,7 @@ def test_info_w_configs():
         b"Remote Configuration enabled: True",
         b"IAST enabled (experimental)",
         b"Debug logging: True",
-        b"Log injection enabled: true",
+        b"Log injection enabled: True",
         b"Health metrics enabled: False",
         b"Partial flushing enabled: True",
         b"Partial flush minimum number of spans: 1000",

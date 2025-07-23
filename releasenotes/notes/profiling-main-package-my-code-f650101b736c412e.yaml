@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    profiling: Fix a bug where profile frames from the package specified by DD_MAIN_PACKAGE
+    were marked as "library" code in the profiler UI

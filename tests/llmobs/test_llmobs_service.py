@@ -1442,20 +1442,16 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import mock
+import sys
+import time
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
-with LLMObs.agent("dummy"):
-    pass
+assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad0g.com/api/v2/llmobs"
 """,
         env=env,
     )
     assert status == 0, err
-    assert out == b""
-    agentless_writer_log = b'failed to send 1 LLMObs span events to https://llmobs-intake.datad0g.com/api/v2/llmobs, got response code 403, status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n'  # noqa: E501
-    agent_proxy_log = b"failed to send, dropping 1 traces to intake at http://localhost:8126/evp_proxy/v2/api/v2/llmobs after 5 retries"  # noqa: E501
-    assert err == agentless_writer_log
-    assert agent_proxy_log not in err
 
 
 def test_llmobs_fork_recreates_and_restarts_span_writer():

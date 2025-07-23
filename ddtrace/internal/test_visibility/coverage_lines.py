@@ -41,8 +41,8 @@ class CoverageLines:
     def add(self, line_number: int):
         lines_byte = line_number // 8
 
-        if lines_byte >= len(self._lines):
-            self._lines.extend(bytearray(lines_byte - len(self._lines) + 1))
+        if lines_byte >= self._lines.__len__():
+            self._lines.extend(bytearray(lines_byte - self._lines.__len__() + 1))
 
         # DEV this fun bit allows us to trick ourselves into little-endianness, which is what the backend wants to see
         # in bytes
@@ -62,8 +62,8 @@ class CoverageLines:
 
     def update(self, other: "CoverageLines"):
         # Extend our lines if the other coverage has more lines
-        if len(other._lines) > len(self._lines):
-            self._lines.extend(bytearray(len(other._lines) - len(self._lines)))
+        if other._lines.__len__() > self._lines.__len__():
+            self._lines.extend(bytearray(other._lines.__len__() - self._lines.__len__()))
 
         for _byte_idx, _byte in enumerate(other._lines):
             self._lines[_byte_idx] |= _byte

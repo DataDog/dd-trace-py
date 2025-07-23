@@ -10,7 +10,6 @@ import pytest
 from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
@@ -29,6 +28,8 @@ if not riot_env_value:
     pytest.importorskip("xdist", reason="ITR + xdist tests, not running under riot")
 ######
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_itr()),

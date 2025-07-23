@@ -1417,7 +1417,9 @@ class TestCIVisibilitySetTestSessionName(TracerTestCase):
     def assert_test_session_name(self, name):
         """Check that the payload metadata contains the test session name attributes."""
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])[
+                0
+            ][0]
         )
         assert payload["metadata"]["test_session_end"] == {"test_session.name": name}
         assert payload["metadata"]["test_suite_end"] == {"test_session.name": name}
@@ -1493,7 +1495,9 @@ class TestCIVisibilityLibraryCapabilities(TracerTestCase):
             )
 
         payload = msgpack.loads(
-            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])
+            CIVisibility._instance.tracer._span_aggregator.writer._clients[0].encoder._build_payload([[Span("foo")]])[
+                0
+            ][0]
         )
         assert payload["metadata"]["test"] == {
             "_dd.library_capabilities.early_flake_detection": "1",

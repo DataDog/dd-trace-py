@@ -64,7 +64,9 @@ def test_encode_traces_civisibility_v0():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
     assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
@@ -103,23 +105,22 @@ def test_encode_traces_civisibility_v0():
         assert expected_event == received_event
 
 
-def test_encode_traces_civisibility_v0_no_traces():
+def test_encode_traces_civisibility_v01_no_traces():
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
-    payload, _ = encoder.encode()
-    assert payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when no traces"
 
 
-def test_encode_traces_civisibility_v0_empty_traces():
+def test_encode_traces_civisibility_v01_empty_traces():
     traces = [[], []]
 
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, size = encoder.encode()
-    assert size == 2
-    assert payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when no content"
 
 
 def test_encode_traces_civisibility_v2_coverage_per_test():
@@ -160,7 +161,9 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     assert expected_cov == received_covs[0]
 
-    complete_payload, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(complete_payload, _)] = encoded_traces
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -200,7 +203,9 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
         encoder.put(trace)
 
     payload = encoder._build_data(traces)
-    complete_payload, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(complete_payload, _)] = encoded_traces
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -255,8 +260,8 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     payload = encoder._build_data(traces)
     assert payload is None
 
-    complete_payload, _ = encoder.encode()
-    assert complete_payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when payload is None"
 
 
 class PytestEncodingTestCase(PytestTestCaseBase):
@@ -280,7 +285,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
@@ -341,7 +348,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
@@ -397,7 +406,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
@@ -448,7 +459,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]
@@ -543,7 +556,9 @@ def test_xdist_worker_session_filtering(mock_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -570,7 +585,9 @@ def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
 
     assert num_traces == 1
     assert isinstance(payload, bytes)
@@ -652,7 +669,9 @@ def test_full_encoding_with_parent_session_override():
 
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
 
     assert num_traces == 1
     assert isinstance(payload, bytes)

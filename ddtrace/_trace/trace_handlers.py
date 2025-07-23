@@ -1,6 +1,5 @@
 import functools
 import sys
-from typing import TYPE_CHECKING
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -13,6 +12,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -40,10 +40,6 @@ from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)
@@ -876,9 +872,11 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
     span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
     span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
-    span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
     span.set_tag_str(MESSAGING_OPERATION, "receive")
     span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+    if message_id is not None:
+        span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
 def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
@@ -1003,7 +1001,7 @@ def listen():
         "azure.functions.patched_timer",
         "azure.servicebus.patched_producer",
     ):
-        core.on(f"context.started.start_span.{context_name}", _start_span)
+        core.on(f"context.started.{context_name}", _start_span)
 
 
 listen()

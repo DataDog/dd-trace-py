@@ -11,7 +11,7 @@ from typing import Union  # noqa:F401
 import ddtrace
 from ddtrace.internal.packages import get_distributions
 from ddtrace.internal.utils.cache import callonce
-from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.internal.writer import LogWriter
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
@@ -51,14 +51,17 @@ def collect(tracer):
     # type: (Tracer) -> Dict[str, Any]
     """Collect system and library information into a serializable dict."""
 
+    # Inline expensive imports to avoid unnecessary overhead on startup.
+    from ddtrace.internal import gitmetadata
     from ddtrace.internal.runtime.runtime_metrics import RuntimeWorker
+    from ddtrace.settings.crashtracker import config as crashtracker_config
 
     if isinstance(tracer._span_aggregator.writer, LogWriter):
         agent_url = "AGENTLESS"
         agent_error = None
-    elif isinstance(tracer._span_aggregator.writer, AgentWriter):
+    elif isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
         writer = tracer._span_aggregator.writer
-        agent_url = writer.agent_url
+        agent_url = writer.intake_url
         try:
             writer.write([])
             writer.flush_queue(raise_exc=True)
@@ -70,7 +73,7 @@ def collect(tracer):
         agent_url = "CUSTOM"
         agent_error = None
 
-    sampler_rules = [str(rule) for rule in tracer._sampler.rules]
+    sampling_rules = [str(rule) for rule in tracer._sampler.rules]
 
     is_venv = in_venv()
 
@@ -98,19 +101,13 @@ def collect(tracer):
             integration_configs[module] = dict(
                 enabled=enabled,
                 instrumented=module_instrumented,
-                module_available=module_available,
                 module_version=packages_available[module],
                 module_imported=module_imported,
                 config=config,
             )
-        else:
-            # Use N/A here to avoid the additional clutter of an entire
-            # config dictionary for a module that isn't available.
-            integration_configs[module] = "N/A"
 
     pip_version = packages_available.get("pip", "N/A")
-
-    from ddtrace._trace.tracer import log
+    git_repository_url, git_commit_sha, git_main_package = gitmetadata.get_git_tags()
 
     return dict(
         # Timestamp UTC ISO 8601 with the trailing +00:00 removed
@@ -131,14 +128,10 @@ def collect(tracer):
         agent_error=agent_error,
         statsd_url=agent_config.dogstatsd_url,
         env=ddtrace.config.env or "",
-        is_global_tracer=tracer == ddtrace.tracer,
-        enabled_env_setting=os.getenv("DATADOG_TRACE_ENABLED"),
-        tracer_enabled=tracer.enabled,
-        sampler_type=type(tracer._sampler).__name__ if tracer._sampler else "N/A",
-        priority_sampler_type="N/A",
-        sampler_rules=sampler_rules,
+        ddtrace_enabled=ddtrace.config._tracing_enabled,
+        sampling_rules=sampling_rules,
         service=ddtrace.config.service or "",
-        debug=log.isEnabledFor(logging.DEBUG),
+        debug=logger.isEnabledFor(logging.DEBUG),
         enabled_cli="ddtrace" in os.getenv("PYTHONPATH", ""),
         log_injection_enabled=ddtrace.config._logs_injection,
         health_metrics_enabled=ddtrace.config._health_metrics_enabled,
@@ -153,6 +146,12 @@ def collect(tracer):
         iast_enabled=asm_config._iast_enabled,
         waf_timeout=asm_config._waf_timeout,
         remote_config_enabled=ddtrace.config._remote_config_enabled,
+        config_endpoint=ddtrace.config._from_endpoint,
+        crashtracking_enabled=crashtracker_config.enabled,
+        gitmetadata_enabled=gitmetadata.config.enabled,
+        git_repository_url=git_repository_url,
+        git_commit_sha=git_commit_sha,
+        git_main_package=git_main_package,
     )
 
 
@@ -199,7 +198,7 @@ def pretty_collect(tracer, color=True):
     DD Version: {dd_version}
     Global Tags: {global_tags}
     Tracer Tags: {tracer_tags}""".format(
-        tracer_enabled=info.get("tracer_enabled"),
+        tracer_enabled=info.get("ddtrace_enabled"),
         appsec_enabled=info.get("asm_enabled"),
         remote_config_enabled=info.get("remote_config_enabled"),
         iast_enabled=info.get("iast_enabled"),

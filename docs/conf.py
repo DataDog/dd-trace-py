@@ -16,8 +16,8 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
-
 from datetime import datetime
+import glob
 import os
 import os.path
 import re
@@ -48,7 +48,7 @@ class VersionTagFilter(Filter):
 
 # append the ddtrace path to syspath
 # this is required when building the docs manually
-if not (os.getenv("CIRCLECI") == "true" or os.getenv("READTHEDOCS") == "True"):
+if os.getenv("READTHEDOCS") == "True":
     sys.path.insert(0, os.path.abspath(".."))
 
 
@@ -128,16 +128,24 @@ language = None
 #
 # today_fmt = '%B %d, %Y'
 
-# List of patterns, relative to source directory, that match files and
-# directories to ignore when looking for source files.
-# This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
-
+# Patterns, relative to the source directory, for files and directories to ignore when searching for source files.
+exclude_patterns = [
+    # These patterns also affect html_static_path and html_extra_path.
+    "_build",
+    "Thumbs.db",
+    ".DS_Store",
+    "**/__pycache__/*",
+]
 
 # autodoc_mock_imports contains a list of modules to be mocked up.
-# This is useful when some external dependencies are installed at build time and break the building process.
-# The following modules require third party packages and should be mocked when generating docs:
-autodoc_mock_imports = ["ddtrace.contrib.internal"]
+# Excludes files that require third-party packages not included with ddtrace,
+# preventing Sphinx build failures due to module not found errors. Allows __init__.py files to be included
+# since these are often used to define integration-level docstrings.
+autodoc_mock_imports = [
+    path.replace(os.path.sep, ".")[:-3].strip(".")
+    for path in glob.glob("../ddtrace/contrib/internal/**/*.py", recursive=True)
+    if not path.endswith("__init__.py")
+]
 
 # The reST default role (used for this markup: `text`) to use for all
 # documents.

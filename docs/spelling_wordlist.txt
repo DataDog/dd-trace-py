@@ -71,6 +71,7 @@ CPU
 CPython
 CUPTI
 Cython
+contrib
 datadog
 datadoghq
 dataset

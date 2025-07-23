@@ -10,43 +10,23 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "68757a3c00000000",
       "component": "openai",
       "language": "python",
-      "openai.api_base": "https://test-openai.openai.azure.com/",
-      "openai.api_type": "azure",
-      "openai.api_version": "2023-05-15",
-      "openai.base_url": "https://test-openai.openai.azure.com//openai/deployments/test-openai/",
-      "openai.request.client": "AzureOpenAI",
       "openai.request.endpoint": "/v1/chat/completions",
-      "openai.request.max_tokens": "20",
-      "openai.request.messages.0.content": "What's the weather like in NYC right now?",
-      "openai.request.messages.0.name": "",
-      "openai.request.messages.0.role": "user",
       "openai.request.method": "POST",
       "openai.request.model": "gpt-35-turbo",
-      "openai.request.n": "1",
-      "openai.request.temperature": "0",
-      "openai.request.user": "ddtrace-test",
-      "openai.response.choices.0.finish_reason": "length",
-      "openai.response.choices.0.message.content": "I'm sorry, as an AI language model, I do not have real-time information. Please check",
-      "openai.response.choices.0.message.role": "assistant",
-      "openai.response.created": "1695243871",
-      "openai.response.id": "chatcmpl-80yf1zsO83O6QA4OlMV9aHRIkSk2G",
+      "openai.request.provider": "AzureOpenAI",
       "openai.response.model": "gpt-35-turbo",
-      "openai.user.api_key": "sk-...key>",
-      "runtime-id": "b30008eff8b844f093c9206c308a0d01"
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.usage.completion_tokens": 20,
-      "openai.response.usage.prompt_tokens": 18,
-      "openai.response.usage.total_tokens": 38,
-      "process_id": 34781
+      "process_id": 88640
     },
-    "duration": 721540000,
-    "start": 1695243871179208000
+    "duration": 11716000,
+    "start": 1752529468062150000
   }]]

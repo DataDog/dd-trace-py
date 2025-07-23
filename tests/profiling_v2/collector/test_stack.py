@@ -50,7 +50,7 @@ def test_collect_truncate():
 
     p.stop()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
     for sample in samples:
@@ -82,7 +82,7 @@ def test_stack_locations(tmp_path):
             foo()
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -138,7 +138,7 @@ def test_push_span(tmp_path, tracer):
                 time.sleep(0.1)
     ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples) > 0
     for sample in samples:
@@ -188,7 +188,7 @@ def test_push_span_unregister_thread(tmp_path, monkeypatch, tracer):
                 thread_id = t.ident
         ddup.upload(tracer=tracer)
 
-        profile = pprof_utils.parse_profile(output_filename)
+        profile = pprof_utils.parse_newest_profile(output_filename)
         samples = pprof_utils.get_samples_with_label_key(profile, "span id")
         assert len(samples) > 0
         for sample in samples:
@@ -233,7 +233,7 @@ def test_push_non_web_span(tmp_path, tracer):
                 time.sleep(0.1)
     ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples) > 0
     for sample in samples:
@@ -278,7 +278,7 @@ def test_push_span_none_span_type(tmp_path, tracer):
                 time.sleep(0.1)
     ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples) > 0
     for sample in samples:
@@ -313,7 +313,7 @@ def test_exception_collection(stack_v2_enabled, tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
     if stack_v2_enabled:
@@ -371,7 +371,7 @@ def test_exception_collection_threads(stack_v2_enabled, tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
     if stack_v2_enabled:
@@ -422,7 +422,7 @@ def test_exception_collection_trace(stack_v2_enabled, tmp_path, tracer):
 
     ddup.upload(tracer=tracer)
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "exception type")
 
     if stack_v2_enabled:
@@ -473,7 +473,7 @@ def test_collect_once_with_class(tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -527,7 +527,7 @@ def test_collect_once_with_class_not_right_type(tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
     assert len(samples) > 0
 
@@ -616,7 +616,7 @@ def test_collect_gevent_thread_task():
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "task name")
     assert len(samples) > 0
 
@@ -689,7 +689,7 @@ def test_ignore_profiler(stack_v2_enabled, ignore_profiler, tmp_path):
 
     ddup.upload()
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
     samples = pprof_utils.get_samples_with_label_key(profile, "thread id")
 
     thread_ids = set()
@@ -763,7 +763,7 @@ def test_ignore_profiler_gevent_task():
     c.stop()
     p.stop()
 
-    profile = pprof_utils.parse_profile(output_filename + "." + str(os.getpid()))
+    profile = pprof_utils.parse_newest_profile(output_filename + "." + str(os.getpid()))
 
     samples = pprof_utils.get_samples_with_value_type(profile, "cpu-time")
 

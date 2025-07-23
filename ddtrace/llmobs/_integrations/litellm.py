@@ -71,9 +71,9 @@ class LiteLLMIntegration(BaseLLMIntegration):
 
         # use Open AI helpers since response format will match Open AI
         if self.is_completion_operation(operation):
-            openai_set_meta_tags_from_completion(span, kwargs, response)
+            openai_set_meta_tags_from_completion(span, kwargs, response, integration_name="litellm")
         else:
-            openai_set_meta_tags_from_chat(span, kwargs, response)
+            openai_set_meta_tags_from_chat(span, kwargs, response, integration_name="litellm")
 
         # custom logic for updating metadata on litellm spans
         self._update_litellm_metadata(span, kwargs, operation)

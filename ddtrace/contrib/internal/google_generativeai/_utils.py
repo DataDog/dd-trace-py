@@ -1,13 +1,6 @@
 import sys
 
-from google.generativeai.types.generation_types import to_generation_config_dict
 import wrapt
-
-from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations.utils import get_generation_config_google
-from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import tag_request_content_part_google
-from ddtrace.llmobs._integrations.utils import tag_response_part_google
 
 
 class BaseTracedGenerateContentResponse(wrapt.ObjectProxy):
@@ -31,7 +24,6 @@ class TracedGenerateContentResponse(BaseTracedGenerateContentResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
@@ -51,7 +43,6 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
             self._dd_span.set_exc_info(*sys.exc_info())
             raise
         finally:
-            tag_response(self._dd_span, self.__wrapped__, self._dd_integration, self._model_instance)
             self._kwargs["instance"] = self._model_instance
             self._dd_integration.llmobs_set_tags(
                 self._dd_span,
@@ -60,116 +51,3 @@ class TracedAsyncGenerateContentResponse(BaseTracedGenerateContentResponse):
                 response=self.__wrapped__,
             )
             self._dd_span.finish()
-
-
-def _extract_api_key(instance):
-    """Extract the API key from the model instance."""
-    client = getattr(instance, "_client", None)
-    if getattr(instance, "_async_client", None):
-        client = getattr(instance._async_client, "_client", None)
-    if not client:
-        return None
-    client_options = getattr(client, "_client_options", None)
-    if not client_options:
-        return None
-    return getattr(client_options, "api_key", None)
-
-
-def _tag_request_content(span, integration, content, content_idx):
-    """Tag the generation span with request contents."""
-    if isinstance(content, str):
-        span.set_tag_str("google_generativeai.request.contents.%d.text" % content_idx, integration.trunc(content))
-        return
-    if isinstance(content, dict):
-        role = content.get("role", "")
-        if role:
-            span.set_tag_str("google_generativeai.request.contents.%d.role" % content_idx, str(content.get("role", "")))
-        parts = content.get("parts", [])
-        for part_idx, part in enumerate(parts):
-            tag_request_content_part_google("google_generativeai", span, integration, part, part_idx, content_idx)
-        return
-    role = getattr(content, "role", "")
-    if role:
-        span.set_tag_str("google_generativeai.request.contents.%d.role" % content_idx, str(role))
-    parts = getattr(content, "parts", [])
-    if not parts:
-        span.set_tag_str(
-            "google_generativeai.request.contents.%d.text" % content_idx,
-            integration.trunc("[Non-text content object: {}]".format(repr(content))),
-        )
-        return
-    for part_idx, part in enumerate(parts):
-        tag_request_content_part_google("google_generativeai", span, integration, part, part_idx, content_idx)
-
-
-def tag_request(span, integration, instance, args, kwargs):
-    """Tag the generation span with request details.
-    Includes capturing generation configuration, system prompt, and messages.
-    """
-    contents = get_argument_value(args, kwargs, 0, "contents")
-    generation_config = get_generation_config_google(instance, kwargs)
-    system_instruction = get_system_instructions_from_google_model(instance)
-    stream = kwargs.get("stream", None)
-
-    try:
-        generation_config_dict = to_generation_config_dict(generation_config)
-    except TypeError:
-        generation_config_dict = None
-    if generation_config_dict is not None:
-        for k, v in generation_config_dict.items():
-            span.set_tag_str("google_generativeai.request.generation_config.%s" % k, str(v))
-
-    if stream:
-        span.set_tag("google_generativeai.request.stream", True)
-
-    if not integration.is_pc_sampled_span(span):
-        return
-
-    if system_instruction:
-        for idx, text in enumerate(system_instruction):
-            span.set_tag_str("google_generativeai.request.system_instruction.%d.text" % idx, integration.trunc(text))
-
-    if isinstance(contents, str):
-        span.set_tag_str("google_generativeai.request.contents.0.text", integration.trunc(contents))
-        return
-    elif isinstance(contents, dict):
-        span.set_tag_str("google_generativeai.request.contents.0.text", integration.trunc(str(contents)))
-        return
-    elif not isinstance(contents, list):
-        return
-    for content_idx, content in enumerate(contents):
-        _tag_request_content(span, integration, content, content_idx)
-
-
-def tag_response(span, generations, integration, instance):
-    """Tag the generation span with response details.
-    Includes capturing generation text, roles, finish reasons, and token counts.
-    """
-    api_key = _extract_api_key(instance)
-    if api_key:
-        span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
-
-    generations_dict = generations.to_dict()
-    for candidate_idx, candidate in enumerate(generations_dict.get("candidates", [])):
-        finish_reason = candidate.get("finish_reason", None)
-        if finish_reason:
-            span.set_tag_str(
-                "google_generativeai.response.candidates.%d.finish_reason" % candidate_idx, str(finish_reason)
-            )
-        candidate_content = candidate.get("content", {})
-        role = candidate_content.get("role", "")
-        span.set_tag_str("google_generativeai.response.candidates.%d.content.role" % candidate_idx, str(role))
-        if not integration.is_pc_sampled_span(span):
-            continue
-        parts = candidate_content.get("parts", [])
-        for part_idx, part in enumerate(parts):
-            tag_response_part_google("google_generativeai", span, integration, part, part_idx, candidate_idx)
-
-    token_counts = generations_dict.get("usage_metadata", None)
-    if not token_counts:
-        return
-    span.set_metric("google_generativeai.response.usage.prompt_tokens", token_counts.get("prompt_token_count", 0))
-    span.set_metric(
-        "google_generativeai.response.usage.completion_tokens", token_counts.get("candidates_token_count", 0)
-    )
-    span.set_metric("google_generativeai.response.usage.total_tokens", token_counts.get("total_token_count", 0))

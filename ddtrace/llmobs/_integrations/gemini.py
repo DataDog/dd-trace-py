@@ -6,15 +6,17 @@ from typing import Optional
 
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
 from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
 from ddtrace.llmobs._utils import _get_attr
@@ -59,7 +61,7 @@ class GeminiIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 INPUT_MESSAGES: input_messages,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("google_generativeai", span),
+                METRICS: self._extract_metrics(response),
             }
         )
 
@@ -108,3 +110,21 @@ class GeminiIntegration(BaseLLMIntegration):
                 message = extract_message_from_part_google(part, role)
                 output_messages.append(message)
         return output_messages
+
+    def _extract_metrics(self, generations):
+        if not generations:
+            return {}
+        generations_dict = generations.to_dict()
+
+        token_counts = generations_dict.get("usage_metadata", None)
+        if not token_counts:
+            return
+        input_tokens = token_counts.get("prompt_token_count", 0)
+        output_tokens = token_counts.get("candidates_token_count", 0)
+        total_tokens = input_tokens + output_tokens
+
+        usage = {}
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+        return usage

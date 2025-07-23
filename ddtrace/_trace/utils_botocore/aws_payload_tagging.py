@@ -121,6 +121,9 @@ class AWSPayloadTagging:
         # otherwise validate that we have valid JSONPaths
         for path in paths.split(","):
             if path:
+                # Require JSONPath to start with "$"
+                if not path.startswith("$"):
+                    return False
                 try:
                     parse(path)
                 except Exception:

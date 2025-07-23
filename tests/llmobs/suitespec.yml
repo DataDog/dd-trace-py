@@ -1,39 +1,30 @@
 ---
 components:
   anthropic:
-    - ddtrace/contrib/_anthropic.py
     - ddtrace/contrib/internal/anthropic/*
   google_generativeai:
-    - ddtrace/contrib/_google_generativeai.py
     - ddtrace/contrib/internal/google_generativeai/*
   google_genai:
-    - ddtrace/contrib/_google_genai.py
     - ddtrace/contrib/internal/google_genai/*
   vertexai:
-    - ddtrace/contrib/_vertexai.py
     - ddtrace/contrib/internal/vertexai/*
   langchain:
-    - ddtrace/contrib/_langchain.py
     - ddtrace/contrib/internal/langchain/*
   litellm:
-    - ddtrace/contrib/_litellm.py
     - ddtrace/contrib/internal/litellm/*
   llmobs:
     - ddtrace/llmobs/*
+  mcp:
+    - ddtrace/contrib/internal/mcp/*
   openai:
-    - ddtrace/contrib/_openai.py
     - ddtrace/contrib/internal/openai/*
   langgraph:
-    - ddtrace/contrib/_langgraph.py
     - ddtrace/contrib/internal/langgraph/*
   crewai:
-    - ddtrace/contrib/_crewai.py
     - ddtrace/contrib/internal/crewai/*
   openai_agents:
-    - ddtrace/contrib/_openai_agents.py
     - ddtrace/contrib/internal/openai_agents/*
   pydantic_ai:
-    - ddtrace/contrib/_pydantic_ai.py
     - ddtrace/contrib/internal/pydantic_ai/*
 suites:
   anthropic:
@@ -122,6 +113,19 @@ suites:
       - '@tracing'
       - '@llmobs'
       - tests/llmobs/*
+    runner: riot
+    snapshot: true
+  mcp:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@contrib'
+      - '@mcp'
+      - '@llmobs'
+      - tests/contrib/mcp/*
+      - tests/snapshots/tests.contrib.mcp.*
     runner: riot
     snapshot: true
   openai:

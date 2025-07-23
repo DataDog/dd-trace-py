@@ -240,15 +240,6 @@ class ProfilingConfig(DDConfig):
         help="Whether to enable debug assertions in the profiler code",
     )
 
-    _force_legacy_exporter = DDConfig.v(
-        bool,
-        "_force_legacy_exporter",
-        default=False,
-        help_type="Boolean",
-        help="Exclusively used in testing environments to force the use of the legacy exporter. This parameter is "
-        "not for general use and will be removed in the near future.",
-    )
-
     sample_pool_capacity = DDConfig.v(
         int,
         "sample_pool_capacity",

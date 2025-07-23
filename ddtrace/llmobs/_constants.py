@@ -94,3 +94,7 @@ OAI_HANDOFF_TOOL_ARG = "{}"
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
+
+EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+DEFAULT_PROJECT_NAME = "default-project"
