@@ -13,15 +13,16 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
-from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.ext.test_visibility.status import TestSourceFileInfo
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
@@ -177,9 +178,14 @@ class TestVisibilityItemBase(abc.ABC):
             except Exception as e:
                 log.debug("Error setting tag %s: %s", tag, e)
 
-    def _start_span(self) -> None:
+    def _start_span(self, context: Optional[Context] = None) -> None:
         # Test items do not use a parent, and are instead their own trace's root span
-        parent_span = self.get_parent_span() if isinstance(self, TestVisibilityParentItem) else None
+        # except if context is passed (for xdist support)
+        parent_span: Optional[Union[Span, Context]] = None
+        if context is not None:
+            parent_span = context
+        elif isinstance(self, TestVisibilityParentItem):
+            parent_span = self.get_parent_span()
 
         self._span = self._tracer._start_span(
             self._operation_name,
@@ -228,6 +234,10 @@ class TestVisibilityItemBase(abc.ABC):
 
         self._add_all_tags_to_span()
         self._span.finish(finish_time=override_finish_time)
+
+        parent_span = self.get_parent_span()
+        if parent_span:
+            self._tracer.context_provider.activate(parent_span)
 
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
@@ -367,7 +377,7 @@ class TestVisibilityItemBase(abc.ABC):
         # Telemetry for events created has specific tags for item types
         raise NotImplementedError("This method must be implemented by the subclass")
 
-    def start(self) -> None:
+    def start(self, context: Optional[Context] = None) -> None:
         log.debug("Test Visibility: starting %s", self)
 
         if self.is_started():
@@ -376,8 +386,9 @@ class TestVisibilityItemBase(abc.ABC):
                 log.warning(error_msg)
                 raise CIVisibilityDataError(error_msg)
             return
+
         self._telemetry_record_event_created()
-        self._start_span()
+        self._start_span(context)
 
     def is_started(self) -> bool:
         return self._span is not None
@@ -542,6 +553,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
     ) -> None:
         super().__init__(name, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
+        self._distributed_children = False
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
@@ -578,7 +590,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
 
         if children_status_counts[TestStatus.FAIL.value] > 0:
             return TestStatus.FAIL
-        if children_status_counts[TestStatus.SKIP.value] == len(self._children):
+        len_children = len(self._children)
+        if len_children > 0 and children_status_counts[TestStatus.SKIP.value] == len_children:
             return TestStatus.SKIP
         # We can assume the current item passes if not all children are skipped, and there were no failures
         if children_status_counts[TestStatus.FAIL.value] == 0:
@@ -608,18 +621,19 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             # Respect override status no matter what
             self.set_status(override_status)
 
+        if force:
+            # Finish all children regardless of their status
+            for child in self._children.values():
+                if not child.is_finished():
+                    child.finish(force=force)
+            self.set_status(self.get_raw_status())
+
         item_status = self.get_status()
 
-        if item_status == SPECIAL_STATUS.UNFINISHED:
-            if force:
-                # Finish all children regardless of their status
-                for child in self._children.values():
-                    if not child.is_finished():
-                        child.finish(force=force)
-                self.set_status(self.get_raw_status())
-            else:
-                return
-        elif not isinstance(item_status, SPECIAL_STATUS):
+        if item_status == SPECIAL_STATUS.UNFINISHED and not force:
+            return
+
+        if not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
         super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
@@ -651,5 +665,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
-        if self._children:
+        if self._children or self._distributed_children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+
+    def set_distributed_children(self) -> None:
+        self._distributed_children = True

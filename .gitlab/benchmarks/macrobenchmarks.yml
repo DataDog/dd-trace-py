@@ -1,5 +1,12 @@
 stages:
   - test
+  - gate
+  - notify
+
+include:
+  project: 'DataDog/benchmarking-platform-tools'
+  file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
+  ref: '925e0a3e7dd628885f6fc69cdaea5c8cc9e212bc'
 
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
@@ -58,9 +65,6 @@ variables:
     K6_OPTIONS_HIGH_LOAD_GRACEFUL_STOP: 30s
     K6_OPTIONS_HIGH_LOAD_PRE_ALLOCATED_VUS: 4
     K6_OPTIONS_HIGH_LOAD_MAX_VUS: 4
-
-    # Gitlab and BP specific env vars. Do not modify.
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
 
   # Workaround: Currently we're not running the benchmarks on every PR, but GitHub still shows them as pending.
   # By marking the benchmarks as allow_failure, this should go away. (This workaround should be removed once the
@@ -362,3 +366,26 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
     DD_APPSEC_RASP_ENABLED: "true"
     IAST_WORST: "true"
     DD_SERVICE: "ddtrace-mb-attack-appsec-enabled-iast-enabled-ep-enabled"
+
+check-slo-breaches:
+  stage: gate
+  when: always
+  tags: ["arch:amd64"]
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - platform/artifacts/
+    expire_in: 3 months
+  script:
+    - export ARTIFACTS_DIR="$(pwd)/platform/artifacts/"
+    - bp-runner .gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml
+
+notify-slo-breaches:
+  extends: .notify-slo-breaches
+  stage: notify
+  needs: ["check-slo-breaches"]
+  when: always
+  variables:
+    CHANNEL: "apm-python-release"

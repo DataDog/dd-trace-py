@@ -1,0 +1,45 @@
+interactions:
+- request:
+    body: '{"data": {"type": "projects", "attributes": {"name": "test-project", "description":
+      ""}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '89'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.4
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/projects
+  response:
+    body:
+      string: '{"data":{"id":"dc4158e7-c60f-446e-bcf1-540aa68ffa0f","type":"projects","attributes":{"author":{"id":"df7d11c9-da50-11ed-af19-2e9f609a4672"},"created_at":"2025-07-11T18:06:01.105202Z","name":"test-project","updated_at":"2025-07-11T18:06:01.105202Z"}}}'
+    headers:
+      content-length:
+      - '250'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Tue, 22 Jul 2025 13:56:57 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

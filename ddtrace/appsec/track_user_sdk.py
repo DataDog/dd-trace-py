@@ -19,7 +19,9 @@ from ddtrace.internal import core as _core
 from ddtrace.internal._exceptions import BlockingException
 
 
-def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None) -> None:
+def track_login_success(
+    login: str, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None, _auto: bool = False
+) -> None:
     """
     Track a successful user login event.
 
@@ -27,11 +29,16 @@ def track_login_success(login: str, user_id: t.Any = None, metadata: t.Optional[
     It will create an event that can be used for monitoring and analysis.
     """
     _metrics._report_ato_sdk_usage("login_success")
-    _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata)
+    mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
+    _trace_utils.track_user_login_success_event(None, user_id, login=login, metadata=metadata, login_events_mode=mode)
 
 
 def track_login_failure(
-    login: str, exists: bool, user_id: t.Any = None, metadata: t.Optional[t.Dict[str, t.Any]] = None
+    login: str,
+    exists: bool,
+    user_id: t.Any = None,
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track a failed user login event.
@@ -40,11 +47,18 @@ def track_login_failure(
     It will create an event that can be used for monitoring and analysis.
     """
     _metrics._report_ato_sdk_usage("login_failure")
-    _trace_utils.track_user_login_failure_event(None, user_id, exists=exists, login=login, metadata=metadata)
+    mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
+    _trace_utils.track_user_login_failure_event(
+        None, user_id, exists=exists, login=login, metadata=metadata, login_events_mode=mode
+    )
 
 
 def track_signup(
-    login: str, user_id: t.Any = None, success: bool = True, metadata: t.Optional[t.Dict[str, t.Any]] = None
+    login: str,
+    user_id: t.Any = None,
+    success: bool = True,
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track a user signup event.
@@ -53,13 +67,18 @@ def track_signup(
     It will create an event that can be used for monitoring and analysis.
     """
     _metrics._report_ato_sdk_usage("signup")
-    _trace_utils.track_user_signup_event(None, user_id, success, login=login)
+    mode = _constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK
+    _trace_utils.track_user_signup_event(None, user_id, success, login=login, login_events_mode=mode)
     if metadata:
         _trace_utils.track_custom_event(None, "signup_sdk", metadata=metadata)
 
 
 def track_user(
-    login: str, user_id: t.Any = None, session_id=t.Optional[str], metadata: t.Optional[t.Dict[str, t.Any]] = None
+    login: str,
+    user_id: t.Any = None,
+    session_id=t.Optional[str],
+    metadata: t.Optional[t.Dict[str, t.Any]] = None,
+    _auto: bool = False,
 ):
     """
     Track an authenticated user.
@@ -73,22 +92,39 @@ def track_user(
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERID, str(user_id))
     if login:
         span.set_tag_str(_constants.APPSEC.USER_LOGIN_USERNAME, str(login))
-
-    _trace_utils.set_user(None, user_id, session_id=session_id, may_block=False)
-    if metadata:
-        _trace_utils.track_custom_event(None, "auth_sdk", metadata=metadata)
-    span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
-    if _asm_request_context.in_asm_context():
-        custom_data = {
-            "REQUEST_USER_ID": str(user_id) if user_id else None,
-            "REQUEST_USERNAME": login,
-            "LOGIN_SUCCESS": "sdk",
-        }
-        if session_id:
-            custom_data["REQUEST_SESSION_ID"] = session_id
-        res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
-        if res and any(action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions):
-            raise BlockingException(_get_blocked())
+    meta = metadata or {}
+    usr_name = meta.pop("name", None) or meta.pop("usr.name", None)
+    usr_email = meta.pop("email", None) or meta.pop("usr.email", None)
+    usr_scope = meta.pop("scope", None) or meta.pop("usr.scope", None)
+    usr_role = meta.pop("role", None) or meta.pop("usr.role", None)
+    _trace_utils.set_user(
+        None,
+        user_id,
+        name=usr_name if isinstance(usr_name, str) else None,
+        email=usr_email if isinstance(usr_email, str) else None,
+        scope=usr_scope if isinstance(usr_scope, str) else None,
+        role=usr_role if isinstance(usr_role, str) else None,
+        session_id=session_id,
+        may_block=_auto,
+        mode=_constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK,
+    )
+    if meta:
+        _trace_utils.track_custom_event(None, "auth_sdk", metadata=meta)
+    if not _auto:
+        span.set_tag_str(_constants.APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, _constants.LOGIN_EVENTS_MODE.SDK)
+        if _asm_request_context.in_asm_context():
+            custom_data = {
+                "REQUEST_USER_ID": str(user_id) if user_id else None,
+                "REQUEST_USERNAME": login,
+                "LOGIN_SUCCESS": "sdk",
+            }
+            if session_id:
+                custom_data["REQUEST_SESSION_ID"] = session_id
+            res = _asm_request_context.call_waf_callback(custom_data=custom_data, force_sent=True)
+            if res and any(
+                action in [_WAF_ACTIONS.BLOCK_ACTION, _WAF_ACTIONS.REDIRECT_ACTION] for action in res.actions
+            ):
+                raise BlockingException(_get_blocked())
 
 
 def track_custom_event(event_name: str, metadata: t.Dict[str, t.Any]):

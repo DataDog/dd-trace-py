@@ -20,8 +20,6 @@ from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import set_sampling_decision_maker
-from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 from ..utils import DummyTracer
@@ -820,7 +818,7 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
     # It's important to also test in reverse mode for we want to make sure key deletion
@@ -829,14 +827,14 @@ def test_update_rate_by_service_sample_rates(priority_sampler):
     for given_rates in cases:
         priority_sampler.update_rate_by_service_sample_rates(given_rates)
         actual_rates = {}
-        for k, v in priority_sampler._by_service_samplers.items():
+        for k, v in priority_sampler._agent_based_samplers.items():
             actual_rates[k] = v.sample_rate
         assert given_rates == actual_rates, "sampler should store the rates it's given"
 
 
 @pytest.fixture()
-def context():
-    yield Context()
+def span():
+    yield Span("test")
 
 
 @pytest.mark.parametrize(
@@ -850,6 +848,6 @@ def context():
         (SamplingMechanism.DEFAULT, "-0"),
     ],
 )
-def test_trace_tag(context, sampling_mechanism, expected):
-    set_sampling_decision_maker(context, sampling_mechanism)
-    assert context._meta["_dd.p.dm"] == expected
+def test_trace_tag(span, sampling_mechanism, expected):
+    span._set_sampling_decision_maker(sampling_mechanism)
+    assert span.context._meta["_dd.p.dm"] == expected

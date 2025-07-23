@@ -22,6 +22,7 @@ from tests.appsec.iast_packages.packages.pkg_aiosignal import pkg_aiosignal
 from tests.appsec.iast_packages.packages.pkg_annotated_types import pkg_annotated_types
 from tests.appsec.iast_packages.packages.pkg_asn1crypto import pkg_asn1crypto
 from tests.appsec.iast_packages.packages.pkg_attrs import pkg_attrs
+from tests.appsec.iast_packages.packages.pkg_babel import pkg_babel
 from tests.appsec.iast_packages.packages.pkg_beautifulsoup4 import pkg_beautifulsoup4
 from tests.appsec.iast_packages.packages.pkg_cachetools import pkg_cachetools
 from tests.appsec.iast_packages.packages.pkg_certifi import pkg_certifi
@@ -101,6 +102,7 @@ app.register_blueprint(pkg_aiosignal)
 app.register_blueprint(pkg_annotated_types)
 app.register_blueprint(pkg_asn1crypto)
 app.register_blueprint(pkg_attrs)
+app.register_blueprint(pkg_babel)
 app.register_blueprint(pkg_beautifulsoup4)
 app.register_blueprint(pkg_cachetools)
 app.register_blueprint(pkg_certifi)

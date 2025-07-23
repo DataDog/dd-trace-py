@@ -56,7 +56,6 @@ class DatadogSampler:
     """
     The DatadogSampler samples traces based on the following (in order of precedence):
        - A list of sampling rules, applied in the order they are provided. The first matching rule is used.
-       - A default sample rate, stored as the final sampling rule (lowest precedence sampling rule).
        - A global rate limit, applied only if a rule is matched or if `rate_limit_always_on` is set to `True`.
        - Sample rates provided by the agent (priority sampling, maps sample rates to service and env tags).
        - By default, spans are sampled at a rate of 1.0 and assigned an `AUTO_KEEP` priority, allowing
@@ -75,7 +74,7 @@ class DatadogSampler:
         "limiter",
         "rules",
         "_rate_limit_always_on",
-        "_by_service_samplers",
+        "_agent_based_samplers",
     )
     _default_key = "service:,env:"
 
@@ -85,14 +84,19 @@ class DatadogSampler:
         rate_limit: Optional[int] = None,
         rate_limit_window: float = 1e9,
         rate_limit_always_on: bool = False,
+        agent_based_samplers: Optional[Dict[str, RateSampler]] = None,
     ):
         """
         Constructor for DatadogSampler sampler
 
         :param rules: List of :class:`SamplingRule` rules to apply to the root span of every trace, default no rules
-        :param default_sample_rate: The default sample rate to apply if no rules matched
         :param rate_limit: Global rate limit (traces per second) to apply to all traces regardless of the rules
             applied to them, (default: ``100``)
+        :param rate_limit_window: The time window in nanoseconds for the rate limit, default is 1 second
+        :param rate_limit_always_on: If set to `True`, the rate limit is always applied, even if no sampling rules
+            are provided.
+        :param agent_based_samplers: A dictionary of service-based samplers, mapping a key in the format
+            `service:<service>,env:<env>` to a :class:`RateSampler` instance.
         """
         # Set sampling rules
         global_sampling_rules = config._trace_sampling_rules
@@ -101,7 +105,7 @@ class DatadogSampler:
         else:
             self.rules: List[SamplingRule] = rules or []
         # Set Agent based samplers
-        self._by_service_samplers: Dict[str, RateSampler] = {}
+        self._agent_based_samplers = agent_based_samplers or {}
         # Set rate limiter
         self._rate_limit_always_on: bool = rate_limit_always_on
         if rate_limit is None:
@@ -119,10 +123,10 @@ class DatadogSampler:
         samplers: Dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
-        self._by_service_samplers = samplers
+        self._agent_based_samplers = samplers
 
     def __str__(self):
-        rates = {key: sampler.sample_rate for key, sampler in self._by_service_samplers.items()}
+        rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
         return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
             self.__class__.__name__,
             rates,
@@ -152,15 +156,7 @@ class DatadogSampler:
                     raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
                 continue
             try:
-                sampling_rule = SamplingRule(
-                    sample_rate=float(rule["sample_rate"]),
-                    service=rule.get("service", SamplingRule.NO_RULE),
-                    name=rule.get("name", SamplingRule.NO_RULE),
-                    resource=rule.get("resource", SamplingRule.NO_RULE),
-                    tags=rule.get("tags", SamplingRule.NO_RULE),
-                    provenance=rule.get("provenance", "default"),
-                )
-                sampling_rules.append(sampling_rule)
+                sampling_rules.append(SamplingRule(**rule))
             except ValueError as e:
                 if config._raise:
                     raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
@@ -181,11 +177,11 @@ class DatadogSampler:
             sample_rate = matched_rule.sample_rate
         else:
             key = self._key(span.service, span.get_tag(ENV_KEY))
-            if key in self._by_service_samplers:
+            if key in self._agent_based_samplers:
                 # Agent service based sampling
                 agent_service_based = True
-                sampled = self._by_service_samplers[key].sample(span)
-                sample_rate = self._by_service_samplers[key].sample_rate
+                sampled = self._agent_based_samplers[key].sample(span)
+                sample_rate = self._agent_based_samplers[key].sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -214,7 +210,7 @@ class DatadogSampler:
         elif self._rate_limit_always_on:
             # backwards compaitbiility for ASM, when the rate limit is always on (ASM standalone mode)
             # we want spans to be set to a MANUAL priority to avoid agent based sampling
-            return SamplingMechanism.MANUAL
+            return SamplingMechanism.APPSEC
         elif agent_service_based:
             return SamplingMechanism.AGENT_RATE_BY_SERVICE
         else:

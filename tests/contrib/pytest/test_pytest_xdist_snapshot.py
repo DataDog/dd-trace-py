@@ -4,7 +4,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
@@ -18,6 +17,8 @@ if not riot_env_value:
     pytest.importorskip("xdist", reason="Pytest xdist tests, not running under riot")
 ######
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
@@ -53,7 +54,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
         self.monkeypatch = monkeypatch
         self.git_repo = git_repo
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
     def test_pytest_xdist_will_include_lines_pct(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
@@ -86,7 +87,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                ["ddtrace-run", "coverage", "run", "--include=tools.py", "-m", "pytest", "--ddtrace", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
@@ -94,11 +95,12 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES)
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=3)
     def test_pytest_xdist_wont_include_lines_pct_if_report_empty(self):
         tools = """
                 def add_two_number_list(list_1, list_2):
@@ -131,7 +133,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
@@ -139,11 +141,12 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
 
-    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL)
+    @snapshot(ignores=SNAPSHOT_IGNORES_PATCH_ALL, wait_for_num_traces=3)
     def test_pytest_xdist_with_ddtrace_patch_all(self):
         call_httpx = """
                 import httpx
@@ -166,7 +169,7 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
             return_value=TestVisibilityAPISettings(False, False, False, False),
         ):
             subprocess.run(
-                ["pytest", "--ddtrace", "--ddtrace-patch-all", "-n", "2"],
+                ["pytest", "--ddtrace", "--ddtrace-patch-all", "-n", "1"],
                 env=_get_default_ci_env_vars(
                     dict(
                         DD_API_KEY="foobar.baz",
@@ -174,6 +177,61 @@ class PytestXdistSnapshotTestCase(TracerTestCase):
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
                         DD_PATCH_MODULES="httpx:true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
+                    )
+                ),
+            )
+
+    @snapshot(ignores=SNAPSHOT_IGNORES, wait_for_num_traces=4)
+    def test_pytest_xdist_n2_wont_include_lines_pct_if_report_empty(self):
+        tools = """
+                def add_two_number_list(list_1, list_2):
+                    output_list = []
+                    for number_a, number_b in zip(list_1, list_2):
+                        output_list.append(number_a + number_b)
+                    return output_list
+
+                def multiply_two_number_list(list_1, list_2):
+                    output_list = []
+                    for number_a, number_b in zip(list_1, list_2):
+                        output_list.append(number_a * number_b)
+                    return output_list
+                """
+        self.testdir.makepyfile(tools=tools)
+        test_tools = """
+                from tools import add_two_number_list
+                from tools import multiply_two_number_list
+
+                def test_add_two_number_list():
+                    a_list = [1,2,3,4,5,6,7,8]
+                    b_list = [2,3,4,5,6,7,8,9]
+                    actual_output = add_two_number_list(a_list, b_list)
+
+                    assert actual_output == [3,5,7,9,11,13,15,17]
+
+                def test_mult_two_number_list():
+                    a_list = [1,2,3,4,5,6,7,8]
+                    b_list = [2,3,4,5,6,7,8,9]
+                    actual_output = multiply_two_number_list(a_list, b_list)
+
+                    assert actual_output == [2,6,12,20,30,42,56,72]
+                """
+        self.testdir.makepyfile(test_tools=test_tools)
+        self.testdir.chdir()
+        with mock.patch(
+            "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, False, False, False),
+        ):
+            subprocess.run(
+                ["ddtrace-run", "coverage", "run", "--include=nothing.py", "-m", "pytest", "--ddtrace", "-n", "2"],
+                env=_get_default_ci_env_vars(
+                    dict(
+                        DD_API_KEY="foobar.baz",
+                        DD_CIVISIBILITY_ITR_ENABLED="false",
+                        DD_PATCH_MODULES="sqlite3:false",
+                        CI_PROJECT_DIR=str(self.testdir.tmpdir),
+                        DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )

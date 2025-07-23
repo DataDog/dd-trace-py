@@ -14,6 +14,7 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+from typing import Dict
 
 import wrapt
 from wrapt.importer import when_imported
@@ -79,6 +80,7 @@ config._add(
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 
@@ -100,6 +102,10 @@ def get_version():
     import django
 
     return django.__version__
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"django": ">=2.2.8"}
 
 
 def patch_conn(django, conn):
@@ -709,9 +715,11 @@ def traced_technical_500_response(django, pin, func, instance, args, kwargs):
 @trace_utils.with_traced_module
 def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     from ddtrace.contrib.asgi import TraceMiddleware
+    from ddtrace.internal.constants import COMPONENT
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
+        span.set_tag_str(COMPONENT, config.django.integration_name)
 
     return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
 

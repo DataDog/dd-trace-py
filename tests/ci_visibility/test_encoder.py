@@ -2,16 +2,43 @@ import json
 import os
 
 import msgpack
+import pytest
 
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
+from ddtrace.internal.ci_visibility.constants import EVENT_TYPE
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import SESSION_ID
+from ddtrace.internal.ci_visibility.constants import SESSION_TYPE
 from ddtrace.internal.ci_visibility.constants import SUITE_ID
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityCoverageEncoderV02
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.trace import Span
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
+
+
+@pytest.fixture
+def mock_xdist_worker_env():
+    """Fixture to mock being in an xdist worker environment"""
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
+    yield
+    # Restore original environment
+    if original_env is None:
+        os.environ.pop("PYTEST_XDIST_WORKER", None)
+    else:
+        os.environ["PYTEST_XDIST_WORKER"] = original_env
+
+
+@pytest.fixture
+def mock_no_xdist_worker_env():
+    """Fixture to ensure we're not in xdist worker environment"""
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ.pop("PYTEST_XDIST_WORKER", None)
+    yield
+    # Restore original environment
+    if original_env is not None:
+        os.environ["PYTEST_XDIST_WORKER"] = original_env
 
 
 def test_encode_traces_civisibility_v0():
@@ -37,7 +64,9 @@ def test_encode_traces_civisibility_v0():
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, num_traces = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
     assert num_traces == 3
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
@@ -76,23 +105,22 @@ def test_encode_traces_civisibility_v0():
         assert expected_event == received_event
 
 
-def test_encode_traces_civisibility_v0_no_traces():
+def test_encode_traces_civisibility_v01_no_traces():
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
-    payload, _ = encoder.encode()
-    assert payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when no traces"
 
 
-def test_encode_traces_civisibility_v0_empty_traces():
+def test_encode_traces_civisibility_v01_empty_traces():
     traces = [[], []]
 
     encoder = CIVisibilityEncoderV01(0, 0)
     encoder.set_metadata("*", {"language": "python"})
     for trace in traces:
         encoder.put(trace)
-    payload, size = encoder.encode()
-    assert size == 2
-    assert payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when no content"
 
 
 def test_encode_traces_civisibility_v2_coverage_per_test():
@@ -133,7 +161,9 @@ def test_encode_traces_civisibility_v2_coverage_per_test():
     }
     assert expected_cov == received_covs[0]
 
-    complete_payload, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(complete_payload, _)] = encoded_traces
     assert isinstance(complete_payload, bytes)
     payload_per_line = complete_payload.split(b"\r\n")
     assert len(payload_per_line) == 11
@@ -173,7 +203,9 @@ def test_encode_traces_civisibility_v2_coverage_per_suite():
         encoder.put(trace)
 
     payload = encoder._build_data(traces)
-    complete_payload, _ = encoder.encode()
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(complete_payload, _)] = encoded_traces
     assert isinstance(payload, bytes)
     decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
     assert decoded[b"version"] == 2
@@ -228,8 +260,8 @@ def test_encode_traces_civisibility_v2_coverage_empty_traces():
     payload = encoder._build_data(traces)
     assert payload is None
 
-    complete_payload, _ = encoder.encode()
-    assert complete_payload is None
+    encoded_traces = encoder.encode()
+    assert encoded_traces == [], "Expected empty list when payload is None"
 
 
 class PytestEncodingTestCase(PytestTestCaseBase):
@@ -253,7 +285,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_span = spans[0]
         given_test_event = decoded_event_payload[b"events"][0]
@@ -314,7 +348,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
                 span.set_tag(ITR_CORRELATION_ID_TAG_NAME, "encodertestcorrelationid")
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_suite_span = spans[3]
         assert given_test_suite_span.get_tag("type") == "test_suite_end"
@@ -370,7 +406,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_module_span = spans[2]
         given_test_module_event = decoded_event_payload[b"events"][2]
@@ -421,7 +459,9 @@ class PytestEncodingTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_traces = ci_agentless_encoder.encode()
+        assert encoded_traces, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_traces
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         given_test_session_span = spans[1]
         given_test_session_event = decoded_event_payload[b"events"][1]
@@ -451,3 +491,209 @@ class PytestEncodingTestCase(PytestTestCaseBase):
             b"version": CIVisibilityEncoderV01.TEST_SUITE_EVENT_VERSION,
         }
         assert given_test_session_event == expected_test_session_event
+
+
+def test_get_parent_session_with_parent_id():
+    """Test _get_parent_session method when session span has a parent_id"""
+    # Create a session span with parent_id
+    session_span = Span(name="test.session", span_id=0xBBBBBB, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span.parent_id = 0xAAAAAA  # Non-zero parent_id
+
+    # Create a regular test span
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test")
+
+    traces = [[session_span, test_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    parent_session_id = encoder._get_parent_session(traces)
+
+    assert parent_session_id == 0xAAAAAA
+
+
+def test_get_parent_session_without_parent_id():
+    """Test _get_parent_session method when session span has no parent_id"""
+    # Create a session span without parent_id (parent_id defaults to None)
+    session_span = Span(name="test.session", span_id=0xBBBBBB, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    # parent_id remains None (default)
+
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test")
+
+    traces = [[session_span, test_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    parent_session_id = encoder._get_parent_session(traces)
+
+    assert parent_session_id == 0
+
+
+def test_get_parent_session_no_session_spans():
+    """Test _get_parent_session method when there are no session spans"""
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test")
+    suite_span = Span(name="test.suite", span_id=0xDDDDDD, service="test")
+
+    traces = [[test_span, suite_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    parent_session_id = encoder._get_parent_session(traces)
+
+    assert parent_session_id == 0
+
+
+def test_xdist_worker_session_filtering(mock_xdist_worker_env):
+    """Test that session spans are filtered out when PYTEST_XDIST_WORKER is set"""
+    session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+
+    test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
+    test_span.set_tag(EVENT_TYPE, "test")
+
+    traces = [[session_span, test_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+
+    for trace in traces:
+        encoder.put(trace)
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
+
+    assert num_traces == 1
+    assert isinstance(payload, bytes)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+
+    # Should only have the test span, not the session span
+    received_events = decoded[b"events"]
+    assert len(received_events) == 1
+    assert received_events[0][b"type"] == b"test"
+
+
+def test_xdist_non_worker_includes_session(mock_no_xdist_worker_env):
+    """Test that session spans are included when not in xdist worker environment"""
+    session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+
+    test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
+    test_span.set_tag(EVENT_TYPE, "test")
+
+    traces = [[session_span, test_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+
+    for trace in traces:
+        encoder.put(trace)
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
+
+    assert num_traces == 1
+    assert isinstance(payload, bytes)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+
+    # Should have both spans
+    received_events = decoded[b"events"]
+    assert len(received_events) == 2
+    event_types = {event[b"type"] for event in received_events}
+    # Session spans will have event type "span" but content type will be "test_session_end"
+    assert b"span" in event_types  # This is the session span
+    assert b"test" in event_types
+
+    # Verify we have a session event by checking content type
+    has_session_event = any(
+        event[b"type"] == b"span" and event[b"content"][b"type"] == SESSION_TYPE.encode("utf-8")
+        for event in received_events
+    )
+    assert has_session_event
+
+
+def test_filter_ids_with_new_parent_session_span_id():
+    """Test that _filter_ids uses new_parent_session_span_id when provided"""
+    session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span.set_tag(SESSION_ID, "12345")
+
+    # Create span dict like the encoder would
+    sp = {"meta": {EVENT_TYPE: SESSION_TYPE, SESSION_ID: "12345"}, "trace_id": 999, "span_id": 888, "parent_id": 777}
+
+    # Test with new_parent_session_span_id override
+    new_parent_session_span_id = 0xBBBBBB
+    result = CIVisibilityEncoderV01._filter_ids(sp, new_parent_session_span_id)
+
+    # Should use the new parent session span ID instead of the original one
+    assert result[SESSION_ID] == new_parent_session_span_id
+    assert SESSION_ID not in result["meta"]
+
+
+def test_filter_ids_without_new_parent_session_span_id():
+    """Test that _filter_ids falls back to original session ID when new_parent_session_span_id is 0"""
+    session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span.set_tag(SESSION_ID, "12345")
+
+    # Create span dict like the encoder would
+    sp = {"meta": {EVENT_TYPE: SESSION_TYPE, SESSION_ID: "12345"}, "trace_id": 999, "span_id": 888, "parent_id": 777}
+
+    # Test without new_parent_session_span_id (defaults to 0)
+    result = CIVisibilityEncoderV01._filter_ids(sp, 0)
+
+    # Should use the original session ID
+    assert result[SESSION_ID] == 12345
+    assert SESSION_ID not in result["meta"]
+
+
+def test_full_encoding_with_parent_session_override():
+    """Test complete encoding flow when session spans have parent_id"""
+    # Create parent session span (simulating main process)
+    parent_session_span = Span(name="parent.session", span_id=0xAAAAAA, service="test")
+    parent_session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    parent_session_span.set_tag(SESSION_ID, "99999")
+
+    # Create worker session span with parent_id pointing to parent session
+    worker_session_span = Span(name="worker.session", span_id=0xBBBBBB, service="test")
+    worker_session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    worker_session_span.set_tag(SESSION_ID, "11111")
+    worker_session_span.parent_id = 0xAAAAAA  # Points to parent session
+
+    # Create test span
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
+    test_span.set_tag(EVENT_TYPE, "test")
+    test_span.set_tag(SESSION_ID, "11111")  # Originally points to worker session
+
+    traces = [[worker_session_span, test_span]]
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    encoder.set_metadata("*", {"language": "python"})
+
+    for trace in traces:
+        encoder.put(trace)
+    encoded_traces = encoder.encode()
+    assert encoded_traces, "Expected encoded traces but got empty list"
+    [(payload, num_traces)] = encoded_traces
+
+    assert num_traces == 1
+    assert isinstance(payload, bytes)
+    decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+
+    received_events = decoded[b"events"]
+    assert len(received_events) == 2
+
+    # Find the test event and session event
+    # Note: For session spans with span_type != "test", the event type will be "span"
+    # but the actual type is stored in the content["type"] field
+    test_event = None
+    session_event = None
+    for event in received_events:
+        if event[b"type"] == b"test":
+            test_event = event
+        elif event[b"type"] == b"span" and event[b"content"][b"type"] == SESSION_TYPE.encode("utf-8"):
+            session_event = event
+
+    assert test_event is not None
+    assert session_event is not None
+
+    # Both should use the parent session ID (0xAAAAAA) instead of worker session ID
+    assert test_event[b"content"][b"test_session_id"] == 0xAAAAAA
+    assert session_event[b"content"][b"test_session_id"] == 0xAAAAAA

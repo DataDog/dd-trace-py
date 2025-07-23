@@ -29,37 +29,23 @@ of code organization.
 How do I run the test suite?
 ----------------------------
 
-We assume you have `docker <https://www.docker.com/products/docker>`_ installed.
+Install and run `docker <https://www.docker.com/products/docker>`_ .
 
-In addition, you will need `riot <https://ddriot.readthedocs.io/en/latest/>`_ and `hatch <https://hatch.pypa.io/latest/>`_.
+This repo includes a Docker container definition that provides a pre-built test environment.
+You can access it by running
 
 .. code-block:: bash
 
-    $ pip install riot==0.20.1
+    $ scripts/ddtest
 
-Refer `hatch install <https://hatch.pypa.io/latest/install/>`_ for installation instructions
+Some of our test suites are managed with Riot, others with Hatch.
 
-Some of our test environments are managed with Riot, others with Hatch.
-
-For riot environments, you can run:
+You can run riot and hatch commands in the test runner container with commands like these:
 
 .. code-block:: bash
 
     $ scripts/ddtest riot run -p 3.10
-
-This command runs the entire test suite, which is probably not what you want to do.
-
-For hatch environments, you can run:
-
-.. code-block:: bash
-
-    $ hatch run lint:style
-
-If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
-
-.. code-block:: bash
-
-    $ hatch env remove <ENV> # or hatch env prune
+    $ scripts/ddtest hatch run lint:style
 
 
 How do I run only the tests I care about?
@@ -69,7 +55,7 @@ How do I run only the tests I care about?
 2. Find the ``Venv`` in the `riotfile <https://github.com/DataDog/dd-trace-py/blob/32b88eadc00e05cd0bc2aec587f565cc89f71229/riotfile.py#L426>`_
    whose ``command`` contains the tests you're interested in. Note the ``Venv``'s ``name`` - this is the
    "suite name".
-3. Find the directive in the file `./circleci/config.templ.yml <https://github.com/DataDog/dd-trace-py/blob/733a80eeb08c631967d3b17502cf0d6a9239c5cb/.circleci/config.templ.yml#L799>`_
+3. Find the suite in the file `./tests/contrib/suitespec.yml <https://github.com/DataDog/dd-trace-py/blob/2a46a7ddfc3d8e0d27ff59ec03bae69f0ef40db1/tests/contrib/suitespec.yml#L2>`_
    whose ``pattern`` is equal to the suite name. Note the ``docker_services`` section of the directive, if present -
    these are the "suite services".
 4. Start the suite services, if applicable, with ``$ docker compose up -d service1 service2``.
@@ -187,6 +173,16 @@ environment object.
 3. Delete all of the requirements lockfiles for the chosen environment, then regenerate them:
    ``for h in `riot list --hash-only "^${VENV_NAME}$"`; do rm .riot/requirements/${h}.txt; done; scripts/compile-and-prune-test-requirements``
 4. Commit the resulting changes to the ``.riot`` directory, and open a pull request against the trunk branch.
+
+Why isn't my hatch config change taking effect?
+-----------------------------------------------
+
+If you make a change to the `hatch.toml` or library dependencies, be sure to remove environments before re-running:
+
+.. code-block:: bash
+
+    $ scripts/ddtest hatch env remove <ENV> # or hatch env prune
+
 
 What do I do when my pull request has failing tests unrelated to my changes?
 ----------------------------------------------------------------------------

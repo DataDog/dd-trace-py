@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+import re
 from typing import Any
 from typing import Dict
 from typing import List
@@ -17,15 +18,24 @@ from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 
+
+try:
+    from tiktoken import encoding_for_model
+
+    tiktoken_available = True
+except ModuleNotFoundError:
+    tiktoken_available = False
 
 logger = get_logger(__name__)
 
@@ -46,6 +56,57 @@ OPENAI_SKIPPED_CHAT_TAGS = (
     "user_api_key",
     "user_api_key_hash",
     LITELLM_ROUTER_INSTANCE_KEY,
+)
+
+LITELLM_METADATA_CHAT_KEYS = (
+    "timeout",
+    "temperature",
+    "top_p",
+    "n",
+    "stream",
+    "stream_options",
+    "stop",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "prediction",
+    "presence_penalty",
+    "frequency_penalty",
+    "logit_bias",
+    "user",
+    "response_format",
+    "seed",
+    "tool_choice",
+    "parallel_tool_calls",
+    "logprobs",
+    "top_logprobs",
+    "deployment_id",
+    "reasoning_effort",
+    "base_url",
+    "api_base",
+    "api_version",
+    "model_list",
+)
+LITELLM_METADATA_COMPLETION_KEYS = (
+    "best_of",
+    "echo",
+    "frequency_penalty",
+    "logit_bias",
+    "logprobs",
+    "max_tokens",
+    "n",
+    "presence_penalty",
+    "stop",
+    "stream",
+    "stream_options",
+    "suffix",
+    "temperature",
+    "top_p",
+    "user",
+    "api_base",
+    "api_version",
+    "model_list",
+    "custom_llm_provider",
 )
 
 
@@ -70,56 +131,6 @@ def get_generation_config_google(instance, kwargs):
     """
     generation_config = kwargs.get("generation_config", {})
     return generation_config or _get_attr(instance, "_generation_config", {})
-
-
-def tag_request_content_part_google(tag_prefix, span, integration, part, part_idx, content_idx):
-    """Tag the generation span with request content parts."""
-    text = _get_attr(part, "text", "")
-    function_call = _get_attr(part, "function_call", None)
-    function_response = _get_attr(part, "function_response", None)
-    span.set_tag_str(
-        "%s.request.contents.%d.parts.%d.text" % (tag_prefix, content_idx, part_idx), integration.trunc(str(text))
-    )
-    if function_call:
-        function_call_dict = type(function_call).to_dict(function_call)
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_call.name" % (tag_prefix, content_idx, part_idx),
-            function_call_dict.get("name", ""),
-        )
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_call.args" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(function_call_dict.get("args", {}))),
-        )
-    if function_response:
-        function_response_dict = type(function_response).to_dict(function_response)
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_response.name" % (tag_prefix, content_idx, part_idx),
-            function_response_dict.get("name", ""),
-        )
-        span.set_tag_str(
-            "%s.request.contents.%d.parts.%d.function_response.response" % (tag_prefix, content_idx, part_idx),
-            integration.trunc(str(function_response_dict.get("response", {}))),
-        )
-
-
-def tag_response_part_google(tag_prefix, span, integration, part, part_idx, candidate_idx):
-    """Tag the generation span with response part text and function calls."""
-    text = _get_attr(part, "text", "")
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.text" % (tag_prefix, candidate_idx, part_idx),
-        integration.trunc(str(text)),
-    )
-    function_call = _get_attr(part, "function_call", None)
-    if not function_call:
-        return
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.function_call.name" % (tag_prefix, candidate_idx, part_idx),
-        _get_attr(function_call, "name", ""),
-    )
-    span.set_tag_str(
-        "%s.response.candidates.%d.content.parts.%d.function_call.args" % (tag_prefix, candidate_idx, part_idx),
-        integration.trunc(str(_get_attr(function_call, "args", {}))),
-    )
 
 
 def llmobs_get_metadata_google(kwargs, instance):
@@ -175,6 +186,20 @@ def get_llmobs_metrics_tags(integration_name, span):
         total_tokens = input_tokens + output_tokens
     total_tokens = span.get_metric("%s.response.usage.total_tokens" % integration_name) or total_tokens
 
+    if input_tokens is not None:
+        usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
+    if output_tokens is not None:
+        usage[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+    if total_tokens is not None:
+        usage[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+    return usage
+
+
+def parse_llmobs_metric_args(metrics):
+    usage = {}
+    input_tokens = _get_attr(metrics, "prompt_tokens", None)
+    output_tokens = _get_attr(metrics, "completion_tokens", None)
+    total_tokens = _get_attr(metrics, "total_tokens", None)
     if input_tokens is not None:
         usage[INPUT_TOKENS_METRIC_KEY] = input_tokens
     if output_tokens is not None:
@@ -257,7 +282,7 @@ def get_content_from_langchain_message(message) -> Union[str, Tuple[str, str]]:
         return str(message)
 
 
-def get_messages_from_converse_content(role: str, content: list):
+def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]]):
     """
     Extracts out a list of messages from a converse `content` field.
 
@@ -269,9 +294,11 @@ def get_messages_from_converse_content(role: str, content: list):
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages = []  # type: list[dict[str, Union[str, list[dict[str, dict]]]]]
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     content_blocks = []
     tool_calls_info = []
+    tool_messages: List[Dict[str, Any]] = []
+    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -284,9 +311,29 @@ def get_messages_from_converse_content(role: str, content: list):
                     "tool_id": str(toolUse.get("toolUseId", "")),
                 }
             )
+        elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
+            tool_message: Dict[str, Any] = content_block.get("toolResult", {})
+            tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
+            tool_message_id: str = tool_message.get("toolUseId", "")
+
+            for tool_message_content in tool_message_contents:
+                tool_message_content_text: Optional[str] = tool_message_content.get("text")
+                tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
+
+                tool_messages.append(
+                    {
+                        "content": tool_message_content_text
+                        or (tool_message_content_json and safe_json(tool_message_content_json))
+                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                        "role": "tool",
+                        "tool_id": tool_message_id,
+                    }
+                )
         else:
             content_type = ",".join(content_block.keys())
-            messages.append({"content": "[Unsupported content type: {}]".format(content_type), "role": role})
+            unsupported_content_messages.append(
+                {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
+            )
     message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
@@ -294,15 +341,21 @@ def get_messages_from_converse_content(role: str, content: list):
         message.update({"content": " ".join(content_blocks), "role": role})
     if message:
         messages.append(message)
+    if unsupported_content_messages:
+        messages.extend(unsupported_content_messages)
+    if tool_messages:
+        messages.extend(tool_messages)
     return messages
 
 
-def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
+def openai_set_meta_tags_from_completion(
+    span: Span, kwargs: Dict[str, Any], completions: Any, integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "completion")
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -316,15 +369,33 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     )
 
 
-def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+def openai_set_meta_tags_from_chat(
+    span: Span, kwargs: Dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        tool_call_id = m.get("tool_call_id")
+        processed_message = {
+            "content": str(_get_attr(m, "content", "")),
+            "role": str(_get_attr(m, "role", "")),
+        }  # type: dict[str, Union[str, list[dict[str, dict]]]]
+        tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-        input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
+            processed_message["tool_id"] = tool_call_id
+        tool_calls = _get_attr(m, "tool_calls", [])
+        if tool_calls:
+            processed_message["tool_calls"] = [
+                {
+                    "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                    "arguments": _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
+                    "tool_id": _get_attr(tool_call, "id", ""),
+                    "type": _get_attr(tool_call, "type", ""),
+                }
+                for tool_call in tool_calls
+            ]
+        input_messages.append(processed_message)
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -396,12 +467,212 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
+def get_metadata_from_kwargs(
+    kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
+) -> Dict[str, Any]:
+    metadata = {}
+    if integration_name == "openai":
+        keys_to_skip = OPENAI_SKIPPED_CHAT_TAGS if operation == "chat" else OPENAI_SKIPPED_COMPLETION_TAGS
+        metadata = {k: v for k, v in kwargs.items() if k not in keys_to_skip}
+    elif integration_name == "litellm":
+        keys_to_include = LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
+        metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
+    return metadata
+
+
+def openai_get_input_messages_from_response_input(
+    messages: Optional[Union[str, List[Dict[str, Any]]]]
+) -> List[Dict[str, Any]]:
+    """Parses the input to openai responses api into a list of input messages
+
+    Args:
+        messages: the input to openai responses api
+
+    Returns:
+        - A list of processed messages
+    """
+    processed: List[Dict[str, Any]] = []
+
+    if not messages:
+        return processed
+
+    if isinstance(messages, str):
+        return [{"role": "user", "content": messages}]
+
+    for item in messages:
+        processed_item: Dict[str, Union[str, List[Dict[str, str]]]] = {}
+        # Handle regular message
+        if "content" in item and "role" in item:
+            processed_item_content = ""
+            if isinstance(item["content"], list):
+                for content in item["content"]:
+                    processed_item_content += str(content.get("text", "") or "")
+                    processed_item_content += str(content.get("refusal", "") or "")
+            else:
+                processed_item_content = item["content"]
+            if processed_item_content:
+                processed_item["content"] = str(processed_item_content)
+                processed_item["role"] = item["role"]
+        elif "call_id" in item and "arguments" in item:
+            # Process `ResponseFunctionToolCallParam` type from input messages
+            try:
+                arguments = json.loads(item["arguments"])
+            except json.JSONDecodeError:
+                arguments = {"value": str(item["arguments"])}
+            processed_item["tool_calls"] = [
+                {
+                    "tool_id": item["call_id"],
+                    "arguments": arguments,
+                    "name": item.get("name", ""),
+                    "type": item.get("type", "function_call"),
+                }
+            ]
+        elif "call_id" in item and "output" in item:
+            # Process `FunctionCallOutput` type from input messages
+            output = item["output"]
+
+            if not isinstance(output, str):
+                output = safe_json(output)
+
+            processed_item.update(
+                {
+                    "role": "tool",
+                    "content": output,
+                    "tool_id": item["call_id"],
+                }
+            )
+        if processed_item:
+            processed.append(processed_item)
+
+    return processed
+
+
+def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Dict[str, Any]]:
+    """
+    Parses the output to openai responses api into a list of output messages
+
+    Args:
+        response: An OpenAI response object or dictionary containing output messages
+
+    Returns:
+        - A list of processed messages
+    """
+    if not response:
+        return []
+
+    messages = _get_attr(response, "output", [])
+    if not messages:
+        return []
+
+    processed: List[Dict[str, Any]] = []
+
+    for item in messages:
+        message = {}
+        message_type = _get_attr(item, "type", "")
+
+        if message_type == "message":
+            text = ""
+            for content in _get_attr(item, "content", []):
+                text += str(_get_attr(content, "text", "") or "")
+                text += str(_get_attr(content, "refusal", "") or "")
+            message.update({"role": _get_attr(item, "role", "assistant"), "content": text})
+        elif message_type == "reasoning":
+            message.update(
+                {
+                    "role": "reasoning",
+                    "content": safe_json(
+                        {
+                            "summary": _get_attr(item, "summary", ""),
+                            "encrypted_content": _get_attr(item, "encrypted_content", ""),
+                            "id": _get_attr(item, "id", ""),
+                        }
+                    ),
+                }
+            )
+        elif message_type == "function_call":
+            arguments = _get_attr(item, "arguments", "{}")
+            try:
+                arguments = json.loads(arguments)
+            except json.JSONDecodeError:
+                arguments = {"value": str(arguments)}
+            message.update(
+                {
+                    "tool_calls": [
+                        {
+                            "tool_id": _get_attr(item, "call_id", ""),
+                            "arguments": arguments,
+                            "name": _get_attr(item, "name", ""),
+                            "type": _get_attr(item, "type", "function"),
+                        }
+                    ]
+                }
+            )
+        else:
+            message.update({"role": "assistant", "content": "Unsupported content type: {}".format(message_type)})
+
+        processed.append(message)
+
+    return processed
+
+
+def openai_get_metadata_from_response(
+    response: Optional[Any], kwargs: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    metadata = {}
+
+    if kwargs:
+        metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
+
+    if not response:
+        return metadata
+
+    # Add metadata from response
+    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text", "user"]:
+        value = getattr(response, field, None)
+        if value is not None:
+            metadata[field] = load_oai_span_data_value(value)
+
+    usage = getattr(response, "usage", None)
+    output_tokens_details = getattr(usage, "output_tokens_details", None)
+    reasoning_tokens = getattr(output_tokens_details, "reasoning_tokens", 0)
+    metadata["reasoning_tokens"] = reasoning_tokens
+
+    return metadata
+
+
+def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], response: Optional[Any]) -> None:
+    """Extract input/output tags from response and set them as temporary "_ml_obs.meta.*" tags."""
+    input_data = kwargs.get("input", [])
+    input_messages = openai_get_input_messages_from_response_input(input_data)
+
+    if "instructions" in kwargs:
+        input_messages.insert(0, {"content": str(kwargs["instructions"]), "role": "system"})
+
+    span._set_ctx_items(
+        {
+            INPUT_MESSAGES: input_messages,
+            METADATA: openai_get_metadata_from_response(response, kwargs),
+        }
+    )
+
+    if span.error or not response:
+        span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
+        return
+
+    # The response potentially contains enriched metadata (ex. tool calls) not in the original request
+    metadata = span._get_ctx_item(METADATA) or {}
+    metadata.update(openai_get_metadata_from_response(response))
+    span._set_ctx_item(METADATA, metadata)
+    output_messages = openai_get_output_messages_from_response(response)
+    span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
     """Constructs a completion dictionary of form {"text": "...", "finish_reason": "..."} from streamed chunks."""
     if not streamed_chunks:
         return {"text": ""}
     completion = {"text": "".join(c.text for c in streamed_chunks if getattr(c, "text", None))}
-    if streamed_chunks[-1].finish_reason is not None:
+    if getattr(streamed_chunks[-1], "finish_reason", None):
         completion["finish_reason"] = streamed_chunks[-1].finish_reason
     if hasattr(streamed_chunks[0], "usage"):
         completion["usage"] = streamed_chunks[0].usage
@@ -442,24 +713,24 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
-        if getattr(chunk, "usage", None):
+        if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
-        if not hasattr(chunk, "delta"):
+        if not _get_attr(chunk, "delta", None):
             continue
-        if getattr(chunk, "index", None) and not message.get("index"):
+        if _get_attr(chunk, "index", None) and not message.get("index"):
             message["index"] = chunk.index
-        if getattr(chunk.delta, "role") and not message.get("role"):
+        if _get_attr(chunk.delta, "role", None) and not message.get("role"):
             message["role"] = chunk.delta.role
-        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
+        if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        chunk_content = getattr(chunk.delta, "content", "")
+        chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
             continue
-        function_call = getattr(chunk.delta, "function_call", None)
+        function_call = _get_attr(chunk.delta, "function_call", None)
         if function_call:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = getattr(chunk.delta, "tool_calls", None)
+        tool_calls = _get_attr(chunk.delta, "tool_calls", None)
         if not tool_calls:
             continue
         for tool_call in tool_calls:
@@ -470,6 +741,18 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
         message.pop("tool_calls", None)
     message["content"] = message["content"].strip()
     return message
+
+
+def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
+    """Helper to update the input and output value for workflow spans."""
+    if span_kind != "workflow":
+        return
+    input_messages = span._get_ctx_item(INPUT_MESSAGES)
+    output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
+    if input_messages:
+        span._set_ctx_item(INPUT_VALUE, input_messages)
+    if output_messages:
+        span._set_ctx_item(OUTPUT_VALUE, output_messages)
 
 
 class OaiSpanAdapter:
@@ -943,3 +1226,88 @@ def get_final_message_converse_stream_message(
         message_output["tool_calls"] = tool_calls
 
     return message_output
+
+
+_punc_regex = re.compile(r"[\w']+|[.,!?;~@#$%^&*()+/-]")
+
+
+def _compute_prompt_tokens(model_name, prompts=None, messages=None):
+    """Compute token span metrics on streamed chat/completion requests.
+    Only required if token usage is not provided in the streamed response.
+    """
+    num_prompt_tokens = 0
+    estimated = False
+    if messages:
+        for m in messages:
+            estimated, prompt_tokens = _compute_token_count(m.get("content", ""), model_name)
+            num_prompt_tokens += prompt_tokens
+    elif prompts:
+        if isinstance(prompts, str) or isinstance(prompts, list) and isinstance(prompts[0], int):
+            prompts = [prompts]
+        for prompt in prompts:
+            estimated, prompt_tokens = _compute_token_count(prompt, model_name)
+            num_prompt_tokens += prompt_tokens
+    return estimated, num_prompt_tokens
+
+
+def _compute_completion_tokens(completions_or_messages, model_name):
+    """Compute/Estimate the completion token count from the streamed response."""
+    if not completions_or_messages:
+        return False, 0
+    estimated = False
+    num_completion_tokens = 0
+    for choice in completions_or_messages:
+        content = choice.get("content", "") or choice.get("text", "")
+        estimated, completion_tokens = _compute_token_count(content, model_name)
+        num_completion_tokens += completion_tokens
+    return estimated, num_completion_tokens
+
+
+def _compute_token_count(content, model):
+    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
+    """
+    Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
+    tokens was estimated, and the estimated/calculated prompt token count.
+    """
+    num_prompt_tokens = 0
+    estimated = False
+    if model is not None and tiktoken_available is True:
+        try:
+            enc = encoding_for_model(model)
+            if isinstance(content, str):
+                num_prompt_tokens += len(enc.encode(content))
+            elif content and isinstance(content, list) and isinstance(content[0], int):
+                num_prompt_tokens += len(content)
+            return estimated, num_prompt_tokens
+        except KeyError:
+            # tiktoken.encoding_for_model() will raise a KeyError if it doesn't have a tokenizer for the model
+            estimated = True
+    else:
+        estimated = True
+
+    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
+    return estimated, _est_tokens(content)
+
+
+def _est_tokens(prompt):
+    # type: (Union[str, List[int]]) -> int
+    """
+    Provide a very rough estimate of the number of tokens in a string prompt.
+    Note that if the prompt is passed in as a token array (list of ints), the token count
+    is just the length of the token array.
+    """
+    # If model is unavailable or tiktoken is not imported, then provide a very rough estimate of the number of tokens
+    # Approximate using the following assumptions:
+    #    * English text
+    #    * 1 token ~= 4 chars
+    #    * 1 token ~= ¾ words
+    if not prompt:
+        return 0
+    est_tokens = 0
+    if isinstance(prompt, str):
+        est1 = len(prompt) / 4
+        est2 = len(_punc_regex.findall(prompt)) * 0.75
+        return round((1.5 * est1 + 0.5 * est2) / 2)
+    elif isinstance(prompt, list) and isinstance(prompt[0], int):
+        return len(prompt)
+    return est_tokens

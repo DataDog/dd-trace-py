@@ -39,6 +39,7 @@ config._add(
         _default_service=schematize_service_name("starlette"),
         request_span_name="starlette.request",
         distributed_tracing=True,
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
@@ -50,6 +51,10 @@ def get_version():
 
 
 _STARLETTE_VERSION = parse_version(get_version())
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"starlette": ">=0.14.0"}
 
 
 def traced_init(wrapped, instance, args, kwargs):

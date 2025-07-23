@@ -142,7 +142,7 @@ def _get_span_name(span: Span) -> str:
     if span.name in STANDARD_INTEGRATION_SPAN_NAMES and span.resource != "":
         return span.resource
     elif span.name == OPENAI_APM_SPAN_NAME and span.resource != "":
-        client_name = span.get_tag("openai.request.client") or "OpenAI"
+        client_name = span.get_tag("openai.request.provider") or "OpenAI"
         return "{}.{}".format(client_name, span.resource)
     return span._get_ctx_item(NAME) or span.name
 
@@ -232,6 +232,12 @@ def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]
     for message in messages:
         message.setdefault("role", "")
     return messages
+
+
+def convert_tags_dict_to_list(tags: Dict[str, str]) -> List[str]:
+    if not tags:
+        return []
+    return [f"{key}:{value}" for key, value in tags.items()]
 
 
 @dataclass
