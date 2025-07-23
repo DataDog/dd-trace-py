@@ -19,7 +19,6 @@
       "openai.request.model": "dall-e",
       "openai.request.provider": "OpenAI",
       "openai.response.created": "1685630540",
-      "openai.response.images.0.url": "https://oaidalleapiprodscus.blob.core.windows.net/private/org-OS4zcsDN8sF8E8CdhxgMkBV4/user-uYJDLWPStCQHcYnk3EXTJvGk/img-ZLW2TDa...",
       "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
     },
     "metrics": {
@@ -27,7 +26,6 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "openai.response.images_count": 1,
       "process_id": 88640
     },
     "duration": 10683000,
