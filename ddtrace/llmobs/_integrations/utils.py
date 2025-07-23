@@ -50,6 +50,57 @@ OPENAI_SKIPPED_CHAT_TAGS = (
     LITELLM_ROUTER_INSTANCE_KEY,
 )
 
+LITELLM_METADATA_CHAT_KEYS = (
+    "timeout",
+    "temperature",
+    "top_p",
+    "n",
+    "stream",
+    "stream_options",
+    "stop",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "prediction",
+    "presence_penalty",
+    "frequency_penalty",
+    "logit_bias",
+    "user",
+    "response_format",
+    "seed",
+    "tool_choice",
+    "parallel_tool_calls",
+    "logprobs",
+    "top_logprobs",
+    "deployment_id",
+    "reasoning_effort",
+    "base_url",
+    "api_base",
+    "api_version",
+    "model_list",
+)
+LITELLM_METADATA_COMPLETION_KEYS = (
+    "best_of",
+    "echo",
+    "frequency_penalty",
+    "logit_bias",
+    "logprobs",
+    "max_tokens",
+    "n",
+    "presence_penalty",
+    "stop",
+    "stream",
+    "stream_options",
+    "suffix",
+    "temperature",
+    "top_p",
+    "user",
+    "api_base",
+    "api_version",
+    "model_list",
+    "custom_llm_provider",
+)
+
 
 def extract_model_name_google(instance, model_name_attr):
     """Extract the model name from the instance.
@@ -299,12 +350,14 @@ def get_messages_from_converse_content(role: str, content: list):
     return messages
 
 
-def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
+def openai_set_meta_tags_from_completion(
+    span: Span, kwargs: Dict[str, Any], completions: Any, integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "completion")
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -318,7 +371,9 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     )
 
 
-def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+def openai_set_meta_tags_from_chat(
+    span: Span, kwargs: Dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
@@ -326,7 +381,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
         input_messages.append({"content": str(_get_attr(m, "content", "")), "role": str(_get_attr(m, "role", ""))})
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -396,6 +451,19 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
             continue
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
+def get_metadata_from_kwargs(
+    kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
+) -> Dict[str, Any]:
+    metadata = {}
+    if integration_name == "openai":
+        keys_to_skip = OPENAI_SKIPPED_CHAT_TAGS if operation == "chat" else OPENAI_SKIPPED_COMPLETION_TAGS
+        metadata = {k: v for k, v in kwargs.items() if k not in keys_to_skip}
+    elif integration_name == "litellm":
+        keys_to_include = LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
+        metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
+    return metadata
 
 
 def openai_get_input_messages_from_response_input(
