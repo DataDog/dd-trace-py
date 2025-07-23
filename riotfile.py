@@ -395,6 +395,7 @@ venv = Venv(
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
+                "django": latest,
             },
         ),
         Venv(
