@@ -145,11 +145,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
         model = getattr(agent, "model", None)
         if model:
-            model_name, provider = self._get_model_and_provider(model)
+            model_name, _ = self._get_model_and_provider(model)
             if model_name:
                 manifest["model"] = model_name
-            if provider:
-                manifest["model_provider"] = provider
         if hasattr(agent, "model_settings"):
             manifest["model_settings"] = agent.model_settings
         if hasattr(agent, "_instructions"):

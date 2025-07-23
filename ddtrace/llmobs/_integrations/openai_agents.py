@@ -44,16 +44,6 @@ try:
 except ImportError:
     handoffs_available = False
 
-try:
-    from agents import (
-        WebSearchTool,
-        FileSearchTool,
-        ComputerTool,
-    )
-    tools_available = True
-except ImportError:
-    tools_available = False
-
 
 logger = get_logger(__name__)
 
@@ -359,10 +349,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # convert model_settings to dict if it's not already
         model_settings = agent.model_settings
         if type(model_settings) != dict:
-            if hasattr(model_settings, "__dict__"):
-                model_settings = model_settings.__dict__
-            else:
-                return None
+            model_settings = getattr(model_settings, "__dict__", None)
 
         return load_data_value(model_settings)
 
@@ -373,24 +360,45 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         tools = []
         for tool in agent.tools:
             tool_dict = {}
-            if tools_available and isinstance(tool, WebSearchTool):
+            tool_name = getattr(tool, "name", None)
+            if tool_name:
+                tool_dict["name"] = tool_name
+            if tool_name == "web_search_preview":
                 if hasattr(tool, "user_location"):
                     tool_dict["user_location"] = tool.user_location
                 if hasattr(tool, "search_context_size"):
                     tool_dict["search_context_size"] = tool.search_context_size
-            elif tools_available and isinstance(tool, FileSearchTool):
+            elif tool_name == "file_search":
                 if hasattr(tool, "vector_store_ids"):
                     tool_dict["vector_store_ids"] = tool.vector_store_ids
                 if hasattr(tool, "max_num_results"):
                     tool_dict["max_num_results"] = tool.max_num_results
                 if hasattr(tool, "include_search_results"):
                     tool_dict["include_search_results"] = tool.include_search_results
-            elif tools_available and isinstance(tool, ComputerTool):
-                if hasattr(tool, "name"):
-                    tool_dict["name"] = tool.name
+                if hasattr(tool, "ranking_options"):
+                    tool_dict["ranking_options"] = tool.ranking_options
+                if hasattr(tool, "filters"):
+                    tool_dict["filters"] = tool.filters
+            elif tool_name == "computer_use_preview":
+                if hasattr(tool, "computer"):
+                    tool_dict["computer"] = tool.computer
+                if hasattr(tool, "on_safety_check"):
+                    tool_dict["on_safety_check"] = tool.on_safety_check
+            elif tool_name == "code_interpreter":
+                if hasattr(tool, "tool_config"):
+                    tool_dict["tool_config"] = tool.tool_config
+            elif tool_name == "hosted_mcp":
+                if hasattr(tool, "tool_config"):
+                    tool_dict["tool_config"] = tool.tool_config
+                if hasattr(tool, "on_approval_request"):
+                    tool_dict["on_approval_request"] = tool.on_approval_request
+            elif tool_name == "image_generation":
+                if hasattr(tool, "tool_config"):
+                    tool_dict["tool_config"] = tool.tool_config
+            elif tool_name == "local_shell":
+                if hasattr(tool, "executor"):
+                    tool_dict["executor"] = tool.executor
             else:
-                if hasattr(tool, "name"):
-                    tool_dict["name"] = tool.name
                 if hasattr(tool, "description"):
                     tool_dict["description"] = tool.description
                 if hasattr(tool, "strict_json_schema"):
