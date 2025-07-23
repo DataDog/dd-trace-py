@@ -421,7 +421,6 @@ class _ImageHook(_EndpointHook):
         span.set_tag_str("openai.request.model", "dall-e")
 
 
-
 class _ImageCreateHook(_ImageHook):
     _request_arg_params = ()
     _request_kwarg_params = ()
@@ -434,7 +433,6 @@ class _ImageEditHook(_ImageHook):
     _request_kwarg_params = ()
     ENDPOINT_NAME = "images/edits"
     OPERATION_ID = "createImageEdit"
-
 
 
 class _ImageVariationHook(_ImageHook):
@@ -486,7 +484,6 @@ class _ModerationHook(_EndpointHook):
 
     def _record_request(self, pin, integration, instance, span, args, kwargs):
         super()._record_request(pin, integration, instance, span, args, kwargs)
-
 
 
 class _BaseFileHook(_EndpointHook):
@@ -557,7 +554,7 @@ class _ResponseHook(_BaseCompletionHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
             integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
-            return 
+            return
         if kwargs.get("stream") and error is None:
             return self._handle_streamed_response(integration, span, kwargs, resp, operation_type="response")
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="response")
