@@ -656,6 +656,8 @@ class LLMObs(Service):
             # Always restore the original field size limit
             csv.field_size_limit(original_field_size_limit)
 
+        if len(ds) > 0:
+            ds.push()
         return ds
 
     @classmethod
