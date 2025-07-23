@@ -23,3 +23,10 @@ class HttpEndPointsCollection:
         """Reset the collection to its initial state."""
         self.endpoints.clear()
         self.is_first = True
+
+    def add_endpoint(self, method: str, path: str):
+        """
+        Add an endpoint to the collection.
+        If the endpoint already exists, it will not be added again.
+        """
+        self.endpoints.append(HttpEndPoint(method=method, path=path))
