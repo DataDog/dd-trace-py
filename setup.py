@@ -432,11 +432,13 @@ class CustomBuildExt(build_ext):
         is_release = True
         build_crate(NATIVE_CRATE, is_release, native_features)
 
-        target_dir = None
+        target_dir = NATIVE_CRATE / "target"
+        if sys.platform == "win32" and not is_64_bit_python():
+            target_dir = target_dir / "i686-pc-windows-msvc"
         if is_release:
-            target_dir = NATIVE_CRATE / "target" / "release"
+            target_dir = target_dir / "release"
         else:
-            target_dir = NATIVE_CRATE / "target" / "debug"
+            target_dir = target_dir / "debug"
 
         library = None
         link_file = None
