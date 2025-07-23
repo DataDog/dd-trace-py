@@ -672,7 +672,7 @@ class LLMObs(Service):
     def experiment(
         cls,
         name: str,
-        task: Callable[[DatasetRecordInputType], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
@@ -682,7 +682,7 @@ class LLMObs(Service):
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
         :param name: The name of the experiment.
-        :param task: The task function to run. Must accept a parameter ``input_data`` and optionally ``config``.
+        :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
@@ -694,8 +694,8 @@ class LLMObs(Service):
             raise TypeError("task must be a callable function.")
         sig = inspect.signature(task)
         params = sig.parameters
-        if "input_data" not in params:
-            raise TypeError("Task function must accept 'input_data' parameters.")
+        if "input_data" not in params or "config" not in params:
+            raise TypeError("Task function must have 'input_data' and 'config' parameters.")
         if not isinstance(dataset, Dataset):
             raise TypeError("Dataset must be an LLMObs Dataset object.")
         if not evaluators or not all(callable(evaluator) for evaluator in evaluators):

@@ -28,11 +28,11 @@ def wait_for_backend():
         time.sleep(2)
 
 
-def dummy_task(input_data):
+def dummy_task(input_data, config):
     return input_data
 
 
-def faulty_task(input_data):
+def faulty_task(input_data, config):
     raise ValueError("This is a test error")
 
 
@@ -389,9 +389,15 @@ def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
 
 
 def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Task function must accept 'input_data' parameters."):
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
 
         def my_task(not_input):
+            pass
+
+        llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        def my_task(input_data, not_config):
             pass
 
         llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])

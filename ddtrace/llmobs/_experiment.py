@@ -226,7 +226,7 @@ class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
@@ -318,7 +318,7 @@ class Experiment:
             }
             output_data = None
             try:
-                output_data = self._task(input_data)
+                output_data = self._task(input_data, self._config)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
