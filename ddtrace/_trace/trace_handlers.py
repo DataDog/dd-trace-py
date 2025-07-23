@@ -892,9 +892,11 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
     span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
     span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
-    span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
     span.set_tag_str(MESSAGING_OPERATION, "receive")
     span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+    if message_id is not None:
+        span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
 
 
 def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
