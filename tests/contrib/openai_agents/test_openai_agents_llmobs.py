@@ -32,7 +32,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Addition Agent": {
         "framework": "OpenAI",
         "name": "Addition Agent",
-        "instructions": "You are a helpful assistant specialized in addition calculations.",
+        "instructions": "You are a helpful assistant specialized in addition calculations. Do not retry the tool call if it errors and instead return immediately",
         "handoff_description": None,
         "model": "gpt-4o",
         "model_settings": mock.ANY,

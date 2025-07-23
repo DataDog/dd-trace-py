@@ -32,9 +32,27 @@ from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import make_json_compatible
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
+
+try:
+    from agents import Agent
+    from agents import Handoff
+    handoffs_available = True
+except ImportError:
+    handoffs_available = False
+
+try:
+    from agents import (
+        WebSearchTool,
+        FileSearchTool,
+        ComputerTool,
+    )
+    tools_available = True
+except ImportError:
+    tools_available = False
 
 
 logger = get_logger(__name__)
@@ -350,37 +368,28 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             else:
                 return None
 
-        return self._make_json_compatible(model_settings)
+        return make_json_compatible(model_settings)
 
     def _extract_tools_from_agent(self, agent):
-        try:
-            from agents import (
-                WebSearchTool,
-                FileSearchTool,
-                ComputerTool,
-            )
-        except ImportError:
-            return None
-
         if not hasattr(agent, "tools") or not agent.tools:
             return None
 
         tools = []
         for tool in agent.tools:
             tool_dict = {}
-            if isinstance(tool, WebSearchTool):
+            if tools_available and isinstance(tool, WebSearchTool):
                 if hasattr(tool, "user_location"):
                     tool_dict["user_location"] = tool.user_location
                 if hasattr(tool, "search_context_size"):
                     tool_dict["search_context_size"] = tool.search_context_size
-            elif isinstance(tool, FileSearchTool):
+            elif tools_available and isinstance(tool, FileSearchTool):
                 if hasattr(tool, "vector_store_ids"):
                     tool_dict["vector_store_ids"] = tool.vector_store_ids
                 if hasattr(tool, "max_num_results"):
                     tool_dict["max_num_results"] = tool.max_num_results
                 if hasattr(tool, "include_search_results"):
                     tool_dict["include_search_results"] = tool.include_search_results
-            elif isinstance(tool, ComputerTool):
+            elif tools_available and isinstance(tool, ComputerTool):
                 if hasattr(tool, "name"):
                     tool_dict["name"] = tool.name
             else:
@@ -409,13 +418,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         return tools
 
     def _extract_handoffs_from_agent(self, agent):
-        try:
-            from agents import Agent
-            from agents import Handoff
-        except ImportError:
-            return None
-
-        if not hasattr(agent, "handoffs") or not agent.handoffs:
+        if handoffs_available is False or not hasattr(agent, "handoffs") or not agent.handoffs:
             return None
 
         handoffs = []
@@ -445,13 +448,3 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if hasattr(agent, "output_guardrails"):
             guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
         return guardrails
-
-    def _make_json_compatible(self, obj):
-        if isinstance(obj, dict):
-            return {str(k): self._make_json_compatible(v) for k, v in obj.items()}
-        elif isinstance(obj, (list, tuple, set)):
-            return [self._make_json_compatible(v) for v in obj]
-        elif isinstance(obj, (int, float, str, bool)) or obj is None:
-            return obj
-        else:
-            return str(obj)

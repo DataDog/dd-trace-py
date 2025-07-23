@@ -215,6 +215,17 @@ def safe_json(obj, ensure_ascii=True):
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
 
+def make_json_compatible(obj):
+    if isinstance(obj, dict):
+        return {str(k): make_json_compatible(v) for k, v in obj.items()}
+    elif isinstance(obj, (list, tuple, set)):
+        return [make_json_compatible(v) for v in obj]
+    elif isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+    else:
+        return str(obj)
+
+
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
     current_span_links = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
