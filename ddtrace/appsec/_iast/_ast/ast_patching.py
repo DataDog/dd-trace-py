@@ -114,6 +114,10 @@ def _should_iast_patch(module_name: str) -> bool:
         When asm_config._iast_debug is True, the function will log detailed information about
         why a module was allowed or denied patching.
     """
+    global IAST_PATCHING_LAZY_LOADED
+    if IAST_PATCHING_LAZY_LOADED:
+        initialize_iast_lists()
+        IAST_PATCHING_LAZY_LOADED = False
     result = False
     try:
         result = iastpatch.should_iast_patch(module_name)
@@ -246,11 +250,6 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         - Skips binary/native modules
         - Can be controlled via IAST.ENV_NO_DIR_PATCH environment variable to disable __dir__ wrapping
     """
-    global IAST_PATCHING_LAZY_LOADED
-    if IAST_PATCHING_LAZY_LOADED:
-        initialize_iast_lists()
-        IAST_PATCHING_LAZY_LOADED = False
-
     module_name = module.__name__
 
     module_origin = origin(module)

@@ -19,9 +19,6 @@ Supported vulnerability types include:
 - Unvalidated Redirects
 - Weak Cryptography
 """
-
-from wrapt import when_imported
-
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
@@ -66,11 +63,21 @@ def patch_iast(patch_modules=IAST_PATCH):
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-    # TODO: Devise the correct patching strategy for IAST
-    from ddtrace._monkey import _on_import_factory
+    import importlib
 
-    for module in (m for m, e in patch_modules.items() if e):
-        when_imported("hashlib")(_on_import_factory(module, "ddtrace.appsec._iast.taint_sinks.%s", raise_errors=False))
+    for module_name in (m for m, e in patch_modules.items() if e):
+        try:
+            # Import the taint sink module
+            module_path = f"ddtrace.appsec._iast.taint_sinks.{module_name}"
+            module = importlib.import_module(module_path)
+
+            # Check if the module has a patch function and call it
+            if hasattr(module, "patch") and callable(getattr(module, "patch")):
+                module.patch()
+        except ImportError:
+            pass
+    module = importlib.import_module("ddtrace.appsec._iast._patches.json_tainting")
+    module.patch()
 
     iast_funcs = WrapFunctonsForIAST()
 
@@ -114,4 +121,3 @@ def patch_iast(patch_modules=IAST_PATCH):
     #  iast_funcs.wrap_function("markupsafe", "escape", xss_sanitizer)
 
     iast_funcs.patch()
-    when_imported("json")(_on_import_factory("json_tainting", "ddtrace.appsec._iast._patches.%s", raise_errors=False))
