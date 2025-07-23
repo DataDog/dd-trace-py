@@ -6,12 +6,13 @@ from typing import List
 class HttpEndPoint:
     method: str
     path: str
+    resource_name: str = dataclasses.field(default="")
     operation_name: str = dataclasses.field(default="http.request", init=False)
-    resource_name: str = dataclasses.field(init=False)
 
     def __post_init__(self):
         super().__setattr__("method", self.method.upper())
-        super().__setattr__("resource_name", f"{self.method} {self.path}")
+        if not self.resource_name:
+            super().__setattr__("resource_name", f"{self.method} {self.path}")
 
 
 @dataclasses.dataclass()
@@ -24,9 +25,9 @@ class HttpEndPointsCollection:
         self.endpoints.clear()
         self.is_first = True
 
-    def add_endpoint(self, method: str, path: str):
+    def add_endpoint(self, method: str, path: str, resource_name: str = ""):
         """
         Add an endpoint to the collection.
         If the endpoint already exists, it will not be added again.
         """
-        self.endpoints.append(HttpEndPoint(method=method, path=path))
+        self.endpoints.append(HttpEndPoint(method=method, path=path, resource_name=resource_name))
