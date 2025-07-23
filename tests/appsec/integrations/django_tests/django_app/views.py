@@ -3,17 +3,15 @@ Class based views used for Django tests.
 """
 
 import hashlib
-from html import escape
 import json
 import os
-from pathlib import Path
-from pathlib import PosixPath
+import re
 import shlex
 import subprocess
-from typing import Any
 import urllib
-import re
-
+from html import escape
+from pathlib import Path, PosixPath
+from typing import Any
 
 from django import VERSION as DJANGO_VERSION
 from django.db import connection
@@ -534,10 +532,8 @@ def ssrf_requests(request):
     Request Forgery (SSRF).
     """
 
-    from typing import Optional  # type: ignore
-
-    value: Optional[str] = request.GET.get("url")
-    option: Optional[str] = request.GET.get("option")
+    value: str | None = request.GET.get("url")
+    option: str | None = request.GET.get("option")
 
     # Nothing to do if no user input was supplied
     if value is None or option is None:
