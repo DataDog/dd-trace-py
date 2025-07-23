@@ -2,6 +2,7 @@
 Class based views used for Django tests.
 """
 
+# Standard library
 import hashlib
 import json
 import os
@@ -13,20 +14,22 @@ from html import escape
 from pathlib import Path, PosixPath
 from typing import Any
 
+# Third-party libraries
+import requests
 from django import VERSION as DJANGO_VERSION
 from django.db import connection
-from django.http import HttpResponse
-from django.http import JsonResponse
-from django.shortcuts import redirect
-from django.shortcuts import render
+from django.http import HttpResponse, JsonResponse
+from django.shortcuts import redirect, render
 from django.utils.safestring import mark_safe
 from django.views.decorators.csrf import csrf_exempt
-import requests
 from requests.exceptions import ConnectionError  # noqa: A004
 
+# First-party/Datadog
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec._iast._taint_tracking import OriginType
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import (
+    is_pyobject_tainted,
+)
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._trace_utils import block_request_if_user_blocked
 from ddtrace.trace import tracer
