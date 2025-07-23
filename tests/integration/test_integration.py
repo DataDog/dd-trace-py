@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
-from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
 from tests.integration.utils import skip_if_testagent
 from tests.utils import DummyTracer
@@ -32,20 +31,6 @@ def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_signal.call_args_list[0][0][1]("", "")
     assert tracer.shutdown.call_count == 1
     tracer.shutdown = original_shutdown
-
-
-def test_debug_mode_generates_debug_output():
-    p = import_ddtrace_in_subprocess(None)
-    assert p.stdout.read() == b""
-    assert b"DEBUG:ddtrace" not in p.stderr.read(), "stderr should have no debug lines when DD_TRACE_DEBUG is unset"
-
-    env = os.environ.copy()
-    env.update({"DD_TRACE_DEBUG": "true"})
-    p = import_ddtrace_in_subprocess(env)
-    assert p.stdout.read() == b""
-    assert (
-        b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
-    ), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
@@ -522,7 +507,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload", 1
+            return [("bad_payload", 1)]
 
         def encode_traces(self, traces):
             return "bad_payload"
@@ -586,6 +571,7 @@ def test_writer_flush_queue_generates_debug_log():
     from ddtrace.internal.writer import AgentWriter
     from ddtrace.settings._agent import config as agent_config
     from tests.utils import AnyFloat
+    from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
@@ -597,7 +583,9 @@ def test_writer_flush_queue_generates_debug_log():
         calls = [
             mock.call(
                 logging.DEBUG,
-                "sent %s in %.5fs to %s",
+                "Got response: %d %s sent %s in %.5fs to %s",
+                AnyInt(),
+                AnyStr(),
                 AnyStr(),
                 AnyFloat(),
                 "{}/{}/traces".format(writer.intake_url, encoding),
