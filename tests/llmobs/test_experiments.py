@@ -228,6 +228,16 @@ def test_dataset_csv_pipe_separated(llmobs):
 
     assert dataset.description == "A good pipe separated csv dataset"
 
+    assert dataset._id is not None
+
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=dataset.name)
+
+    assert len(ds) == len(dataset)
+    assert ds.name == dataset.name
+    assert ds.description == dataset.description
+    assert ds._version == 1
+
     llmobs._delete_dataset(dataset_id=dataset._id)
 
 def test_dataset_pull_non_existent(llmobs):
