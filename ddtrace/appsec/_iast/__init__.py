@@ -37,10 +37,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
-from ._ast.ast_patching import _should_iast_patch
-from ._ast.ast_patching import astpatch_module
 from ._listener import iast_listen
-from ._loader import _exec_iast_patched_module
 from ._overhead_control_engine import oce
 
 
@@ -60,6 +57,8 @@ def ddtrace_iast_flask_patch():
     """
     if not asm_config._iast_enabled:
         return
+
+    from ._ast.ast_patching import astpatch_module
 
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
     module = sys.modules[module_name]
@@ -86,6 +85,8 @@ def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
+    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
     global _iast_propagation_enabled
     if _iast_propagation_enabled:
@@ -119,6 +120,9 @@ def disable_iast_propagation():
     """Remove IAST AST patching from the ModuleWatchdog. Only for testing proposes"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
+    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+
     global _iast_propagation_enabled
     if not _iast_propagation_enabled:
         return
