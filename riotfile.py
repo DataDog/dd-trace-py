@@ -2890,13 +2890,8 @@ venv = Venv(
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
+                "mcp": ["~=1.10.0", latest],
             },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={"mcp": ["~=1.10.0", latest]},
-                ),
-            ],
         ),
         Venv(
             name="litellm",
@@ -3139,6 +3134,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
+                "pandas": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
