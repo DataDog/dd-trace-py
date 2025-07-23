@@ -1,4 +1,5 @@
 from flask import Flask
+
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
