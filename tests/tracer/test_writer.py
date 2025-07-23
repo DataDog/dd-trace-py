@@ -630,7 +630,7 @@ class NativeWriterTests(AgentWriterTests):
             # We had 4 successfully written, then 4 dropped, then 2 written.
             for trace in payload:
                 assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
-                
+
     # The NativeWriter does not support gzip compression
     def test_gzip_compression_exception_logging_and_metrics(self):
         pytest.skip()
