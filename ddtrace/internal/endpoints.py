@@ -31,3 +31,23 @@ class HttpEndPointsCollection:
         If the endpoint already exists, it will not be added again.
         """
         self.endpoints.append(HttpEndPoint(method=method, path=path, resource_name=resource_name))
+
+    def flush(self, max_length: int):
+        """
+        Flush the endpoints to a payload, returning the first `max` endpoints.
+        """
+        if max_length >= len(self.endpoints):
+            res = {
+                "is_first": self.is_first,
+                "endpoints": [dataclasses.asdict(ep) for ep in self.endpoints],
+            }
+            self.reset()
+            return res
+        else:
+            res = {
+                "is_first": self.is_first,
+                "endpoints": [dataclasses.asdict(ep) for ep in self.endpoints[:max_length]],
+            }
+            self.endpoints = self.endpoints[max_length:]
+            self.is_first = False
+            return res

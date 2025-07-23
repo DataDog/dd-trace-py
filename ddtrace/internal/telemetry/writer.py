@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-import dataclasses
 import http.client as httplib  # noqa: E402
 import itertools
 import os
@@ -430,8 +429,9 @@ class TelemetryWriter(PeriodicService):
             return
 
         with self._service_lock:
-            payload = dataclasses.asdict(asm_config_module.endpoint_collection)
-            asm_config_module.endpoint_collection.reset()
+            payload = asm_config_module.endpoint_collection.flush(
+                asm_config_module.config._api_security_endpoint_collection_limit
+            )
 
         self.add_event(payload, "app-endpoints")
 
