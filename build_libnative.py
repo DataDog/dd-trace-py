@@ -2,6 +2,7 @@ import argparse
 import os
 import subprocess
 import sys
+import platform
 from pathlib import Path
 
 def is_installed(bin_file):
@@ -19,7 +20,7 @@ def install_dedup_headers():
             )
 
 
-def build_crate(crate_dir: Path, release: bool, features: list = None):
+def build_crate(crate_dir: Path, release: bool, features: list[str] | None = None):
     env = os.environ.copy()
     abs_dir = crate_dir.absolute()
     env["CARGO_TARGET_DIR"] = str(abs_dir / "target")
@@ -33,6 +34,11 @@ def build_crate(crate_dir: Path, release: bool, features: list = None):
         cmd_features = ', '.join(features)
         build_cmd += ["--features", cmd_features]
 
+    # Check if we're on Windows and if Python is 32-bit
+    if platform.system() == "Windows" and sys.maxsize <= 2**32:
+        # We're building for 32-bit Windows, use the i686 target
+        build_cmd += ["--target", "i686-pc-windows-msvc"]
+
     subprocess.run(
             build_cmd,
             cwd=str(crate_dir),
@@ -40,7 +46,7 @@ def build_crate(crate_dir: Path, release: bool, features: list = None):
             env=env,
             )
 
-    if 'profiling' in features:
+    if features and 'profiling' in features:
         install_dedup_headers()
 
         # Add cargo binary folder to PATH
