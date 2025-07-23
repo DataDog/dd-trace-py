@@ -321,13 +321,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         agent = get_argument_value(args, kwargs, agent_index, "agent", None)
         if not agent or not self.llmobs_enabled:
             return
-        agent_manifest = self._create_agent_manifest(agent)
-        span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
-
-    def _create_agent_manifest(self, agent):
+        
         manifest = {}
         manifest["framework"] = "OpenAI"
-
         if hasattr(agent, "name"):
             manifest["name"] = agent.name
         if hasattr(agent, "instructions"):
@@ -354,7 +350,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if guardrails:
             manifest["guardrails"] = guardrails
 
-        return manifest
+        span._set_ctx_item(AGENT_MANIFEST, manifest)
 
     def _extract_model_settings_from_agent(self, agent):
         if not hasattr(agent, "model_settings"):
