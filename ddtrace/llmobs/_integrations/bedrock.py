@@ -13,6 +13,7 @@ from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -30,6 +31,7 @@ from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
 from ddtrace.llmobs._writer import LLMObsSpanEvent
 from ddtrace.trace import Span
 
@@ -151,6 +153,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 INPUT_VALUE: str(input_value),
                 TAGS: {"session_id": session_id},
                 METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
+                INTEGRATION: "bedrock_agents",
             }
         )
         if not response:
@@ -176,6 +179,7 @@ class BedrockIntegration(BaseLLMIntegration):
             )
         for _, span_event in self._spans.items():
             LLMObs._instance._llmobs_span_writer.enqueue(span_event)
+            record_bedrock_agent_span_event_created(span_event)
         self._spans.clear()
         self._active_span_by_step_id.clear()
 

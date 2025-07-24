@@ -48,7 +48,7 @@ with tracer.trace("test") as span:
     } in events_trace_sample_rate
 
     events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
-    assert {"name": "DD_LOGS_INJECTION", "value": "true", "origin": "env_var"} in events_logs_injection_enabled
+    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in events_logs_injection_enabled
 
     events_trace_header_tags = _get_telemetry_config_items(events, "DD_TRACE_HEADER_TAGS")
     assert {
@@ -80,7 +80,7 @@ def test_setting_origin_code(test_agent_session, run_python_code_in_subprocess):
         """
 from ddtrace import config, tracer
 
-config._logs_injection = "false"
+config._logs_injection = False
 config._trace_http_header_tags = {"header": "value"}
 config.tags = {"header": "value"}
 config._tracing_enabled = False
@@ -98,7 +98,7 @@ telemetry_writer._app_started()
     events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
     assert {
         "name": "DD_LOGS_INJECTION",
-        "value": "false",
+        "value": False,
         "origin": "code",
     } in events_logs_injection_enabled
 
@@ -193,7 +193,7 @@ call_apm_tracing_rc(
         {
             "tracing_sampling_rules": [
                 {
-                    "sample_rate": "0.5",
+                    "sample_rate": 0.5,
                     "service": "*",
                     "name": "*",
                     "resource": "*",
@@ -218,7 +218,7 @@ assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
     assert {
         "name": "DD_TRACE_SAMPLING_RULES",
         "origin": "remote_config",
-        "value": '[{"sample_rate": "0.5", "service": "*", "name": "*", "resource": "*", '
+        "value": '[{"sample_rate": 0.5, "service": "*", "name": "*", "resource": "*", '
         '"tags": {}, "provenance": "customer"}]',
     } in events_trace_sample_rate
 
