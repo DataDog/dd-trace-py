@@ -252,8 +252,8 @@ def test_extended_sampling_tags_and_name_glob():
 )
 def test_extended_sampling_tags_partial_match():
     """
-   For a span to match a sampling rule it must contain all the tags listed in the rule.
-   Partial matches are not allowed.
+    For a span to match a sampling rule it must contain all the tags listed in the rule.
+    Partial matches are not allowed.
     """
     from ddtrace.trace import tracer
 
