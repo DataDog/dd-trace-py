@@ -83,7 +83,6 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-
     def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
         """Handle streamed response objects returned from completions/chat/response endpoint calls.
 
