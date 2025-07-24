@@ -48,7 +48,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         # DEV: args are not used here, but are used by BufferedEncoder's __cinit__() method,
         #      which is called implicitly by Cython.
         super(CIVisibilityEncoderV01, self).__init__()
-        self._metadata: dict[str, dict[str, str]] = {}
+        self._metadata: Dict[str, Dict[str, str]] = {}
         self._lock = threading.RLock()
         self._is_xdist_worker = os.getenv("PYTEST_XDIST_WORKER") is not None
         self._init_buffer()
@@ -57,7 +57,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         with self._lock:
             return len(self.buffer)
 
-    def set_metadata(self, event_type: str, metadata: dict[str, str]):
+    def set_metadata(self, event_type: str, metadata: Dict[str, str]):
         self._metadata.setdefault(event_type, {}).update(metadata)
 
     def _init_buffer(self):
@@ -172,7 +172,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         return all_spans_with_trace_info
 
-    def _create_payload_from_spans(self, spans: list[dict[str, Any]]) -> bytes:
+    def _create_payload_from_spans(self, spans: List[Dict[str, Any]]) -> bytes:
         """Create a payload from the given spans."""
         return CIVisibilityEncoderV01._pack_payload(
             {
@@ -312,7 +312,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
 
     def _convert_span(
         self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         # DEV: new_parent_session_span_id is unused here, but it is used in super class
         files: dict[str, Any] = {}
 
