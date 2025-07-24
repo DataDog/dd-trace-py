@@ -397,6 +397,13 @@ class SpanAggregator(SpanProcessor):
                 self.sampling_processor.sampler.update_rate_by_service_sample_rates(
                     resp.rate_by_service,
                 )
+            else:
+                log.error(
+                    "Agent response callback was called but the sampler is not a DatadogSampler. "
+                    "Agent based sampling rules will not be updated. Sampler: %r, Response: %r",
+                    self.sampling_processor.sampler,
+                    resp,
+                )
         except ValueError as e:
             log.error("Failed to set agent service sample rates: %s", str(e))
 

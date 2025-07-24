@@ -320,6 +320,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
             self._metrics_dist("http.dropped.traces", count)
+        else:
+            log.debug(
+                "Successfully sent %d traces to the agent. Payload size: %s, Response: %r",
+                count,
+                _human_size(len(payload)),
+                response,
+            )
         return response
 
     def write(self, spans=None):
