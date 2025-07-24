@@ -138,7 +138,6 @@ ENV/
 # Cursor
 .cursor/
 
-
 # Claude
 CLAUDE.local.md
 
