@@ -4187,6 +4187,94 @@ class PytestTestCase(PytestTestCaseBase):
         result = self.subprocess_run("--ddtrace", file_name)
         assert result.ret == 0
 
+    def test_pytest_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
+    def test_pytest_no_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run(file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
 
 def test_pytest_coverage_data_format_handling_none_value():
     """Test that coverage data format issues are handled correctly with proper logging for None value."""
