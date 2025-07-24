@@ -19,7 +19,6 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -39,23 +38,109 @@ except ModuleNotFoundError:
 
 logger = get_logger(__name__)
 
-OPENAI_SKIPPED_COMPLETION_TAGS = (
-    "model",
-    "prompt",
-    "api_key",
-    "user_api_key",
-    "user_api_key_hash",
-    LITELLM_ROUTER_INSTANCE_KEY,
+COMMON_METADATA_KEYS = (
+    "stream",
+    "temperature",
+    "top_p",
+    "user",
 )
-OPENAI_SKIPPED_CHAT_TAGS = (
-    "model",
-    "messages",
+OPENAI_METADATA_RESPONSE_KEYS = (
+    "background",
+    "include",
+    "max_output_tokens",
+    "max_tool_calls",
+    "parallel_tool_calls",
+    "previous_response_id",
+    "prompt",
+    "reasoning",
+    "service_tier",
+    "store",
+    "text",
+    "tool_choice",
     "tools",
-    "functions",
-    "api_key",
-    "user_api_key",
-    "user_api_key_hash",
-    LITELLM_ROUTER_INSTANCE_KEY,
+    "top_logprobs",
+    "truncation",
+)
+OPENAI_METADATA_CHAT_KEYS = (
+    "audio",
+    "frequency_penalty",
+    "function_call",
+    "logit_bias",
+    "logprobs",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "n",
+    "parallel_tool_calls",
+    "prediction",
+    "presence_penalty",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "service_tier",
+    "stop",
+    "store",
+    "stream_options",
+    "tool_choice",
+    "top_logprobs",
+    "web_search_options",
+)
+OPENAI_METADATA_COMPLETION_KEYS = (
+    "best_of",
+    "echo",
+    "frequency_penalty",
+    "logit_bias",
+    "logprobs",
+    "max_tokens",
+    "n",
+    "presence_penalty",
+    "seed",
+    "stop",
+    "stream_options",
+    "suffix",
+)
+
+LITELLM_METADATA_CHAT_KEYS = (
+    "timeout",
+    "n",
+    "stream_options",
+    "stop",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "prediction",
+    "presence_penalty",
+    "frequency_penalty",
+    "logit_bias",
+    "response_format",
+    "seed",
+    "tool_choice",
+    "parallel_tool_calls",
+    "logprobs",
+    "top_logprobs",
+    "deployment_id",
+    "reasoning_effort",
+    "base_url",
+    "api_base",
+    "api_version",
+    "model_list",
+)
+LITELLM_METADATA_COMPLETION_KEYS = (
+    "best_of",
+    "echo",
+    "frequency_penalty",
+    "logit_bias",
+    "logprobs",
+    "max_tokens",
+    "n",
+    "presence_penalty",
+    "stop",
+    "stream_options",
+    "suffix",
+    "api_base",
+    "api_version",
+    "model_list",
+    "custom_llm_provider",
 )
 
 
@@ -201,12 +286,14 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     return messages
 
 
-def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], completions: Any) -> None:
+def openai_set_meta_tags_from_completion(
+    span: Span, kwargs: Dict[str, Any], completions: Any, integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a completion and set them as temporary "_ml_obs.meta.*" tags."""
     prompt = kwargs.get("prompt", "")
     if isinstance(prompt, str):
         prompt = [prompt]
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_COMPLETION_TAGS}
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "completion")
     output_messages = [{"content": ""}]
     if not span.error and completions:
         choices = getattr(completions, "choices", completions)
@@ -220,7 +307,9 @@ def openai_set_meta_tags_from_completion(span: Span, kwargs: Dict[str, Any], com
     )
 
 
-def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages: Optional[Any]) -> None:
+def openai_set_meta_tags_from_chat(
+    span: Span, kwargs: Dict[str, Any], messages: Optional[Any], integration_name: str = "openai"
+) -> None:
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
@@ -244,7 +333,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
                 for tool_call in tool_calls
             ]
         input_messages.append(processed_message)
-    parameters = {k: v for k, v in kwargs.items() if k not in OPENAI_SKIPPED_CHAT_TAGS}
+    parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if span.error or not messages:
@@ -314,6 +403,19 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
             continue
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
+def get_metadata_from_kwargs(
+    kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
+) -> Dict[str, Any]:
+    metadata = {}
+    keys_to_include: Tuple[str, ...] = COMMON_METADATA_KEYS
+    if integration_name == "openai":
+        keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
+    elif integration_name == "litellm":
+        keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
+    metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
+    return metadata
 
 
 def openai_get_input_messages_from_response_input(
@@ -457,7 +559,7 @@ def openai_get_metadata_from_response(
     metadata = {}
 
     if kwargs:
-        metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
+        metadata.update({k: v for k, v in kwargs.items() if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS})
 
     if not response:
         return metadata
@@ -549,24 +651,24 @@ def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) ->
     """
     message: Dict[str, Any] = {"content": "", "tool_calls": []}
     for chunk in streamed_chunks:
-        if getattr(chunk, "usage", None):
+        if _get_attr(chunk, "usage", None):
             message["usage"] = chunk.usage
-        if not hasattr(chunk, "delta"):
+        if not _get_attr(chunk, "delta", None):
             continue
-        if getattr(chunk, "index", None) and not message.get("index"):
+        if _get_attr(chunk, "index", None) and not message.get("index"):
             message["index"] = chunk.index
-        if getattr(chunk.delta, "role") and not message.get("role"):
+        if _get_attr(chunk.delta, "role", None) and not message.get("role"):
             message["role"] = chunk.delta.role
-        if getattr(chunk, "finish_reason", None) and not message.get("finish_reason"):
+        if _get_attr(chunk, "finish_reason", None) and not message.get("finish_reason"):
             message["finish_reason"] = chunk.finish_reason
-        chunk_content = getattr(chunk.delta, "content", "")
+        chunk_content = _get_attr(chunk.delta, "content", "")
         if chunk_content:
             message["content"] += chunk_content
             continue
-        function_call = getattr(chunk.delta, "function_call", None)
+        function_call = _get_attr(chunk.delta, "function_call", None)
         if function_call:
             openai_construct_tool_call_from_streamed_chunk(message["tool_calls"], function_call_chunk=function_call)
-        tool_calls = getattr(chunk.delta, "tool_calls", None)
+        tool_calls = _get_attr(chunk.delta, "tool_calls", None)
         if not tool_calls:
             continue
         for tool_call in tool_calls:
