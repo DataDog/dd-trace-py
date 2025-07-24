@@ -1,7 +1,7 @@
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
-from typing import Any
 
 
 # TypedDict was added to typing in python 3.8
