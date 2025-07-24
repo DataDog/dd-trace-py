@@ -12,9 +12,6 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
-# ---------------------------------------------------------------------------------------------------
-# Below are util functions shared by all google integrations
-# ---------------------------------------------------------------------------------------------------
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
