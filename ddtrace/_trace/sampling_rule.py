@@ -1,4 +1,3 @@
-from fnmatch import fnmatch
 from typing import Any
 from typing import Optional
 from typing import Tuple
@@ -124,13 +123,10 @@ class SamplingRule(object):
             return False
 
         for tag_key, pattern in self._tag_value_matchers.items():
-            if tag_key not in meta and tag_key not in metrics:
-                # If the tag is not present, we failed the match
-                return False
             value = meta.get(tag_key, metrics.get(tag_key))
-            if pattern == "None" and value != "None":
-                # Metrics does not support 'None' as a value, and metric converts None to 'None'
-                # so we need to check for that explicitly. We should not match 'None' to any other value (ex: *).
+            if value is None:
+                # If the tag is not present, we failed the match
+                # (Metrics and meta do not support the value None)
                 return False
 
             if isinstance(value, float):
@@ -138,10 +134,9 @@ class SamplingRule(object):
                 # SamplingRules only support integers for matfching or glob patterns.
                 if value.is_integer():
                     value = int(value)
-                elif fnmatch(pattern.pattern, "*[0-9]*"):
-                    # If the value is float and the pattern contains a digit, we do not match the rule.
-                    # We should only match patterns that can capture all characters (ex: * or ?*) and not
-                    # patterns like `23.*`. Why? Well that's just the current spec and we have a shared test for this.
+                elif set(pattern.pattern) - {"?", "*"}:
+                    # Only match floats to patterns that only contain wildcards (ex: * or ?*)
+                    # This is because we do not want to match floats to patterns like `23.*`.
                     return False
 
             if not pattern.match(str(value)):
