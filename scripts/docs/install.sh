@@ -2,9 +2,7 @@
 
 set -ex
 
-if [[ "${CIRCLECI}" = "true" ]]; then
-    echo "Skipping install"
-elif [[ "${READTHEDOCS}" = "True" ]]; then
+if [[ "${READTHEDOCS}" = "True" ]]; then
     # We skip here because we do not check spelling in RTD
     echo "Skipping install"
 else
