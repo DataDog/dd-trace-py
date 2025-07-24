@@ -2158,14 +2158,19 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
+        ), override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ):
             self.inline_run("--ddtrace")
 

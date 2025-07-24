@@ -87,7 +87,9 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
         """Set suite-level tags based on ITR enablement status"""
         super()._set_itr_tags(itr_enabled)
 
-        if itr_enabled and self._session_settings.itr_correlation_id:
+        # Only set correlation ID on suites when in suite-level skipping mode
+        if (itr_enabled and self._session_settings.itr_correlation_id and 
+            self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE):
             self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
     def _telemetry_record_event_created(self):

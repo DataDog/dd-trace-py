@@ -18,6 +18,7 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityChildItem
 from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
@@ -286,6 +287,15 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def has_failed_all_retries(self):
         return bool(self.get_tag(TEST_HAS_FAILED_ALL_RETRIES))
+
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
+        """Set test-level ITR tags"""
+        super()._set_itr_tags(itr_enabled)
+        
+        # Only set correlation ID on tests when in test-level skipping mode
+        if (itr_enabled and self._session_settings.itr_correlation_id and 
+            self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST):
+            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
     #
     # EFD (Early Flake Detection) functionality
