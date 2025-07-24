@@ -1072,6 +1072,7 @@ class OaiTraceAdapter:
         """Get the raw OpenAI Agents SDK trace."""
         return self._trace
 
+
 @dataclass
 class LLMObsTraceInfo:
     """Metadata for llmobs trace used for setting root span attributes and span links"""

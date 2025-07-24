@@ -304,7 +304,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         agent = get_argument_value(args, kwargs, agent_index, "agent", None)
         if not agent or not self.llmobs_enabled:
             return
-        
+
         manifest = {}
         manifest["framework"] = "OpenAI"
         if hasattr(agent, "name"):
@@ -422,7 +422,9 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         for handoff in agent.handoffs:
             handoff_dict = {}
             if hasattr(handoff, "handoff_description") or hasattr(handoff, "tool_description"):
-                handoff_dict["handoff_description"] = getattr(handoff, "handoff_description", None) or getattr(handoff, "tool_description", None)
+                handoff_dict["handoff_description"] = getattr(handoff, "handoff_description", None) or getattr(
+                    handoff, "tool_description", None
+                )
             if hasattr(handoff, "name") or hasattr(handoff, "agent_name"):
                 handoff_dict["agent_name"] = getattr(handoff, "name", None) or getattr(handoff, "agent_name", None)
             if hasattr(handoff, "tool_name"):

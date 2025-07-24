@@ -216,6 +216,7 @@ def safe_json(obj, ensure_ascii=True):
     except Exception:
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
+
 def load_data_value(value):
     if isinstance(value, (list, tuple, set)):
         return [load_data_value(item) for item in value]
@@ -233,7 +234,6 @@ def load_data_value(value):
             return json.loads(value_str)
         except json.JSONDecodeError:
             return value_str
-
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
