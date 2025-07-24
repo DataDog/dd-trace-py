@@ -12,6 +12,9 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 
 
+# Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
+# we use "assistant" as the default role for model messages
+GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -68,11 +71,6 @@ def extract_provider_and_model_name(
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
     return "custom", model_name if model_name else "custom"
-
-
-# google genai has roles "model" and "user", but in order to stay consistent with other integrations,
-# we use "assistant" as the default role for model messages
-GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
 
 def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
