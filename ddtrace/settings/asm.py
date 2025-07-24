@@ -247,9 +247,8 @@ class ASMConfig(DDConfig):
             self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
             self._asm_http_span_types.add(SpanTypes.SERVERLESS)
 
-            # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
+            # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._api_security_enabled = False
             self._ep_enabled = False
             self._iast_supported = False
 
