@@ -1002,6 +1002,7 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+  :recursive: true
 
 
 Live Debugging
