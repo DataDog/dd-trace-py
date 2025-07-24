@@ -73,6 +73,14 @@ def test_unsupported_sampling_mechanism():
 
 
 @pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": "0"}])})
+def test_extended_sampling_string_sample_rate():
+    from ddtrace.trace import tracer
+
+    tracer.trace("should_not_send").finish()
+
+
+@pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
 def test_extended_sampling_resource():
     from ddtrace.trace import tracer
