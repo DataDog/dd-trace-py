@@ -20,6 +20,7 @@ from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 log = get_logger(__name__)
@@ -182,8 +183,6 @@ class Telemetry_result:
 
 
 def parse_response_body(raw_body, headers):
-    import xmltodict
-
     if not raw_body:
         return
 
