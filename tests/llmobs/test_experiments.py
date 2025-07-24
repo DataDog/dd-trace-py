@@ -28,11 +28,11 @@ def wait_for_backend():
         time.sleep(2)
 
 
-def dummy_task(input_data):
+def dummy_task(input_data, config):
     return input_data
 
 
-def faulty_task(input_data):
+def faulty_task(input_data, config):
     raise ValueError("This is a test error")
 
 
@@ -84,6 +84,177 @@ def test_dataset_create_delete(llmobs):
     assert dataset._id is not None
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
+    dataset = test_dataset_one_record
+    df = dataset.as_dataframe()
+    assert len(df.columns) == 2
+    assert df.size == 2  # size is num elements in a series
+
+
+def test_csv_dataset_as_dataframe(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+
+        df = dataset.as_dataframe()
+        assert len(df.columns) == 6
+        assert sorted(df.columns) == [
+            ("expected_output", "out0"),
+            ("expected_output", "out1"),
+            ("input_data", "in0"),
+            ("input_data", "in1"),
+            ("input_data", "in2"),
+            ("metadata", "m0"),
+        ]
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_missing_input_col(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(ValueError, match=re.escape("Input columns not found in CSV header: ['in998', 'in999']")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in998", "in999"],
+            expected_output_columns=["out0", "out1"],
+        )
+
+
+def test_dataset_csv_missing_output_col(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(ValueError, match=re.escape("Expected output columns not found in CSV header: ['out999']")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out999"],
+        )
+
+
+def test_dataset_csv_empty_csv(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/empty.csv")
+    with pytest.raises(ValueError, match=re.escape("CSV file appears to be empty or header is missing.")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-bad-csv",
+            description="not a real csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0"],
+        )
+
+
+def test_dataset_csv(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
+
+        assert dataset.description == "A good csv dataset"
+
+        assert dataset._id is not None
+
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
+
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_pipe_separated(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv-pipe",
+            description="A good pipe separated csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+            csv_delimiter="|",
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
+
+        assert len(dataset[0]["metadata"]) == 1
+        assert dataset[0]["metadata"]["m0"] == "r0v6"
+        assert dataset[1]["metadata"]["m0"] == "r1v6"
+
+        assert dataset.description == "A good pipe separated csv dataset"
+
+        assert dataset._id is not None
+
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
+
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_pull_non_existent(llmobs):
@@ -218,9 +389,15 @@ def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
 
 
 def test_experiment_invalid_task_signature_raises(llmobs, test_dataset_one_record):
-    with pytest.raises(TypeError, match="Task function must accept 'input_data' parameters."):
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
 
         def my_task(not_input):
+            pass
+
+        llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(TypeError, match="Task function must have 'input_data' and 'config' parameters."):
+
+        def my_task(input_data, not_config):
             pass
 
         llmobs.experiment("test_experiment", my_task, test_dataset_one_record, [dummy_evaluator])
