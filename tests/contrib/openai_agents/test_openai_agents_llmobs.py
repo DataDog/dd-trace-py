@@ -421,10 +421,9 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         tool_calls=[{"type": "function_call", "error": False}],
     )
 
+
 @pytest.mark.asyncio
-async def test_llmobs_single_agent_with_ootb_tools(
-    agents, mock_tracer, request_vcr, llmobs_events, weather_agent
-):
+async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_vcr, llmobs_events, weather_agent):
     with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
         result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
 
@@ -463,7 +462,6 @@ async def test_llmobs_single_agent_with_ootb_tools(
             ),
         ],
     )
-
 
 
 @pytest.mark.asyncio

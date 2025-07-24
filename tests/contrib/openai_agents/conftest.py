@@ -103,17 +103,17 @@ def addition_agent_with_tool_errors():
         model="gpt-4o",
     )
 
+
 @pytest.fixture
 def web_search():
     yield WebSearchTool(user_location=UserLocation(type="approximate", city="New York"))
+
 
 @pytest.fixture
 def weather_agent(web_search):
     yield Agent(
         name="Weather Agent",
-        instructions=(
-            "You are a helpful assistant specialized in searching the web for weather information."
-        ),
+        instructions=("You are a helpful assistant specialized in searching the web for weather information."),
         tools=[web_search],
         model="gpt-4o",
     )
