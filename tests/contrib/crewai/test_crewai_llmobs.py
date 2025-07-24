@@ -3,6 +3,7 @@ import mock
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
+
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Senior Research Scientist": {
         "framework": "CrewAI",
@@ -22,7 +23,9 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "framework": "CrewAI",
         "name": "AI Reporting Analyst",
         "goal": "Create detailed reports based on AI data analysis and research findings",
-        "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn complex data into clear and concise reports, making it easy for others to understand and act on the information you provide.",
+        "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
+        "complex data into clear and concise reports, making it easy for others to understand and act on the "
+        "information you provide.",
         "model": "gpt-4o-mini",
         "model_settings": {"max_tokens": None, "temperature": None},
         "handoffs": {"allow_delegation": False},
@@ -43,7 +46,8 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "tools": [
             {
                 "name": "Average Calculator",
-                "description": "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, 'type': 'list'}}\nTool Description: This tool returns the average of a list of numbers.",
+                "description": "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, "
+                "'type': 'list'}}\nTool Description: This tool returns the average of a list of numbers.",
             }
         ],
     },

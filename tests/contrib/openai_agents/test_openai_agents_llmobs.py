@@ -51,7 +51,8 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Researcher": {
         "framework": "OpenAI",
         "name": "Researcher",
-        "instructions": "You are a helpful assistant that can research a topic using your research tool. Always research the topic before summarizing.",
+        "instructions": "You are a helpful assistant that can research a topic using your research tool. "
+        "Always research the topic before summarizing.",
         "handoff_description": None,
         "model": "gpt-4o",
         "model_settings": mock.ANY,

@@ -5,12 +5,12 @@ from agents.tracing import add_trace_processor
 
 from ddtrace import config
 from ddtrace.contrib.internal.openai_agents.processor import LLMObsTraceProcessor
+from ddtrace.contrib.trace_utils import unwrap
+from ddtrace.contrib.trace_utils import with_traced_module_async
+from ddtrace.contrib.trace_utils import wrap
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.openai_agents import OpenAIAgentsIntegration
 from ddtrace.trace import Pin
-from ddtrace.contrib.trace_utils import with_traced_module_async
-from ddtrace.contrib.trace_utils import wrap
-from ddtrace.contrib.trace_utils import unwrap
 
 
 config._add("openai_agents", {})

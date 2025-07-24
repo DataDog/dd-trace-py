@@ -32,8 +32,8 @@ from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
 from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import _get_span_name
+from ddtrace.llmobs._utils import load_data_value
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 

@@ -1,5 +1,5 @@
 from typing import Dict
-from unittest import mock
+
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 

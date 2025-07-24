@@ -5,8 +5,8 @@ from typing_extensions import TypedDict
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_agent_metadata
-from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_calculate_square_tool
+from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
