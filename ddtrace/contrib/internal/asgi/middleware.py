@@ -465,6 +465,7 @@ class TraceMiddleware:
                         core.dispatch("asgi.websocket.receive", (message,))
                         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
                         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+                        recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
 
                         _set_message_tags_on_span(recv_span, message)
 
@@ -598,10 +599,10 @@ class TraceMiddleware:
                                 client_ip = client[0]
                                 send_span.set_tag_str("out.host", client_ip)
                                 try:
-                                    ipaddress.ip_address(client_ip)  # validate ip address
-                                    span.set_tag_str("network.client.ip", client_ip)
+                                    ipaddress.ip_address(client_ip)
+                                    send_span.set_tag_str("network.client.ip", client_ip)
                                 except ValueError:
-                                    pass
+                                    log.debug("Could not validate client IP address")
 
                             send_span.set_link(
                                 trace_id=span.trace_id,
@@ -653,9 +654,9 @@ class TraceMiddleware:
                                 close_span.set_tag_str("out.host", client_ip)
                                 try:
                                     ipaddress.ip_address(client_ip)  # validate ip address
-                                    span.set_tag_str("network.client.ip", client_ip)
+                                    close_span.set_tag_str("network.client.ip", client_ip)
                                 except ValueError:
-                                    pass
+                                    log.debug("Could not validate client IP address")
 
                             _set_message_tags_on_span(close_span, message)
                             # should act like send span (outgoing message) case

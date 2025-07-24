@@ -45,6 +45,7 @@
       "language": "python",
       "runtime-id": "cf9158d9012e4063924f267d23815f1f",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {
@@ -104,6 +105,7 @@
       "language": "python",
       "runtime-id": "cf9158d9012e4063924f267d23815f1f",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {

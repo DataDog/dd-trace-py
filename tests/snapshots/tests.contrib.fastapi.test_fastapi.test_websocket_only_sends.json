@@ -45,6 +45,7 @@
       "language": "python",
       "runtime-id": "a4074fce5f0741f5bbb12dd08a21e9e7",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {
@@ -104,6 +105,7 @@
       "language": "python",
       "runtime-id": "a4074fce5f0741f5bbb12dd08a21e9e7",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {
@@ -163,6 +165,7 @@
       "language": "python",
       "runtime-id": "a4074fce5f0741f5bbb12dd08a21e9e7",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {
@@ -222,6 +225,7 @@
       "language": "python",
       "runtime-id": "a4074fce5f0741f5bbb12dd08a21e9e7",
       "span.kind": "consumer",
+      "websocket.duration.style": "blocking",
       "websocket.message.type": "text"
     },
     "metrics": {
