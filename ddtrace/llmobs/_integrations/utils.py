@@ -19,7 +19,6 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
-from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
@@ -39,31 +38,71 @@ except ModuleNotFoundError:
 
 logger = get_logger(__name__)
 
-OPENAI_SKIPPED_COMPLETION_TAGS = (
-    "model",
-    "prompt",
-    "api_key",
-    "user_api_key",
-    "user_api_key_hash",
-    LITELLM_ROUTER_INSTANCE_KEY,
+COMMON_METADATA_KEYS = (
+    "stream",
+    "temperature",
+    "top_p",
+    "user",
 )
-OPENAI_SKIPPED_CHAT_TAGS = (
-    "model",
-    "messages",
+OPENAI_METADATA_RESPONSE_KEYS = (
+    "background",
+    "include",
+    "max_output_tokens",
+    "max_tool_calls",
+    "parallel_tool_calls",
+    "previous_response_id",
+    "prompt",
+    "reasoning",
+    "service_tier",
+    "store",
+    "text",
+    "tool_choice",
     "tools",
-    "functions",
-    "api_key",
-    "user_api_key",
-    "user_api_key_hash",
-    LITELLM_ROUTER_INSTANCE_KEY,
+    "top_logprobs",
+    "truncation",
+)
+OPENAI_METADATA_CHAT_KEYS = (
+    "audio",
+    "frequency_penalty",
+    "function_call",
+    "logit_bias",
+    "logprobs",
+    "max_completion_tokens",
+    "max_tokens",
+    "modalities",
+    "n",
+    "parallel_tool_calls",
+    "prediction",
+    "presence_penalty",
+    "reasoning_effort",
+    "response_format",
+    "seed",
+    "service_tier",
+    "stop",
+    "store",
+    "stream_options",
+    "tool_choice",
+    "top_logprobs",
+    "web_search_options",
+)
+OPENAI_METADATA_COMPLETION_KEYS = (
+    "best_of",
+    "echo",
+    "frequency_penalty",
+    "logit_bias",
+    "logprobs",
+    "max_tokens",
+    "n",
+    "presence_penalty",
+    "seed",
+    "stop",
+    "stream_options",
+    "suffix",
 )
 
 LITELLM_METADATA_CHAT_KEYS = (
     "timeout",
-    "temperature",
-    "top_p",
     "n",
-    "stream",
     "stream_options",
     "stop",
     "max_completion_tokens",
@@ -73,7 +112,6 @@ LITELLM_METADATA_CHAT_KEYS = (
     "presence_penalty",
     "frequency_penalty",
     "logit_bias",
-    "user",
     "response_format",
     "seed",
     "tool_choice",
@@ -97,12 +135,8 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "n",
     "presence_penalty",
     "stop",
-    "stream",
     "stream_options",
     "suffix",
-    "temperature",
-    "top_p",
-    "user",
     "api_base",
     "api_version",
     "model_list",
@@ -471,12 +505,12 @@ def get_metadata_from_kwargs(
     kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
 ) -> Dict[str, Any]:
     metadata = {}
+    keys_to_include: Tuple[str, ...] = COMMON_METADATA_KEYS
     if integration_name == "openai":
-        keys_to_skip = OPENAI_SKIPPED_CHAT_TAGS if operation == "chat" else OPENAI_SKIPPED_COMPLETION_TAGS
-        metadata = {k: v for k, v in kwargs.items() if k not in keys_to_skip}
+        keys_to_include += OPENAI_METADATA_CHAT_KEYS if operation == "chat" else OPENAI_METADATA_COMPLETION_KEYS
     elif integration_name == "litellm":
-        keys_to_include = LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
-        metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
+        keys_to_include += LITELLM_METADATA_CHAT_KEYS if operation == "chat" else LITELLM_METADATA_COMPLETION_KEYS
+    metadata = {k: v for k, v in kwargs.items() if k in keys_to_include}
     return metadata
 
 
@@ -621,7 +655,7 @@ def openai_get_metadata_from_response(
     metadata = {}
 
     if kwargs:
-        metadata.update({k: v for k, v in kwargs.items() if k not in ("model", "input", "instructions")})
+        metadata.update({k: v for k, v in kwargs.items() if k in OPENAI_METADATA_RESPONSE_KEYS + COMMON_METADATA_KEYS})
 
     if not response:
         return metadata

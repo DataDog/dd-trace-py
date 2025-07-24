@@ -33,6 +33,30 @@ BRANCH = "git.branch"
 # Git Commit SHA
 COMMIT_SHA = "git.commit.sha"
 
+# Git Commit HEAD SHA
+COMMIT_HEAD_SHA = "git.commit.head.sha"
+
+# Git Commit HEAD message
+COMMIT_HEAD_MESSAGE = "git.commit.head.message"
+
+# Git Commit HEAD author date
+COMMIT_HEAD_AUTHOR_DATE = "git.commit.head.author.date"
+
+# Git Commit HEAD author email
+COMMIT_HEAD_AUTHOR_EMAIL = "git.commit.head.author.email"
+
+# Git Commit HEAD author name
+COMMIT_HEAD_AUTHOR_NAME = "git.commit.head.author.name"
+
+# Git Commit HEAD committer date
+COMMIT_HEAD_COMMITTER_DATE = "git.commit.head.committer.date"
+
+# Git Commit HEAD committer email
+COMMIT_HEAD_COMMITTER_EMAIL = "git.commit.head.committer.email"
+
+# Git Commit HEAD committer name
+COMMIT_HEAD_COMMITTER_NAME = "git.commit.head.committer.name"
+
 # Git Repository URL
 REPOSITORY_URL = "git.repository_url"
 
@@ -173,11 +197,12 @@ def _get_device_for_path(path):
     return os.stat(path).st_dev
 
 
-def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
-    # type (Optional[str], Optional[str], Optional[str]) -> _GitSubprocessDetails
+def _unshallow_repository_with_details(
+    cwd: Optional[str] = None, repo: Optional[str] = None, refspec: Optional[str] = None, parent_only: bool = False
+) -> _GitSubprocessDetails:
     cmd = [
         "fetch",
-        '--shallow-since="1 month ago"',
+        "--deepen=1" if parent_only else '--shallow-since="1 month ago"',
         "--update-shallow",
         "--filter=blob:none",
         "--recurse-submodules=no",
@@ -190,18 +215,22 @@ def _unshallow_repository_with_details(cwd=None, repo=None, refspec=None):
     return _git_subprocess_cmd_with_details(*cmd, cwd=cwd)
 
 
-def _unshallow_repository(cwd=None, repo=None, refspec=None):
-    # type (Optional[str], Optional[str], Optional[str]) -> None
-    _unshallow_repository_with_details(cwd, repo, refspec)
+def _unshallow_repository(
+    cwd: Optional[str] = None,
+    repo: Optional[str] = None,
+    refspec: Optional[str] = None,
+    parent_only: bool = False,
+) -> None:
+    _unshallow_repository_with_details(cwd, repo, refspec, parent_only)
 
 
-def extract_user_info(cwd=None):
-    # type: (Optional[str]) -> Dict[str, Tuple[str, str, str]]
+def extract_user_info(cwd: Optional[str] = None, commit_sha: Optional[str] = None) -> Dict[str, Tuple[str, str, str]]:
     """Extract commit author info from the git repository in the current directory or one specified by ``cwd``."""
     # Note: `git show -s --format... --date...` is supported since git 2.1.4 onwards
-    stdout = _git_subprocess_cmd(
-        "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z", cwd=cwd
-    )
+    cmd = "show -s --format=%an|||%ae|||%ad|||%cn|||%ce|||%cd --date=format:%Y-%m-%dT%H:%M:%S%z"
+    if commit_sha:
+        cmd += " " + commit_sha
+    stdout = _git_subprocess_cmd(cmd=cmd, cwd=cwd)
     author_name, author_email, author_date, committer_name, committer_email, committer_date = stdout.split("|||")
     return {
         "author": (author_name, author_email, author_date),
@@ -314,6 +343,32 @@ def extract_commit_sha(cwd=None):
     """Extract git commit SHA from the git repository in the current directory or one specified by ``cwd``."""
     commit_sha = _git_subprocess_cmd("rev-parse HEAD", cwd=cwd)
     return commit_sha
+
+
+def extract_git_head_metadata(head_commit_sha: str, cwd: Optional[str] = None) -> Dict[str, Optional[str]]:
+    tags: Dict[str, Optional[str]] = {}
+
+    is_shallow, *_ = _is_shallow_repository_with_details(cwd=cwd)
+    if is_shallow:
+        _unshallow_repository(cwd=cwd, repo=None, refspec=None, parent_only=True)
+
+    try:
+        users = extract_user_info(cwd=cwd, commit_sha=head_commit_sha)
+        tags[COMMIT_HEAD_AUTHOR_NAME] = users["author"][0]
+        tags[COMMIT_HEAD_AUTHOR_EMAIL] = users["author"][1]
+        tags[COMMIT_HEAD_AUTHOR_DATE] = users["author"][2]
+        tags[COMMIT_HEAD_COMMITTER_NAME] = users["committer"][0]
+        tags[COMMIT_HEAD_COMMITTER_EMAIL] = users["committer"][1]
+        tags[COMMIT_HEAD_COMMITTER_DATE] = users["committer"][2]
+        tags[COMMIT_HEAD_MESSAGE] = _git_subprocess_cmd(" ".join(("log -n 1 --format=%B", head_commit_sha)), cwd)
+    except GitNotFoundError:
+        log.error("Git executable not found, cannot extract git metadata.")
+    except ValueError as e:
+        debug_mode = log.isEnabledFor(logging.DEBUG)
+        stderr = str(e)
+        log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
+
+    return tags
 
 
 def extract_git_metadata(cwd=None):

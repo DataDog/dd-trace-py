@@ -1,6 +1,7 @@
 import json
 import os
 
+import mock
 import msgpack
 import pytest
 
@@ -120,7 +121,197 @@ def test_encode_traces_civisibility_v01_empty_traces():
     for trace in traces:
         encoder.put(trace)
     encoded_traces = encoder.encode()
-    assert encoded_traces == [], "Expected empty list when no content"
+    assert encoded_traces == [], "Expected empty list when payload is None"
+
+
+def test_build_payload_empty_traces():
+    """Test _build_payload with empty traces list."""
+    encoder = CIVisibilityEncoderV01(0, 0)
+    payloads = encoder._build_payload([])
+    assert payloads == [], "Expected empty list when payload is None"
+
+
+def test_build_payload_single_trace():
+    """Test _build_payload with a single trace."""
+    trace = [Span(name="test", span_id=0x123456, service="test_service")]
+    encoder = CIVisibilityEncoderV01(0, 0)
+    payloads = encoder._build_payload([trace])
+
+    assert len(payloads) == 1
+    payload, count = payloads[0]
+    assert count == 1
+    assert payload is not None
+    assert isinstance(payload, bytes)
+
+
+def test_build_payload_multiple_small_traces():
+    """Test _build_payload with multiple traces that fit in one payload."""
+    traces = [
+        [Span(name="test1", span_id=0x111111, service="test")],
+        [Span(name="test2", span_id=0x222222, service="test")],
+        [Span(name="test3", span_id=0x333333, service="test")],
+    ]
+    encoder = CIVisibilityEncoderV01(0, 0)
+    payloads = encoder._build_payload(traces)
+
+    assert len(payloads) == 1
+    payload, count = payloads[0]
+    assert count == 3
+    assert payload is not None
+
+
+def test_build_payload_large_trace_splitting():
+    """Test _build_payload with traces that exceed max payload size."""
+    # Create large traces that will exceed the 5MB limit
+    large_traces = []
+    for i in range(100):  # Create many traces
+        trace = []
+        for j in range(50):  # Each trace has many spans
+            span = Span(name=f"large_test_{i}_{j}", span_id=0x100000 + i * 100 + j, service="test")
+            # Add large metadata to increase payload size
+            span.set_tag_str("large_data", "x" * 1000)  # 1KB per span
+            trace.append(span)
+        large_traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    # Use monkeypatch to temporarily reduce max payload size for testing
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 50 * 1024):  # 50KB to force splitting
+        payloads = encoder._build_payload(large_traces)
+
+        # Should have multiple payloads
+        assert len(payloads) > 1
+
+        # All payloads should be under the size limit (except single traces that can't be split)
+        total_traces_processed = 0
+        for payload, count in payloads:
+            assert count > 0
+            if count > 1 and payload is not None:  # Multi-trace payloads should be under limit
+                assert len(payload) <= 50 * 1024
+            total_traces_processed += count
+
+        # All traces should be processed
+        assert total_traces_processed == len(large_traces)
+
+
+def test_build_payload_recursive_splitting():
+    """Test that recursive splitting works correctly and terminates."""
+    # Create traces that will require multiple levels of splitting
+    traces = []
+    for i in range(16):  # 16 traces
+        trace = []
+        for j in range(10):  # Each with 10 spans
+            span = Span(name=f"test_{i}_{j}", span_id=0x200000 + i * 100 + j, service="test")
+            span.set_tag_str("data", "x" * 500)  # Make each span moderately large
+            trace.append(span)
+        traces.append(trace)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    # Set a small payload size to force multiple splits
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 10 * 1024):  # 10KB
+        payloads = encoder._build_payload(traces)
+
+        # Should have multiple payloads due to splitting
+        assert len(payloads) > 1
+
+        # Verify all traces are processed
+        total_traces = sum(count for _, count in payloads)
+        assert total_traces == len(traces)
+
+        # Verify no infinite recursion (should complete in reasonable time)
+        # If we get here, recursion terminated properly
+
+
+def test_build_payload_with_filtered_spans():
+    """Test _build_payload with spans that get filtered out."""
+    traces = [
+        [
+            Span(name="session", span_id=0x111111, service="test"),
+            Span(name="regular", span_id=0x222222, service="test"),
+        ],
+        [
+            Span(name="test", span_id=0x333333, service="test", span_type="test"),
+        ],
+    ]
+
+    # Set up xdist worker environment to trigger filtering
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
+
+    try:
+        # Add session type tag to trigger filtering
+        traces[0][0].set_tag_str(EVENT_TYPE, SESSION_TYPE)
+
+        encoder = CIVisibilityEncoderV01(0, 0)
+        payloads = encoder._build_payload(traces)
+
+        assert len(payloads) == 1
+        payload, count = payloads[0]
+        assert count == 2  # Both traces processed
+        assert payload is not None
+
+        # Decode and verify that session spans were filtered out
+        decoded = msgpack.unpackb(payload, raw=True, strict_map_key=False)
+        events = decoded[b"events"]
+        # Should have 2 events (1 regular span + 1 test span), session span filtered
+        assert len(events) == 2
+
+    finally:
+        if original_env is None:
+            os.environ.pop("PYTEST_XDIST_WORKER", None)
+        else:
+            os.environ["PYTEST_XDIST_WORKER"] = original_env
+
+
+def test_build_payload_all_spans_filtered():
+    """Test _build_payload when all spans get filtered out."""
+    traces = [
+        [Span(name="session1", span_id=0x111111, service="test")],
+        [Span(name="session2", span_id=0x222222, service="test")],
+    ]
+
+    # Set up xdist worker environment to trigger filtering
+    original_env = os.environ.get("PYTEST_XDIST_WORKER")
+    os.environ["PYTEST_XDIST_WORKER"] = "gw0"
+
+    try:
+        # Make both spans session types to trigger filtering
+        for trace in traces:
+            trace[0].set_tag_str(EVENT_TYPE, SESSION_TYPE)
+
+        encoder = CIVisibilityEncoderV01(0, 0)
+        payloads = encoder._build_payload(traces)
+
+        # Should return empty list when no spans remain after filtering
+        assert payloads == []
+
+    finally:
+        if original_env is None:
+            os.environ.pop("PYTEST_XDIST_WORKER", None)
+        else:
+            os.environ["PYTEST_XDIST_WORKER"] = original_env
+
+
+def test_build_payload_no_infinite_recursion():
+    """Test that recursion always terminates, even with edge cases."""
+    # Single large trace that can't be split further
+    large_trace = []
+    for i in range(100):
+        span = Span(name=f"large_span_{i}", span_id=0x400000 + i, service="test")
+        span.set_tag_str("large_data", "x" * 1000)
+        large_trace.append(span)
+
+    encoder = CIVisibilityEncoderV01(0, 0)
+    # Set very small payload size
+    with mock.patch.object(encoder, "_MAX_PAYLOAD_SIZE", 1024):  # 1KB - much smaller than the trace
+        # This should not hang due to infinite recursion
+        payloads = encoder._build_payload([large_trace])
+
+        # Should return exactly one payload (can't split single trace)
+        assert len(payloads) == 1
+        payload, count = payloads[0]
+        assert count == 1
+        assert payload is not None
+        # Payload can exceed max size when it's a single unsplittable trace
 
 
 def test_encode_traces_civisibility_v2_coverage_per_test():

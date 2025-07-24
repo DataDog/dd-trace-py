@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where setting custom loggers during a test session could cause the tracer
+    to emit logs to a logging stream handler that was already closed by ``pytest``, leading to ``I/O operation on closed
+    file`` errors at the end of the test session.
