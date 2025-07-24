@@ -41,7 +41,7 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name_google(
+def extract_provider_and_model_name(
     kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
 ) -> Tuple[str, str]:
     """

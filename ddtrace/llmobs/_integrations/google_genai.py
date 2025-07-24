@@ -18,7 +18,7 @@ from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_generation_metrics_google_genai
 from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_google_genai
-from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
@@ -71,7 +71,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         response: Optional[Any] = None,
         operation: str = "",
     ) -> None:
-        provider_name, model_name = extract_provider_and_model_name_google(kwargs=kwargs)
+        provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
         span._set_ctx_items(
             {
                 SPAN_KIND: operation,

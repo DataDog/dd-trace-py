@@ -11,7 +11,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
-from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
 
@@ -40,7 +40,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name_google(instance=instance, model_name_attr="model_name")
+    provider_name, model_name = extract_provider_and_model_name(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -69,7 +69,7 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name_google(instance=instance, model_name_attr="model_name")
+    provider_name, model_name = extract_provider_and_model_name(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
