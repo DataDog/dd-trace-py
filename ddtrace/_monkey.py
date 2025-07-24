@@ -7,7 +7,6 @@ from typing import Union
 
 from wrapt.importer import when_imported
 
-from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
@@ -362,7 +361,7 @@ def _patch_all(**patch_modules: bool) -> None:
 
         patch_iast()
 
-    load_common_appsec_modules()
+    # load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):
