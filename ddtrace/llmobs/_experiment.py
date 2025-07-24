@@ -297,6 +297,12 @@ class Experiment:
         )
         return experiment_results
 
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/experiments/{self._id}"
+
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
             return None
