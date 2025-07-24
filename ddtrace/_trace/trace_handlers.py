@@ -147,7 +147,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -447,7 +448,8 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     span.set_tag_str(flask_version, flask_version_str)
 
