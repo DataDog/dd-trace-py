@@ -5,7 +5,10 @@ import os
 import threading
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Tuple  # noqa:F401
 from uuid import uuid4
 
 from ddtrace.ext import SpanTypes
@@ -73,7 +76,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         """
         raise NotImplementedError()
 
-    def encode(self) -> list[tuple[Optional[bytes], int]]:
+    def encode(self) -> List[Tuple[bytes, int]]:
         with self._lock:
             if not self.buffer:
                 return []
@@ -85,14 +88,14 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             self._init_buffer()
             return payloads
 
-    def _get_parent_session(self, traces: list[list[Span]]) -> int:
+    def _get_parent_session(self, traces: List[List[Span]]) -> int:
         for trace in traces:
             for span in trace:
                 if span.get_tag(EVENT_TYPE) == SESSION_TYPE and span.parent_id is not None and span.parent_id != 0:
                     return span.parent_id
         return 0
 
-    def _build_payload(self, traces: list[list[Span]]) -> list[tuple[Optional[bytes], int]]:
+    def _build_payload(self, traces: List[List[Span]]) -> List[Tuple[bytes, int]]:
         """
         Build multiple payloads from traces, splitting when necessary to stay under size limits.
         Uses index-based recursive approach to avoid copying slices.
@@ -107,8 +110,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
 
     def _build_payloads_recursive(
-        self, traces: list[list[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
-    ) -> list[tuple[Optional[bytes], int]]:
+        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> List[Tuple[bytes, int]]:
         """
         Recursively build payloads using start/end indexes to avoid slice copying.
 
@@ -157,8 +160,8 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             return left_payloads + right_payloads
 
     def _convert_traces_to_spans_indexed(
-        self, traces: list[list[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
-    ) -> list[tuple[int, list[dict[str, Any]]]]:
+        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+    ) -> List[Tuple[int, List[Dict[str, Any]]]]:
         """Convert traces to spans with xdist filtering applied, using indexes to avoid slicing."""
         all_spans_with_trace_info = []
         for trace_idx in range(start_idx, end_idx):
@@ -188,7 +191,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
     def _convert_span(
         self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
-    ) -> dict[str, Any]:
+    ) -> Dict[str, Any]:
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -266,7 +269,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             raise NoEncodableSpansError()
         return super(CIVisibilityCoverageEncoderV02, self).put(spans_with_coverage)
 
-    def _build_coverage_attachment(self, data: bytes) -> list[bytes]:
+    def _build_coverage_attachment(self, data: bytes) -> List[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="coverage1"; filename="coverage1.msgpack"',
@@ -275,7 +278,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             data,
         ]
 
-    def _build_event_json_attachment(self) -> list[bytes]:
+    def _build_event_json_attachment(self) -> List[bytes]:
         return [
             b"--%s" % self.boundary.encode("utf-8"),
             b'Content-Disposition: form-data; name="event"; filename="event.json"',
@@ -284,14 +287,14 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
             b'{"dummy":true}',
         ]
 
-    def _build_body(self, data: bytes) -> list[bytes]:
+    def _build_body(self, data: bytes) -> List[bytes]:
         return (
             self._build_coverage_attachment(data)
             + self._build_event_json_attachment()
             + [b"--%s--" % self.boundary.encode("utf-8")]
         )
 
-    def _build_data(self, traces: list[list[Span]]) -> Optional[bytes]:
+    def _build_data(self, traces: List[List[Span]]) -> Optional[bytes]:
         normalized_covs = [
             self._convert_span(span)
             for trace in traces
@@ -304,7 +307,7 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         # TODO: Split the events in several payloads as needed to avoid hitting the intake's maximum payload size.
         return msgpack_packb({"version": self.PAYLOAD_FORMAT_VERSION, "coverages": normalized_covs})
 
-    def _build_payload(self, traces: list[list[Span]]) -> list[tuple[Optional[bytes], int]]:
+    def _build_payload(self, traces: List[List[Span]]) -> List[Tuple[bytes, int]]:
         data = self._build_data(traces)
         if not data:
             return []
