@@ -8,7 +8,6 @@ import mock
 import pytest
 
 import ddtrace
-import ddtrace._trace.sampler
 from ddtrace.internal import debug
 from ddtrace.internal.writer import AgentWriter
 from tests.integration.utils import AGENT_VERSION
@@ -78,24 +77,21 @@ def test_standard_tags():
     assert agent_error is None
 
     assert f.get("env") == ""
-    assert f.get("is_global_tracer") is True
-    assert f.get("tracer_enabled") is True
-    assert f.get("sampler_type") == "DatadogSampler"
-    assert f.get("priority_sampler_type") == "N/A"
+    assert f.get("ddtrace_enabled") is True
     assert f.get("service") == "ddtrace_subprocess_dir"
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
-    assert f.get("log_injection_enabled") == "structured"
+    assert f.get("log_injection_enabled") is True
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
-    assert f.get("sampler_rules") == []
+    assert f.get("sampling_rules") == []
     assert f.get("global_tags") == ""
     assert f.get("tracer_tags") == ""
 
-    icfg = f.get("integrations")
-    assert icfg["django"] == "N/A"
-    assert icfg["flask"] == "N/A"
+    icfg = f.get("integrations", {})
+    assert "django" not in icfg
+    assert "flask" not in icfg
 
 
 @pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "unix:///file.sock"})
@@ -131,16 +127,16 @@ class TestGlobalConfig(SubprocessTestCase):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:4321"
         assert f.get("health_metrics_enabled") is True
-        assert f.get("log_injection_enabled") == "true"
+        assert f.get("log_injection_enabled") is True
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
         assert f.get("global_tags") == "k1:v1,k2:v2"
         assert f.get("tracer_tags") in ["k1:v1,k2:v2", "k2:v2,k1:v1"]
-        assert f.get("tracer_enabled") is True
+        assert f.get("ddtrace_enabled") is True
 
-        icfg = f.get("integrations")
-        assert icfg["django"] == "N/A"
+        icfg = f.get("integrations", {})
+        assert "django" not in icfg
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -162,9 +158,11 @@ class TestGlobalConfig(SubprocessTestCase):
         with mock.patch.object(logging.Logger, "log") as mock_logger:
             # shove an unserializable object into the config log output
             # regression: this used to cause an exception to be raised
-            ddtrace.config.version = AgentWriter(agent_url="foobar")
-            ddtrace.trace.tracer.configure()
-        assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+            ddtrace.config.version = AgentWriter(intake_url="foobar")
+            ddtrace.trace.tracer._generate_diagnostic_logs()
+        assert (
+            mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
+        ), mock_logger.mock_calls
 
     @run_in_subprocess(
         env_overrides=dict(
@@ -175,7 +173,7 @@ class TestGlobalConfig(SubprocessTestCase):
     def test_tracer_loglevel_info_no_connection(self):
         logging.basicConfig(level=logging.INFO)
         with mock.patch.object(logging.Logger, "log") as mock_logger:
-            ddtrace.trace.tracer.configure()
+            ddtrace.trace.tracer._generate_diagnostic_logs()
         assert mock.call(logging.INFO, re_matcher("- DATADOG TRACER CONFIGURATION - ")) in mock_logger.mock_calls
         assert mock.call(logging.WARNING, re_matcher("- DATADOG TRACER DIAGNOSTIC - ")) in mock_logger.mock_calls
 
@@ -296,7 +294,7 @@ def test_startup_logs_sampling_rules():
 
     f = debug.collect(tracer)
 
-    assert f.get("sampler_rules") == [
+    assert f.get("sampling_rules") == [
         "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE',"
         " tags='NO_RULE', provenance='default')"
     ]

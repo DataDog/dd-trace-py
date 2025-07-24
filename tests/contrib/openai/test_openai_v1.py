@@ -4,8 +4,6 @@ import mock
 import openai as openai_module
 import pytest
 
-import ddtrace
-from ddtrace.contrib.internal.openai.utils import _est_tokens
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.openai.utils import chat_completion_custom_functions
 from tests.contrib.openai.utils import chat_completion_input_description
@@ -167,8 +165,6 @@ def test_global_tags(openai_vcr, openai, mock_tracer):
     assert span.get_tag("openai.request.model") == "ada"
     assert span.get_tag("openai.request.endpoint") == "/v1/completions"
     assert span.get_tag("openai.request.method") == "POST"
-    assert span.get_tag("openai.organization.name") == "datadog-4"
-    assert span.get_tag("openai.user.api_key") == "sk-...key>"
 
 
 def test_completion_raw_response(openai, openai_vcr, snapshot_tracer):
@@ -793,37 +789,6 @@ def test_chat_completion_stream(openai, openai_vcr, snapshot_tracer):
 
 
 @pytest.mark.skipif(
-    parse_version(openai_module.version.VERSION) < (1, 26), reason="Stream options only available openai >= 1.26"
-)
-def test_chat_completion_stream_explicit_no_tokens(openai, openai_vcr, mock_tracer):
-    """Assert that streamed token chunk extraction logic is avoided if explicitly set to False by the user."""
-    with openai_vcr.use_cassette("chat_completion_streamed.yaml"):
-        with mock.patch("ddtrace.contrib.internal.openai.utils.encoding_for_model", create=True) as mock_encoding:
-            mock_encoding.return_value.encode.side_effect = lambda x: [1, 2, 3, 4, 5, 6, 7, 8]
-            expected_completion = "The Los Angeles Dodgers won the World Series in 2020."
-            client = openai.OpenAI()
-            resp = client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "user", "content": "Who won the world series in 2020?"},
-                ],
-                stream=True,
-                stream_options={"include_usage": False},
-                user="ddtrace-test",
-                n=None,
-            )
-            chunks = [c for c in resp]
-            assert len(chunks) == 15
-            completion = "".join([c.choices[0].delta.content for c in chunks if c.choices[0].delta.content is not None])
-            assert completion == expected_completion
-
-    span = mock_tracer.pop_traces()[0][0]
-    assert span.get_metric("openai.response.usage.prompt_tokens") == 8
-    assert span.get_metric("openai.response.usage.completion_tokens") is not None
-    assert span.get_metric("openai.response.usage.total_tokens") is not None
-
-
-@pytest.mark.skipif(
     parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
 )
 @pytest.mark.snapshot(token="tests.contrib.openai.test_openai.test_chat_completion_stream")
@@ -948,122 +913,6 @@ asyncio.run(task())
     assert err == b""
 
 
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
-)
-def test_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for completions endpoint"""
-    num_completions = 200
-
-    client = openai.OpenAI()
-    for _ in range(num_completions):
-        with openai_vcr.use_cassette("completion.yaml"):
-            client.completions.create(model="ada", prompt="hello world")
-
-    traces = mock_tracer.pop_traces()
-    sampled = 0
-    assert len(traces) == num_completions, len(traces)
-    for trace in traces:
-        for span in trace:
-            if span.get_tag("openai.response.choices.0.text"):
-                sampled += 1
-    if ddtrace.config.openai.span_prompt_completion_sample_rate == 0:
-        assert sampled == 0
-    elif ddtrace.config.openai.span_prompt_completion_sample_rate == 1:
-        assert sampled == num_completions
-    else:
-        # this should be good enough for our purposes
-        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
-        assert (rate - 30) < sampled < (rate + 30)
-
-
-@pytest.mark.parametrize(
-    "ddtrace_config_openai",
-    [dict(span_prompt_completion_sample_rate=r) for r in [0, 0.25, 0.75, 1]],
-)
-def test_chat_completion_sample(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
-    """Test functionality for DD_OPENAI_SPAN_PROMPT_COMPLETION_SAMPLE_RATE for chat completions endpoint"""
-    num_completions = 200
-
-    client = openai.OpenAI()
-    for _ in range(num_completions):
-        with openai_vcr.use_cassette("chat_completion.yaml"):
-            client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=multi_message_input,
-                top_p=0.9,
-                n=2,
-                user="ddtrace-test",
-            )
-
-    traces = mock_tracer.pop_traces()
-    sampled = 0
-    assert len(traces) == num_completions
-    for trace in traces:
-        for span in trace:
-            if span.get_tag("openai.response.choices.0.message.content"):
-                sampled += 1
-    if ddtrace.config.openai["span_prompt_completion_sample_rate"] == 0:
-        assert sampled == 0
-    elif ddtrace.config.openai["span_prompt_completion_sample_rate"] == 1:
-        assert sampled == num_completions
-    else:
-        # this should be good enough for our purposes
-        rate = ddtrace.config.openai["span_prompt_completion_sample_rate"] * num_completions
-        assert (rate - 30) < sampled < (rate + 30)
-
-
-@pytest.mark.parametrize("ddtrace_config_openai", [dict(truncation_threshold=t) for t in [0, 10, 10000]])
-def test_completion_truncation(openai, openai_vcr, mock_tracer, ddtrace_config_openai):
-    """Test functionality of DD_OPENAI_TRUNCATION_THRESHOLD for completions"""
-    prompt = "1, 2, 3, 4, 5, 6, 7, 8, 9, 10"
-
-    with openai_vcr.use_cassette("completion_truncation.yaml"):
-        client = openai.OpenAI()
-        client.completions.create(model="ada", prompt=prompt)
-
-    with openai_vcr.use_cassette("chat_completion_truncation.yaml"):
-        resp = client.chat.completions.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "user", "content": "Count from 1 to 100"},
-            ],
-        )
-        assert resp.choices[0].message.content == (
-            "1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,"
-            " 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55,"
-            " 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81,"
-            " 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100"
-        )
-
-    traces = mock_tracer.pop_traces()
-    assert len(traces) == 2
-
-    limit = ddtrace.config.openai["span_char_limit"]
-    for trace in traces:
-        for span in trace:
-            if span.get_tag("openai.request.endpoint").endswith("/chat/completions"):
-                prompt = span.get_tag("openai.request.messages.0.content")
-                completion = span.get_tag("openai.response.choices.0.message.content")
-                assert len(prompt) <= limit + 3
-                assert len(completion) <= limit + 3
-                if "..." in prompt:
-                    assert len(prompt.replace("...", "")) == limit
-                if "..." in completion:
-                    assert len(completion.replace("...", "")) == limit
-            else:
-                prompt = span.get_tag("openai.request.prompt.0")
-                completion = span.get_tag("openai.response.choices.0.text")
-                # +3 for the ellipsis
-                assert len(prompt) <= limit + 3
-                assert len(completion) <= limit + 3
-                if "..." in prompt:
-                    assert len(prompt.replace("...", "")) == limit
-                if "..." in completion:
-                    assert len(completion.replace("...", "")) == limit
-
-
 @pytest.mark.parametrize("ddtrace_config_openai", [dict(span_prompt_completion_sample_rate=0)])
 def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_config_openai, mock_tracer):
     with openai_vcr.use_cassette("embedding.yaml"):
@@ -1072,58 +921,6 @@ def test_embedding_unsampled_prompt_completion(openai, openai_vcr, ddtrace_confi
     traces = mock_tracer.pop_traces()
     assert len(traces) == 1
     assert traces[0][0].get_tag("openai.request.input") is None
-
-
-def test_est_tokens():
-    """Oracle numbers are from https://platform.openai.com/tokenizer (GPT-3)."""
-    assert _est_tokens("") == 0  # oracle: 1
-    assert _est_tokens("hello") == 1  # oracle: 1
-    assert _est_tokens("hello, world") == 3  # oracle: 3
-    assert _est_tokens("hello world") == 2  # oracle: 2
-    assert _est_tokens("Hello world, how are you?") == 6  # oracle: 7
-    assert _est_tokens("    hello    ") == 3  # oracle: 8
-    assert (
-        _est_tokens(
-            "The GPT family of models process text using tokens, which are common sequences of characters found in text. The models understand the statistical relationships between these tokens, and excel at producing the next token in a sequence of tokens."  # noqa E501
-        )
-        == 54
-    )  # oracle: 44
-    assert (
-        _est_tokens(
-            "You can use the tool below to understand how a piece of text would be tokenized by the API, and the total count of tokens in that piece of text."  # noqa: E501
-        )
-        == 33
-    )  # oracle: 33
-    assert (
-        _est_tokens(
-            "A helpful rule of thumb is that one token generally corresponds to ~4 characters of text for common "
-            "English text. This translates to roughly ¾ of a word (so 100 tokens ~= 75 words). If you need a "
-            "programmatic interface for tokenizing text, check out our tiktoken package for Python. For JavaScript, "
-            "the gpt-3-encoder package for node.js works for most GPT-3 models."
-        )
-        == 83
-    )  # oracle: 87
-
-    # Expected to be a disparity since our assumption is based on english words
-    assert (
-        _est_tokens(
-            """Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec hendrerit sapien eu erat imperdiet, in
- maximus elit malesuada. Pellentesque quis gravida purus. Nullam eu eros vitae dui placerat viverra quis a magna. Mauris
- vitae lorem quis neque pharetra congue. Praesent volutpat dui eget nibh auctor, sit amet elementum velit faucibus.
- Nullam ultricies dolor sit amet nisl molestie, a porta metus suscipit. Vivamus eget luctus mauris. Proin commodo
- elementum ex a pretium. Nam vitae ipsum sed dolor congue fermentum. Sed quis bibendum sapien, dictum venenatis urna.
- Morbi molestie lacinia iaculis. Proin lorem mauris, interdum eget lectus a, auctor volutpat nisl. Suspendisse ac
- tincidunt sapien. Cras congue ipsum sit amet congue ullamcorper. Proin hendrerit at erat vulputate consequat."""
-        )
-        == 175
-    )  # oracle 281
-
-    assert (
-        _est_tokens(
-            "I want you to act as a linux terminal. I will type commands and you will reply with what the terminal should show. I want you to only reply with the terminal output inside one unique code block, and nothing else. do not write explanations. do not type commands unless I instruct you to do so. When I need to tell you something in English, I will do so by putting text inside curly brackets {like this}. My first command is pwd"  # noqa: E501
-        )
-        == 97
-    )  # oracle: 92
 
 
 @pytest.mark.skipif(

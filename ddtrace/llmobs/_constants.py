@@ -40,6 +40,7 @@ OUTPUT_TOKENS_METRIC_KEY = "output_tokens"
 TOTAL_TOKENS_METRIC_KEY = "total_tokens"
 CACHE_WRITE_INPUT_TOKENS_METRIC_KEY = "cache_write_input_tokens"
 CACHE_READ_INPUT_TOKENS_METRIC_KEY = "cache_read_input_tokens"
+BILLABLE_CHARACTER_COUNT_METRIC_KEY = "billable_character_count"
 
 EVP_PROXY_AGENT_BASE_PATH = "/evp_proxy/v2"
 EVAL_ENDPOINT = "/api/intake/llm-obs/v2/eval-metric"
@@ -47,12 +48,15 @@ SPAN_ENDPOINT = "/api/v2/llmobs"
 EVP_SUBDOMAIN_HEADER_NAME = "X-Datadog-EVP-Subdomain"
 SPAN_SUBDOMAIN_NAME = "llmobs-intake"
 EVAL_SUBDOMAIN_NAME = "api"
+EXP_SUBDOMAIN_NAME = "api"
 AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
 AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
+AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
 EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
 EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
 
+EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
 DROPPED_IO_COLLECTION_ERROR = "dropped_io"
 DROPPED_VALUE_TEXT = "[This value has been dropped because this span's size exceeds the 1MB size limit.]"
@@ -91,3 +95,7 @@ OAI_HANDOFF_TOOL_ARG = "{}"
 LITELLM_ROUTER_INSTANCE_KEY = "_dd.router_instance"
 
 PROXY_REQUEST = "llmobs.proxy_request"
+
+EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
+EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+DEFAULT_PROJECT_NAME = "default-project"

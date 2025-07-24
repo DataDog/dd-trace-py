@@ -3,12 +3,13 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(not _USE_PLUGIN_V2, reason="Tests in this module are for v2 of the pytest plugin")
 
