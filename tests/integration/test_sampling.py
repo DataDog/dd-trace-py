@@ -279,17 +279,29 @@ def test_extended_sampling_float_special_case_do_not_match():
 
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(
-    env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "*", "tag2": "?*", "tag3": "**"}}])}
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [
+                {"sample_rate": 0, "tags": {"tag": "*"}},
+                {"sample_rate": 0, "tags": {"tag2": "?*"}},
+                {"sample_rate": 0, "tags": {"tag3": "**"}},
+            ]
+        )
+    }
 )
 def test_extended_sampling_float_special_case_match_star():
-    """A float with a non-zero decimal and a tag with a * pattern
-    # should match the rule, and should therefore should be dropped
+    """A float with a non-zero decimal and a tag with a glob pattern that does
+    not contain a digit should match the rule and should therefore should be dropped
     """
     from ddtrace.trace import tracer
 
-    with tracer.trace(name="should_send") as span:
+    with tracer.trace(name="should_not_send") as span:
         span.set_tag("tag", 20.1)
+
+    with tracer.trace(name="should_not_send2") as span:
         span.set_tag("tag2", 22.2)
+
+    with tracer.trace(name="should_not_send3") as span:
         span.set_tag("tag3", 3333333.33333)
 
 
