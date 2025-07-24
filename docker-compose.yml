@@ -177,8 +177,6 @@ services:
         image: ghcr.io/datadog/dd-trace-py/testrunner:8b69a2610342b333f8832422ffc4f3a9327bed13@sha256:c2d067947ffdb305fc7dc7ff1f8eb7035cfa110bd1199917dd2519eadd166402
         command: bash
         environment:
-          DD_SETUP_CACHE_DOWNLOADS: "1"
-          DD_CMAKE_INCREMENTAL_BUILD: "1"
           DD_FAST_BUILD: "1"
           CMAKE_BUILD_PARALLEL_LEVEL: "12"
           CARGO_BUILD_JOBS: "12"
