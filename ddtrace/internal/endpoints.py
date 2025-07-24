@@ -8,7 +8,7 @@ class HttpEndPoint:
     method: str
     path: str
     resource_name: str = dataclasses.field(default="")
-    operation_name: str = dataclasses.field(default="http.request", init=False)
+    operation_name: str = dataclasses.field(default="http.request")
 
     def __post_init__(self) -> None:
         super().__setattr__("method", self.method.upper())
@@ -36,17 +36,23 @@ class HttpEndPointsCollection:
         self.is_first = True
         self.last_modification_time = monotonic()
 
-    def add_endpoint(self, method: str, path: str, resource_name: str = "") -> None:
+    def add_endpoint(
+        self, method: str, path: str, resource_name: str = "", operation_name: str = "http.request"
+    ) -> None:
         """
         Add an endpoint to the collection.
         """
         current_time = monotonic()
         if current_time - self.last_modification_time > self.drop_time_seconds:
             self.reset()
-            self.endpoints.append(HttpEndPoint(method=method, path=path, resource_name=resource_name))
+            self.endpoints.append(
+                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+            )
         elif len(self.endpoints) < self.max_size_length:
             self.last_modification_time = current_time
-            self.endpoints.append(HttpEndPoint(method=method, path=path, resource_name=resource_name))
+            self.endpoints.append(
+                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+            )
 
     def flush(self, max_length: int) -> dict:
         """

@@ -641,7 +641,7 @@ def _instrument_view(django, view, path=None):
     request_method_list = extract_request_method_list(view) or http_method_names
     if path is not None:
         for method in request_method_list or ["*"]:
-            endpoint_collection.add_endpoint(method, path)
+            endpoint_collection.add_endpoint(method, path, operation_name="django.request")
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
     for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:

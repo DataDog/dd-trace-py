@@ -556,7 +556,7 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert len(deps) == 1, deps
 
 
-def test_update_endpoint_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
     # behavior to force the app-started event to be queued immediately
@@ -613,8 +613,16 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     assert payload["is_first"] is True
     endpoints = payload["endpoints"]
     assert len(endpoints) == 2, endpoints
-    assert any(e["path"] == "mini_app/" and e["method"] == "*" for e in endpoints), endpoints
-    assert any(e["path"] == "view_name/" and e["method"] == "GET" and e["resource_name"] == "GET view_name/" for e in endpoints), endpoints
+    assert any(
+        e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
+    ), endpoints
+    assert any(
+        e["path"] == "view_name/"
+        and e["method"] == "GET"
+        and e["resource_name"] == "GET view_name/"
+        and e["operation_name"] == "django.request"
+        for e in endpoints
+    ), endpoints
 
 
 def test_instrumentation_source_config(
