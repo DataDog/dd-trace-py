@@ -49,7 +49,8 @@ def extract_provider_and_model_name(
     Args:
         kwargs: Dictionary containing model information (used for google_genai)
         instance: Model instance with attributes (used for vertexai and google_generativeai)
-        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai and google_generativeai)
+        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai
+                         and google_generativeai)
 
     Returns:
         Tuple of (provider_name, model_name)
