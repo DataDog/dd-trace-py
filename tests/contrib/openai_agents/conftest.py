@@ -2,9 +2,9 @@ import os
 
 from agents import Agent
 from agents import GuardrailFunctionOutput
+from agents import WebSearchTool
 from agents import function_tool
 from agents import input_guardrail
-from agents import WebSearchTool
 from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
