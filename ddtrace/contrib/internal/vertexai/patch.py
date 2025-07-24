@@ -60,9 +60,7 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name(
-        instance=model_instance, model_name_attr="_model_name"
-    )
+    provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -95,9 +93,7 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
-    provider_name, model_name = extract_provider_and_model_name(
-        instance=model_instance, model_name_attr="_model_name"
-    )
+    provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
