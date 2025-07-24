@@ -107,6 +107,40 @@ when the riotfile changes. Thus, if you make changes to the riotfile, you need t
 You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
 changes you made to ``riotfile.py``.
 
+Why is my CI run failing with benchmark/SLO threshold breaches?
+---------------------------------------------------------------
+
+The library includes automated SLO checks that monitor performance thresholds for execution time and memory usage. If your pull request causes these checks to fail, you'll see benchmark test failures in CI indicating that your changes have caused performance to exceed established thresholds.
+
+**If this is expected additional overhead**:
+
+1. **Add a comment to your PR description** explaining why the performance change is expected and necessary
+
+2. **Update the failing thresholds** in ``.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml`` following these guidelines:
+
+   **For execution time thresholds:**
+   
+   * Take the new benchmark result from CI
+   * Add 2% overhead for variance
+   * Round up to a reasonable precision  
+   * Example: 23.1 ms → 23.1 * 1.02 = 23.562 ms → round to 23.60 ms
+
+   **For memory usage thresholds:**
+   
+   * Take the new benchmark result from CI
+   * Add 5% overhead for variance
+   * Round up to a reasonable precision
+   * Consider unifying similar scenarios to the same threshold (e.g., set all ``tracer`` scenarios to ``< 32.00 MB`` instead of having slightly different values)
+
+**Example threshold update:**
+
+.. code-block:: yaml
+
+    - name: span-start
+      thresholds:
+        - execution_time < 23.60 ms  # was 23.50 ms
+        - max_rss_usage < 48.00 MB   # was 47.50 MB
+
 How do I add a new test suite?
 ------------------------------
 
