@@ -6,6 +6,7 @@ import http.client as httplib
 import importlib
 from itertools import product
 import json
+import logging
 import os
 from os.path import split
 from os.path import splitext
@@ -678,3 +679,20 @@ def test_agent_session(telemetry_writer, request):
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
+
+
+@pytest.fixture()
+def caplog(caplog):
+    """
+    During tests, ddtrace logs are not propagated to the root logger by default (see PR #14121).
+    This breaks caplog tests that capture logs from the ddtrace logger, so we need to re-enable propagation for those.
+    """
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    try:
+        original_propagate = ddtrace_logger.propagate
+        ddtrace_logger.propagate = True
+        yield caplog
+
+    finally:
+        ddtrace_logger.propagate = original_propagate
