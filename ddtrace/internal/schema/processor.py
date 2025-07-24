@@ -11,7 +11,6 @@ class BaseServiceProcessor(TraceProcessor):
         self._global_service = schematize_service_name((config.service or "").lower())
         self._in_aws_lambda = in_aws_lambda()
 
-    
     def process_trace(self, trace):
         # AWS Lambda spans receive unhelpful base_service value of runtime
         # Remove base_service to prevent service overrides in Lambda spans
