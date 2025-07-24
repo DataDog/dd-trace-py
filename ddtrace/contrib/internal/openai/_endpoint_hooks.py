@@ -324,15 +324,6 @@ class _RetrieveHook(_EndpointHook):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         if not resp:
             return
-        if hasattr(resp, "hyperparams"):
-            for hyperparam in ("batch_size", "learning_rate_multiplier", "n_epochs", "prompt_loss_weight"):
-                val = getattr(resp.hyperparams, hyperparam, "")
-                span.set_tag_str("openai.response.hyperparams.%s" % hyperparam, str(val))
-        for resp_attr in ("result_files", "training_files", "validation_files"):
-            if hasattr(resp, resp_attr):
-                span.set_metric("openai.response.%s_count" % resp_attr, len(getattr(resp, resp_attr, [])))
-        if hasattr(resp, "events"):
-            span.set_metric("openai.response.events_count", len(resp.events))
         return resp
 
 
@@ -465,25 +456,10 @@ class _ModerationHook(_EndpointHook):
     _request_arg_params = ("model",)
     _request_kwarg_params = ("model",)
     _response_attrs = ("id", "model")
-    _response_categories = (
-        "hate",
-        "hate/threatening",
-        "harassment",
-        "harassment/threatening",
-        "self-harm",
-        "self-harm/intent",
-        "self-harm/instructions",
-        "sexual",
-        "sexual/minors",
-        "violence",
-        "violence/graphic",
-    )
+    _response_categories = ()
     ENDPOINT_NAME = "moderations"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createModeration"
-
-    def _record_request(self, pin, integration, instance, span, args, kwargs):
-        super()._record_request(pin, integration, instance, span, args, kwargs)
 
 
 class _BaseFileHook(_EndpointHook):
