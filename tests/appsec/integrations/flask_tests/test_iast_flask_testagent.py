@@ -314,6 +314,18 @@ def test_iast_unvalidated_redirect():
                 "use_gevent": True,
                 "env": {
                     "DD_APM_TRACING_ENABLED": "false",
+                    "_DD_IAST_PROPAGATION_ENABLED": "false",
+                },
+            },
+        ),
+        (
+            gunicorn_server,
+            {
+                "workers": "1",
+                "use_threads": True,
+                "use_gevent": True,
+                "env": {
+                    "DD_APM_TRACING_ENABLED": "false",
                 },
             },
         ),

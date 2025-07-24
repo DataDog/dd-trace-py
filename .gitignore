@@ -138,8 +138,6 @@ ENV/
 # Cursor
 .cursor/
 
-# Windsurf rules
-.windsurf/
 
 # Claude
 CLAUDE.local.md
