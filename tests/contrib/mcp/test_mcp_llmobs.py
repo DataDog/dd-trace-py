@@ -1,5 +1,7 @@
 import asyncio
 import json
+import os
+from textwrap import dedent
 
 import mock
 
@@ -21,6 +23,7 @@ def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
     assert len(client_events) >= 1 and len(server_events) >= 1
     assert client_spans[0].trace_id == server_spans[0].trace_id
     assert client_events[0]["trace_id"] == server_events[0]["trace_id"]
+    assert client_events[0]["_dd"]["apm_trace_id"] == server_events[0]["_dd"]["apm_trace_id"]
 
     return all_spans, client_events, server_events, client_spans, server_spans
 
@@ -109,14 +112,57 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     )
 
 
-def test_llmobs_mcp_distributed_tracing(mcp_setup, mock_tracer, llmobs_events, mcp_call_tool):
-    """Test that distributed tracing works correctly - client and server spans have same trace ID."""
-    asyncio.run(mcp_call_tool("calculator", {"operation": "add", "a": 10, "b": 15}))
+def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
+    """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
+    env = os.environ.copy()
+    env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+    env["DD_API_KEY"] = "test-api-key"
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+    env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+    env["DD_MCP_DISTRIBUTED_TRACING"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        dedent(
+            """
+        import asyncio
+        import logging
+        import warnings
 
-    all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
-        mock_tracer, llmobs_events, "calculator"
+        logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
+        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
+
+        from ddtrace.llmobs import LLMObs
+        LLMObs.enable()
+
+        from mcp.server.fastmcp import FastMCP
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        mcp = FastMCP(name="TestServer")
+
+        @mcp.tool(description="Get weather for a location")
+        def get_weather(location: str) -> str:
+            return f"Weather in {location} is 72°F"
+
+        async def test():
+            async with create_connected_server_and_client_session(mcp._mcp_server) as client:
+                await client.initialize()
+                await client.call_tool("get_weather", {"location": "San Francisco"})
+
+        asyncio.run(test())
+        """
+        ),
+        env=env,
     )
+    assert out == b""
+    assert status == 0, err
+    events = llmobs_backend.wait_for_num_events(num=1)
+    traces = events[0]
+    assert len(traces) == 2
 
-    assert len(all_spans) == 2
-    assert client_spans[0].trace_id == server_spans[0].trace_id
-    assert client_events[0]["trace_id"] == server_events[0]["trace_id"]
+    client_trace = next((t for t in traces if "Client Tool Call" in t["spans"][0]["name"]), None)
+    server_trace = next((t for t in traces if "Server Tool Execute" in t["spans"][0]["name"]), None)
+
+    assert client_trace is not None
+    assert server_trace is not None
+    assert client_trace["spans"][0]["trace_id"] != server_trace["spans"][0]["trace_id"]
+    assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]

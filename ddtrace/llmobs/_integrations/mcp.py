@@ -26,7 +26,7 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
 
-    def extract_and_activate_distributed_headers(self, headers: Dict[str, str], context: Context) -> None:
+    def llmobs_extract_and_activate_distributed_headers(self, headers: Dict[str, str], context: Context) -> None:
         """Extract distributed tracing headers from MCP request context and activate them for LLMObs."""
         if not self.llmobs_enabled or not headers or not context:
             return
