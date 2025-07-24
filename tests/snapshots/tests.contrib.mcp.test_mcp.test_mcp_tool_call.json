@@ -23,8 +23,7 @@
     },
     "duration": 65000,
     "start": 1752080819604325000
-  }],
-[
+  },
   {
     "name": "mcp.request",
     "service": "tests.contrib.mcp",
@@ -49,4 +48,5 @@
     },
     "duration": 1741000,
     "start": 1752080819603659000
-  }]]
+  }
+]]
