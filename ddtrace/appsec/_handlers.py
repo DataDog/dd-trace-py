@@ -4,6 +4,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Union
 
 import xmltodict
 
@@ -11,6 +12,7 @@ from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import set_body_response
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
@@ -155,6 +157,14 @@ def _on_lambda_start_response(
     )
 
     _call_waf(("aws_lambda",))
+
+
+def _on_lambda_parse_body(
+    response_body: Optional[Union[str, Dict[str, Any]]],
+):
+    if asm_config._api_security_feature_active:
+        if response_body:
+            set_body_response(response_body)
 
 
 # ASGI
@@ -408,6 +418,7 @@ def listen():
 
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
+    core.on("aws_lambda.parse_body", _on_lambda_parse_body)
 
     core.on("grpc.server.response.message", _on_grpc_server_response)
     core.on("grpc.server.data", _on_grpc_server_data)
