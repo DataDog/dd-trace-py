@@ -2245,6 +2245,9 @@ class PytestTestCase(PytestTestCaseBase):
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace")
 
