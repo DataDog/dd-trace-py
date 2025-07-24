@@ -914,9 +914,9 @@ class OaiSpanAdapter:
                         "tool_calls": [
                             {
                                 "tool_id": item.call_id,
-                                "arguments": (
-                                    json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
-                                ),
+                                "arguments": json.loads(item.arguments)
+                                if isinstance(item.arguments, str)
+                                else item.arguments,
                                 "name": getattr(item, "name", ""),
                                 "type": getattr(item, "type", "function"),
                             }
