@@ -76,6 +76,21 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "model": "gpt-4o",
         "model_settings": mock.ANY,
     },
+    "Weather Agent": {
+        "framework": "OpenAI",
+        "name": "Weather Agent",
+        "instructions": "You are a helpful assistant specialized in searching the web for weather information.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "web_search_preview",
+                "user_location": {"type": "approximate", "city": "New York"},
+                "search_context_size": "medium",
+            }
+        ],
+    },
 }
 
 
@@ -98,8 +113,6 @@ def _assert_expected_agent_run(
         spans: List of spans from the mock tracer
         llmobs_events: List of LLMObs events
         agent_name: Name of the agent
-        handoffs: List of handoff names
-        tools: List of tool names
         llm_calls: List of (input_messages, output_messages) for each LLM call
         tool_calls: List of information about tool calls
         previous_tool_events: List of previous tool events for span linking assertions across agent runs
@@ -407,6 +420,50 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         ],
         tool_calls=[{"type": "function_call", "error": False}],
     )
+
+@pytest.mark.asyncio
+async def test_llmobs_single_agent_with_ootb_tools(
+    agents, mock_tracer, request_vcr, llmobs_events, weather_agent
+):
+    with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
+        result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
+
+    spans = mock_tracer.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 3
+
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        input_value="What is the weather like in New York right now?",
+        output_value=result.final_output,
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    _assert_expected_agent_run(
+        ["Weather Agent", "Weather Agent (LLM)"],
+        spans[1:],
+        llmobs_events[1:],
+        llm_calls=[
+            (
+                [
+                    {"role": "system", "content": weather_agent.instructions},
+                    {"role": "user", "content": "What is the weather like in New York right now?"},
+                ],
+                [
+                    {
+                        "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce', "
+                        "status='completed', type='web_search_call', action={'type': 'search', 'query': 'current weather in New York'})",
+                        "role": "",
+                    },
+                    {"role": "assistant", "content": result.final_output},
+                ],
+            ),
+        ],
+    )
+
 
 
 @pytest.mark.asyncio

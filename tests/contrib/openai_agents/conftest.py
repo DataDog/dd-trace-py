@@ -4,6 +4,8 @@ from agents import Agent
 from agents import GuardrailFunctionOutput
 from agents import function_tool
 from agents import input_guardrail
+from agents import WebSearchTool
+from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
@@ -98,6 +100,21 @@ def addition_agent_with_tool_errors():
             "Do not retry the tool call if it errors and instead return immediately"
         ),
         tools=[add_with_error],
+        model="gpt-4o",
+    )
+
+@pytest.fixture
+def web_search():
+    yield WebSearchTool(user_location=UserLocation(type="approximate", city="New York"))
+
+@pytest.fixture
+def weather_agent(web_search):
+    yield Agent(
+        name="Weather Agent",
+        instructions=(
+            "You are a helpful assistant specialized in searching the web for weather information."
+        ),
+        tools=[web_search],
         model="gpt-4o",
     )
 
