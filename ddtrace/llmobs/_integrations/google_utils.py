@@ -74,7 +74,7 @@ def extract_provider_and_model_name_google(
 
 # google genai has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
-DEFAULT_MODEL_ROLE = "assistant"
+GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
 
 def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
@@ -169,7 +169,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     returns a dict representing a message with format {"role": role, "content": content}
     """
     if role == "model":
-        role = DEFAULT_MODEL_ROLE
+        role = GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 
     message: Dict[str, Any] = {"role": role}
     if isinstance(part, str):
