@@ -1,4 +1,4 @@
-"""Automatically starts a collector when imported."""
+"""Automatically starts a collector when imported. this module is loaded by ddtrace/bootstrap/preload.py"""
 from ddtrace.appsec.iast import enable_iast_propagation
 from ddtrace.internal.logger import get_logger
 
