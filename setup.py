@@ -250,7 +250,7 @@ class ExtensionHashes(build_ext):
 
 class LibraryDownload:
     CACHE_DIR = HERE / ".download_cache"
-    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None
     download_dir = Path.cwd()
@@ -421,7 +421,7 @@ class CleanLibraries(CleanCommand):
 
 
 class CustomBuildExt(build_ext):
-    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
     def run(self):
         self.build_rust()
