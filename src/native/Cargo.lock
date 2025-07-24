@@ -468,25 +468,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "datadog-crashtracker-ffi"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
-dependencies = [
- "anyhow",
- "build_common",
- "datadog-crashtracker",
- "ddcommon",
- "ddcommon-ffi",
- "function_name",
- "libc",
- "serde",
- "serde_json",
- "symbolic-common",
- "symbolic-demangle",
- "windows",
-]
-
-[[package]]
 name = "datadog-ddsketch"
 version = "19.1.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
@@ -545,7 +526,6 @@ source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084
 dependencies = [
  "anyhow",
  "build_common",
- "datadog-crashtracker-ffi",
  "datadog-profiling",
  "ddcommon",
  "ddcommon-ffi",
