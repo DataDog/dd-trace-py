@@ -1677,6 +1677,11 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
+        ), override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()

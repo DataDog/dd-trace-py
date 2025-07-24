@@ -263,7 +263,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
     try:
         take_over_logger_stream_handler()
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
+        # dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
