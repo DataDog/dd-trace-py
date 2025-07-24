@@ -243,14 +243,36 @@ def test_extended_sampling_tags_and_name_glob():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "2*"}}])})
-def test_extended_sampling_float_special_case_do_not_match():
-    """A float with a non-zero decimal and a tag with a non-* pattern
-    # should not match the rule, and should therefore be kept
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [{"sample_rate": 0, "service": "mycoolservice", "tags": {"tag1": "monkey", "tag2": "banana"}}]
+        )
+    }
+)
+def test_extended_sampling_tags_partial_match():
+    """
+    All tags in a sampling rule should match for the rule to be applied
     """
     from ddtrace.trace import tracer
 
-    with tracer.trace(name="should_send") as span:
+    with tracer.trace(name="should_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+
+    with tracer.trace(name="should_not_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+        span.set_tag("tag2", "banana")
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "2*"}}])})
+def test_extended_sampling_float_special_case_do_not_match():
+    """A float with a non-zero decimal and a tag with a valid glob pattern
+    should match the rule, and should therefore be dropped
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace(name="should_not_send") as span:
         span.set_tag("tag", 20.1)
 
 

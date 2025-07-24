@@ -123,7 +123,7 @@ class SamplingRule(object):
             return False
 
         for tag_key, pattern in self._tag_value_matchers.items():
-            if tag_key not in meta or tag_key not in metrics:
+            if tag_key not in meta and tag_key not in metrics:
                 # If the tag is not present, we failed the match
                 return False
             value = meta.get(tag_key, metrics.get(tag_key))
