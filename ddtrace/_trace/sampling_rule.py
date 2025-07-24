@@ -139,8 +139,9 @@ class SamplingRule(object):
                 if value.is_integer():
                     value = int(value)
                 elif fnmatch(pattern.pattern, "*[0-9]*"):
-                    # If the value is not an integer and the pattern contains a digit, we do not match the rule.
-                    # We should only match patterns that can capture all characters (ex: * or ?*)
+                    # If the value is float and the pattern contains a digit, we do not match the rule.
+                    # We should only match patterns that can capture all characters (ex: * or ?*) and
+                    # not patterns like `23.*`. Why? Well that's just the current spec and we have a shared test for this.
                     return False
 
             if not pattern.match(str(value)):
