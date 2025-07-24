@@ -179,7 +179,6 @@ class _CompletionWithRawResponseHook(_CompletionHook):
 
 
 class _ChatCompletionHook(_BaseCompletionHook):
-    _request_arg_params = ()
     _request_kwarg_params = (
         "model",
         "engine",
@@ -218,7 +217,6 @@ class _ChatCompletionWithRawResponseHook(_ChatCompletionHook):
 
 
 class _EmbeddingHook(_EndpointHook):
-    _request_arg_params = ()
     _request_kwarg_params = ("model", "engine")
     _response_attrs = ("model",)
     ENDPOINT_NAME = "embeddings"
@@ -413,22 +411,16 @@ class _ImageHook(_EndpointHook):
 
 
 class _ImageCreateHook(_ImageHook):
-    _request_arg_params = ()
-    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/generations"
     OPERATION_ID = "createImage"
 
 
 class _ImageEditHook(_ImageHook):
-    _request_arg_params = ()
-    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/edits"
     OPERATION_ID = "createImageEdit"
 
 
 class _ImageVariationHook(_ImageHook):
-    _request_arg_params = ()
-    _request_kwarg_params = ()
     ENDPOINT_NAME = "images/variations"
     OPERATION_ID = "createImageVariation"
 
@@ -441,13 +433,11 @@ class _BaseAudioHook(_EndpointHook):
 
 
 class _AudioTranscriptionHook(_BaseAudioHook):
-    _request_kwarg_params = ()
     ENDPOINT_NAME = "audio/transcriptions"
     OPERATION_ID = "createTranscription"
 
 
 class _AudioTranslationHook(_BaseAudioHook):
-    _request_kwarg_params = ()
     ENDPOINT_NAME = "audio/translations"
     OPERATION_ID = "createTranslation"
 
@@ -518,7 +508,6 @@ class _FileDownloadHook(_BaseFileHook):
 
 
 class _ResponseHook(_BaseCompletionHook):
-    _request_arg_params = ()
     # Collecting all kwargs for responses
     _request_kwarg_params = ("model",)
     _response_attrs = ("model",)
