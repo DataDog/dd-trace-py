@@ -20,7 +20,9 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
       "process_id": 53744,
-      "tag": 20.1
+      "tag": 20.1,
+      "tag2": 22.2,
+      "tag3": 3333333.33333
     },
     "duration": 25000,
     "start": 1711319559844282297

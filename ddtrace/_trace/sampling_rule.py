@@ -1,3 +1,4 @@
+from fnmatch import fnmatch
 from typing import Any
 from typing import Optional
 from typing import Tuple
@@ -132,10 +133,15 @@ class SamplingRule(object):
                 # so we need to check for that explicitly. We should not match 'None' to any other value (ex: *).
                 return False
 
-            if isinstance(value, float) and value.is_integer():
+            if isinstance(value, float):
                 # Floats: Convert floats that represent integers to int for matching. This is because
                 # SamplingRules only support integers for matfching or glob patterns.
-                value = int(value)
+                if value.is_integer():
+                    value = int(value)
+                elif fnmatch(pattern.pattern, "*[0-9]*"):
+                    # If the value is not an integer and the pattern contains a digit, we do not match the rule.
+                    # We should only match patterns that can capture all characters (ex: * or ?*)
+                    return False
 
             if not pattern.match(str(value)):
                 return False
