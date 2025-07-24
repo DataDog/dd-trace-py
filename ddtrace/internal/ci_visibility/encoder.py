@@ -82,8 +82,7 @@ class CIVisibilityEncoderV01(BufferedEncoder):
                 return []
             payloads = []
             with StopWatch() as sw:
-                result_payloads = self._build_payload(self.buffer)
-                payloads.extend(result_payloads)
+                payloads = self._build_payload(self.buffer)
             record_endpoint_payload_events_serialization_time(endpoint=self.ENDPOINT_TYPE, seconds=sw.elapsed())
             self._init_buffer()
             return payloads
