@@ -19,7 +19,6 @@ def expected_agent_metadata(instructions=None, system_prompt=None, model_setting
             "framework": "PydanticAI",
             "name": "test_agent",
             "model": "gpt-4o",
-            "model_provider": "openai",
             "model_settings": model_settings,
             "instructions": instructions,
             "system_prompts": (system_prompt,) if system_prompt else (),
