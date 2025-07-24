@@ -13,7 +13,7 @@ class BaseServiceProcessor(TraceProcessor):
         self._global_service = schematize_service_name((config.service or "").lower())
 
     def process_trace(self, trace):
-        if not trace or in_aws_lambda() or in_gcp_function() or in_azure_function():
+        if not trace or in_aws_lambda():
             return trace
 
         traces_to_process = filter(
