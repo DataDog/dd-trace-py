@@ -154,6 +154,12 @@ class Dataset:
         self._deleted_record_ids.append(record_id)
         del self._records[index]
 
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
         ...
@@ -171,12 +177,56 @@ class Dataset:
     def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._records)
 
+    def as_dataframe(self) -> None:
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert dataset to DataFrame. Please install via `pip install pandas`"
+            ) from e
+
+        column_tuples = set()
+        data_rows = []
+        for record in self._records:
+            flat_record = {}  # type: Dict[Union[str, Tuple[str, str]], Any]
+
+            input_data = record.get("input_data", {})
+            if isinstance(input_data, dict):
+                for input_data_col, input_data_val in input_data.items():
+                    flat_record[("input_data", input_data_col)] = input_data_val
+                    column_tuples.add(("input_data", input_data_col))
+            else:
+                flat_record[("input_data", "")] = input_data
+                column_tuples.add(("input_data", ""))
+
+            expected_output = record.get("expected_output", {})
+            if isinstance(expected_output, dict):
+                for expected_output_col, expected_output_val in expected_output.items():
+                    flat_record[("expected_output", expected_output_col)] = expected_output_val
+                    column_tuples.add(("expected_output", expected_output_col))
+            else:
+                flat_record[("expected_output", "")] = expected_output
+                column_tuples.add(("expected_output", ""))
+
+            for metadata_col, metadata_val in record.get("metadata", {}).items():
+                flat_record[("metadata", metadata_col)] = metadata_val
+                column_tuples.add(("metadata", metadata_col))
+
+            data_rows.append(flat_record)
+
+        records_list = []
+        for flat_record in data_rows:
+            row = [flat_record.get(col, None) for col in column_tuples]
+            records_list.append(row)
+
+        return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
+
 
 class Experiment:
     def __init__(
         self,
         name: str,
-        task: Callable[[DatasetRecordInputType], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
@@ -218,7 +268,8 @@ class Experiment:
         if not self._llmobs_instance.enabled:
             logger.warning(
                 "Skipping experiment as LLMObs is not enabled. "
-                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
+                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
             )
             return []
 
@@ -267,7 +318,7 @@ class Experiment:
             }
             output_data = None
             try:
-                output_data = self._task(input_data)
+                output_data = self._task(input_data, self._config)
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
