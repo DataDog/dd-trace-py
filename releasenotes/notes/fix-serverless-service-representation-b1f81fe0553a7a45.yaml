@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    aws: set peer.service explictly and remove base_service in serverless
-    environments to improve the accuracy of serverless service representation.
-    
-    
+    aws: Set peer.service explictly to improve the accuracy of serverless 
+    service representation. Base_service defaults to unhelpful value "runtime"
+    in serverless spans. Remove base_service to prevent unwanted service
+    overrides in Lambda spans.

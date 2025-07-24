@@ -18,6 +18,16 @@ from ddtrace.internal.utils.formats import deep_getattr
 
 _PAYLOAD_TAGGER = AWSPayloadTagging()
 
+SERVICE_MAP = {
+    "eventbridge": "events",
+    "events": "events",
+    "sqs": "sqs",
+    "sns": "sns",
+    "kinesis": "kinesis",
+    "dynamodb": "dynamodb",
+    "dynamodbdocument": "dynamodb",
+}
+
 
 # Helper to build AWS hostname from service, region and parameters
 def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
@@ -40,25 +50,13 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, 
 
     aws_service = service.lower()
 
-    # Only set peer.service for specific services
-    if aws_service in {"eventbridge", "events"}:
-        return f"events.{region}.amazonaws.com"
-    if aws_service == "sqs":
-        return f"sqs.{region}.amazonaws.com"
-    if aws_service == "sns":
-        return f"sns.{region}.amazonaws.com"
-    if aws_service == "kinesis":
-        return f"kinesis.{region}.amazonaws.com"
-    if aws_service in {"dynamodb", "dynamodbdocument"}:
-        return f"dynamodb.{region}.amazonaws.com"
     if aws_service == "s3":
         bucket = params.get("Bucket") if params else None
-        if bucket:
-            return f"{bucket}.s3.{region}.amazonaws.com"
-        return f"s3.{region}.amazonaws.com"
+        return f"{bucket}.s3.{region}.amazonaws.com" if bucket else f"s3.{region}.amazonaws.com"
 
-    # Return None for all other services
-    return None
+    mapped = SERVICE_MAP.get(aws_service)
+
+    return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
