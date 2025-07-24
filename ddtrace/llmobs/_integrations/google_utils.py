@@ -69,13 +69,8 @@ def extract_provider_and_model_name_google(
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
             return provider_name, model_name
-
     return "custom", model_name if model_name else "custom"
 
-
-# ---------------------------------------------------------------------------------------------------
-# Below are util functions for Google GenAI Integration
-# ---------------------------------------------------------------------------------------------------
 
 # google genai has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
@@ -219,11 +214,6 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
-
-
-# ---------------------------------------------------------------------------------------------------
-# Below are util functions for Gemini and VertexAI Integrations
-# ---------------------------------------------------------------------------------------------------
 
 
 def llmobs_get_metadata_gemini_vertexai(kwargs, instance):

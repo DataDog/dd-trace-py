@@ -317,7 +317,7 @@ def openai_set_meta_tags_from_chat(span: Span, kwargs: Dict[str, Any], messages:
 
 
 def openai_get_input_messages_from_response_input(
-    messages: Optional[Union[str, List[Dict[str, Any]]]],
+    messages: Optional[Union[str, List[Dict[str, Any]]]]
 ) -> List[Dict[str, Any]]:
     """Parses the input to openai responses api into a list of input messages
 
