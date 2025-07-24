@@ -4,6 +4,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility.status import TestSourceFileInfo
@@ -68,7 +69,11 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
                 )
                 return
 
-        self.count_itr_skipped()
+        # In test-level skipping mode, counting is already done by the tests
+        # Only count at suite level when skipping at suite level
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+            self.count_itr_skipped()
+
         self.mark_itr_skipped()
         self.finish()
 
