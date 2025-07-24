@@ -40,7 +40,6 @@
        "parent_id": 1,
        "type": "http",
        "meta": {
-         "_dd.base_service": "test-func",
          "component": "requests",
          "http.method": "GET",
          "http.status_code": "200",
