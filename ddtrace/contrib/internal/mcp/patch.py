@@ -18,7 +18,6 @@ from ddtrace.llmobs._integrations.mcp import MCPIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
-from ddtrace.trace import tracer
 
 
 log = get_logger(__name__)
@@ -41,9 +40,9 @@ def _supported_versions() -> Dict[str, str]:
     return {"mcp": ">=1.10.0"}
 
 
-def _set_distributed_headers_into_mcp_request(request):
+def _set_distributed_headers_into_mcp_request(pin, request):
     """Inject distributed tracing headers into MCP request metadata."""
-    span = tracer.current_span()
+    span = pin.tracer.current_span()
     if span is None:
         return request
 
@@ -102,7 +101,7 @@ def traced_send_request(mcp, pin, func, instance, args, kwargs):
     if not args or not config.mcp.distributed_tracing:
         return func(*args, **kwargs)
     request = args[0]
-    modified_request = _set_distributed_headers_into_mcp_request(request)
+    modified_request = _set_distributed_headers_into_mcp_request(pin, request)
     return func(*((modified_request,) + args[1:]), **kwargs)
 
 
@@ -138,7 +137,7 @@ async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
         # llmobs activate distributed context
         integration.extract_and_activate_distributed_headers(headers, context)
         # apm activate distributed context
-        tracer.context_provider.activate(context)
+        pin.tracer.context_provider.activate(context)
 
     span = integration.trace(pin, SERVER_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
