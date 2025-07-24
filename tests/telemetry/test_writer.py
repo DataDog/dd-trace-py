@@ -614,7 +614,7 @@ urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
     endpoints = payload["endpoints"]
     assert len(endpoints) == 2, endpoints
     assert any(e["path"] == "mini_app/" and e["method"] == "*" for e in endpoints), endpoints
-    assert any(e["path"] == "view_name/" and e["method"] == "GET" for e in endpoints), endpoints
+    assert any(e["path"] == "view_name/" and e["method"] == "GET" and e["resource_name"] == "GET view_name/" for e in endpoints), endpoints
 
 
 def test_instrumentation_source_config(
