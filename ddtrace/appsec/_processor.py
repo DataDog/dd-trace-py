@@ -189,7 +189,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
                 log.debug(
-                    "appsec: ignoring unsupported lamdba event",
+                    "appsec: ignoring unsupported lambda event",
                 )
                 span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
@@ -278,7 +278,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
-                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+                    log.debug("[action] WAF got value %s", WAF_DATA_NAMES.get(key, key))
 
         # small optimization to avoid running the waf if there is no data to check
         if not data and not ephemeral_data:

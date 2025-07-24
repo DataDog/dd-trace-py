@@ -2,7 +2,6 @@ import warnings
 
 import pytest
 
-from ddtrace._logger import LogInjectionState
 from ddtrace.settings import HttpConfig
 from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._config import Config
@@ -14,20 +13,24 @@ class TestConfig(BaseTestCase):
     def test_logs_injection(self):
         with self.override_env(dict(DD_LOGS_INJECTION="True")):
             config = Config()
-            self.assertEqual(config._logs_injection, LogInjectionState.ENABLED)
+            self.assertEqual(config._logs_injection, True)
 
         with self.override_env(dict(DD_LOGS_INJECTION="FALSE")):
             config = Config()
-            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
+            self.assertEqual(config._logs_injection, False)
+
+        with self.override_env(dict(DD_LOGS_INJECTION="structured")):
+            config = Config()
+            self.assertEqual(config._logs_injection, True)
 
         with self.override_env(dict(), replace_os_env=True):
             config = Config()
-            self.assertEqual(config._logs_injection, LogInjectionState.STRUCTURED)
+            self.assertEqual(config._logs_injection, True)
 
-        with self.override_env(dict(DD_LOGS_INJECTION="nonesense")):
+        with self.override_env(dict(DD_LOGS_INJECTION="nonsense")):
             # If the value is not recognized, it should default to DISABLED
             config = Config()
-            self.assertEqual(config._logs_injection, LogInjectionState.DISABLED)
+            self.assertEqual(config._logs_injection, False)
 
     def test_service(self):
         # If none is provided the default should be ``None``

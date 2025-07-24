@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the FastAPI body extraction was not functioning correctly in asynchronous contexts for large bodies, leading to missing security events. 
+    The timeout for reading request body chunks has been set to 0.1 seconds to ensure timely processing without blocking the event loop.
+    This can be configured using the ``DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS`` environment variable.

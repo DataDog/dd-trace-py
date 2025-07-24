@@ -75,6 +75,7 @@ class ASMConfig(DDConfig):
     _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
+    _use_metastruct_for_iast = True
 
     _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
@@ -170,6 +171,10 @@ class ASMConfig(DDConfig):
     _django_include_user_login = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
     _django_include_user_realname = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
 
+    # FASTAPI ASYNC
+    # Timeout for the request body reading in seconds.
+    _fast_api_async_body_timeout = DDConfig.var(float, "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", default=0.1)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -189,6 +194,7 @@ class ASMConfig(DDConfig):
         "_iast_is_testing",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
+        "_use_metastruct_for_iast",
         "_auto_user_instrumentation_local_mode",
         "_auto_user_instrumentation_rc_mode",
         "_auto_user_instrumentation_enabled",
@@ -240,9 +246,8 @@ class ASMConfig(DDConfig):
             self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
             self._asm_http_span_types.add(SpanTypes.SERVERLESS)
 
-            # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
+            # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._api_security_enabled = False
             self._ep_enabled = False
             self._iast_supported = False
 

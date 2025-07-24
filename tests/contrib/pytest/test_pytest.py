@@ -9,7 +9,6 @@ import pytest
 import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -32,6 +31,9 @@ from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
 from tests.utils import override_env
+
+
+_USE_PLUGIN_V2 = True
 
 
 def _get_spans_from_list(
@@ -775,7 +777,9 @@ class PytestTestCase(PytestTestCaseBase):
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
         encoder.put(spans)
-        trace, _ = encoder.encode()
+        encoded_results = encoder.encode()
+        assert encoded_results, "Expected encoded traces but got empty list"
+        [(trace, _)] = encoded_results
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
@@ -783,7 +787,9 @@ class PytestTestCase(PytestTestCaseBase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_results = ci_agentless_encoder.encode()
+        assert encoded_results, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_results
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
@@ -4180,3 +4186,218 @@ class PytestTestCase(PytestTestCaseBase):
 
         result = self.subprocess_run("--ddtrace", file_name)
         assert result.ret == 0
+
+    def test_pytest_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
+    def test_pytest_no_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run(file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
+
+def test_pytest_coverage_data_format_handling_none_value():
+    """Test that coverage data format issues are handled correctly with proper logging for None value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    # Test case 1: coverage data is None
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: None},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        mock_log.debug.assert_called_with("Unable to retrieve coverage data for the session span")
+        mock_set_covered_lines_pct.assert_not_called()
+
+
+def test_pytest_coverage_data_format_handling_invalid_type():
+    """Test that coverage data format issues are handled correctly with proper logging for invalid value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    # Test case 2: coverage data is not a float (e.g., string)
+    invalid_value = "not_a_float"
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: invalid_value},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        mock_log.warning.assert_called_with(
+            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+            "builtins",
+            "str",
+            invalid_value,
+        )
+        mock_set_covered_lines_pct.assert_not_called()
+
+
+@pytest.mark.parametrize("valid_value", [75, 86.01])
+def test_pytest_coverage_data_format_handling_valid_values(valid_value):
+    """Test that coverage data format issues are handled correctly with proper logging."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        # No warning or debug should be called for valid case
+        mock_log.warning.assert_not_called()
+        mock_log.debug.assert_not_called()
+        mock_set_covered_lines_pct.assert_called_once_with(valid_value)
