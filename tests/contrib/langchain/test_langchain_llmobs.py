@@ -715,13 +715,13 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_with_openai_enabled_non_ascii_value(self, openai_url):
+    def test_llmobs_with_openai_enabled_non_ascii_value(self):
         """Regression test to ensure that non-ascii text values for workflow spans are not encoded."""
         from langchain_openai import OpenAI
 
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        llm = OpenAI(base_url=openai_url)
+        llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
         llm.invoke("안녕,\n 지금 몇 시야?")
         langchain_span = self.mock_llmobs_span_writer.enqueue.call_args_list[1][0][0]
         assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'

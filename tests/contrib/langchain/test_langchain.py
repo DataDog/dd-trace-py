@@ -318,7 +318,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completi
         "latest": LANGCHAIN_VERSION >= (0, 3),
     },
 )
-def test_lcel_chain_nested(langchain_core, langchain_openai, openai_url):
+def test_lcel_chain_nested(langchain_core, langchain_openai):
     """
     Test that invoking a nested chain will result in a 4-span trace with a root
     RunnableSequence span (complete_chain), then another RunnableSequence (chain1) +
@@ -329,7 +329,7 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, openai_url):
         "what country is the city {city} in? respond in {language}"
     )
 
-    model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    model = langchain_openai.ChatOpenAI(base_url="http://localhost:9126/vcr/openai")
 
     chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
     chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
