@@ -60,7 +60,7 @@ def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = 
         dedup_env["PATH"] = cargo_bin + os.pathsep + env["PATH"]
 
         subprocess.run(
-            ["dedup_headers", "common.h", "crashtracker.h", "profiling.h"],
+            ["dedup_headers", "common.h", "profiling.h"],
             cwd=str(abs_dir / "target" / "include" / "datadog"),
             check=True,
             env=dedup_env,
