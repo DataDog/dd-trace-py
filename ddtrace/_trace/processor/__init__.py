@@ -166,7 +166,12 @@ class TraceSamplingProcessor(TraceProcessor):
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-
+                    log.debug(
+                        "Single span sampling decision was made for %d spans. "
+                        "The remaining spans will be dropped. Trace Context: %r",
+                        len(single_spans),
+                        root_ctx,
+                    )
                     return single_spans or None
 
             # single span sampling rules are applied after trace sampling
@@ -374,16 +379,13 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans is not None:
+                if spans:
                     for span in spans:
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
-                self.writer.write(spans)
-                return
-
-            log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
-            return None
+                    log.debug("Tracer is encoding %d finished spans. Trace Context: %r", len(spans), spans[0].context)
+                    self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
