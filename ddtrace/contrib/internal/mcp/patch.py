@@ -65,7 +65,7 @@ def _set_distributed_headers_into_mcp_request(pin, request):
         existing_meta = _get_attr(request_params, "meta", None)
         meta_dict = existing_meta.model_dump() if existing_meta else {}
 
-        meta_dict["dd_trace_context"] = headers
+        meta_dict["_dd_trace_context"] = headers
         params_dict = request_params.model_dump(by_alias=True)
         params_dict["_meta"] = meta_dict
 
@@ -90,7 +90,7 @@ def _extract_distributed_headers_from_mcp_request(kwargs: Dict[str, Any]) -> Opt
     meta = _get_attr(request_context, "meta", None)
     if not meta:
         return
-    headers = _get_attr(meta, "dd_trace_context", None)
+    headers = _get_attr(meta, "_dd_trace_context", None)
     if headers:
         return headers
 
