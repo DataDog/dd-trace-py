@@ -83,7 +83,6 @@ class _EndpointHook:
 
 
 class _BaseCompletionHook(_EndpointHook):
-    _request_arg_params = ()
 
     def _handle_streamed_response(self, integration, span, kwargs, resp, operation_type=""):
         """Handle streamed response objects returned from completions/chat/response endpoint calls.
@@ -226,8 +225,6 @@ class _EmbeddingHook(_EndpointHook):
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp, operation="embedding")
-        if not resp:
-            return
         return resp
 
 
@@ -320,8 +317,6 @@ class _RetrieveHook(_EndpointHook):
 
     def _record_response(self, pin, integration, span, args, kwargs, resp, error):
         resp = super()._record_response(pin, integration, span, args, kwargs, resp, error)
-        if not resp:
-            return
         return resp
 
 
@@ -427,7 +422,6 @@ class _ImageVariationHook(_ImageHook):
 
 class _BaseAudioHook(_EndpointHook):
     _request_arg_params = ("model",)
-    _response_attrs = ()
     ENDPOINT_NAME = "audio"
     HTTP_METHOD_TYPE = "POST"
 
@@ -446,7 +440,6 @@ class _ModerationHook(_EndpointHook):
     _request_arg_params = ("model",)
     _request_kwarg_params = ("model",)
     _response_attrs = ("id", "model")
-    _response_categories = ()
     ENDPOINT_NAME = "moderations"
     HTTP_METHOD_TYPE = "POST"
     OPERATION_ID = "createModeration"
