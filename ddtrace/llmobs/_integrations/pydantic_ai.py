@@ -140,7 +140,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if not agent:
             return
 
-        manifest = {}
+        manifest: Dict[str, Any] = {}
         manifest["framework"] = "PydanticAI"
         manifest["name"] = agent.name if hasattr(agent, "name") and agent.name else "PydanticAI Agent"
         model = getattr(agent, "model", None)

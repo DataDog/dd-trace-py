@@ -301,7 +301,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         self.llmobs_traces.clear()
 
     def tag_agent_manifest(self, span: Span, args: List[Any], kwargs: Dict[str, Any], agent_index: int) -> None:
-        agent = get_argument_value(args, kwargs, agent_index, "agent", None)
+        agent = get_argument_value(args, kwargs, agent_index, "agent", True)
         if not agent or not self.llmobs_enabled:
             return
 
