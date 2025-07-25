@@ -11,32 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "65a0359100000000",
-      "bedrock.request.max_tokens": "10",
+      "_dd.p.tid": "687f907e00000000",
       "bedrock.request.model": "command-light-text-v14",
       "bedrock.request.model_provider": "cohere",
-      "bedrock.request.n": "1",
-      "bedrock.request.prompt": "\\n\\nHuman: %s\\n\\nAssistant: Can you explain what a LLM chain is?",
-      "bedrock.request.stop_sequences": "[]",
-      "bedrock.request.stream": "True",
-      "bedrock.request.temperature": "0.9",
-      "bedrock.request.top_k": "0",
-      "bedrock.request.top_p": "1.0",
-      "bedrock.response.choices.0.finish_reason": "MAX_TOKENS",
-      "bedrock.response.choices.0.text": " I am very happy to assist you! A Long",
-      "bedrock.response.duration": "347",
-      "bedrock.response.id": "ff340d3e-475b-4774-92fa-56ee3d4702c8",
       "language": "python",
-      "runtime-id": "e2468c635ce44f8788acce3e9e569237"
+      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "bedrock.response.usage.completion_tokens": 10,
-      "bedrock.response.usage.prompt_tokens": 20,
-      "process_id": 21816
+      "process_id": 25551
     },
-    "duration": 630536000,
-    "start": 1704998289948603000
+    "duration": 2892000,
+    "start": 1753190526520682000
   }]]
