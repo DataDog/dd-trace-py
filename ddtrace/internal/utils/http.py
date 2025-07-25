@@ -391,8 +391,6 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
     import json
     from urllib.parse import parse_qs
 
-    import xmltodict
-
     def parse_message(msg):
         if msg.is_multipart():
             res = {
@@ -404,6 +402,8 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
             if content_type in ("application/json", "text/json"):
                 res = json.loads(msg.get_payload())
             elif content_type in ("application/xml", "text/xml"):
+                import ddtrace.vendor.xmltodict as xmltodict
+
                 res = xmltodict.parse(msg.get_payload())
             elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
                 res = parse_qs(msg.get_payload())
