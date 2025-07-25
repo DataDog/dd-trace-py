@@ -7,7 +7,7 @@
         "Name": "operation",
         "Resource": "operation",
         "Service": null,
-        "Type": null,
+        "Type": "",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 10,
