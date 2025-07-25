@@ -1,9 +1,3 @@
-import os
-
-
-os.environ["DD_TRACE_OTEL_ENABLED"] = "true"
-
-
 import ddtrace.auto
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer
