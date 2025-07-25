@@ -1,13 +1,15 @@
 import asyncio
 import json
+import os
+from textwrap import dedent
 
 import mock
 
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
-def _get_client_and_server_spans_and_events(mock_tracer, llmobs_events):
-    """Get client and server spans and events for testing."""
+def _assert_distributed_trace(mock_tracer, llmobs_events, expected_tool_name):
+    """Assert that client and server spans have the same trace ID and return client/server spans and LLM Obs events."""
     traces = mock_tracer.pop_traces()
     assert len(traces) >= 1
 
@@ -19,6 +21,9 @@ def _get_client_and_server_spans_and_events(mock_tracer, llmobs_events):
 
     assert len(client_spans) >= 1 and len(server_spans) >= 1
     assert len(client_events) >= 1 and len(server_events) >= 1
+    assert client_spans[0].trace_id == server_spans[0].trace_id
+    assert client_events[0]["trace_id"] == server_events[0]["trace_id"]
+    assert client_events[0]["_dd"]["apm_trace_id"] == server_events[0]["_dd"]["apm_trace_id"]
 
     return all_spans, client_events, server_events, client_spans, server_spans
 
@@ -27,8 +32,8 @@ def test_llmobs_mcp_client_calls_server(mcp_setup, mock_tracer, llmobs_events, m
     """Test that LLMObs records are emitted for both client and server MCP operations."""
     asyncio.run(mcp_call_tool("calculator", {"operation": "add", "a": 20, "b": 22}))
 
-    all_spans, client_events, server_events, client_spans, server_spans = _get_client_and_server_spans_and_events(
-        mock_tracer, llmobs_events
+    all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
+        mock_tracer, llmobs_events, "calculator"
     )
 
     assert len(all_spans) == 2
@@ -63,8 +68,8 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
     """Test error handling in both client and server MCP operations."""
     asyncio.run(mcp_call_tool("failing_tool", {"param": "value"}))
 
-    all_spans, client_events, server_events, client_spans, server_spans = _get_client_and_server_spans_and_events(
-        mock_tracer, llmobs_events
+    all_spans, client_events, server_events, client_spans, server_spans = _assert_distributed_trace(
+        mock_tracer, llmobs_events, "failing_tool"
     )
 
     assert len(all_spans) == 2
@@ -105,3 +110,59 @@ def test_llmobs_client_server_tool_error(mcp_setup, mock_tracer, llmobs_events, 
         error_message="Error executing tool failing_tool: Tool execution failed",
         error_stack=mock.ANY,
     )
+
+
+def test_mcp_distributed_tracing_disabled_env(ddtrace_run_python_code_in_subprocess, llmobs_backend):
+    """Test that distributed tracing is disabled when DD_MCP_DISTRIBUTED_TRACING=false."""
+    env = os.environ.copy()
+    env["DD_LLMOBS_ML_APP"] = "test-ml-app"
+    env["DD_API_KEY"] = "test-api-key"
+    env["DD_LLMOBS_ENABLED"] = "1"
+    env["DD_LLMOBS_AGENTLESS_ENABLED"] = "0"
+    env["DD_TRACE_AGENT_URL"] = llmobs_backend.url()
+    env["DD_MCP_DISTRIBUTED_TRACING"] = "false"
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+        dedent(
+            """
+        import asyncio
+        import logging
+        import warnings
+
+        logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
+        warnings.filterwarnings("ignore", message="OpenTelemetry configuration.*not supported by Datadog")
+
+        from ddtrace.llmobs import LLMObs
+        LLMObs.enable()
+
+        from mcp.server.fastmcp import FastMCP
+        from mcp.shared.memory import create_connected_server_and_client_session
+
+        mcp = FastMCP(name="TestServer")
+
+        @mcp.tool(description="Get weather for a location")
+        def get_weather(location: str) -> str:
+            return f"Weather in {location} is 72°F"
+
+        async def test():
+            async with create_connected_server_and_client_session(mcp._mcp_server) as client:
+                await client.initialize()
+                await client.call_tool("get_weather", {"location": "San Francisco"})
+
+        asyncio.run(test())
+        """
+        ),
+        env=env,
+    )
+    assert out == b""
+    assert status == 0, err
+    events = llmobs_backend.wait_for_num_events(num=1)
+    traces = events[0]
+    assert len(traces) == 2
+
+    client_trace = next((t for t in traces if "Client Tool Call" in t["spans"][0]["name"]), None)
+    server_trace = next((t for t in traces if "Server Tool Execute" in t["spans"][0]["name"]), None)
+
+    assert client_trace is not None
+    assert server_trace is not None
+    assert client_trace["spans"][0]["trace_id"] != server_trace["spans"][0]["trace_id"]
+    assert client_trace["spans"][0]["_dd"]["apm_trace_id"] != server_trace["spans"][0]["_dd"]["apm_trace_id"]
