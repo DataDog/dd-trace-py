@@ -28,6 +28,9 @@ WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
 ]
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
+WEATHER_TOOL_RESULT = [
+    {"result": ["The weather is 73f"], "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_result"}
+]
 
 
 @pytest.mark.parametrize(
@@ -495,7 +498,17 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": [
+                            {
+                                "result": ["The weather is 73f"],
+                                "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq",
+                                "type": "tool_result",
+                            }
+                        ],
+                    },
                 ],
                 output_messages=[
                     {
@@ -591,7 +604,11 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": WEATHER_TOOL_RESULT,
+                    },
                 ],
                 output_messages=[
                     {
@@ -701,7 +718,11 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message[0]["text"], "role": "assistant"},
                     {"content": message[1]["text"], "role": "assistant"},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": WEATHER_TOOL_RESULT,
+                    },
                 ],
                 output_messages=[
                     {
@@ -811,7 +832,11 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": WEATHER_TOOL_RESULT,
+                    },
                 ],
                 output_messages=[
                     {
