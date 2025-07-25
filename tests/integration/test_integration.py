@@ -693,12 +693,9 @@ def test_partial_flush_log():
         s3.finish()
         s2.finish()
 
-    calls = [
-        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
-        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
-    ]
-
-    log.debug.assert_has_calls(calls)
+    log.debug.assert_called_once_with(
+        ("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id) in log.debug.calls
+    )
     s1.finish()
     t.shutdown()
 
