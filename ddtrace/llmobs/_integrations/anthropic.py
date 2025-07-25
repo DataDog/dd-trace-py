@@ -234,9 +234,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         tool_definitions = []
         for tool in tools:
             tool_def = ToolDefinition(
-                name=tool.get("name", ""),
-                description=tool.get("description", ""),
-                schema=tool.get("input_schema", {})
+                name=tool.get("name", ""), description=tool.get("description", ""), schema=tool.get("input_schema", {})
             )
             tool_definitions.append(tool_def)
         return tool_definitions
