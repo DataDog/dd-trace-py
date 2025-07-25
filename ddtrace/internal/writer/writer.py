@@ -826,8 +826,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        # Shutdown the trace exporter worker
-        self._exporter.shutdown(int(3 * 1e9))
+        # Stop the trace exporter worker
+        self._exporter.stop_worker()
 
         api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
