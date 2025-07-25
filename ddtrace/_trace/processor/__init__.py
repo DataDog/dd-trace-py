@@ -371,7 +371,7 @@ class SpanAggregator(SpanProcessor):
                     log.warning(
                         "Programming Error: No finished spans to process for trace %d."
                         "Please open a Github issue at https://github.com/DataDog/dd-trace-py/issues",
-                        span.trace_id
+                        span.trace_id,
                     )
                     return
                 trace.spans = unfinished
