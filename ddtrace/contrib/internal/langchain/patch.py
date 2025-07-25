@@ -100,6 +100,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     completions = None
 
     integration.record_instance(instance, span)
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
 
     try:
         completions = func(*args, **kwargs)
@@ -626,6 +627,7 @@ def patch():
     from langchain_core.tools import BaseTool  # noqa:F401
 
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", traced_llm_invoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
     wrap(
         "langchain_core",
@@ -653,6 +655,7 @@ def patch():
         "language_models.chat_models.BaseChatModel.astream",
         traced_chat_stream(langchain),
     )
+    wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", traced_base_prompt_template_invoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
 
@@ -676,6 +679,7 @@ def unpatch():
     langchain._datadog_patch = False
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
+    unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
@@ -691,6 +695,7 @@ def unpatch():
     unwrap(langchain_core.language_models.llms.BaseLLM, "astream")
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
+    unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
     if langchain_openai:
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     if langchain_pinecone:
@@ -702,3 +707,17 @@ def unpatch():
     core.dispatch("langchain.unpatch", tuple())
 
     delattr(langchain, "_datadog_integration")
+
+@with_traced_module
+def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    prompt = func(*args, **kwargs)
+    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
+
+@with_traced_module
+def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = func(*args, **kwargs)
+    return response
