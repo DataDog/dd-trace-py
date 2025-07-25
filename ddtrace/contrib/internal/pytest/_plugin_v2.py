@@ -44,13 +44,13 @@ from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
@@ -132,9 +132,21 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    # Check what ITR skipping level is configured
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    # Determine if the item should be skipped based on the skipping level
+    if is_suite_skipping_mode:
+        # Suite-level skipping: check if the suite is skippable
+        should_skip = InternalTestSuite.is_itr_skippable(suite_id)
+        item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    else:
+        # Test-level skipping: check if the individual test is skippable
+        should_skip = InternalTest.is_itr_skippable(test_id)
+        item_is_unskippable = InternalTest.is_itr_unskippable(test_id) or InternalTest.is_attempt_to_fix(test_id)
+
+    if should_skip:
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
@@ -203,7 +215,15 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
 
-    InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+
+    if is_suite_skipping_mode:
+        # Suite-level ITR: add coverage data to the suite
+        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    else:
+        # Test-level ITR: add coverage data to the individual test
+        InternalTest.add_coverage_data(test_id, coverage_data)
 
 
 def _handle_coverage_dependencies(suite_id) -> None:
@@ -243,7 +263,8 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         return
 
     try:
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
+        # from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+        # dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
