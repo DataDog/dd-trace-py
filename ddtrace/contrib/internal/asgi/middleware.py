@@ -1,3 +1,5 @@
+from functools import wraps
+import ipaddress
 import os
 import sys
 from typing import Any
@@ -7,12 +9,20 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
+from ddtrace.constants import _ORIGIN_KEY
+from ddtrace.constants import _SAMPLING_DECISION_MAKER
+from ddtrace.constants import _SAMPLING_DECISION_MAKER_INHERITED
+from ddtrace.constants import _SAMPLING_DECISION_MAKER_RESOURCE
+from ddtrace.constants import _SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.constants import SPAN_LINK_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
 from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
+from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
@@ -29,14 +39,29 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
+if os.getenv("DD_ASGI_TRACE_WEBSOCKET") is not None:
+    log.warning(
+        "DD_ASGI_TRACE_WEBSOCKET is deprecated and will be removed in a future version. "
+        "Use DD_TRACE_WEBSOCKET_MESSAGES_ENABLED instead."
+    )
+
 config._add(
     "asgi",
     dict(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
+        _trace_asgi_websocket_messages=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=os.getenv("DD_ASGI_TRACE_WEBSOCKET", False))
+        ),
+        _asgi_websockets_inherit_sampling=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+        )
+        and asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        _websocket_messages_separate_traces=asbool(
+            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+        ),
         obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
-        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
 
@@ -53,6 +78,17 @@ def bytes_to_str(str_or_bytes):
 
 
 def _extract_versions_from_scope(scope, integration_config):
+    """
+    Extract HTTP and ASGI version information from scope.
+
+    Args:
+        scope: ASGI scope dictionary
+        integration_config: Integration configuration
+
+    Returns:
+        Dictionary of version tags to be set on spans
+
+    """
     tags = {}
 
     http_version = scope.get("http_version")
@@ -71,6 +107,19 @@ def _extract_versions_from_scope(scope, integration_config):
 
 
 def _extract_headers(scope):
+    """
+    Extract and decode headers from ASGI scope.
+
+    ASGI headers are stored as byte strings; this method decodes them
+    to UTF-8 strings for easier processing.
+
+    Args:
+        scope: ASGI scope dictionary
+
+    Returns:
+        Dictionary of header name-value pairs as strings
+
+    """
     headers = scope.get("headers")
     if headers:
         # headers: (Iterable[[byte string, byte string]])
@@ -84,11 +133,29 @@ def _default_handle_exception_span(exc, span):
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
-    """Retrieve the top-level ASGI span from the scope."""
+    """
+    Retrieve the top-level ASGI span from the scope.
+
+    Extracts the main request span that was stored in the ASGI scope
+    by the TraceMiddleware.
+
+    Args:
+        scope: ASGI scope dictionary containing request information
+
+    Returns:
+        The top-level span if available, None otherwise
+
+    Example:
+        ```python
+        span = span_from_scope(scope)
+        if span:
+            span.set_tag("custom.tag", "value")
+        ```
+    """
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 
 
-async def _blocked_asgi_app(scope, receive, send):
+async def _blocked_asgi_app(scope, receive, send, ctx=None, url=None):
     await send({"type": "http.response.start", "status": 403, "headers": []})
     await send({"type": "http.response.body", "body": b""})
 
@@ -105,12 +172,86 @@ def _parse_response_cookies(response_headers):
     return cookies
 
 
+def _set_sampling_inherited(span: Span, global_root_span: Span):
+    """
+    Set sampling inheritance metrics and tags on a span from its parent.
+
+    Args:
+        span: The span to mark as inherited
+        global_root_span: The root span to inherit from
+    """
+    span.set_metric(_SAMPLING_DECISION_MAKER_INHERITED, 1)
+    span.set_tag_str(_SAMPLING_DECISION_MAKER_SERVICE, global_root_span.service)
+    span.set_tag_str(_SAMPLING_DECISION_MAKER_RESOURCE, global_root_span.resource)
+
+
+def _copy_baggage_and_sampling(websocket_span: Span, span: Span):
+    """
+    Copies baggage items and sampling context from parent span to websocket span.
+    Propagates distributed tracing context from the HTTP handshake
+    span to websocket message spans.
+
+    Args:
+        websocket_span: The websocket span receiving the context
+        span: The parent span
+    """
+    if span.context:
+        for key, value in span.context._baggage.items():
+            websocket_span.context.set_baggage_item(key, value)
+            websocket_span.set_tag_str(f"baggage.{key}", value)
+
+        if span.context.sampling_priority is not None:
+            websocket_span.context.sampling_priority = span.context.sampling_priority
+
+        if span.context._meta.get(_ORIGIN_KEY):
+            websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
+
+        if span.context._meta.get(_SAMPLING_DECISION_MAKER):
+            websocket_span.set_tag_str(_SAMPLING_DECISION_MAKER, span.context._meta[_SAMPLING_DECISION_MAKER])
+
+
+def _set_message_tags_on_span(websocket_span, message):
+    """
+    Set message type and length tags on a websocket span.
+
+    Args:
+        websocket_span: The span to tag
+        message: The websocket message dictionary
+
+    Message Types Supported:
+        - text: UTF-8 encoded text messages
+        - binary: Raw binary data messages
+
+    Tags Set:
+        - websocket.message.type: "text" or "binary"
+        - websocket.message.length: Byte length of the message
+    """
+    if "text" in message:
+        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "text")
+        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
+    elif "binary" in message:
+        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "binary")
+        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
+
+
 class TraceMiddleware:
     """
-    ASGI application middleware that traces the requests.
-    Args:
-        app: The ASGI application.
-        tracer: Custom tracer. Defaults to the global tracer.
+    ASGI application middleware that traces HTTP and websocket requests.
+
+    Provides distributed tracing for ASGI applications, including
+    support for websocket connections with configurable message-level tracing.
+
+    Configuration:
+        - DD_TRACE_WEBSOCKET_MESSAGES_ENABLED: Enable websocket message tracing (default: disabled)
+        - DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES: Create separate traces for websocket messages (default: enabled)
+        - DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING: Inherit sampling decisions from handshake (default: enabled)
+        - DD_ASGI_OBFUSCATE_404_RESOURCE: Obfuscate resource names for 404 responses (default: disabled)
+
+    Websocket Support:
+        When websocket tracing is enabled, the middleware creates spans for:
+        - websocket handshake (HTTP upgrade)
+        - Individual message receive/send operations
+        - Connection close events
     """
 
     default_ports = {"http": 80, "https": 443, "ws": 80, "wss": 443}
@@ -130,10 +271,37 @@ class TraceMiddleware:
         self.span_modifier = span_modifier
 
     async def __call__(self, scope, receive, send):
+        """
+        Handle ASGI application calls with tracing.
+
+        Processes ASGI requests and responses, creating spans for:
+        - HTTP requests and responses
+        - websocket handshakes and message exchanges
+        - Error handling and exception tracking
+
+        Args:
+            scope: ASGI scope dictionary containing request metadata
+            receive: ASGI receive function for getting messages
+            send: ASGI send function for sending responses
+
+        Returns:
+            None - calls the wrapped application and handles tracing
+
+        Raises:
+            BlockingException: When request is blocked
+            Exception: Re-raises any exceptions from the wrapped application
+
+        Span Types Created:
+            - HTTP: asgi.request spans with HTTP metadata
+            - websocket: websocket.receive, websocket.send, websocket.close spans
+        """
         if scope["type"] == "http":
             method = scope["method"]
-        elif scope["type"] == "websocket" and self.integration_config._trace_asgi_websocket:
-            method = "WEBSOCKET"
+        elif scope["type"] == "websocket":
+            if not self.integration_config._trace_asgi_websocket_messages:
+                return await self.app(scope, receive, send)
+
+            method = "websocket"
         else:
             return await self.app(scope, receive, send)
         try:
@@ -174,8 +342,10 @@ class TraceMiddleware:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             ctx.set_item("req_span", span)
 
-            # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
+            if scope["type"] == "websocket":
+                span.set_tag_str("http.upgraded", "websocket")
 
             if "datadog" not in scope:
                 scope["datadog"] = {"request_spans": [span]}
@@ -198,6 +368,7 @@ class TraceMiddleware:
             method = scope.get("method")
             server = scope.get("server")
             scheme = scope.get("scheme", "http")
+
             parsed_query = parse.parse_qs(bytes_to_str(scope.get("query_string", b"")))
             full_path = scope.get("path", "")
             if host_header:
@@ -241,9 +412,275 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
+            global_root_span = span._local_root or span
 
-            async def wrapped_send(message):
+            @wraps(receive)
+            async def wrapped_receive():
+                """
+                Wrapped receive function that traces websocket message reception.
+
+                Intercepts websocket receive operations to create spans for:
+                - Message receive timing and metadata
+                - Message type (text/binary)
+                - Message length measurement
+                - Connection close events
+
+                When websocket tracing is enabled, creates spans for:
+                - websocket.receive: For incoming messages
+                - websocket.close: For peer disconnect events
+
+                Args:
+                    None - calls the original receive function
+
+                Returns:
+                    The message from the original receive function
+
+                Note:
+                    - Spans are linked to the handshake span
+                    - Receive spans remain open until the next receive operation or connection close
+                """
+
+                if not self.integration_config._trace_asgi_websocket_messages:
+                    return await receive()
+
+                # Create the span when the handler is invoked (when receive() is called)
+                recv_span = self.tracer.start_span(
+                    name="websocket.receive",
+                    service=span.service,
+                    resource=f"websocket {scope.get('path', '')}",
+                    span_type=SpanTypes.WEBSOCKET,
+                    child_of=span if not self.integration_config._websocket_messages_separate_traces else None,
+                    activate=True,
+                )
                 try:
+                    message = await receive()
+
+                    if scope["type"] == "websocket" and message["type"] == "websocket.receive":
+                        # Finish the previous receive span before creating a new one
+                        previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                        if previous_receive_span:
+                            previous_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
+                        core.dispatch("asgi.websocket.receive", (message,))
+                        recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                        recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+                        recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
+
+                        _set_message_tags_on_span(recv_span, message)
+
+                        recv_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+
+                        recv_span.set_link(
+                            trace_id=span.trace_id,
+                            span_id=span.span_id,
+                            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+                        )
+
+                        if self.integration_config._asgi_websockets_inherit_sampling:
+                            _set_sampling_inherited(recv_span, global_root_span)
+
+                        _copy_baggage_and_sampling(recv_span, span)
+
+                        scope["datadog"]["current_receive_span"] = recv_span
+
+                    elif message["type"] == "websocket.disconnect":
+                        # Peer closes the connection: create a new trace root
+                        # This should behave like the websocket.receive case
+
+                        # Clean any existing receive span before handling peer disconnect
+                        previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                        if previous_receive_span:
+                            previous_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
+                        disconnect_span = self.tracer.start_span(
+                            name="websocket.close",
+                            service=span.service,
+                            resource=f"websocket {scope.get('path', '')}",
+                            span_type=SpanTypes.WEBSOCKET,
+                            child_of=span if not self.integration_config._websocket_messages_separate_traces else None,
+                        )
+
+                        disconnect_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                        disconnect_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+
+                        disconnect_span.set_link(
+                            trace_id=span.trace_id,
+                            span_id=span.span_id,
+                            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+                        )
+
+                        if self.integration_config._asgi_websockets_inherit_sampling:
+                            _set_sampling_inherited(disconnect_span, global_root_span)
+
+                        _copy_baggage_and_sampling(disconnect_span, span)
+
+                        code = message.get("code")
+                        reason = message.get("reason")
+                        if code is not None:
+                            disconnect_span.set_metric(websocket.CLOSE_CODE, code)
+                        if reason:
+                            disconnect_span.set_tag(websocket.CLOSE_REASON, reason)
+
+                        core.dispatch("asgi.websocket.disconnect", (message,))
+
+                        disconnect_span.finish()
+
+                        if span and span.error == 0:
+                            span.finish()
+
+                    return message
+                except Exception:
+                    recv_span.set_exc_info(*sys.exc_info())
+                    recv_span.finish()
+                    raise
+                finally:
+                    # Ensure the recv_span is finished if it wasn't stored in scope
+                    # handles cases where the message type is not websocket.receive or websocket.disconnect
+                    if "datadog" not in scope or "current_receive_span" not in scope["datadog"]:
+                        recv_span.finish()
+
+            @wraps(send)
+            async def wrapped_send(message):
+                """
+                Wrapped ASGI send function that traces websocket message transmission.
+
+                Intercepts websocket send operations to create spans for:
+                - Message transmission timing and metadata
+                - Message type (text/binary)
+                - Message length measurement
+                - Connection close operations
+
+                When websocket tracing is enabled, creates spans for:
+                - websocket.send: For outgoing messages
+                - websocket.close: For application-initiated close events
+
+                Args:
+                    message: The ASGI message to send (dict containing message type and data)
+
+                Returns:
+                    Result from the original send function
+
+                Note:
+                    - Spans are linked to the handshake span
+                    - Context (baggage, sampling) is propagated from handshake span
+                    - Each sent message is attached to the current context
+                    - Close spans include additional metadata like close codes and reasons
+                """
+                try:
+                    if (
+                        scope["type"] == "websocket"
+                        and self.integration_config._trace_asgi_websocket_messages
+                        and message.get("type") == "websocket.send"
+                    ):
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+
+                        if self.integration_config._websocket_messages_separate_traces and current_receive_span:
+                            parent_span = current_receive_span
+                        else:
+                            parent_span = span
+
+                        with self.tracer.start_span(
+                            name="websocket.send",
+                            service=span.service,
+                            resource=f"websocket {scope.get('path', '')}",
+                            span_type=SpanTypes.WEBSOCKET,
+                            child_of=parent_span,
+                            activate=True,
+                        ) as send_span:
+                            send_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                            send_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+                            # Propagate context from the handshake span (baggage, origin, sampling decision)
+                            # set tags related to peer.hostname
+                            client = scope.get("client")
+                            if len(client) >= 1:
+                                client_ip = client[0]
+                                send_span.set_tag_str("out.host", client_ip)
+                                try:
+                                    ipaddress.ip_address(client_ip)
+                                    send_span.set_tag_str("network.client.ip", client_ip)
+                                except ValueError:
+                                    log.debug("Could not validate client IP address")
+
+                            send_span.set_link(
+                                trace_id=span.trace_id,
+                                span_id=span.span_id,
+                                attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+                            )
+                            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+                            _set_message_tags_on_span(send_span, message)
+
+                        # Finish the receive span after processing the message and sending response
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                        if current_receive_span:
+                            current_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
+                    elif (
+                        scope["type"] == "websocket"
+                        and self.integration_config._trace_asgi_websocket_messages
+                        and message.get("type") == "websocket.close"
+                    ):
+                        """
+                        tags:
+                        websocket.close.code
+                        websocket.close.reason
+
+                        """
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+
+                        # Use receive span as parent if it exists, otherwise use main span
+                        if current_receive_span:
+                            parent_span = current_receive_span
+                        else:
+                            parent_span = span
+
+                        with self.tracer.start_span(
+                            name="websocket.close",
+                            service=span.service,
+                            resource=f"websocket {scope.get('path', '')}",
+                            span_type=SpanTypes.WEBSOCKET,
+                            child_of=parent_span,
+                            activate=True,
+                        ) as close_span:
+                            close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+                            close_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+                            client = scope.get("client")
+                            if len(client) >= 1:
+                                client_ip = client[0]
+                                close_span.set_tag_str("out.host", client_ip)
+                                try:
+                                    ipaddress.ip_address(client_ip)  # validate ip address
+                                    close_span.set_tag_str("network.client.ip", client_ip)
+                                except ValueError:
+                                    log.debug("Could not validate client IP address")
+
+                            _set_message_tags_on_span(close_span, message)
+                            # should act like send span (outgoing message) case
+                            close_span.set_link(
+                                trace_id=span.trace_id,
+                                span_id=span.span_id,
+                                attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+                            )
+                            _copy_baggage_and_sampling(close_span, span)
+
+                            code = message.get("code")
+                            reason = message.get("reason")
+                            if code is not None:
+                                close_span.set_metric(websocket.CLOSE_CODE, code)
+                            if reason:
+                                close_span.set_tag(websocket.CLOSE_REASON, reason)
+
+                        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+                        if current_receive_span:
+                            current_receive_span.finish()
+                            scope["datadog"].pop("current_receive_span", None)
+
+                        return await send(message)
+
                     response_headers = _extract_headers(message)
                 except Exception:
                     log.warning("failed to extract response headers", exc_info=True)
@@ -275,10 +712,10 @@ class TraceMiddleware:
                     if (
                         message.get("type") == "http.response.body"
                         and not message.get("more_body", False)
-                        # If the span has an error status code delay finishing the span until the
-                        # traceback and exception message is available
                         and span.error == 0
                     ):
+                        # If the span has an error status code delay finishing the span until the
+                        # traceback and exception message is available
                         span.finish()
 
             async def wrapped_blocked_send(message):
@@ -306,10 +743,11 @@ class TraceMiddleware:
                     if message.get("type") == "http.response.body" and span.error == 0:
                         span.finish()
 
+            wrapped_recv = wrapped_receive if scope["type"] == "websocket" else receive
             try:
                 core.dispatch("asgi.start_request", ("asgi",))
                 # Do not block right here. Wait for route to be resolved in starlette/patch.py
-                return await self.app(scope, receive, wrapped_send)
+                return await self.app(scope, wrapped_recv, wrapped_send)
             except BlockingException as e:
                 set_blocked(e.args[0])
                 return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
@@ -330,3 +768,10 @@ class TraceMiddleware:
                 core.dispatch("web.request.final_tags", (span,))
                 if span in scope["datadog"]["request_spans"]:
                     scope["datadog"]["request_spans"].remove(span)
+
+                # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
+                if scope["type"] == "websocket" and "datadog" in scope:
+                    current_receive_span = scope["datadog"].get("current_receive_span")
+                    if current_receive_span:
+                        current_receive_span.finish()
+                        scope["datadog"].pop("current_receive_span", None)
