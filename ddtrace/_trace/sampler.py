@@ -41,7 +41,6 @@ class RateSampler:
         """sample_rate is clamped between 0 and 1 inclusive"""
         sample_rate = min(1, max(0, sample_rate))
         self.set_sample_rate(sample_rate)
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
@@ -50,6 +49,9 @@ class RateSampler:
     def sample(self, span: Span) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
+
+    def __repr__(self):
+        return f"RateSampler(sample_rate={self.sample_rate})"
 
 
 class DatadogSampler:
@@ -124,6 +126,7 @@ class DatadogSampler:
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
         self._agent_based_samplers = samplers
+        log.debug("Updated agent provided service based samplers: %r", self._agent_based_samplers)
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}

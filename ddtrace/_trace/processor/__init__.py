@@ -215,6 +215,16 @@ class TopLevelSpanProcessor(SpanProcessor):
             span.set_metric("_dd.top_level", 1)
 
 
+class ServiceNameProcessor(TraceProcessor):
+    """Processor that adds the service name to the globalconfig."""
+
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+        for span in trace:
+            if span.service:
+                config._add_extra_service(span.service)
+        return trace
+
+
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
@@ -283,6 +293,7 @@ class SpanAggregator(SpanProcessor):
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
+        self.service_name_processor = ServiceNameProcessor()
         self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -326,67 +337,73 @@ class SpanAggregator(SpanProcessor):
             # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
             #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                log_msg = "finished span not connected to a trace"
-                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                log.debug("%s: %s", log_msg, span)
+                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, "finished span not connected to a trace")
+                log.debug("No spans to process for trace %d. The span will be dropped: %r", span.trace_id, span)
                 return
 
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
+
+            log.debug(
+                "Span '%s' finished. Trace %d: %d/%d spans finished",
+                span.name,
+                span.trace_id,
+                trace.num_finished,
+                len(trace.spans),
+            )
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            if trace.num_finished == len(trace.spans) or should_partial_flush:
-                trace_spans = trace.spans
-                trace.spans = []
-                if trace.num_finished < len(trace_spans):
-                    finished = []
-                    for s in trace_spans:
-                        if s.finished:
-                            finished.append(s)
-                        else:
-                            trace.spans.append(s)
-                else:
-                    finished = trace_spans
+            is_trace_complete = trace.num_finished == len(trace.spans)
 
-                num_finished = len(finished)
-                trace.num_finished -= num_finished
-                if trace.num_finished != 0:
-                    log_msg = "unexpected finished span count"
-                    telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                    log.debug("%s (%s) for span %s", log_msg, num_finished, span)
-                    trace.num_finished = 0
+            if not is_trace_complete and not should_partial_flush:
+                return
 
-                # If we have removed all spans from this trace, then delete the trace from the traces dict
-                if len(trace.spans) == 0:
-                    del self._traces[span.trace_id]
+            if not is_trace_complete:
+                # Separate finished from unfinished spans
+                finished = []
+                unfinished = []
+                for s in trace.spans:
+                    if s.finished:
+                        finished.append(s)
+                    else:
+                        unfinished.append(s)
+                trace.spans = unfinished
+                trace.num_finished = 0
+                log.debug(
+                    "Partial flush: %d finished, %d unfinished spans for trace %d",
+                    len(finished),
+                    len(unfinished),
+                    span.trace_id,
+                )
+                finished[0].set_metric("_dd.py.partial_flush", len(finished))
+            else:
+                finished = trace.spans
+                del self._traces[span.trace_id]
+                log.debug("Complete trace: processing all %d spans for trace %d", len(finished), span.trace_id)
 
-                # No spans to process, return early
-                if not finished:
-                    return
+            spans: List[Span] = finished
+            for tp in chain(
+                self.dd_processors,
+                self.user_processors,
+                [self.sampling_processor, self.tags_processor, self.service_name_processor],
+            ):
+                try:
+                    initial_count = len(spans)
+                    spans = tp.process_trace(spans) or []
+                    if len(spans) != initial_count:
+                        log.debug(
+                            "Processor %s: %d → %d spans for trace %d",
+                            type(tp).__name__,
+                            initial_count,
+                            len(spans),
+                            span.trace_id,
+                        )
+                except Exception:
+                    log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
-                # Set partial flush tag on the first span
-                if should_partial_flush:
-                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
-
-                spans: Optional[List[Span]] = finished
-                for tp in chain(
-                    self.dd_processors, self.user_processors, [self.sampling_processor, self.tags_processor]
-                ):
-                    try:
-                        if spans is None:
-                            return
-                        spans = tp.process_trace(spans)
-                    except Exception:
-                        log.error("error applying processor %r", tp, exc_info=True)
-
-                self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans:
-                    for span in spans:
-                        if span.service:
-                            # report extra service name as it may have been set after the span creation by the customer
-                            config._add_extra_service(span.service)
-                    log.debug("Tracer is encoding %d spans. Trace Context: %r", len(spans), spans[0].context)
-                    self.writer.write(spans)
+            self._queue_span_count_metrics("spans_finished", "integration_name")
+            if spans:
+                log.debug("Writing %d spans for trace %d (root: %s)", len(spans), span.trace_id, spans[0].name)
+                self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
