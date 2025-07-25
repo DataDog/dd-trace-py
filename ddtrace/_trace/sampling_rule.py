@@ -95,11 +95,11 @@ class SamplingRule(object):
     @cachedmethod()
     def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
-        # perf: If a pattern is not matched we can skip the rest of the checks and return False
-        return all(
-            self._pattern_matches(prop, pattern)
-            for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource))
-        )
+        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
+            if not self._pattern_matches(prop, pattern):
+                return False
+        else:
+            return True
 
     def matches(self, span: Span) -> bool:
         """
