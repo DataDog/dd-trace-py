@@ -3,8 +3,6 @@
   variables:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_CMAKE_INCREMENTAL_BUILD: '1'
-    DD_SETUP_CACHE_DOWNLOADS: '1'
     EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
   before_script: |
     ulimit -c unlimited

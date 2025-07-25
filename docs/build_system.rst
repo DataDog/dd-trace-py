@@ -204,3 +204,23 @@ These environment variables modify aspects of the build process.
 
     version_added:
         v2.16.0:
+
+  DD_CMAKE_INCREMENTAL_BUILD:
+    type: Boolean
+    default: True
+
+    description: |
+        Enables support for incremental builds of CMake extensions when doing an in-place install (e.g. editable mode).
+
+    version_added:
+        v3.10.0:
+
+  DD_SETUP_CACHE_DOWNLOADS:
+    type: Boolean
+    default: True
+
+    description: |
+        Caches the download of artifacts needed by the build process.
+
+    version_added:
+        v3.10.0:

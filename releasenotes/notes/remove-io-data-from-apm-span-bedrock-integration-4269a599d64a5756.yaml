@@ -1,0 +1,3 @@
+other:
+  - |
+    botocore: Removes I/O tags, including llm prompts, completions, and token usage, from APM spans for Bedrock LLM requests and responses, which is duplicated in LLM Observability.

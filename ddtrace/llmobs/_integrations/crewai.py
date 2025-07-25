@@ -8,6 +8,7 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -151,9 +152,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         Agent spans are 1:1 with its parent (task/tool) span, so we link them directly here, even on the parent itself.
         """
         agent_instance = kwargs.get("instance")
+        self._tag_agent_manifest(span, agent_instance)
         agent_role = getattr(agent_instance, "role", "")
-        agent_goal = getattr(agent_instance, "goal", "")
-        agent_backstory = getattr(agent_instance, "backstory", "")
         task_description = getattr(kwargs.get("task"), "description", "")
         context = get_argument_value(args, kwargs, 1, "context", optional=True) or ""
 
@@ -174,7 +174,6 @@ class CrewAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 NAME: agent_role if agent_role else "CrewAI Agent",
-                METADATA: {"description": agent_goal, "backstory": agent_backstory},
                 INPUT_VALUE: {"context": context, "input": task_description},
                 SPAN_LINKS: curr_span_links + [span_link],
             }
@@ -197,6 +196,56 @@ class CrewAIIntegration(BaseLLMIntegration):
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
+
+    def _tag_agent_manifest(self, span, agent):
+        if not agent:
+            return
+
+        manifest = {}
+        manifest["framework"] = "CrewAI"
+        manifest["name"] = agent.role if hasattr(agent, "role") and agent.role else "CrewAI Agent"
+        if hasattr(agent, "goal"):
+            manifest["goal"] = agent.goal
+        if hasattr(agent, "backstory"):
+            manifest["backstory"] = agent.backstory
+        if hasattr(agent, "llm"):
+            if hasattr(agent.llm, "model"):
+                manifest["model"] = agent.llm.model
+            model_settings = {}
+            if hasattr(agent.llm, "max_tokens"):
+                model_settings["max_tokens"] = agent.llm.max_tokens
+            if hasattr(agent.llm, "temperature"):
+                model_settings["temperature"] = agent.llm.temperature
+            if model_settings:
+                manifest["model_settings"] = model_settings
+        if hasattr(agent, "allow_delegation"):
+            manifest["handoffs"] = {"allow_delegation": agent.allow_delegation}
+        code_execution_permissions = {}
+        if hasattr(agent, "allow_code_execution"):
+            manifest["code_execution_permissions"] = {"allow_code_execution": agent.allow_code_execution}
+        if hasattr(agent, "code_execution_mode"):
+            manifest["code_execution_permissions"] = {"code_execution_mode": agent.code_execution_mode}
+        if code_execution_permissions:
+            manifest["code_execution_permissions"] = code_execution_permissions
+        if hasattr(agent, "max_iter"):
+            manifest["max_iterations"] = agent.max_iter
+        if hasattr(agent, "tools"):
+            manifest["tools"] = self._get_agent_tools(agent.tools)
+
+        span._set_ctx_item(AGENT_MANIFEST, manifest)
+
+    def _get_agent_tools(self, tools):
+        if not tools or not isinstance(tools, list):
+            return []
+        formatted_tools = []
+        for tool in tools:
+            tool_dict = {}
+            if hasattr(tool, "name"):
+                tool_dict["name"] = tool.name
+            if hasattr(tool, "description"):
+                tool_dict["description"] = tool.description
+            formatted_tools.append(tool_dict)
+        return formatted_tools
 
     def _llmobs_set_span_link_on_task(self, span, args, kwargs):
         """Set span links for the next queued task in a CrewAI workflow.
