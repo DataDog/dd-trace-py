@@ -38,6 +38,11 @@ def pt_eval_lambda_globals(origin_string):
     return r
 
 
+def pt_eval_add_data_to_global(origin_string, globals_namespace, locals_namespace):
+    code = compile(origin_string, "<rule>", "exec")
+    eval(code, globals_namespace, locals_namespace)
+
+
 def pt_literal_eval(origin_string):
     r = literal_eval(origin_string)
     return r
