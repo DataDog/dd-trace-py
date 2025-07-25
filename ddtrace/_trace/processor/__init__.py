@@ -333,12 +333,13 @@ class SpanAggregator(SpanProcessor):
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            # Calling finish on a span that we did not see the start for
-            # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
-            #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, "finished span not connected to a trace")
-                log.debug("No spans to process for trace %d. The span will be dropped: %r", span.trace_id, span)
+                log.warning(
+                    "Span '%s' finished without a start. Trace %d not found in the span aggregator. "
+                    "Please open a Github issue at https://github.com/DataDog/dd-trace-py/issues",
+                    span.name,
+                    span.trace_id,
+                )
                 return
 
             trace = self._traces[span.trace_id]
