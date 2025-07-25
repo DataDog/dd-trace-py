@@ -82,8 +82,180 @@ def test_dataset_one_record(llmobs):
 def test_dataset_create_delete(llmobs):
     dataset = llmobs.create_dataset(name="test-dataset-2", description="A second test dataset")
     assert dataset._id is not None
+    assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
+    dataset = test_dataset_one_record
+    df = dataset.as_dataframe()
+    assert len(df.columns) == 2
+    assert df.size == 2  # size is num elements in a series
+
+
+def test_csv_dataset_as_dataframe(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+
+        df = dataset.as_dataframe()
+        assert len(df.columns) == 6
+        assert sorted(df.columns) == [
+            ("expected_output", "out0"),
+            ("expected_output", "out1"),
+            ("input_data", "in0"),
+            ("input_data", "in1"),
+            ("input_data", "in2"),
+            ("metadata", "m0"),
+        ]
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_missing_input_col(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(ValueError, match=re.escape("Input columns not found in CSV header: ['in998', 'in999']")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in998", "in999"],
+            expected_output_columns=["out0", "out1"],
+        )
+
+
+def test_dataset_csv_missing_output_col(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    with pytest.raises(ValueError, match=re.escape("Expected output columns not found in CSV header: ['out999']")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out999"],
+        )
+
+
+def test_dataset_csv_empty_csv(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/empty.csv")
+    with pytest.raises(ValueError, match=re.escape("CSV file appears to be empty or header is missing.")):
+        llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-bad-csv",
+            description="not a real csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0"],
+        )
+
+
+def test_dataset_csv(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv",
+            description="A good csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
+
+        assert dataset.description == "A good csv dataset"
+
+        assert dataset._id is not None
+
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
+
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
+
+
+def test_dataset_csv_pipe_separated(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset_pipe_separated.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv-pipe",
+            description="A good pipe separated csv dataset",
+            input_data_columns=["in0", "in1", "in2"],
+            expected_output_columns=["out0", "out1"],
+            metadata_columns=["m0"],
+            csv_delimiter="|",
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+        assert len(dataset[0]["expected_output"]) == 2
+        assert dataset[0]["expected_output"]["out0"] == "r0v4"
+        assert dataset[0]["expected_output"]["out1"] == "r0v5"
+        assert dataset[1]["expected_output"]["out0"] == "r1v4"
+        assert dataset[1]["expected_output"]["out1"] == "r1v5"
+
+        assert len(dataset[0]["metadata"]) == 1
+        assert dataset[0]["metadata"]["m0"] == "r0v6"
+        assert dataset[1]["metadata"]["m0"] == "r1v6"
+
+        assert dataset.description == "A good pipe separated csv dataset"
+
+        assert dataset._id is not None
+
+        wait_for_backend()
+        ds = llmobs.pull_dataset(name=dataset.name)
+
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_pull_non_existent(llmobs):
@@ -268,6 +440,66 @@ def test_experiment_invalid_evaluator_signature_raises(llmobs, test_dataset_one_
         llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [my_evaluator_missing_output])
 
 
+def test_project_name_set(run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0"})
+    out, err, status, pid = run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+LLMObs.enable(ml_app="ml-app", project_name="test-project-123")
+assert LLMObs._project_name == "test-project-123"
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
+def test_project_name_set_env(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update(
+        {
+            "PYTHONPATH": ":".join(pypath),
+            "DD_TRACE_ENABLED": "0",
+            "DD_LLMOBS_PROJECT_NAME": "test-project-123",
+            "DD_LLMOBS_ENABLED": "1",
+        }
+    )
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+
+assert LLMObs._project_name == "test-project-123"
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
+def test_project_name_not_set_env(ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    pypath = [os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))]
+    if "PYTHONPATH" in env:
+        pypath.append(env["PYTHONPATH"])
+    env.update({"PYTHONPATH": ":".join(pypath), "DD_TRACE_ENABLED": "0", "DD_LLMOBS_ENABLED": "1"})
+    out, err, status, pid = ddtrace_run_python_code_in_subprocess(
+        """
+from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
+
+assert LLMObs._project_name == DEFAULT_PROJECT_NAME
+""",
+        env=env,
+    )
+    assert status == 0, err
+
+
 def test_experiment_init(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
@@ -275,7 +507,6 @@ def test_experiment_init(llmobs, test_dataset_one_record):
         test_dataset_one_record,
         [dummy_evaluator],
         description="lorem ipsum",
-        project_name="test-project",
     )
     assert exp.name == "test_experiment"
     assert exp._task == dummy_task
@@ -288,21 +519,15 @@ def test_experiment_init(llmobs, test_dataset_one_record):
     assert exp._id is None
 
 
-def test_experiment_create_no_project_name_raises(llmobs, test_dataset_one_record):
-    project_name = llmobs._project_name
-    llmobs._project_name = None
-    with pytest.raises(ValueError, match="project_name must be provided for the experiment"):
-        llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name=None)
-    llmobs._project_name = project_name  # reset to original value for other tests
-
-
 def test_experiment_create(llmobs, test_dataset_one_record):
     exp = llmobs.experiment(
         "test_experiment",
         dummy_task,
         test_dataset_one_record,
         [dummy_evaluator],
-        project_name="test-project",
+        description="This is a test experiment",
+        tags={"tag1": "value1", "tag2": "value2"},
+        config={"models": ["gpt-4.1"]},
     )
     project_id = llmobs._instance._dne_client.project_create_or_get("test-project")
     exp_id, exp_run_name = llmobs._instance._dne_client.experiment_create(
@@ -324,7 +549,13 @@ def test_experiment_create(llmobs, test_dataset_one_record):
     ],
 )
 def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
-    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset, [dummy_evaluator], project_name="test-project")
+    exp = llmobs.experiment(
+        "test_experiment",
+        dummy_task,
+        test_dataset,
+        [dummy_evaluator],
+        config={"models": ["gpt-4.1"]},
+    )
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 2
     assert task_results[0] == {
@@ -356,9 +587,7 @@ def test_experiment_run_task(llmobs, test_dataset, test_dataset_records):
 
 
 def test_experiment_run_task_error(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     assert task_results == [
@@ -382,9 +611,7 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
@@ -393,9 +620,7 @@ def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
@@ -408,9 +633,7 @@ def test_experiment_run_evaluators_error(llmobs, test_dataset_one_record):
 
 
 def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     assert len(task_results) == 1
     with pytest.raises(RuntimeError, match="Evaluator faulty_evaluator failed on row 0"):
@@ -418,9 +641,7 @@ def test_experiment_run_evaluators_error_raises(llmobs, test_dataset_one_record)
 
 
 def test_experiment_merge_results(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     merged_results = exp._merge_results(task_results, eval_results)
@@ -447,9 +668,7 @@ def test_experiment_merge_results(llmobs, test_dataset_one_record):
 
 
 def test_experiment_merge_err_results(llmobs, test_dataset_one_record):
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [faulty_evaluator])
     task_results = exp._run_task(1, raise_errors=False)
     eval_results = exp._run_evaluators(task_results, raise_errors=False)
     merged_results = exp._merge_results(task_results, eval_results)
@@ -496,10 +715,8 @@ def test_experiment_run(llmobs, test_dataset_one_record):
             },
             "error": {"message": None, "type": None, "stack": None},
         }
-        exp = llmobs.experiment(
-            "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-        )
-        exp._tags = ["ddtrace.version:1.2.3"]  # FIXME: this is a hack to set the tags for the experiment
+        exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
+        exp._tags = {"ddtrace.version": "1.2.3"}  # FIXME: this is a hack to set the tags for the experiment
         exp_results = exp.run()
     assert len(exp_results) == 1
     exp_result = exp_results[0]
@@ -507,13 +724,12 @@ def test_experiment_run(llmobs, test_dataset_one_record):
     assert exp_result["input"] == {"prompt": "What is the capital of France?"}
     assert exp_result["output"] == {"prompt": "What is the capital of France?"}
     assert exp_result["expected_output"] == {"answer": "Paris"}
+    assert exp.url == f"https://app.datadoghq.com/llm/experiments/{exp._id}"
 
 
 def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test_dataset_one_record):
     """Assert that the experiment span includes expected output field and includes the experiment scope."""
-    exp = llmobs.experiment(
-        "test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator], project_name="test-project"
-    )
+    exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     exp._id = "1234567890"
     exp._run_task(1, raise_errors=False)
     assert len(llmobs_events) == 1
