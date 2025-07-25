@@ -1,3 +1,5 @@
+import os
+
 import ddtrace.auto
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer
