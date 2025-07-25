@@ -7,9 +7,8 @@ from typing import Optional
 from typing import Union
 from urllib.parse import parse_qs
 
-import xmltodict
-
 from ddtrace.internal.utils import http as http_utils
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 def normalize_headers(
