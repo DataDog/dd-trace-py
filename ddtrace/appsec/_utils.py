@@ -20,7 +20,6 @@ from ddtrace.internal._unpatched import unpatched_json_loads
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
-import ddtrace.vendor.xmltodict as xmltodict
 
 
 log = get_logger(__name__)
@@ -213,6 +212,8 @@ def parse_response_body(raw_body, headers):
         if "json" in content_type:
             req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
+            import ddtrace.vendor.xmltodict as xmltodict
+
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return
