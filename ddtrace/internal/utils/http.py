@@ -29,7 +29,6 @@ from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
-import ddtrace.vendor.xmltodict as xmltodict
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
@@ -403,6 +402,8 @@ def parse_form_multipart(body: str, headers: Optional[Dict] = None) -> Dict[str,
             if content_type in ("application/json", "text/json"):
                 res = json.loads(msg.get_payload())
             elif content_type in ("application/xml", "text/xml"):
+                import ddtrace.vendor.xmltodict as xmltodict
+                
                 res = xmltodict.parse(msg.get_payload())
             elif content_type in ("application/x-url-encoded", "application/x-www-form-urlencoded"):
                 res = parse_qs(msg.get_payload())
