@@ -1203,3 +1203,5 @@ usr/libexec/grepconf.sh
 /usr/bin/sesearch
 # Python tools
 uwsgi
+# crashtracker receiver
+_dd_crashtracker_receiver
