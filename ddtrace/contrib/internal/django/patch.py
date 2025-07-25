@@ -14,8 +14,8 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
-from typing import cast
 from typing import Dict
+from typing import cast
 
 import wrapt
 from wrapt.importer import when_imported
