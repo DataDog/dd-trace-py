@@ -153,6 +153,8 @@ components:
   pyramid:
     - ddtrace/contrib/pyramid.py
     - ddtrace/contrib/internal/pyramid/*
+  ray:
+    - ddtrace/contrib/internal/ray/*
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
