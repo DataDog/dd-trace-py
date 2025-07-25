@@ -1,8 +1,6 @@
 """
 Generic dbapi tracing code.
 """
-
-from typing import Dict
 import wrapt
 
 from ddtrace import config
@@ -90,17 +88,16 @@ class TracedCursor(wrapt.ObjectProxy):
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s.set_tag(_SPAN_MEASURED_KEY)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
-            tags: Dict[str, str] = {
-                COMPONENT: self._self_config.integration_name,
-                # set span.kind to the type of request being performed
-                SPAN_KIND: SpanKind.CLIENT,
-            }
-            tags.update(pin.tags)
-            tags.update(extra_tags)
-            s._set_tags_str(tags)
+            s.set_tags(pin.tags)
+            s.set_tags(extra_tags)
+
+            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
             # Security and IAST validations
             core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
@@ -177,7 +174,7 @@ class TracedCursor(wrapt.ObjectProxy):
         # this tag has been added since.
         # Check row count is an integer type to avoid comparison type error
         if isinstance(row_count, int) and row_count >= 0:
-            span.set_metric(db.ROWCOUNT, row_count)
+            span.set_tag(db.ROWCOUNT, row_count)
 
     def __enter__(self):
         # previous versions of the dbapi didn't support context managers. let's
@@ -297,14 +294,13 @@ class TracedConnection(wrapt.ObjectProxy):
             return method(*args, **kwargs)
 
         with pin.tracer.trace(name, service=ext_service(pin, self._self_config)) as s:
-            tags: Dict[str, str] = {
-                COMPONENT: self._self_config.integration_name,
-                # set span.kind to the type of request being performed
-                SPAN_KIND: SpanKind.CLIENT,
-            }
-            tags.update(pin.tags)
-            tags.update(extra_tags)
-            s._set_tags_str(tags)
+            s.set_tag_str(COMPONENT, self._self_config.integration_name)
+
+            # set span.kind to the type of request being performed
+            s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+
+            s.set_tags(pin.tags)
+            s.set_tags(extra_tags)
 
             return method(*args, **kwargs)
 

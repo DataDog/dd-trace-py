@@ -15,7 +15,6 @@ from inspect import isfunction
 from inspect import unwrap
 import os
 from typing import cast
-from typing import Optional
 from typing import Dict
 
 import wrapt
@@ -47,7 +46,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
-from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
@@ -116,16 +114,6 @@ def _supported_versions() -> Dict[str, str]:
     return {"django": ">=2.2.8"}
 
 
-@cached()
-def get_cursor_service_name(alias: str) -> Optional[str]:
-    service = config_django.database_service_name
-    if not service:
-        database_prefix = config_django.database_service_name_prefix
-        service = "{}{}{}".format(database_prefix, alias, "db")
-        service = schematize_service_name(service)
-    return service
-
-
 def patch_conn(django, conn):
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
@@ -157,7 +145,11 @@ def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
-        service = get_cursor_service_name(alias)
+        service = config_django.database_service_name
+        if not service:
+            database_prefix = config_django.database_service_name_prefix
+            service = "{}{}{}".format(database_prefix, alias, "db")
+            service = schematize_service_name(service)
 
         vendor = getattr(conn, "vendor", "db")
         prefix = sqlx.normalize_vendor(vendor)

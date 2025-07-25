@@ -4,7 +4,6 @@ from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
-from ddtrace.internal.utils.cache import cached
 from ddtrace.settings._inferred_base_service import detect_service
 
 
@@ -18,7 +17,6 @@ def service_name_v0(v0_service_name):
     return v0_service_name
 
 
-@cached()
 def service_name_v1(*_, **__):
     from ddtrace import config as dd_config
 
@@ -89,9 +87,8 @@ def url_operation_v0(v0_operation, protocol=None, direction=None):
     return v0_operation
 
 
-@cached()
 def url_operation_v1(v0_operation, protocol=None, direction=None):
-    server_or_client = "server" if direction == SpanDirection.INBOUND else "client"
+    server_or_client = {SpanDirection.INBOUND: "server", SpanDirection.OUTBOUND: "client"}[direction]
     return "{}.{}.request".format(protocol, server_or_client)
 
 
