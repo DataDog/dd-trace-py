@@ -1480,13 +1480,16 @@ def check_test_agent_status():
 def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
-    if not (encoded_traces := client.encoder.encode()):
-        return
+    try:
+        if not (encoded_traces := client.encoder.encode()):
+            return
 
-    [(encoded_traces, _)] = encoded_traces
-    if encoded_traces is None:
+        [(encoded_traces, _)] = encoded_traces
+        if encoded_traces is None:
+            return
+        writer._send_payload(encoded_traces, n_traces, client)
+    except Exception:
         return
-    writer._send_payload(encoded_traces, n_traces, client)
 
 
 def add_dd_env_variables_to_headers(headers):
