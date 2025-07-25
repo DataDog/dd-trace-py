@@ -48,6 +48,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):
                 self._state = self._online
+                # Immediately query the agent for the remote config configuration
+                self._online()
                 return
         log.debug(
             "Agent is down or Remote Config is not enabled in the Agent\n"
@@ -78,6 +80,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             self.start()
+            # Immediately run the periodic method at startup
+            self.periodic()
 
             return True
         return False
