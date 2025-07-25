@@ -1,0 +1,24 @@
+#!/bin/bash
+set -e
+
+RIOT_CMD=${1:-riot}
+
+active_hashes=($($RIOT_CMD list --hash-only))
+
+echo "Building requirements lockfiles for riot hashes that don't have them"
+for hash in "${active_hashes[@]}"
+do
+    [[ ! -f .riot/requirements/"$hash".txt ]] && $RIOT_CMD -P -v requirements "$hash"
+done
+
+echo "Removing requirements lockfiles for riot hashes that don't exist"
+for file in .riot/requirements/*.txt
+do
+    file_hash=$(echo "$file" | tr "/" "\n" | grep '.txt' | sed 's/\.txt//')
+    if [[ ! " ${active_hashes[*]} " =~ $file_hash ]]
+    then
+        rm "$file"
+    fi
+done
+
+echo "All done!"
