@@ -144,7 +144,7 @@ class SamplingRule(object):
 
         return ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def __repr__(self):
+    def __str__(self):
         return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
             self.__class__.__name__,
             self.sample_rate,
@@ -155,9 +155,14 @@ class SamplingRule(object):
             self.provenance,
         )
 
-    __str__ = __repr__
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
             return False
-        return str(self) == str(other)
+        return (
+            self.sample_rate == other.sample_rate
+            and self.service == other.service
+            and self.name == other.name
+            and self.resource == other.resource
+            and self.tags == other.tags
+            and self.provenance == other.provenance
+        )
