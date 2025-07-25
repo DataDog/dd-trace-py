@@ -304,6 +304,8 @@ import ddtrace.settings.exception_replay
         {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
@@ -552,6 +554,75 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+
+    mini_django_app = """
+from os import path as osp
+def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
+rel_path.path = osp.abspath(osp.dirname(__file__))
+this = osp.splitext(osp.basename(__file__))[0]
+from django.conf import settings
+SETTINGS = dict(
+    DATABASES = {},
+    DEBUG=True,
+    TEMPLATE_DEBUG=True,
+    ROOT_URLCONF = this
+)
+SETTINGS['DATABASES']={
+    'default':{
+        'ENGINE':'django.db.backends.sqlite3',
+        'NAME':rel_path('db')
+    }
+}
+
+if __name__=='__main__':
+    settings.configure(**SETTINGS)
+
+if __name__ == '__main__':
+    from django.core import management
+    management.execute_from_command_line()
+
+from django.urls import path
+from django.http import HttpResponse
+from django.views.decorators.http import require_http_methods
+@require_http_methods(["GET"])
+def view_name(request):
+    return HttpResponse('response text')
+def mini_app(request):
+    return HttpResponse('response text')
+urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
+"""
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    events = test_agent_session.get_events("app-endpoints")
+    assert len(events) == 1, events
+    payload = events[0]["payload"]
+    assert payload["is_first"] is True
+    endpoints = payload["endpoints"]
+    assert len(endpoints) == 2, endpoints
+    assert any(
+        e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
+    ), endpoints
+    assert any(
+        e["path"] == "view_name/"
+        and e["method"] == "GET"
+        and e["resource_name"] == "GET view_name/"
+        and e["operation_name"] == "django.request"
+        for e in endpoints
+    ), endpoints
 
 
 def test_instrumentation_source_config(
