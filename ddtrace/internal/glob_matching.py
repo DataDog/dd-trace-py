@@ -51,3 +51,13 @@ class GlobMatcher(object):
 
             return False
         return True
+
+    def __repr__(self):
+        return f"GlobMatcher(pattern={self.pattern})"
+
+    __str__ = __repr__
+
+    def __eq__(self, other):
+        if isinstance(other, GlobMatcher):
+            return self.pattern == other.pattern
+        return False
