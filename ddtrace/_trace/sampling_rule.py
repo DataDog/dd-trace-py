@@ -94,7 +94,6 @@ class SamplingRule(object):
 
     @cachedmethod()
     def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
-        # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
         for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
             if not self._pattern_matches(prop, pattern):
@@ -111,7 +110,7 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self.tags_match(span) and self._matches((span.service, span.name, span.resource))
+        return self._matches((span.service, span.name, span.resource)) and self.tags_match(span)
 
     def tags_match(self, span: Span) -> bool:
         if not self._tag_value_matchers:
