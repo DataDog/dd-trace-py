@@ -189,7 +189,7 @@ class AppSecSpanProcessor(SpanProcessor):
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
                 log.debug(
-                    "appsec: ignoring unsupported lamdba event",
+                    "appsec: ignoring unsupported lambda event",
                 )
                 span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
                 return
