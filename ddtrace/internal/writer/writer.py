@@ -877,6 +877,10 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     def _endpoint(self):
         return self._clients[0].ENDPOINT
 
+    @property
+    def _encoder(self):
+        return self._clients[0].encoder
+
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
         if not self._report_metrics:
             return
