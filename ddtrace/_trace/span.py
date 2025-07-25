@@ -846,13 +846,13 @@ class Span(object):
 
     def __exit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc_val: Optional[BaseException],
-        exc_tb: Optional[TracebackType],
+        exc_type: Type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
     ) -> None:
         try:
-            if exc_type:
-                self.set_exc_info(exc_type, exc_val, exc_tb)  # type: ignore
+            if exc_type is not None and exc_val is not None:
+                self.set_exc_info(exc_type, exc_val, exc_tb)
             self.finish()
         except Exception:
             log.exception("error closing trace")
