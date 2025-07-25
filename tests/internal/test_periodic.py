@@ -142,6 +142,7 @@ def test_forksafe_awakeable_periodic_service():
         # child: check that the thread has been restarted and the state has been
         # reset
         assert not queue
+
         awake_me.awake()
         assert queue
         os._exit(42)

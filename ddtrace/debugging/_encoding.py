@@ -18,9 +18,9 @@ from typing import Union
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.snapshot import Snapshot
-from ddtrace.internal import forksafe
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.formats import format_trace_id
 
 
@@ -310,7 +310,7 @@ class SignalQueue(BufferedEncoder):
     ) -> None:
         self._encoder = encoder
         self._buffer = JsonBuffer(buffer_size)
-        self._lock = forksafe.Lock()
+        self._lock = Lock()
         self._on_full = on_full
         self.count = 0
         self.max_size = buffer_size - self._buffer.size

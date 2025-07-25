@@ -36,10 +36,7 @@ def test_call_script_gevent(monkeypatch):
 
 
 def test_call_script_pprof_output(tmp_path, monkeypatch):
-    """This checks if the pprof output and atexit register work correctly.
-
-    The script does not run for one minute, so if the `stop_on_exit` flag is broken, this test will fail.
-    """
+    """This checks if the pprof output and atexit register work correctly."""
     filename = str(tmp_path / "pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")

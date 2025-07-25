@@ -1,6 +1,5 @@
 import base64
 import re
-import threading
 from typing import Any
 from typing import Dict
 from typing import List
@@ -19,6 +18,7 @@ from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import W3C_TRACEPARENT_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_KEY
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.threads import RLock
 from ddtrace.internal.utils.http import w3c_get_dd_list_member as _w3c_get_dd_list_member
 
 
@@ -65,7 +65,7 @@ class Context(object):
         sampling_priority: Optional[float] = None,
         meta: Optional[_MetaDictType] = None,
         metrics: Optional[_MetricDictType] = None,
-        lock: Optional[threading.RLock] = None,
+        lock: Optional[RLock] = None,
         span_links: Optional[List[SpanLink]] = None,
         baggage: Optional[Dict[str, Any]] = None,
         is_remote: bool = True,
@@ -94,7 +94,7 @@ class Context(object):
             # DEV: A `forksafe.RLock` is not necessary here since Contexts
             # are recreated by the tracer after fork
             # https://github.com/DataDog/dd-trace-py/blob/a1932e8ddb704d259ea8a3188d30bf542f59fd8d/ddtrace/tracer.py#L489-L508
-            self._lock = threading.RLock()
+            self._lock = RLock()
 
     def __getstate__(self) -> _ContextState:
         return (
@@ -121,7 +121,7 @@ class Context(object):
             self._reactivate,
         ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
-        self._lock = threading.RLock()
+        self._lock = RLock()
 
     def __enter__(self) -> "Context":
         self._lock.acquire()

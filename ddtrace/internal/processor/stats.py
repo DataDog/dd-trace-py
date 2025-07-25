@@ -12,6 +12,7 @@ from ddtrace._trace.processor import SpanProcessor
 from ddtrace._trace.span import Span
 from ddtrace.internal import compat
 from ddtrace.internal.native import DDSketch
+from ddtrace.internal.threads import Lock
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._config import config
 from ddtrace.version import get_version
@@ -19,7 +20,6 @@ from ddtrace.version import get_version
 from ...constants import _SPAN_MEASURED_KEY
 from .. import agent
 from .._encoding import packb
-from ..forksafe import Lock
 from ..hostname import get_hostname
 from ..logger import get_logger
 from ..periodic import PeriodicService
