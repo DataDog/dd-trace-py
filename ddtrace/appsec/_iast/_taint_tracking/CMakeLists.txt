@@ -3,7 +3,11 @@ include(FetchContent)
 
 set(APP_NAME _native)
 option(BUILD_MACOS "Build for MacOS" OFF)
-option(NATIVE_TESTING "Load test subdirectories and targets" ON)
+if(DEFINED ENV{CIBUILDWHEEL} OR DEFINED ENV{CIBW_BUILD})
+    option(NATIVE_TESTING "Disable test subdirectories and targets" OFF)
+else()
+    option(NATIVE_TESTING "Load test subdirectories and targets" ON)
+endif()
 
 project(${APP_NAME})
 
@@ -74,14 +78,22 @@ file(
 # ${ICU_LIBRARIES})
 
 # Debug messages
-message(STATUS "PYTHON_LIBRARIES = ${Python_LIBRARIES}")
-message(STATUS "PYTHON_EXECUTABLE = ${Python_EXECUTABLE}")
+message(STATUS "PYTHON_LIBRARIES = ${PYTHON_LIBRARIES}")
+message(STATUS "PYTHON_EXECUTABLE = ${PYTHON_EXECUTABLE}")
 message(STATUS "PYTHON_INCLUDE_DIRS = ${PYTHON_INCLUDE_DIRS}")
-message(STATUS "Python_EXECUTABLE = ${Python_EXECUTABLE}")
 # message(STATUS "ICU_LIBRARIES = ${ICU_LIBRARIES}") message(STATUS "ICU_INCLUDE_DIRS = ${ICU_INCLUDE_DIRS}")
 
 add_subdirectory(_vendor/pybind11)
 if(NATIVE_TESTING)
+    find_package(
+        Python3
+        COMPONENTS Interpreter Development
+        REQUIRED)
+    # Legacy variables expected elsewhere in the project/tests
+    set(PYTHON_EXECUTABLE ${Python3_EXECUTABLE})
+    set(PYTHON_INCLUDE_DIRS ${Python3_INCLUDE_DIRS})
+    set(PYTHON_LIBRARIES ${Python3_LIBRARIES})
+
     add_subdirectory(tests EXCLUDE_FROM_ALL)
 endif()
 

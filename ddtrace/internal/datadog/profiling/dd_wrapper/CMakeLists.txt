@@ -23,8 +23,8 @@ include(FindCppcheck)
 include(FindInfer)
 include(CheckSymbolExists)
 
-# Load libdatadog
-include(FindLibdatadog)
+# Load libdatadog include(FindLibdatadog)
+find_package(LibNative)
 
 # Set verbose mode so compiler and args are shown
 set(CMAKE_VERBOSE_MAKEFILE ON)
@@ -82,9 +82,9 @@ add_ddup_config(dd_wrapper)
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
 if(WIN32)
-    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling)
+    target_link_libraries(dd_wrapper PRIVATE _native)
 else()
-    target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling Threads::Threads)
+    target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 endif()
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
@@ -110,6 +110,19 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
+if(APPLE)
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "@loader_path/../../native" INSTALL_RPATH
+                                                                                        "@loader_path/../../native")
+    # Add a post-build step to fix the library dependency to use @rpath
+    add_custom_command(
+        TARGET dd_wrapper
+        POST_BUILD
+        COMMAND install_name_tool -change "_native${EXTENSION_SUFFIX}" "@rpath/_native${EXTENSION_SUFFIX}"
+                $<TARGET_FILE:dd_wrapper>
+        COMMENT "Fixing library dependency to use @rpath")
+else()
+    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+endif()
 
 if(NOT WIN32)
     # The name of the crashtracker executable has to be propagated to a a few different targets, and it needs to be
