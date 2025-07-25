@@ -84,7 +84,6 @@ def test_vendorized_xmltodict():
     # This test ensures that the vendored xmltodict generates the same structure as package xmltodict.
     import ddtrace.vendor.xmltodict as xmltodict
 
-
     test_file = """<?xml version="1.0" encoding="UTF-8"?>
 <!-- Sample XML file for testing xmltodict -->
 <root xmlns:ns="http://example.com/ns" xmlns="http://example.com/default">
@@ -127,8 +126,21 @@ def test_vendorized_xmltodict():
 </root>
 """
     parsed = xmltodict.parse(test_file)
-    expected = {'root': {'@xmlns:ns': 'http://example.com/ns', '@xmlns': 'http://example.com/default', 'elementWithAttributes': {'@id': '123', '@type': 'example', '#text': 'Attribute testing'}, 'nestedElements': {'level1': {'level2': {'level3': 'Deeply nested content'}}}, 'ns:namespaceElement': {'ns:child': 'Namespace content'}, 'cdataExample': 'This is some <CDATA> content', 'mixedContent': {'child': 'child element', '#text': 'Text before  text after.'}, 'emptyElement': None, 'items': {'item': ['Item 1', 'Item 2', 'Item 3']}}}
+    expected = {
+        "root": {
+            "@xmlns:ns": "http://example.com/ns",
+            "@xmlns": "http://example.com/default",
+            "elementWithAttributes": {"@id": "123", "@type": "example", "#text": "Attribute testing"},
+            "nestedElements": {"level1": {"level2": {"level3": "Deeply nested content"}}},
+            "ns:namespaceElement": {"ns:child": "Namespace content"},
+            "cdataExample": "This is some <CDATA> content",
+            "mixedContent": {"child": "child element", "#text": "Text before  text after."},
+            "emptyElement": None,
+            "items": {"item": ["Item 1", "Item 2", "Item 3"]},
+        }
+    }
     assert parsed == expected, f"Parsed XML does not match expected structure: {parsed} != {expected}"
+
 
 if __name__ == "__main__":
     import atheris
