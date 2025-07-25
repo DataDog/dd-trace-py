@@ -9,6 +9,7 @@ from typing import Union
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOOLS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
@@ -63,6 +64,8 @@ class AnthropicIntegration(BaseLLMIntegration):
             parameters["temperature"] = kwargs.get("temperature")
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
+        if kwargs.get("tools"):
+            tools = self._extract_tools(kwargs.get("tools"))
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
@@ -84,6 +87,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
                 METRICS: metrics,
+                TOOLS: tools,
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
@@ -225,3 +229,14 @@ class AnthropicIntegration(BaseLLMIntegration):
         client = getattr(instance, "_client", None)
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
+
+    def _extract_tools(self, tools: List[Dict[str, Any]]) -> List[ToolDefinition]:
+        tool_definitions = []
+        for tool in tools:
+            tool_def = ToolDefinition(
+                name=tool.get("name", ""),
+                description=tool.get("description", ""),
+                schema=tool.get("input_schema", {})
+            )
+            tool_definitions.append(tool_def)
+        return tool_definitions
