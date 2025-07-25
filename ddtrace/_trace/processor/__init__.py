@@ -168,8 +168,9 @@ class TraceSamplingProcessor(TraceProcessor):
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
                     log.debug(
                         "Single span sampling decision was made for %d spans. "
-                        "The remaining spans will be dropped. Trace Context: %r",
+                        "%d spans will be dropped. Trace Context: %r",
                         len(single_spans),
+                        len(trace) - len(single_spans),
                         root_ctx,
                     )
                     return single_spans or None
@@ -384,7 +385,7 @@ class SpanAggregator(SpanProcessor):
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
-                    log.debug("Tracer is encoding %d finished spans. Trace Context: %r", len(spans), spans[0].context)
+                    log.debug("Tracer is encoding %d spans. Trace Context: %r", len(spans), spans[0].context)
                     self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
@@ -399,8 +400,8 @@ class SpanAggregator(SpanProcessor):
                 )
             else:
                 log.error(
-                    "Agent response callback was called but the sampler is not a DatadogSampler. "
-                    "Agent based sampling rules will not be updated. Sampler: %r, Response: %r",
+                    "Agent response callback was called on an unsupported Sampler. "
+                    "Agent based sampling rules will not be applied. Sampler: %r, Response: %r",
                     self.sampling_processor.sampler,
                     resp,
                 )

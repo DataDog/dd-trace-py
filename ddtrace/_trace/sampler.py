@@ -183,9 +183,7 @@ class DatadogSampler:
                 agent_service_based = True
                 sampled = self._agent_based_samplers[key].sample(span)
                 sample_rate = self._agent_based_samplers[key].sample_rate
-                log.debug(
-                    "Span %r matched to the following agent based sampler: %r", span, self._agent_based_samplers[key]
-                )
+                log.debug("%r is sampled by the following agent rate: %r", span, self._agent_based_samplers[key])
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -197,7 +195,7 @@ class DatadogSampler:
                 span.set_metric(_SAMPLING_LIMIT_DECISION, effective_rate)
                 if not sampled:
                     log.debug(
-                        "Span will be dropped by the tracer rate limiter. Span: %r, Effective_rate: %r",
+                        "%r has been rate limited, this trace will not be sent. Effective rate: %r",
                         span,
                         effective_rate,
                     )
