@@ -1013,6 +1013,18 @@ suites:
       - tests/snapshots/tests.contrib.pyramid.*
     runner: riot
     snapshot: true
+  ray:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ray'
+      - tests/contrib/internal/ray/*
+      - tests/snapshots/tests.contrib.ray.*
+    runner: riot
+    snapshot: true
   redis:
     parallelism: 5
     paths:
