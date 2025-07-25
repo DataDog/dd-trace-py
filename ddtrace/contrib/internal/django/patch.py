@@ -48,6 +48,7 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.settings.asm import endpoint_collection
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -80,6 +81,7 @@ config._add(
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
+        views={},
     ),
 )
 
@@ -567,7 +569,7 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     return response  # noqa: B012
 
 
-def instrument_view(django, view):
+def instrument_view(django, view, path=None):
     """
     Helper to wrap Django views.
 
@@ -577,10 +579,24 @@ def instrument_view(django, view):
         for cls in reversed(getmro(view)):
             _instrument_view(django, cls)
 
-    return _instrument_view(django, view)
+    return _instrument_view(django, view, path=path)
 
 
-def _instrument_view(django, view):
+def extract_request_method_list(view):
+    try:
+        while "view_func" in view.__code__.co_freevars:
+            view = view.__closure__[view.__code__.co_freevars.index("view_func")].cell_contents
+        if "request_method_list" in view.__code__.co_freevars:
+            return view.__closure__[view.__code__.co_freevars.index("request_method_list")].cell_contents
+        return []
+    except Exception:
+        return []
+
+
+_DEFAULT_METHODS = ("get", "delete", "post", "options", "head")
+
+
+def _instrument_view(django, view, path=None):
     """Helper to wrap Django views."""
     from . import utils
 
@@ -589,9 +605,14 @@ def _instrument_view(django, view):
         return view
 
     # Patch view HTTP methods and lifecycle methods
-    http_method_names = getattr(view, "http_method_names", ("get", "delete", "post", "options", "head"))
+
+    http_method_names = getattr(view, "http_method_names", ())
+    request_method_list = extract_request_method_list(view) or http_method_names
+    if path is not None:
+        for method in request_method_list or ["*"]:
+            endpoint_collection.add_endpoint(method, path, operation_name="django.request")
     lifecycle_methods = ("setup", "dispatch", "http_method_not_allowed")
-    for name in list(http_method_names) + list(lifecycle_methods):
+    for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
             if not func or isinstance(func, wrapt.ObjectProxy):
@@ -634,18 +655,20 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     try:
         from_args = False
         view = kwargs.pop("view", None)
+        path = kwargs.pop("path", None)
         if view is None:
             view = args[1]
             from_args = True
+        if path is None:
+            path = args[0]
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
-
         if from_args:
             args = list(args)
-            args[1] = instrument_view(django, view)
+            args[1] = instrument_view(django, view, path=path)
             args = tuple(args)
         else:
-            kwargs["view"] = instrument_view(django, view)
+            kwargs["view"] = instrument_view(django, view, path=path)
     except Exception:
         log.debug("Failed to instrument Django url path %r %r", args, kwargs, exc_info=True)
     return wrapped(*args, **kwargs)

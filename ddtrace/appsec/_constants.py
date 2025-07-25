@@ -275,6 +275,12 @@ class API_SECURITY(metaclass=Constant_Class):
     SAMPLE_RATE: Literal["DD_API_SECURITY_REQUEST_SAMPLE_RATE"] = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
     SAMPLE_DELAY: Literal["DD_API_SECURITY_SAMPLE_DELAY"] = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE: Literal[0x1000000] = 0x1000000  # 16MB maximum size
+    ENDPOINT_COLLECTION: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ENDPOINT_COLLECTION_LIMIT: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
 
 
 class WAF_CONTEXT_NAMES(metaclass=Constant_Class):
@@ -348,6 +354,7 @@ class DEFAULT(metaclass=Constant_Class):
         r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
         r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )
+    ENDPOINT_COLLECTION_LIMIT = 300
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):
