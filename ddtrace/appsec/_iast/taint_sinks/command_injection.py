@@ -28,9 +28,6 @@ def get_version() -> str:
 _IAST_CMDI = "iast_cmdi"
 
 
-_is_patched = False
-
-
 @patch_once
 def patch():
     subprocess_patch.patch()
