@@ -172,6 +172,7 @@ tests/contrib/crewai                                          @DataDog/ml-observ
 tests/contrib/openai_agents                                   @DataDog/ml-observability
 tests/contrib/litellm                                         @DataDog/ml-observability
 tests/contrib/pydantic_ai                                     @DataDog/ml-observability
+tests/contrib/ray                                             @DataDog/ml-observability
 .gitlab/tests/llmobs.yml                                      @DataDog/ml-observability
 # MLObs snapshot tests
 tests/snapshots/tests.contrib.anthropic.*                     @DataDog/ml-observability
