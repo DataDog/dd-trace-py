@@ -681,22 +681,19 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
 
 
 class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
-    """Writer to an arbitrary HTTP intake endpoint."""
+    """Writer using a native trace exporter to send traces to an agent."""
 
-    RETRY_ATTEMPTS = 3
-    HTTP_METHOD = "PUT"
     STATSD_NAMESPACE = "tracer"
 
     def __init__(
         self,
         intake_url: str,
         processing_interval: Optional[float] = None,
+        compute_stats_enabled: bool = False,
         # Match the payload size since there is no functionality
         # to flush dynamically.
-        compute_stats_enabled: bool = False,
         buffer_size: Optional[int] = None,
         max_payload_size: Optional[int] = None,
-        timeout: Optional[float] = None,
         dogstatsd: Optional["DogStatsd"] = None,
         sync_mode: bool = False,
         api_version: Optional[str] = None,
@@ -709,8 +706,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
     ) -> None:
         if processing_interval is None:
             processing_interval = config._trace_writer_interval_seconds
-        if timeout is None:
-            timeout = agent_config.trace_agent_timeout_seconds
         if buffer_size is not None and buffer_size <= 0:
             raise ValueError("Writer buffer size must be positive")
         if max_payload_size is not None and max_payload_size <= 0:
@@ -766,7 +761,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self.intake_url = intake_url
         self._buffer_size = buffer_size
         self._max_payload_size = max_payload_size
-        self._timeout = timeout
         self._test_session_token = test_session_token
 
         self._clients = [client]
@@ -779,9 +773,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._response_cb = response_callback
         self._stats_opt_out = stats_opt_out
         self._exporter = self._create_exporter()
-
-    def start_worker_thread(self):
-        self._exporter.run_worker()
 
     def _create_exporter(self) -> native.TraceExporter:
         """
@@ -803,8 +794,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_output_format(self._api_version)
         )
         if config._telemetry_enabled:
-            heartbeat_interval = int(config._telemetry_heartbeat_interval * 1e9)
-            builder.enable_telemetry(heartbeat_interval, get_runtime_id())
+            heartbeat_ms = int(config._telemetry_heartbeat_interval * 1e3)
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:
@@ -824,7 +815,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._test_session_token = token
         self._exporter.stop_worker()
         self._exporter = self._create_exporter()
-        self.start_worker_thread()
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "NativeWriter":
         # Ensure AppSec metadata is encoded by setting the API version to v0.4.
@@ -836,8 +826,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             # Stopping them before that will raise a ServiceStatusError.
             pass
 
-        # Stop the trace exporter worker
-        self._exporter.stop_worker()
+        # Shutdown the trace exporter worker
+        self._exporter.shutdown(int(3 * 1e9))
 
         api_version = "v0.4" if appsec_enabled else self._api_version
         return self.__class__(
@@ -846,7 +836,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             compute_stats_enabled=self._compute_stats_enabled,
             buffer_size=self._buffer_size,
             max_payload_size=self._max_payload_size,
-            timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
             api_version=api_version,
@@ -861,7 +850,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             self._clients = [AgentWriterClientV4(self._buffer_size, self._max_payload_size)]
             self._api_version = "v0.4"
             self._exporter = self._create_exporter()
-            # TODO: Rebuild the exporter
 
             # Since we have to change the encoding in this case, the payload
             # would need to be converted to the downgraded encoding before
@@ -882,28 +870,19 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 self.intake_url,
             )
 
-    # NOTE: Only used for logging
     def _intake_endpoint(self, client=None):
         return "{}/{}".format(self.intake_url, client.ENDPOINT if client else self._endpoint)
 
-    # NOTE: Only used for logging
     @property
     def _endpoint(self):
         return self._clients[0].ENDPOINT
 
-    @property
-    def _encoder(self):
-        return self._clients[0].encoder
-
-    # TODO: For all metrics related stuff see if libdatadog telemetry replaces it
-    # + should we add specific telemetry for tracer <-> libdatadog communication
     def _metrics_dist(self, name: str, count: int = 1, tags: Optional[List] = None) -> None:
         if not self._report_metrics:
             return
         if config._health_metrics_enabled and self.dogstatsd:
             self.dogstatsd.distribution("datadog.%s.%s" % (self.STATSD_NAMESPACE, name), count, tags=tags)
 
-    # TODO: Can be handled by counting number of traces lost when the trace exporter raises an error
     def _set_drop_rate(self) -> None:
         accepted = self._metrics["accepted_traces"]
         sent = self._metrics["sent_traces"]
@@ -915,17 +894,11 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         self._metrics["sent_traces"] = 0  # reset sent traces for the next interval
         self._metrics["accepted_traces"] = encoded  # sets accepted traces to number of spans in encoders
 
-    # NOTE: Should be applied before sending spans to libdatadog
     def _set_keep_rate(self, trace):
         if trace:
             trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
-        # TODO: Does it make sense as the http requests number can vary with libdatadog retries
-        self._metrics_dist("http.requests")
-
-        # TODO: Return agent response from send
-        self.start_worker_thread()
         try:
             response_body = self._exporter.send(payload, count)
         except native.RequestError as e:
@@ -952,19 +925,18 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans=None):
+    def write(self, spans: Optional[List[Span]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[List[Span]] = None) -> None:
         if spans is None:
             return
 
         if self._sync_mode is False:
-            # Start the HTTPWriter on first write.
+            # Start the Writer on first write.
             try:
                 if self.status != service.ServiceStatus.RUNNING:
                     self.start()
@@ -1035,9 +1007,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
         try:
             self._send_payload(encoded, n_traces, client)
         except Exception as e:
-            self._metrics_dist("http.errors", tags=["type:err"])
-            self._metrics_dist("http.dropped.bytes", len(encoded))
-            self._metrics_dist("http.dropped.traces", n_traces)
             if raise_exc:
                 raise
 
@@ -1048,20 +1017,15 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                 str(e),
             )
             # Append the payload if requested
-            # TODO: Does it make sense or should we log the final payload from the trace exporter
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 log_args += (binascii.hexlify(encoded).decode(),)  # type: ignore
 
             log.error(msg, *log_args)
-        finally:
-            self._metrics_dist("http.sent.bytes", len(encoded))
-            self._metrics_dist("http.sent.traces", n_traces)
 
     def periodic(self):
         self.flush_queue(raise_exc=False)
 
-    # TODO: Add bindings for TraceExporter shutdown
     def _stop_service(
         self,
         timeout: Optional[float] = None,
