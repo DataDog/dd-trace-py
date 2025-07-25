@@ -327,6 +327,15 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
+            log.debug(
+                "Span name='%s' id='%d' started and added to the span aggregator. "
+                "Trace: %d: %d/%d spans finished",
+                span.name,
+                span.span_id,
+                span.trace_id,
+                trace.num_finished,
+                len(trace.spans),
+            )
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
@@ -334,9 +343,9 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if span.trace_id not in self._traces:
-                log.warning(
-                    "Span '%s' finished without a start. Trace %d not found in the span aggregator. "
-                    "Please open a Github issue at https://github.com/DataDog/dd-trace-py/issues",
+                log.debug(
+                    "Span '%s' was started before tracing was enabled. "
+                    "Trace '%d' not found in the span aggregator. This span will be dropped.",
                     span.name,
                     span.trace_id,
                 )
@@ -345,15 +354,9 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
 
-            log.debug(
-                "Span '%s' finished. Trace %d: %d/%d spans finished",
-                span.name,
-                span.trace_id,
-                trace.num_finished,
-                len(trace.spans),
-            )
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            is_trace_complete = trace.num_finished == len(trace.spans)
+            # Note - If tracing is enabled after a span is started we could over count the number of finished spans.
+            is_trace_complete = trace.num_finished >= len(trace.spans)
 
             if not is_trace_complete and not should_partial_flush:
                 return
@@ -410,7 +413,7 @@ class SpanAggregator(SpanProcessor):
 
             self._queue_span_count_metrics("spans_finished", "integration_name")
             if spans:
-                log.debug("Writing %d spans for trace %d (root: %s)", len(spans), span.trace_id, spans[0].name)
+                log.debug("Writing %d spans for trace %d (local root: %s)", len(spans), span.trace_id, spans[0].name)
                 self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:

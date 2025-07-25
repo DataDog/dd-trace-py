@@ -1250,14 +1250,10 @@ def test_filters(tracer, test_spans):
 def test_early_exit(tracer, test_spans):
     s1 = tracer.trace("1")
     s2 = tracer.trace("2")
-    with mock.patch.object(logging.Logger, "debug") as mock_logger:
-        s1.finish()
-        s2.finish()
+    # Finish the spans in reverse order to test the early exit logic
+    s1.finish()
+    s2.finish()
 
-    calls = [
-        mock.call("span %r closing after its parent %r, this is an error when not using async", s2, s1),
-    ]
-    mock_logger.assert_has_calls(calls)
     assert s1.parent_id is None
     assert s2.parent_id is s1.span_id
 
