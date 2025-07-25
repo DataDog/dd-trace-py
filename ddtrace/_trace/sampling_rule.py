@@ -81,11 +81,11 @@ class SamplingRule(object):
     def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         # self._matches exists to maintain legacy pattern values such as regex and functions
         service, name, resource = key
-        # perf: If a pattern is not matched we can skip the rest of the checks and return False
-        return all(
-            True if pattern is None else pattern.match(str(prop))
-            for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource))
-        )
+        for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
+            # perf: If a pattern is not matched we can skip the rest of the checks and return False
+            if pattern is not None and not pattern.match(str(prop)):
+                return False
+        return True
 
     def matches(self, span: Span) -> bool:
         """
