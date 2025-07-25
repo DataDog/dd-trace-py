@@ -60,7 +60,7 @@ class SamplingRule(object):
             number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
             matches with a given span, that span is considered to have matching tags with the rule.
         """
-        self.sample_rate = float(min(1, max(0, sample_rate)))
+        self.sample_rate = min(1.0, max(0.0, float(sample_rate)))
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
         # we can just create a GlobMatcher for 'None' and it will match properly
         self._tag_value_matchers = (
@@ -111,46 +111,38 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        tags_match = self.tags_match(span)
-        return tags_match and self._matches((span.service, span.name, span.resource))
+        return self.tags_match(span) and self._matches((span.service, span.name, span.resource))
 
     def tags_match(self, span: Span) -> bool:
-        tag_match = True
-        if self._tag_value_matchers:
-            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
-        return tag_match
+        if not self._tag_value_matchers:
+            return True
 
-    def check_tags(self, meta, metrics):
-        if meta is None and metrics is None:
+        meta = span._meta or {}
+        metrics = span._metrics or {}
+        if not meta and not metrics:
             return False
 
-        tag_match = False
-        for tag_key in self._tag_value_matchers.keys():
-            value = meta.get(tag_key)
-            # it's because we're not checking metrics first before continuing
+        for tag_key, pattern in self._tag_value_matchers.items():
+            value = meta.get(tag_key, metrics.get(tag_key))
             if value is None:
-                value = metrics.get(tag_key)
-                if value is None:
-                    continue
-                # Floats: Matching floating point values with a non-zero decimal part is not supported.
-                # For floating point values with a non-zero decimal part, any all * pattern always returns true.
-                # Other patterns always return false.
-                if isinstance(value, float):
-                    if not value.is_integer():
-                        if all(c == "*" for c in self._tag_value_matchers[tag_key].pattern):
-                            tag_match = True
-                            continue
-                        else:
-                            return False
-                    else:
-                        value = int(value)
-
-            tag_match = self._tag_value_matchers[tag_key].match(str(value))
-            # if we don't match with all specified tags for a rule, it's not a match
-            if tag_match is False:
+                # If the tag is not present, we failed the match
+                # (Metrics and meta do not support the value None)
                 return False
 
-        return tag_match
+            if isinstance(value, float):
+                # Floats: Convert floats that represent integers to int for matching. This is because
+                # SamplingRules only support integers for matfching or glob patterns.
+                if value.is_integer():
+                    value = int(value)
+                elif set(pattern.pattern) - {"?", "*"}:
+                    # Only match floats to patterns that only contain wildcards (ex: * or ?*)
+                    # This is because we do not want to match floats to patterns like `23.*`.
+                    return False
+
+            if not pattern.match(str(value)):
+                return False
+
+        return True
 
     def sample(self, span):
         """
