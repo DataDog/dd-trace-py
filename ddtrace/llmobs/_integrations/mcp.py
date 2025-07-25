@@ -5,7 +5,6 @@ from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_VALUE
@@ -13,7 +12,6 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Context
 from ddtrace.trace import Span
 
 
@@ -25,16 +23,6 @@ CLIENT_TOOL_CALL_OPERATION_NAME = "client_tool_call"
 
 class MCPIntegration(BaseLLMIntegration):
     _integration_name = "mcp"
-
-    def llmobs_extract_and_activate_distributed_headers(self, headers: Dict[str, str], context: Context) -> None:
-        """Extract distributed tracing headers from MCP request context and activate them for LLMObs."""
-        if not self.llmobs_enabled or not headers or not context:
-            return
-        try:
-            LLMObs._instance.tracer.context_provider.activate(context)
-            LLMObs._activate_llmobs_distributed_context(headers, context)
-        except Exception:
-            log.error("Error extracting distributed tracing headers from MCP request context", exc_info=True)
 
     def _parse_mcp_text_content(self, item: Any) -> Dict[str, Any]:
         """Parse MCP TextContent fields, extracting only non-None values."""

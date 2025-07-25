@@ -7,6 +7,7 @@ from typing import Optional
 import mcp
 
 from ddtrace import config
+from ddtrace.contrib.internal.trace_utils import activate_distributed_headers
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -131,12 +132,7 @@ async def traced_call_tool(mcp, pin, func, instance, args, kwargs):
 async def traced_tool_manager_call_tool(mcp, pin, func, instance, args, kwargs):
     integration = mcp._datadog_integration
     if config.mcp.distributed_tracing:
-        headers = _extract_distributed_headers_from_mcp_request(kwargs)
-        context = HTTPPropagator.extract(headers)
-        # llmobs activate distributed context
-        integration.llmobs_extract_and_activate_distributed_headers(headers, context)
-        # apm activate distributed context
-        pin.tracer.context_provider.activate(context)
+        activate_distributed_headers(pin.tracer, config.mcp, _extract_distributed_headers_from_mcp_request(kwargs))
 
     span = integration.trace(pin, SERVER_TOOL_CALL_OPERATION_NAME, submit_to_llmobs=True)
 
