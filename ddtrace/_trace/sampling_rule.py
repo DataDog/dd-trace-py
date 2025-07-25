@@ -78,8 +78,7 @@ class SamplingRule(object):
         self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
     @cachedmethod()
-    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
-        # self._matches exists to maintain legacy pattern values such as regex and functions
+    def name_match(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
         for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
             # perf: If a pattern is not matched we can skip the rest of the checks and return False
@@ -96,7 +95,7 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self.tags_match(span) and self._matches((span.service, span.name, span.resource))
+        return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
     def tags_match(self, span: Span) -> bool:
         if not self.tags:
