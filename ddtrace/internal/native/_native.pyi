@@ -136,7 +136,14 @@ class TraceExporter:
         """
         Stop the rust worker threads.
         This stops the async runtime and must be called before forking to avoid deadlocks after forking.
-        This should be called even if `run_worker` has been called as the runtime will be started when calling `send`.
+        This should be called even if `run_worker` hasn't been called as the runtime will be started
+        when calling `send`.
+        """
+        ...
+    def debug(self) -> str:
+        """
+        Returns a string representation of the exporter.
+        Should only be used for debugging.
         """
         ...
 
@@ -256,12 +263,12 @@ class TraceExporterBuilder:
         ...
     def enable_telemetry(
         self,
-        heartbeat: int,
+        heartbeat_ms: int,
         runtime_id: str,
     ) -> TraceExporterBuilder:
         """
         Emit telemetry in the TraceExporter
-        :param heartbeat: The flush interval for telemetry metrics in nanoseconds.
+        :param heartbeat: The flush interval for telemetry metrics in milliseconds.
         :param runtime_id: The runtime id to use for telemetry.
         """
         ...
@@ -271,6 +278,12 @@ class TraceExporterBuilder:
         This method consumes the builder, so it cannot be used again after calling build.
         :return: A configured TraceExporter instance.
         :raises ValueError: If the builder has already been consumed or if required settings are missing.
+        """
+        ...
+    def debug(self) -> str:
+        """
+        Returns a string representation of the exporter.
+        Should only be used for debugging.
         """
         ...
 

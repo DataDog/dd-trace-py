@@ -7,10 +7,10 @@ use std::time::Duration;
 mod exceptions;
 use exceptions::TraceExporterErrorPy;
 
-/// A wrapper arround [TraceExporterBuilder]
+/// A wrapper around [TraceExporterBuilder]
 ///
 /// Allows to use the builder as a python class. Only one exporter can be built using a builder
-/// once `build` has been called the builder shouldn't be used.
+/// once `build` has been called the builder shouldn't be reused.
 #[pyclass(name = "TraceExporterBuilder")]
 pub struct TraceExporterBuilderPy {
     builder: Option<TraceExporterBuilder>,
@@ -145,11 +145,11 @@ impl TraceExporterBuilderPy {
 
     fn enable_telemetry(
         mut slf: PyRefMut<'_, Self>,
-        heartbeat: u64,
+        heartbeat_ms: u64,
         runtime_id: String,
     ) -> PyResult<Py<Self>> {
         slf.try_as_mut()?.enable_telemetry(Some(TelemetryConfig {
-            heartbeat,
+            heartbeat: heartbeat_ms,
             runtime_id: Some(runtime_id),
             debug_enabled: true,
         }));
@@ -158,7 +158,7 @@ impl TraceExporterBuilderPy {
 
     /// Consumes the wrapped builder.
     ///
-    /// The builder shouldn't be used
+    /// The builder shouldn't be reused
     fn build(&mut self) -> PyResult<TraceExporterPy> {
         let exporter = TraceExporterPy {
             inner: Some(
@@ -187,7 +187,7 @@ pub struct TraceExporterPy {
 impl TraceExporterPy {
     /// Send a msgpack encoded trace payload.
     ///
-    /// The payload is passed as a immutable byes object to be able to release the GIL while
+    /// The payload is passed as an immutable `bytes` object to be able to release the GIL while
     /// sending the traces.
     fn send(&self, py: Python<'_>, data: PyBackedBytes, trace_count: usize) -> PyResult<String> {
         py.allow_threads(move || {
@@ -206,10 +206,6 @@ impl TraceExporterPy {
                 Err(e) => Err(TraceExporterErrorPy::from(e).into()),
             }
         })
-    }
-
-    fn debug(&self) -> String {
-        format!("{:?}", self.inner)
     }
 
     fn shutdown(&mut self, timeout_ns: u64) -> PyResult<()> {
@@ -246,6 +242,10 @@ impl TraceExporterPy {
             exporter.stop_worker();
         }
         Ok(())
+    }
+
+    fn debug(&self) -> String {
+        format!("{:?}", self.inner)
     }
 }
 

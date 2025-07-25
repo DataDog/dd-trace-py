@@ -3,7 +3,6 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
-# Exceptions used by the TraceExporter
 from ._native import AgentError  # noqa: F401
 from ._native import BuilderError  # noqa: F401
 from ._native import DDSketch  # noqa: F401
