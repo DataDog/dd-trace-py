@@ -311,6 +311,7 @@ class SpanAggregator(SpanProcessor):
             f"{self.__class__.__name__}("
             f"{self.partial_flush_enabled}, "
             f"{self.partial_flush_min_spans}, "
+            f"{self.service_name_processor},"
             f"{self.sampling_processor},"
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
@@ -367,6 +368,13 @@ class SpanAggregator(SpanProcessor):
                         finished.append(s)
                     else:
                         unfinished.append(s)
+                if not finished:
+                    log.warning(
+                        "Programming Error: No finished spans to process for trace %d."
+                        "Please open a Github issue at https://github.com/DataDog/dd-trace-py/issues",
+                        span.trace_id
+                    )
+                    return
                 trace.spans = unfinished
                 trace.num_finished = 0
                 log.debug(
