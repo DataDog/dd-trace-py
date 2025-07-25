@@ -925,13 +925,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
                     )
                 )
 
-    def write(self, spans: Optional[List[Span]] = None) -> None:
+    def write(self, spans: Optional[List["Span"]] = None) -> None:
         for client in self._clients:
             self._write_with_client(client, spans=spans)
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client: WriterClientBase, spans: Optional[List[Span]] = None) -> None:
+    def _write_with_client(self, client: WriterClientBase, spans: Optional[List["Span"]] = None) -> None:
         if spans is None:
             return
 
