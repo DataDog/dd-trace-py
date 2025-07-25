@@ -328,7 +328,7 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
             log.debug(
-                "Span name='%s' id='%d' started and added to the span aggregator. "
+                "Span name='%s' id='%d' started and was added to the span aggregator. "
                 "Trace: %d: %d/%d spans finished",
                 span.name,
                 span.span_id,
