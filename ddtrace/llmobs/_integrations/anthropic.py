@@ -23,6 +23,9 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.utils import ToolResult
 from ddtrace.trace import Span
 
 
@@ -124,32 +127,43 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_data = _get_attr(block, "input", "")
                         if isinstance(input_data, str):
                             input_data = json.loads(input_data)
-                        tool_call_info = {
-                            "name": _get_attr(block, "name", ""),
-                            "arguments": input_data,
-                            "tool_id": _get_attr(block, "id", ""),
-                            "type": _get_attr(block, "type", ""),
-                        }
+                        tool_call_info = ToolCall(
+                            name=_get_attr(block, "name", ""),
+                            arguments=input_data,
+                            tool_id=_get_attr(block, "id", ""),
+                            type=_get_attr(block, "type", ""),
+                        )
                         if text is None:
                             text = ""
                         input_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
 
                     elif _get_attr(block, "type", None) == "tool_result":
                         content = _get_attr(block, "content", None)
-                        if isinstance(content, str):
-                            input_messages.append({"content": "[tool result: {}]".format(content), "role": role})
-                        elif isinstance(content, list):
-                            input_messages.append({"content": [], "role": role})
-                            for tool_result_block in content:
-                                if _get_attr(tool_result_block, "text", "") != "":
-                                    input_messages[-1]["content"].append(_get_attr(tool_result_block, "text", ""))
-                                elif _get_attr(tool_result_block, "type", None) == "image":
-                                    # Store a placeholder for potentially enormous binary image data.
-                                    input_messages[-1]["content"].append("([IMAGE DETECTED])")
+                        formatted_content = self._format_tool_result_content(content)
+                        tool_result_info = ToolResult(
+                            result=formatted_content,
+                            tool_id=_get_attr(block, "tool_use_id", "") or _get_attr(block, "id", ""),
+                            type="tool_result",
+                        )
+                        input_messages.append({"content": "", "role": role, "tool_results": [tool_result_info]})
                     else:
                         input_messages.append({"content": str(block), "role": role})
 
         return input_messages
+
+    def _format_tool_result_content(self, content):
+        if isinstance(content, str):
+            return content
+        elif isinstance(content, list):
+            formatted_content = []
+            for tool_result_block in content:
+                if _get_attr(tool_result_block, "text", "") != "":
+                    formatted_content.append(_get_attr(tool_result_block, "text", ""))
+                elif _get_attr(tool_result_block, "type", None) == "image":
+                    # Store a placeholder for potentially enormous binary image data.
+                    formatted_content.append("([IMAGE DETECTED])")
+            return formatted_content
+        return str(content)
 
     def _extract_output_message(self, response):
         """Extract output messages from the stored response."""
@@ -170,12 +184,12 @@ class AnthropicIntegration(BaseLLMIntegration):
                         input_data = _get_attr(completion, "input", "")
                         if isinstance(input_data, str):
                             input_data = json.loads(input_data)
-                        tool_call_info = {
-                            "name": _get_attr(completion, "name", ""),
-                            "arguments": input_data,
-                            "tool_id": _get_attr(completion, "id", ""),
-                            "type": _get_attr(completion, "type", ""),
-                        }
+                        tool_call_info = ToolCall(
+                            name=_get_attr(completion, "name", ""),
+                            arguments=input_data,
+                            tool_id=_get_attr(completion, "id", ""),
+                            type=_get_attr(completion, "type", ""),
+                        )
                         if text is None:
                             text = ""
                         output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
