@@ -74,8 +74,7 @@ add_cppcheck_target(
 # Never build with native unwinding, since this is not currently used
 target_compile_definitions(${EXTENSION_NAME} PRIVATE UNWIND_NATIVE_DISABLE)
 
-# Includes; echion and python are marked "system" to suppress warnings, but note in MSVC we'll have to #pragma
-# warning(push, 0 then pop for the same effect.
+# Includes; echion and python are marked "system" to suppress warnings
 target_include_directories(
     ${EXTENSION_NAME} PRIVATE .. # include dd_wrapper from the root in order to make its paths transparent in the code
                               include)
@@ -83,9 +82,7 @@ target_include_directories(${EXTENSION_NAME} SYSTEM PRIVATE ${echion_SOURCE_DIR}
                                                             include/vendored include/util)
 
 # Echion sources need to be given the current platform
-if(WIN32)
-    target_compile_definitions(${EXTENSION_NAME} PRIVATE PL_WINDOWS)
-elseif(APPLE)
+if(APPLE)
     target_compile_definitions(${EXTENSION_NAME} PRIVATE PL_DARWIN)
 elseif(UNIX)
     target_compile_definitions(${EXTENSION_NAME} PRIVATE PL_LINUX)
