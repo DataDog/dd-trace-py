@@ -612,6 +612,8 @@ class Tracer(object):
     start_span = _start_span
 
     def _on_span_finish(self, span: Span) -> None:
+        # Forces the current active span to be updated and allows span to be garbage collected.
+        _ = self.current_span()
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(
