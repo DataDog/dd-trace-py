@@ -121,8 +121,7 @@ class SpanLink:
         return d
 
     def __str__(self) -> str:
-        attrs_str = ",".join([f"{k}:{v}" for k, v in self.attributes.items()])
         return (
-            f"trace_id={self.trace_id} span_id={self.span_id} attributes={attrs_str} "
+            f"trace_id={self.trace_id} span_id={self.span_id} attributes={self.attributes} "
             f"tracestate={self.tracestate} flags={self.flags} dropped_attributes={self._dropped_attributes}"
         )
