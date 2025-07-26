@@ -294,5 +294,3 @@ class Context(object):
 
     def __hash__(self) -> int:
         return hash(self.trace_id)
-
-    __str__ = __repr__

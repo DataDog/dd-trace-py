@@ -831,6 +831,9 @@ class Span(object):
             log.exception("error closing trace")
 
     def _pprint(self) -> str:
+        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
+        # used to debug spans in the wild. Introducing a deprecation warning here to
+        # give users a chance to migrate to __repr__ before we remove it.
         deprecate(
             prefix="The _pprint method is deprecated for __repr__",
             message="""Use __repr__ instead.""",

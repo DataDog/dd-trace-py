@@ -190,8 +190,6 @@ class SamplingRule(object):
             self.provenance,
         )
 
-    __str__ = __repr__
-
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
             return False
