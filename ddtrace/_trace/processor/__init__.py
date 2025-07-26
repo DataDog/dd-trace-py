@@ -385,7 +385,6 @@ class SpanAggregator(SpanProcessor):
                     len(unfinished),
                     span.trace_id,
                 )
-                finished[0].set_metric("_dd.py.partial_flush", len(finished))
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]

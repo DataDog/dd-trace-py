@@ -682,8 +682,6 @@ def test_partial_flush_log():
 
     from ddtrace.trace import tracer as t
 
-    partial_flush_min_spans = 2
-
     s1 = t.trace("1")
     s2 = t.trace("2")
     s3 = t.trace("3")
@@ -694,7 +692,8 @@ def test_partial_flush_log():
         s2.finish()
 
     assert (
-        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id) in log.debug.call_args_list
+        mock.call("Partial flush: %d finished, %d unfinished spans for trace %d", 2, 1, t_id)
+        in log.debug.call_args_list
     ), log.debug.call_args_list
     s1.finish()
     t.shutdown()
