@@ -621,12 +621,13 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-        log.debug(
-            "Finishing span %s (tracing_enabled:%s) (apm_opt_out:%s)",
-            span._pprint(),
-            self.enabled,
-            asm_config._apm_opt_out,
-        )
+        if log.isEnabledFor(logging.DEBUG):
+            log.debug(
+                "Finishing span %s (tracing_enabled:%s) (apm_opt_out:%s)",
+                span._pprint(),
+                self.enabled,
+                asm_config._apm_opt_out,
+            )
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

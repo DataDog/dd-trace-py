@@ -389,7 +389,18 @@ class SpanAggregator(SpanProcessor):
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]
-                log.debug("Complete trace: processing all %d spans for trace %d", len(finished), span.trace_id)
+                log.debug(
+                    "Complete trace: processing remaining %d spans for trace %d. partial_flushing: %s",
+                    len(finished),
+                    span.trace_id,
+                    should_partial_flush,
+                )
+
+            if should_partial_flush and finished:
+                # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
+                # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
+                # not have a partial flush metric. This trace was processed in its entirety.
+                finished[0].set_metric("_dd.py.partial_flush", len(finished))
 
             spans: List[Span] = finished
             for tp in chain(
