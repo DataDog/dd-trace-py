@@ -1021,10 +1021,9 @@ suites:
       - '@contrib'
       - '@tracing'
       - '@ray'
-      - tests/contrib/internal/ray/*
-      - tests/snapshots/tests.contrib.ray.*
+      - tests/contrib/ray/*
     runner: riot
-    snapshot: true
+    snapshot: false
   redis:
     parallelism: 5
     paths:
