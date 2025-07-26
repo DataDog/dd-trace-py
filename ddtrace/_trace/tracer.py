@@ -612,12 +612,8 @@ class Tracer(object):
     start_span = _start_span
 
     def _on_span_finish(self, span: Span) -> None:
-        active = self.current_span()
-        # Debug check: if the finishing span has a parent and its parent
-        # is not the next active span then this is an error in synchronous tracing.
-        if span._parent is not None and active is not span._parent:
-            log.debug("span %r closing after its parent %r, this is an error when not using async", span, span._parent)
-
+        # Forces the current active span to be updated and allows span to be garbage collected.
+        _ = self.current_span()
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
             for p in chain(
@@ -627,9 +623,13 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-
         if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+            log.debug(
+                "Finishing span %s (tracing_enabled:%s) (apm_opt_out:%s)",
+                span._pprint(),
+                self.enabled,
+                asm_config._apm_opt_out,
+            )
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

@@ -47,7 +47,7 @@ def test_flask_pytest_iast(iast_enabled, iast_request_sampling):
     found = False
     for line in split_stderr:
         if "WEAK_HASH" in line:
-            assert line.startswith("finishing span name='pytest.test'")
+            assert line.startswith("Finishing span name='pytest.test'")
             found = True
             break
 

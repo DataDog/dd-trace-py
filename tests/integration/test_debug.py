@@ -363,7 +363,7 @@ def test_debug_span_log():
     )
     p.wait()
     stderr = p.stderr.read()
-    assert b"finishing span name='span'" in stderr
+    assert b"Finishing span name='span'" in stderr
 
 
 @pytest.mark.subprocess(

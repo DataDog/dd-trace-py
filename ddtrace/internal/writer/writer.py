@@ -248,7 +248,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
-                log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
+                log.debug(
+                    "Sending request: Method=%s Endpoint=%s Headers=%s Payload Size=%s",
+                    self.HTTP_METHOD,
+                    client.ENDPOINT,
+                    headers,
+                    _human_size(len(data)),
+                )
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -371,6 +377,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
             self._metrics_dist("buffer.dropped.bytes", payload_size, tags=["reason:full"])
         except NoEncodableSpansError:
             self._metrics_dist("buffer.dropped.traces", 1, tags=["reason:incompatible"])
+            log.debug("Trace contains span with test.coverage tag. %d spans will not be encoded.", len(spans))
         else:
             self._metrics_dist("buffer.accepted.traces", 1)
             self._metrics_dist("buffer.accepted.spans", len(spans))

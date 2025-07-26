@@ -41,7 +41,6 @@ class RateSampler:
         """sample_rate is clamped between 0 and 1 inclusive"""
         sample_rate = min(1, max(0, sample_rate))
         self.set_sample_rate(sample_rate)
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
@@ -50,6 +49,9 @@ class RateSampler:
     def sample(self, span: Span) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
+
+    def __repr__(self):
+        return f"RateSampler(sample_rate={self.sample_rate})"
 
 
 class DatadogSampler:
@@ -124,6 +126,7 @@ class DatadogSampler:
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
         self._agent_based_samplers = samplers
+        log.debug("Updated agent provided service based samplers: %r", self._agent_based_samplers)
 
     def __str__(self):
         rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
@@ -175,6 +178,7 @@ class DatadogSampler:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
+            log.debug("Span %r matched to the following rule: %r", span, matched_rule)
         else:
             key = self._key(span.service, span.get_tag(ENV_KEY))
             if key in self._agent_based_samplers:
@@ -182,6 +186,7 @@ class DatadogSampler:
                 agent_service_based = True
                 sampled = self._agent_based_samplers[key].sample(span)
                 sample_rate = self._agent_based_samplers[key].sample_rate
+                log.debug("%r is sampled by the following agent rate: %r", span, self._agent_based_samplers[key])
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -189,7 +194,14 @@ class DatadogSampler:
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
-                span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+                effective_rate = self.limiter.effective_rate
+                span.set_metric(_SAMPLING_LIMIT_DECISION, effective_rate)
+                if not sampled:
+                    log.debug(
+                        "%r has been rate limited, this trace will not be sent. Effective rate: %r",
+                        span,
+                        effective_rate,
+                    )
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
         _set_sampling_tags(
