@@ -135,7 +135,7 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                 if task_span:
                     log.debug(
                         "The after_task_publish signal was not called, so manually closing span: %s",
-                        task_span._pprint(),
+                        task_span.__repr__(),
                     )
                     task_span.finish()
 

@@ -627,9 +627,7 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
