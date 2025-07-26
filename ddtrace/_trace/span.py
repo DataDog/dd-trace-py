@@ -853,7 +853,7 @@ class Span(object):
             f"resource='{self.resource}', "
             f"type='{self.span_type}', "
             f"start={self.start_ns}, "
-            f"end={self.duration_ns and self.start_ns + self.duration_ns}, "
+            f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
             f"tags={dict(self._meta)}, "
