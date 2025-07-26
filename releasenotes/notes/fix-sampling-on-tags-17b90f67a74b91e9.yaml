@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    sampling: Trace sampling rules now require all specified tags to be present for a match, instead of ignoring missing tags.
+    Additionally, all glob pattern that do not contain digits (e.g., *, ?, [ ]) now work with numeric tags, including decimals.

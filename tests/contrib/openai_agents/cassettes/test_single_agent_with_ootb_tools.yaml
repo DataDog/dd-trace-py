@@ -1,0 +1,125 @@
+interactions:
+- request:
+    body: '{"input":[{"content":"What is the weather like in New York right now?","role":"user"}],"model":"gpt-4o","include":[],"instructions":"You
+      are a helpful assistant specialized in searching the web for weather information.","stream":false,"tools":[{"type":"web_search_preview","user_location":{"type":"approximate","city":"New
+      York"},"search_context_size":"medium"}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '363'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - Agents/Python 0.0.16
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.82.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: !!binary |
+        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
+        AIYrdZQcDwAA
+    headers:
+      CF-RAY:
+      - 963e295b6bf5c5b3-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 23 Jul 2025 21:10:03 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=Bbba4UYfAn.xM9ZsllF_oAYhgNd10GRU00KlVw77c.g-1753305003-1.0.1.1-OjAFBmnO3M5eAcZYVYZE9TulLLhTLESoIp0tkUSFxTuURvFLLCgjexm3m86d_iR3NK64hx.5aeA86sdWMJZRs5tx32ybVhmq2K2LveCqxDo;
+        path=/; expires=Wed, 23-Jul-25 21:40:03 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=pZJk6Sk.pORq0x9Uo.7k1VLwMPSwHDt1Eg2H8bx2W.k-1753305003044-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '7838'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999651'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_0b8bb6bbdc2cb88dda963f9b6293e0c7
+    status:
+      code: 200
+      message: OK
+version: 1

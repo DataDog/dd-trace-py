@@ -4,6 +4,8 @@ from typing_extensions import TypedDict
 
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
+from tests.contrib.pydantic_ai.utils import expected_agent_metadata
+from tests.contrib.pydantic_ai.utils import expected_calculate_square_tool
 from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
@@ -38,8 +40,8 @@ class TestLLMObsPydanticAI:
             token_metrics,
             instructions=instructions,
             system_prompt=system_prompt,
-            tools=["calculate_square_tool"],
             model_settings=model_settings,
+            tools=expected_calculate_square_tool(),
         )
 
     def test_agent_run_sync(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
@@ -125,8 +127,8 @@ class TestLLMObsPydanticAI:
             token_metrics,
             input_value="What is the square of 2?",
             instructions=instructions,
-            tools=["calculate_square_tool"],
             span_links=True,
+            tools=expected_calculate_square_tool(),
         )
 
     async def test_agent_run_stream_structured_with_tool(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
@@ -158,8 +160,8 @@ class TestLLMObsPydanticAI:
             token_metrics,
             input_value="What is the square of 2?",
             instructions=instructions,
-            tools=["calculate_square_tool"],
             span_links=True,
+            tools=expected_calculate_square_tool(),
         )
 
     async def test_agent_run_stream_error(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
@@ -180,7 +182,7 @@ class TestLLMObsPydanticAI:
             "agent",
             input_value="Hello, world!",
             output_value=output,
-            metadata={"instructions": None, "system_prompts": (), "tools": []},
+            metadata=expected_agent_metadata(),
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
             error="builtins.Exception",
             error_message="test error",

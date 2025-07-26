@@ -6,12 +6,13 @@ FROM debian:bookworm-slim
 ARG TARGETARCH
 ARG HATCH_VERSION=1.14.1
 ARG RIOT_VERSION=0.20.1
+ARG UV_VERSION=0.8.2
 
 # http://bugs.python.org/issue19846
 # > At the moment, setting "LANG=C" on a Linux system *fundamentally breaks Python 3*, and that's not OK.
 ENV LANG=C.UTF-8
 
-# Use root user to install dependencies
+# Use root user to install system dependencies
 USER root
 
 # Create our bits user
@@ -52,8 +53,6 @@ RUN apt-get update \
       wget \
       zlib1g-dev \
       awscli \
-    # Allow running datadog-ci in CI with npx
-    && npm install -g @datadog/datadog-ci \
     # Install azure-functions-core-tools-4, only supported on amd64 architecture for Linux
     # https://github.com/Azure/azure-functions-core-tools/issues/3112
     && if [ "$TARGETARCH" = "amd64" ]; \
@@ -84,6 +83,7 @@ ENV PYENV_ROOT=/home/bits/.pyenv
 ENV CARGO_ROOT=/home/bits/.cargo
 ENV PATH=/home/bits/.local/bin:${PYENV_ROOT}/shims:${PYENV_ROOT}/bin:${CARGO_ROOT}/bin:$PATH
 ENV PYTHON_CONFIGURE_OPTS=--enable-shared
+ENV NPM_CONFIG_PREFIX=/home/bits/.local/
 
 # Install Rust toolchain
 RUN curl https://sh.rustup.rs -sSf | \
@@ -92,11 +92,14 @@ RUN curl https://sh.rustup.rs -sSf | \
 # Use .python-version to specify all Python versions for testing
 COPY .python-version /home/bits/
 
+# Allow running datadog-ci in CI with npx
+RUN npm install -g @datadog/datadog-ci
+
 # Install pyenv and necessary Python versions
-RUN git clone --depth 1 --branch "v2.6.4" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
+RUN git clone --depth 1 --branch "v2.6.5" https://github.com/pyenv/pyenv "${PYENV_ROOT}" \
   && pyenv local | xargs -L 1 pyenv install \
   && cd -
 
-RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}"
+RUN pip install --no-cache-dir -U "riot==${RIOT_VERSION}" "hatch==${HATCH_VERSION}" "uv==${UV_VERSION}"
 
 CMD ["/bin/bash"]
