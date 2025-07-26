@@ -338,6 +338,7 @@ class SpanAggregator(SpanProcessor):
             )
 
     def on_span_finish(self, span: Span) -> None:
+        # Aqcuire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
@@ -355,21 +356,12 @@ class SpanAggregator(SpanProcessor):
             trace.num_finished += 1
 
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            # Note - If tracing is enabled after a span is started we could over count the number of finished spans.
             is_trace_complete = trace.num_finished >= len(trace.spans)
-
             if not is_trace_complete and not should_partial_flush:
                 return
 
             if not is_trace_complete:
-                # Separate finished from unfinished spans
-                finished = []
-                unfinished = []
-                for s in trace.spans:
-                    if s.finished:
-                        finished.append(s)
-                    else:
-                        unfinished.append(s)
+                finished = [s for s in trace.spans if s.finished]
                 if not finished:
                     log.warning(
                         "Programming Error: No finished spans to process for trace %d."
@@ -377,54 +369,50 @@ class SpanAggregator(SpanProcessor):
                         span.trace_id,
                     )
                     return
-                trace.spans = unfinished
+                trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
                 trace.num_finished = 0
                 log.debug(
                     "Partial flush: %d finished, %d unfinished spans for trace %d",
                     len(finished),
-                    len(unfinished),
+                    len(trace.spans),
                     span.trace_id,
                 )
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]
-                log.debug(
-                    "Complete trace: processing remaining %d spans for trace %d. partial_flushing: %s",
-                    len(finished),
-                    span.trace_id,
-                    should_partial_flush,
-                )
-
-            if should_partial_flush and finished:
-                # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
-                # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
-                # not have a partial flush metric. This trace was processed in its entirety.
-                finished[0].set_metric("_dd.py.partial_flush", len(finished))
-
-            spans: List[Span] = finished
-            for tp in chain(
-                self.dd_processors,
-                self.user_processors,
-                [self.sampling_processor, self.tags_processor, self.service_name_processor],
-            ):
-                try:
-                    initial_count = len(spans)
-                    spans = tp.process_trace(spans) or []
-                    if len(spans) != initial_count:
-                        log.debug(
-                            "Processor %s: %d → %d spans for trace %d",
-                            type(tp).__name__,
-                            initial_count,
-                            len(spans),
-                            span.trace_id,
-                        )
-                except Exception:
-                    log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
-
+                log.debug("Complete trace: processing remaining %d spans for trace %d", len(finished), span.trace_id)
             self._queue_span_count_metrics("spans_finished", "integration_name")
-            if spans:
-                log.debug("Writing %d spans for trace %d (local root: %s)", len(spans), span.trace_id, spans[0].name)
-                self.writer.write(spans)
+
+        if should_partial_flush and finished:
+            # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
+            # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
+            # not have a partial flush metric. This trace was processed in its entirety.
+            finished[0].set_metric("_dd.py.partial_flush", len(finished))
+
+        # perf: Process spans outside of the span aggregator lock
+        spans = finished
+        for tp in chain(
+            self.dd_processors,
+            self.user_processors,
+            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+        ):
+            try:
+                initial_count = len(spans)
+                spans = tp.process_trace(spans) or []
+                if len(spans) != initial_count:
+                    log.debug(
+                        "Processor %s: %d → %d spans for trace %d",
+                        type(tp).__name__,
+                        initial_count,
+                        len(spans),
+                        span.trace_id,
+                    )
+            except Exception:
+                log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+
+        if spans:
+            log.debug("Encoding %d spans for trace %d (local root: %s)", len(spans), span.trace_id, spans[0].name)
+            self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
