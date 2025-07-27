@@ -51,7 +51,7 @@ httpx,httpx,0.17.1,0.27.2,True
 jinja2,jinja2,2.10.3,3.1.4,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.4.2,False
-langchain,langchain,0.1.20,0.3.18,True
+langchain,langchain,0.1.20,0.3.27,True
 langgraph,langgraph,0.2.23,0.4.3,True
 langgraph-checkpoint,langgraph,1.0.12,2.0.25,True
 litellm,litellm *,1.65.4,1.65.4,True
@@ -59,7 +59,7 @@ logbook,logbook,1.0.0,1.8.1,True
 loguru,loguru,0.4.1,0.7.2,True
 mako,mako,1.0.14,1.3.8,True
 mariadb,mariadb,1.0.11,1.1.12,True
-mcp,mcp,1.10.0,1.11.0,True
+mcp,mcp,1.10.1,1.11.0,False
 molten,molten,1.0.2,1.0.2,True
 mongoengine,mongoengine,0.23.1,0.29.1,True
 mysql-connector-python,mysql,8.0.5,9.0.0,True
