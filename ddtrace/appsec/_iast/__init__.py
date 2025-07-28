@@ -85,18 +85,17 @@ def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
-    # if asm_config._iast_propagation_enabled:
-    #     from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-    #     from ddtrace.appsec._iast._loader import _exec_iast_patched_module
-    #
-    #     global _iast_propagation_enabled
-    #     if _iast_propagation_enabled:
-    #         return
-    #
-    #     log.debug("iast::instrumentation::starting IAST")
-    #     ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
-    #     _iast_propagation_enabled = True
-    pass
+    if asm_config._iast_propagation_enabled:
+        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+
+        global _iast_propagation_enabled
+        if _iast_propagation_enabled:
+            return
+
+        log.debug("iast::instrumentation::starting IAST")
+        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+        _iast_propagation_enabled = True
 
 
 def _iast_pytest_activation():
