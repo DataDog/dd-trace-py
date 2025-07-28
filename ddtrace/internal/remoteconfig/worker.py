@@ -81,7 +81,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
             self.start()
             # Immediately run the periodic method at startup
-            self.periodic()
+            # self.periodic()
 
             return True
         return False
