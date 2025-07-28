@@ -19,9 +19,9 @@ Supported vulnerability types include:
 - Unvalidated Redirects
 - Weak Cryptography
 """
-from ddtrace.internal.module import is_module_installed
 from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
 from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
+from ddtrace.appsec._iast._patches.json_tainting import patch as json_tainting_patch
 from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
 from ddtrace.appsec._iast.secure_marks import path_traversal_sanitizer
 from ddtrace.appsec._iast.secure_marks import sqli_sanitizer
@@ -30,7 +30,6 @@ from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
 from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
 from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
 from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
-from ddtrace.appsec._iast._patches.json_tainting import patch as json_tainting_patch
 from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
 from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
 from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
@@ -39,6 +38,8 @@ from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unval
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
+from ddtrace.internal.module import is_module_installed
+
 
 def patch_iast():
     """Patch security-sensitive functions (sink points) for IAST analysis.
@@ -60,8 +61,6 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-
-
 
     weak_cipher_patch()
     weak_hash_patch()
