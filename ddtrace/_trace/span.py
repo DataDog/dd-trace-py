@@ -84,8 +84,7 @@ class SpanEvent:
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
-        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
-        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={attrs_str})"
+        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={dict(self.attributes)})"
 
     def __iter__(self):
         yield "name", self.name
