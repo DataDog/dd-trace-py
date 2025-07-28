@@ -120,8 +120,8 @@ class SpanLink:
 
         return d
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return (
-            f"trace_id={self.trace_id} span_id={self.span_id} attributes={dict(self.attributes)} "
-            f"tracestate={self.tracestate} flags={self.flags} dropped_attributes={self._dropped_attributes}"
+            f"SpanLink(trace_id={self.trace_id}, span_id={self.span_id}, attributes={self.attributes} "
+            f"tracestate={self.tracestate}, flags={self.flags}, dropped_attributes={self._dropped_attributes})"
         )

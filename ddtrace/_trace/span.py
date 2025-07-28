@@ -84,7 +84,7 @@ class SpanEvent:
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
-        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={dict(self.attributes)})"
+        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
 
     def __iter__(self):
         yield "name", self.name
@@ -855,8 +855,8 @@ class Span(object):
             f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
             f"duration={self.duration_ns}, "
             f"error={self.error}, "
-            f"tags={dict(self._meta)}, "
-            f"metrics={dict(self._metrics)}, "
+            f"tags={self._meta}, "
+            f"metrics={self._metrics}, "
             f"links={self._links}, "
             f"events={self._events}, "
             f"context={self._context})"
