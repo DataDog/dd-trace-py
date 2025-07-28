@@ -865,12 +865,11 @@ def test_span_pprint():
     assert "error=0" in actual
     assert "tags={'t': 'v'}" in actual
     assert "metrics={'m': 1.0}" in actual
-    assert "events=[SpanEvent(name='message', time=16789898242, attributes=importance:10)]" in actual
+    assert "events=[SpanEvent(name='message', time=16789898242, attributes={'importance': 10})]" in actual
     assert (
-        "links=[SpanLink(trace_id=99, span_id=10, tracestate=None, flags=None, "
-        "attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
-        "_dropped_attributes=0)]" in actual
-    )
+        "[SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
+        "tracestate=None, flags=None, dropped_attributes=0)]"
+    ) in actual
     assert (
         f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
         "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"

@@ -295,7 +295,7 @@ def test_startup_logs_sampling_rules():
     f = debug.collect(tracer)
 
     assert f.get("sampling_rules") == [
-        "SamplingRule(sample_rate=1.0, service=None, name=None, resource=None, tags={}, provenance='default')"
+        "SamplingRule(sample_rate=1.0, service=None, name=None, resource=None, tags={}, provenance=default)"
     ], f.get("sampling_rules")
 
 
