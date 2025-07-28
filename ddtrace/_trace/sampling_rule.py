@@ -147,7 +147,7 @@ class SamplingRule(object):
     def __repr__(self):
         return (
             f"SamplingRule(sample_rate={self.sample_rate}, service={self.service}, "
-            f"name={self.name}, resource={self.resource}, tags={dict(self.tags)}, provenance={self.provenance})"
+            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance})"
         )
 
     def __eq__(self, other: Any) -> bool:
