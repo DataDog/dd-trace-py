@@ -180,8 +180,15 @@ PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
     self->name = Py_None;
     self->_on_shutdown = Py_None;
 
-    if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "dO|OOp", (char**)kwlist, &self->interval, &self->_target, &self->name, &self->_on_shutdown, &self->_no_wait_at_start))
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "dO|OOp",
+                                     (char**)kwlist,
+                                     &self->interval,
+                                     &self->_target,
+                                     &self->name,
+                                     &self->_on_shutdown,
+                                     &self->_no_wait_at_start))
         return -1;
 
     Py_INCREF(self->_target);
