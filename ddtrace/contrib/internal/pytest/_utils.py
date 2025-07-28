@@ -200,11 +200,7 @@ def _pytest_marked_to_skip(item: pytest.Item) -> bool:
     if item.get_closest_marker("skip") is not None:
         return True
 
-    for marker in item.iter_markers(name="skipif"):
-        if _get_skipif_condition(marker) is True:
-            return True
-
-    return False
+    return any(_get_skipif_condition(marker) is True for marker in item.iter_markers(name="skipif"))
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
