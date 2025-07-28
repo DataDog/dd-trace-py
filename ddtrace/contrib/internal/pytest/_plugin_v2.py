@@ -237,16 +237,12 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
+    take_over_logger_stream_handler()
+
     if not _is_enabled_early(early_config, args):
         return
 
     try:
-        take_over_logger_stream_handler()
-        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
-            from ddtrace._monkey import patch
-
-            # Freezegun is proactively patched to avoid it interfering with internal timing
-            patch(freezegun=True)
         dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -349,7 +345,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="5" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -527,6 +523,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
+        coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
@@ -829,8 +826,16 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             run_coverage_report()
 
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if not isinstance(lines_pct_value, float):
-            log.warning("Tried to add total covered percentage to session span but the format was unexpected")
+        if lines_pct_value is None:
+            log.debug("Unable to retrieve coverage data for the session span")
+        elif not isinstance(lines_pct_value, (float, int)):
+            t = type(lines_pct_value)
+            log.warning(
+                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+                t.__module__,
+                t.__name__,
+                lines_pct_value,
+            )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 

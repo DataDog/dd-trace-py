@@ -20,6 +20,7 @@ class LogInjectionState(object):
     # Log injection is enabled, but not yet configured
     ENABLED = "true"
     # Log injection is enabled and configured for structured logging
+    # This value is deprecated, but kept for backwards compatibility
     STRUCTURED = "structured"
 
 
@@ -57,7 +58,6 @@ def configure_ddtrace_logger():
 def _configure_ddtrace_debug_logger(logger):
     if get_config("DD_TRACE_DEBUG", False, asbool):
         logger.setLevel(logging.DEBUG)
-        logger.debug("debug mode has been enabled for the ddtrace logger")
 
 
 def _configure_ddtrace_file_logger(logger):
@@ -109,17 +109,15 @@ def set_log_formatting():
         handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
 
 
-def get_log_injection_state(raw_config: Optional[str]) -> str:
+def get_log_injection_state(raw_config: Optional[str]) -> bool:
     """Returns the current log injection state."""
     if raw_config:
         normalized = raw_config.lower().strip()
-        if normalized == LogInjectionState.STRUCTURED:
-            return LogInjectionState.STRUCTURED
-        elif normalized in ("true", "1"):
-            return LogInjectionState.ENABLED
+        if normalized == LogInjectionState.STRUCTURED or normalized in ("true", "1"):
+            return True
         elif normalized not in ("false", "0"):
             logging.warning(
                 "Invalid log injection state '%s'. Expected 'true', 'false', or 'structured'. Defaulting to 'false'.",
                 normalized,
             )
-    return LogInjectionState.DISABLED
+    return False
