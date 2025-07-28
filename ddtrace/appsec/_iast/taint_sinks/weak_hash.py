@@ -17,7 +17,6 @@ from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
-from .utils import patch_once
 
 
 log = get_logger(__name__)
@@ -55,11 +54,49 @@ def patch():
 
     weak_hash_algorithms = get_weak_hash_algorithms()
 
+    num_instrumented_sinks = 0
+    iast_funcs.wrap_function("_hashlib", "HASH.digest", wrapped_digest_function)
+    iast_funcs.wrap_function("_hashlib", "HASH.hexdigest", wrapped_digest_function)
+    num_instrumented_sinks += 2
+
     if MD5_DEF in weak_hash_algorithms:
         iast_funcs.wrap_function(("_%s" % MD5_DEF), "MD5Type.digest", wrapped_md5_function)
         iast_funcs.wrap_function(("_%s" % MD5_DEF), "MD5Type.hexdigest", wrapped_md5_function)
+        num_instrumented_sinks += 2
+    if SHA1_DEF in weak_hash_algorithms:
+        iast_funcs.wrap_function(("_%s" % SHA1_DEF), "SHA1Type.digest", wrapped_sha1_function)
+        iast_funcs.wrap_function(("_%s" % SHA1_DEF), "SHA1Type.hexdigest", wrapped_sha1_function)
+        num_instrumented_sinks += 2
+
+    # pycryptodome methods
+    if MD5_DEF in weak_hash_algorithms:
+        iast_funcs.wrap_function("Crypto.Hash.MD5", "MD5Hash.digest", wrapped_md5_function)
+        iast_funcs.wrap_function("Crypto.Hash.MD5", "MD5Hash.hexdigest", wrapped_md5_function)
+        num_instrumented_sinks += 2
+    if SHA1_DEF in weak_hash_algorithms:
+        iast_funcs.wrap_function("Crypto.Hash.SHA1", "SHA1Hash.digest", wrapped_sha1_function)
+        iast_funcs.wrap_function("Crypto.Hash.SHA1", "SHA1Hash.hexdigest", wrapped_sha1_function)
+        num_instrumented_sinks += 2
 
     iast_funcs.patch()
+
+    if num_instrumented_sinks > 0:
+        _set_metric_iast_instrumented_sink(VULN_INSECURE_HASHING_TYPE, num_instrumented_sinks)
+
+
+def unpatch_iast():
+    try_unwrap("_hashlib", "HASH.digest")
+    try_unwrap("_hashlib", "HASH.hexdigest")
+    try_unwrap(("_%s" % MD5_DEF), "MD5Type.digest")
+    try_unwrap(("_%s" % MD5_DEF), "MD5Type.hexdigest")
+    try_unwrap(("_%s" % SHA1_DEF), "SHA1Type.digest")
+    try_unwrap(("_%s" % SHA1_DEF), "SHA1Type.hexdigest")
+
+    # pycryptodome methods
+    try_unwrap("Crypto.Hash.MD5", "MD5Hash.digest")
+    try_unwrap("Crypto.Hash.MD5", "MD5Hash.hexdigest")
+    try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.digest")
+    try_unwrap("Crypto.Hash.SHA1", "SHA1Hash.hexdigest")
 
 
 def wrapped_digest_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
