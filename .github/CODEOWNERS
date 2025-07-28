@@ -196,6 +196,8 @@ ddtrace/propagation/                               @DataDog/apm-sdk-api-python
 
 ddtrace/internal/sampling.py                       @DataDog/apm-sdk-api-python
 ddtrace/internal/tracemethods.py                   @DataDog/apm-sdk-api-python
+ddtrace/internal/metrics.py                        @DataDog/apm-sdk-api-python
+ddtrace/internal/rate_limiter.py                   @DataDog/apm-sdk-api-python
 ddtrace/runtime/                                   @DataDog/apm-sdk-api-python
 ddtrace/internal/runtime/                          @DataDog/apm-sdk-api-python
 ddtrace/settings/_otel_remapper.py                 @DataDog/apm-sdk-api-python
