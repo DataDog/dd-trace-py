@@ -43,7 +43,7 @@ IAST_PATCH = {
 }
 
 
-def patch_iast(patch_modules=IAST_PATCH):
+def patch_iast():
     """Patch security-sensitive functions (sink points) for IAST analysis.
 
     This function implements the core IAST patching mechanism by:
@@ -63,16 +63,19 @@ def patch_iast(patch_modules=IAST_PATCH):
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-    import importlib
-
-    for module_name in (m for m, e in patch_modules.items() if e):
-        try:
-            # Import the taint sink module
-            module_path = f"ddtrace.appsec._iast.taint_sinks.{module_name}"
-            module = importlib.import_module(module_path)
-
-            # Check if the module has a patch function and call it
-            if hasattr(module, "patch") and callable(getattr(module, "patch")):
-                module.patch()
-        except ImportError:
-            pass
+    from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as insecure_cookie_patch
+    from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unvalidated_redirect_patch
+    from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
+    from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
+    from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
+    code_injection_patch()
+    command_injection_patch()
+    header_injection_patch()
+    insecure_cookie_patch()
+    unvalidated_redirect_patch()
+    weak_cipher_patch()
+    weak_hash_patch()
+    xss_patch()
