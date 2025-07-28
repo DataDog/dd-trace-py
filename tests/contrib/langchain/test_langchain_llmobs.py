@@ -145,6 +145,23 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
+def test_llmobs_prompt_template(langchain_core, langchain_openai, llmobs_events, tracer):
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["question"], template="You are a helpful assistant. Please answer this question: {question}"
+    )
+    llm = langchain_openai.OpenAI()
+    chain = prompt_template | llm
+    with get_request_vcr().use_cassette("lcel_openai_chain_call.yaml"):
+        result = chain.invoke({"question": "What is machine learning?"})
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    expected_prompt = "You are a helpful assistant. Please answer this question: {question}"
+    expected_variables = {"question": "What is machine learning?"}
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["template"] == expected_prompt 
+    assert actual_prompt["variables"]["question"] == expected_variables["question"]
+
 def test_llmobs_chain(langchain_core, langchain_openai, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]

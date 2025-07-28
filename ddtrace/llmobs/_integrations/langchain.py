@@ -771,7 +771,7 @@ class LangChainIntegration(BaseLLMIntegration):
     def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
         template = None
         variables = None
-        if hasattr(instance, "prompt_template"):
+        if hasattr(instance, "template"):
             template = instance.template
         if isinstance(args[0], dict):
             variables = args[0]
@@ -789,7 +789,7 @@ class LangChainIntegration(BaseLLMIntegration):
         }
 
         try:
-            setattr(result, "_dd", {"prompt_template": prompt})
+            object.__setattr__(result, "_dd", {"prompt_template": prompt})
         except (AttributeError, TypeError):
             # If we can't set the attribute, try to store it in the instance or use a different approach
             # For now, we'll just log a warning and continue
@@ -800,7 +800,7 @@ class LangChainIntegration(BaseLLMIntegration):
         prompt = args[0]
         template = getattr(prompt, "_dd", None)
         if template:
-            setattr(instance, "_dd", template)
+            object.__setattr__(instance, "_dd", template)
 
     # on llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span
     def llmobs_set_prompt_tag(self, instance, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
