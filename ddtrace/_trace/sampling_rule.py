@@ -180,14 +180,9 @@ class SamplingRule(object):
         return GlobMatcher(prop)
 
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
-            self.__class__.__name__,
-            self.sample_rate,
-            self._no_rule_or_self(self.service),
-            self._no_rule_or_self(self.name),
-            self._no_rule_or_self(self.resource),
-            self._no_rule_or_self(self.tags),
-            self.provenance,
+        return (
+            f"SamplingRule(sample_rate={self.sample_rate}, service={self.service}, "
+            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance})"
         )
 
     def __eq__(self, other: Any) -> bool:
