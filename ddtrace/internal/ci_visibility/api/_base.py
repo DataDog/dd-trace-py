@@ -662,11 +662,24 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         if not itr_enabled:
             return
 
-        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
+        # Calculate the count to use for ITR skipping metrics
+        # For sessions, aggregate only from suite spans to avoid double counting
+        if self._event_type == "test_session_end":
+            # Session-level: count from suite spans only
+            itr_count = 0
+            for _module in self._children.values():
+                if hasattr(_module, "_children"):
+                    for _suite in _module._children.values():
+                        itr_count += _suite._itr_skipped_count
+        else:
+            # Module and suite level: use their own count
+            itr_count = self._itr_skipped_count
+
+        self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, itr_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
         if self._children or self._distributed_children:
-            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+            self.set_tag(test.ITR_TEST_SKIPPING_COUNT, itr_count)
 
     def set_distributed_children(self) -> None:
         self._distributed_children = True

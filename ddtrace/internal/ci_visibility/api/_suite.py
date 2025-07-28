@@ -69,11 +69,7 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
                 )
                 return
 
-        # In test-level skipping mode, counting is already done by the tests
-        # Only count at suite level when skipping at suite level
-        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
-            self.count_itr_skipped()
-
+        self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish()
 
