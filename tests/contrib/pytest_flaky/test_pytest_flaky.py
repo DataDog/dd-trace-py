@@ -70,3 +70,51 @@ class TestPytestFlakyPlugin(PytestTestCaseBase):
         assert flaky_spans[0].get_tag("test.status") == "fail"
         assert flaky_spans[1].get_tag("test.status") == "pass"
         assert rec.ret == 1
+
+    def test_skipif_without_condition(self):
+        """
+        Test that the plugin does not break if `skipif` is used with no arguments, while advanced features are disabled
+        by an external plugin.
+        """
+        self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.skipif()
+            def test_foo():
+                assert True
+        """
+        )
+        rec = self.inline_run("--ddtrace", "-p", "flaky", "-v", "-s")
+        rec.assertoutcome(skipped=1)
+        spans = self.pop_spans()
+        [test_span] = _get_spans_from_list(spans, "test", "test_foo")
+        assert test_span.get_tag("test.status") == "skip"
+        assert rec.ret == 0
+
+    def test_skipif_with_keyword_condition(self):
+        """
+        Test that the plugin does not break if `skipif` is used keyword arguments, while advanced features are
+        disabled by an external plugin.
+        """
+        self.testdir.makepyfile(
+            """
+            import pytest
+
+            @pytest.mark.skipif(condition=1 > 0, reason="because I can")
+            def test_skip():
+                assert True
+
+            @pytest.mark.skipif(condition=1 < 0, reason="because I can't")
+            def test_no_skip():
+                assert True
+        """
+        )
+        rec = self.inline_run("--ddtrace", "-p", "flaky", "-v", "-s")
+        rec.assertoutcome(skipped=1, passed=1)
+        spans = self.pop_spans()
+        [skip_test_span] = _get_spans_from_list(spans, "test", "test_skip")
+        [no_skip_test_span] = _get_spans_from_list(spans, "test", "test_no_skip")
+        assert skip_test_span.get_tag("test.status") == "skip"
+        assert no_skip_test_span.get_tag("test.status") == "pass"
+        assert rec.ret == 0
