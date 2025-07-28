@@ -63,14 +63,6 @@ if profiling_config.enabled:
         log.error("failed to enable profiling", exc_info=True)
 
 
-if asm_config._iast_enabled:
-    log.debug("iast enabled via environment variable")
-    try:
-        import ddtrace.appsec._iast.auto  # noqa: F401
-    except Exception:
-        log.error("failed to enable iast", exc_info=True)
-
-
 if config._runtime_metrics_enabled:
     RuntimeWorker.enable()
 
