@@ -710,6 +710,7 @@ def unpatch():
 
     delattr(langchain, "_datadog_integration")
 
+
 @with_traced_module
 def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
@@ -717,12 +718,14 @@ def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwa
     integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
     return prompt
 
+
 @with_traced_module
 def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     integration.handle_llm_invoke(instance, args, kwargs)
     response = func(*args, **kwargs)
     return response
+
 
 @with_traced_module
 async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):

@@ -86,10 +86,11 @@ from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._utils import AnnotationContext, _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
