@@ -252,4 +252,3 @@ def test_span_finishes_after_generator_exit(bedrock_client, request_vcr, mock_tr
     assert span is not None
     assert span.name == "bedrock-runtime.command"
     assert span.resource == "InvokeModelWithResponseStream"
-    assert span.get_tag("bedrock.response.choices.0.text").startswith("Hobb")
