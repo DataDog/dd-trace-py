@@ -95,7 +95,6 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
 def patch():
     """
     Patch header injection detection for supported web frameworks.

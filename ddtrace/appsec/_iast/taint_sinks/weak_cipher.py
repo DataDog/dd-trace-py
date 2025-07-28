@@ -46,7 +46,6 @@ def get_version() -> Text:
 _is_patched = False
 
 
-@patch_once
 def patch():
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,

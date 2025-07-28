@@ -28,7 +28,6 @@ def get_version() -> str:
 _IAST_CMDI = "iast_cmdi"
 
 
-@patch_once
 def patch():
     subprocess_patch.patch()
     subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)

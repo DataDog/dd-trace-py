@@ -27,7 +27,6 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
 def patch():
     iast_funcs = WrapFunctonsForIAST()
 

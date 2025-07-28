@@ -95,7 +95,6 @@ def get_version() -> Text:
 _is_patched = False
 
 
-@patch_once
 def patch():
     iast_funcs = WrapFunctonsForIAST()
 
