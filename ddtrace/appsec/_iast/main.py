@@ -65,16 +65,15 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-
-    insecure_cookie_patch()
+    command_injection_patch()
     weak_cipher_patch()
     weak_hash_patch()
 
     if not is_module_installed("gevent"):
-        command_injection_patch()
         code_injection_patch()
         header_injection_patch()
         json_tainting_patch()
+        insecure_cookie_patch()
         unvalidated_redirect_patch()
         xss_patch()
     else:

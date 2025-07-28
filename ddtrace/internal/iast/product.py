@@ -20,8 +20,10 @@ def post_preload():
         log.debug("Enabling the IAST by auto import")
         enable_iast_propagation()
         patch_iast()
-
-        del sys.modules["importlib.metadata"]
+        try:
+            del sys.modules["importlib.metadata"]
+        except KeyError:
+            log.debug("IAST: importlib.metadata wasn't loaded")
 
 
 def start():
