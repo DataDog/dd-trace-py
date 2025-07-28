@@ -108,7 +108,7 @@ You can commit and pull request the resulting changes to files in ``.riot/requir
 changes you made to ``riotfile.py``.
 
 Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
----------------------------------------------------------------
+---------------------------------------------------------------------------------------------
 
 The library includes automated SLO checks that monitor performance thresholds for execution time and memory usage. If your pull request causes these checks to fail, you'll see benchmark test failures in CI indicating that your changes have caused performance to exceed established thresholds.
 
