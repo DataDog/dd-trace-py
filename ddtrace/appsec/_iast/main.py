@@ -72,7 +72,6 @@ def patch_iast():
     weak_hash_patch()
 
     if not is_module_installed("gevent"):
-
         insecure_cookie_patch()
         json_tainting_patch()
         unvalidated_redirect_patch()
