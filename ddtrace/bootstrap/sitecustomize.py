@@ -101,7 +101,6 @@ def cleanup_loaded_modules():
             "concurrent.futures",
             "importlib_metadata",
             "importlib.metadata",
-            "importlib",
         ]
     )
     for u in UNLOAD_MODULES:
