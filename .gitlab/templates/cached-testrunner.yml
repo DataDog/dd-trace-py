@@ -2,7 +2,6 @@
   extends: .testrunner
   variables:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
     EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
   before_script: |
     ulimit -c unlimited
@@ -26,7 +25,7 @@
     deactivate
     $SHELL scripts/save-ext-cache.sh
   cache:
-    # Share pip/sccache between jobs of the same Python version
+    # Share pip between jobs of the same Python version
     - key: v2-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
