@@ -100,7 +100,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - ``error``
       - Derived from status
     * - ``events[]``
-      - ``_events[]``
+      - ``meta["events"]``
       -
 
 
