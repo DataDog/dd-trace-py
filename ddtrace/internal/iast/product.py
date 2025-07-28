@@ -15,9 +15,11 @@ log = get_logger(__name__)
 def post_preload():
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast import enable_iast_propagation
+        from ddtrace.appsec._iast.main import patch_iast
 
         log.debug("Enabling the IAST by auto import")
         enable_iast_propagation()
+        patch_iast()
 
         del sys.modules["importlib.metadata"]
 

@@ -38,7 +38,11 @@ from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unval
 from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
 from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import is_module_installed
+
+
+log = get_logger(__name__)
 
 
 def patch_iast():
@@ -64,7 +68,6 @@ def patch_iast():
 
     weak_cipher_patch()
     weak_hash_patch()
-
     if not is_module_installed("gevent"):
         code_injection_patch()
         command_injection_patch()
@@ -73,6 +76,8 @@ def patch_iast():
         unvalidated_redirect_patch()
         json_tainting_patch()
         xss_patch()
+    else:
+        log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
 
     iast_funcs = WrapFunctonsForIAST()
 
