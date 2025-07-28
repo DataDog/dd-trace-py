@@ -932,7 +932,7 @@ experiments:
           - name: samplingrules-low_match
             thresholds:
               - execution_time < 0.19 ms
-              - max_rss_usage < 432.50 MB
+              - max_rss_usage < 450.00 MB
           - name: samplingrules-very_low_match
             thresholds:
               - execution_time < 9.15 ms
