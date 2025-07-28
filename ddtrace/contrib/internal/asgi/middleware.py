@@ -184,7 +184,7 @@ def _copy_baggage_and_sampling(websocket_span: Span, span: Span):
             )
 
 
-def _set_message_tags_on_span(websocket_span: Span, message):
+def _set_message_tags_on_span(websocket_span: Span, message: dict):
     if "text" in message:
         websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "text")
         websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
@@ -200,17 +200,10 @@ class TraceMiddleware:
     Provides distributed tracing for ASGI applications, including
     support for websocket connections with configurable message-level tracing.
 
-    Configuration:
-        - DD_TRACE_WEBSOCKET_MESSAGES_ENABLED: Enable websocket message tracing (default: disabled)
-        - DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES: Create separate traces for websocket messages (default: enabled)
-        - DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING: Inherit sampling decisions from handshake (default: enabled)
-        - DD_ASGI_OBFUSCATE_404_RESOURCE: Obfuscate resource names for 404 responses (default: disabled)
-
-    Websocket Support:
-        When websocket tracing is enabled, the middleware creates spans for:
-        - websocket handshake (HTTP upgrade)
-        - Individual message receive/send operations
-        - Connection close events
+    When websocket tracing is enabled, the middleware creates spans for:
+    - websocket handshake (HTTP upgrade)
+    - Individual message receive/send operations
+    - Connection close events
     """
 
     default_ports = {"http": 80, "https": 443, "ws": 80, "wss": 443}
