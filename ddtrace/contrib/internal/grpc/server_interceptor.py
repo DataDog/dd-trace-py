@@ -37,14 +37,14 @@ def create_server_interceptor(pin):
 
 
 def _handle_server_exception(server_context, span):
-    if server_context is not None:
-        code = str(server_context.code())
-        details = server_context.details()
+    span.error = 1
+    if server_context is not None and hasattr(server_context, "_state") and server_context._state is not None:
+        code = str(server_context._state.code)
+        details = server_context._state.details
         if isinstance(details, bytes):
             details = details.decode("utf-8", errors="ignore")
         else:
             details = str(details)
-        span.error = 1
         span.set_tag_str(ERROR_MSG, details)
         span.set_tag_str(ERROR_TYPE, code)
 

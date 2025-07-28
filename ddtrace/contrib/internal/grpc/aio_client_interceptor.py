@@ -112,10 +112,11 @@ def _handle_rpc_error(span, rpc_error):
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
     details = rpc_error.details()
-    if details is not None:
-        span.set_tag_str(ERROR_MSG, str(details))
+    if isinstance(details, bytes):
+        details = details.decode("utf-8", errors="ignore")
     else:
-        span.set_tag_str(ERROR_MSG, "")
+        details = str(details)
+    span.set_tag_str(ERROR_MSG, details)
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 

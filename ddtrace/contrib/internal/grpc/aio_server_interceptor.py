@@ -96,7 +96,12 @@ def _handle_server_exception(
     if servicer_context is None:
         return
     if hasattr(servicer_context, "details"):
-        span.set_tag_str(ERROR_MSG, str(servicer_context.details()))
+        details = servicer_context.details()
+        if isinstance(details, bytes):
+            details = details.decode("utf-8", errors="ignore")
+        else:
+            details = str(details)
+        span.set_tag_str(ERROR_MSG, details)
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
         span.set_tag_str(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
 
