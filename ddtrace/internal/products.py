@@ -3,7 +3,7 @@ from collections import defaultdict
 from collections import deque
 from importlib.metadata import entry_points
 from itertools import chain
-import sys  # noqa: F401
+import sys
 import typing as t
 
 from ddtrace.internal import forksafe
@@ -17,6 +17,17 @@ from ddtrace.settings._core import DDConfig
 
 
 log = get_logger(__name__)
+
+
+if sys.version_info >= (3, 10):
+
+    def get_product_entry_points():
+        return entry_points(group="ddtrace.products")
+
+else:
+
+    def get_product_entry_points():
+        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
 
 
 try:
@@ -52,15 +63,7 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
-        eps = entry_points()
-        if hasattr(eps, "select"):  # Python 3.10+
-            plugins = eps.select(group="ddtrace.product")
-        else:  # Python <3.10
-            plugins = [ep for _, eplist in eps.items() for ep in eplist]  # type: ignore[assignment]
-
-        for product_plugin in plugins:
-            if product_plugin.group != "ddtrace.product":
-                continue
+        for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 
