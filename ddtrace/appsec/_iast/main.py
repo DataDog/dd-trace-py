@@ -66,15 +66,16 @@ def patch_iast():
         security instrumentation.
     """
 
+    insecure_cookie_patch()
     weak_cipher_patch()
     weak_hash_patch()
-    header_injection_patch()
-    insecure_cookie_patch()
-    unvalidated_redirect_patch()
+
     if not is_module_installed("gevent"):
-        code_injection_patch()
         command_injection_patch()
+        code_injection_patch()
+        header_injection_patch()
         json_tainting_patch()
+        unvalidated_redirect_patch()
         xss_patch()
     else:
         log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
