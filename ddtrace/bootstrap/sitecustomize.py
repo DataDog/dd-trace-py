@@ -43,6 +43,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
 
 
 def cleanup_loaded_modules():
+    from ddtrace.settings.asm import config as asm_config
     def drop(module_name):
         # type: (str) -> None
         try:
@@ -54,6 +55,10 @@ def cleanup_loaded_modules():
     do_cleanup = os.getenv("DD_UNLOAD_MODULES_FROM_SITECUSTOMIZE", default="auto").lower()
     if do_cleanup == "auto":
         do_cleanup = any(is_module_installed(m) for m in MODULES_REQUIRING_CLEANUP)
+
+    if not asm_config._iast_enabled:
+        if not asbool(do_cleanup):
+            return
 
     # Unload all the modules that we have imported, except for the ddtrace one.
     # NB: this means that every `import threading` anywhere in `ddtrace/` code

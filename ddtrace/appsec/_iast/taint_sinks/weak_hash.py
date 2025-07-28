@@ -17,6 +17,7 @@ from ..constants import MD5_DEF
 from ..constants import SHA1_DEF
 from ..constants import VULN_INSECURE_HASHING_TYPE
 from ._base import VulnerabilityBase
+from .utils import patch_once
 
 
 log = get_logger(__name__)
@@ -45,6 +46,7 @@ def get_version() -> str:
     return ""
 
 
+@patch_once
 def patch():
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
