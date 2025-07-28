@@ -231,13 +231,19 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
     def count_itr_skipped(self) -> None:
         """Tests do not count skipping on themselves, so only count on the parent.
 
-        When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
+        In test-level skipping, counting happens only when tests are finished as ITR-skipped.
+        In suite-level skipping, counting happens only when suites are finished as ITR-skipped.
         """
-        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST and self.parent is not None:
+        # For test-level skipping, don't count here - it will be counted in finish_itr_skipped
+        # For suite-level skipping, count on parent so suites can aggregate
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE and self.parent is not None:
             self.parent.count_itr_skipped()
 
     def finish_itr_skipped(self) -> None:
         log.debug("Finishing Test Visibility test %s with ITR skipped", self)
+        # For test-level skipping, count on parent here since count_itr_skipped doesn't do it
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST and self.parent is not None:
+            self.parent.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 

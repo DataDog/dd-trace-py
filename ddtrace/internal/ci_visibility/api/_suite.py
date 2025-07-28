@@ -69,7 +69,11 @@ class TestVisibilitySuite(TestVisibilityParentItem[TestId, TestVisibilityTest], 
                 )
                 return
 
-        self.count_itr_skipped()
+        # Only count for suite-level skipping mode, not test-level
+        from ddtrace.ext.test_visibility._constants import ITR_SKIPPING_LEVEL
+
+        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
+            self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish()
 
