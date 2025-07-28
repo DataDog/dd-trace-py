@@ -692,6 +692,7 @@ def caplog(caplog):
     try:
         original_propagate = ddtrace_logger.propagate
         ddtrace_logger.propagate = True
+        ddtrace_logger.setLevel(0)
         yield caplog
 
     finally:
