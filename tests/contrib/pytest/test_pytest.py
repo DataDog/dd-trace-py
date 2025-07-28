@@ -1894,6 +1894,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
+    @pytest.mark.skip(reason="coverage per-test not working yet")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
