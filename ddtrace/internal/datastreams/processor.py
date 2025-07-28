@@ -333,6 +333,8 @@ class DataStreamsProcessor(PeriodicService):
         # type: (bytes) -> DataStreamsCtx
         try:
             hash_value = struct.unpack("<Q", data[:8])[0]
+            # DEBUG: Log the extracted hash for Node.js tracer debugging
+            log.info("[PYTHON CONSUMER DEBUG] Extracted pathway context hash: %d, raw bytes: %s", hash_value, data[:8].hex() if data else "None")
             data = data[8:]
             pathway_start_ms, data = decode_var_int_64(data)
             current_edge_start_ms, data = decode_var_int_64(data)
