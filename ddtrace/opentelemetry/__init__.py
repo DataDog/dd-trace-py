@@ -100,8 +100,8 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - ``error``
       - Derived from status
     * - ``events[]``
-      - N/A
-      - Span events not supported on the Datadog platform
+      - ``_events[]``
+      -
 
 
 """  # noqa: E501
