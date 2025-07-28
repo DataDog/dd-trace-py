@@ -13,6 +13,7 @@ from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
+from .appsec._listeners import load_common_appsec_modules
 
 from .internal import telemetry
 from .internal.logger import get_logger
@@ -361,7 +362,7 @@ def _patch_all(**patch_modules: bool) -> None:
 
         patch_iast()
 
-    # load_common_appsec_modules()
+    load_common_appsec_modules()
 
 
 def patch(raise_errors=True, **patch_modules):
