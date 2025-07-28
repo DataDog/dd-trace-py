@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.endpoints import HttpEndPointsCollection
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -59,6 +60,9 @@ def build_libddwaf_filename() -> str:
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
 
 
+endpoint_collection = HttpEndPointsCollection()
+
+
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
     _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
@@ -93,6 +97,10 @@ class ASMConfig(DDConfig):
     _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _api_security_endpoint_collection = DDConfig.var(bool, API_SECURITY.ENDPOINT_COLLECTION, default=True)
+    _api_security_endpoint_collection_limit = DDConfig.var(
+        int, API_SECURITY.ENDPOINT_COLLECTION_LIMIT, default=DEFAULT.ENDPOINT_COLLECTION_LIMIT
+    )
 
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
