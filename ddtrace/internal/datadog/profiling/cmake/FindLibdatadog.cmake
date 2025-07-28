@@ -28,10 +28,7 @@ if(NOT DEFINED DD_CHECKSUMS)
         "606b23f4de7defacd5d4a381816f8d7bfe26112c97fcdf21ec2eb998a6c5fbbd libdatadog-aarch64-unknown-linux-gnu.tar.gz"
         "2008886021ddee573c0d539626d1d58d41e2a7dbc8deca22b3662da52de6f4d9 libdatadog-x86_64-alpine-linux-musl.tar.gz"
         "6a12ef60fd7b00544343c2b6761ef801ad2e1237075711bd16dfb7247464bc43 libdatadog-x86_64-apple-darwin.tar.gz"
-        "4e5b05515ab180aec0819608aa5d277ff710055819654147a9d69caea27a0dbc libdatadog-x86_64-unknown-linux-gnu.tar.gz"
-        "9b33697d3a9949c81a5eadf6fd6334adba4b262acb8887651021443c5f5b35b06dc7e2bdde5cee1b7a1f4862f0896436130b7f4940050e4dbccf8e7e0b2f129e libdatadog-x64-windows.zip"
-        "ace14ad5b0525c11f86d166b5696b8dcfd48cb5bb1c4435e71eba982c3da21c4f42ac6b6ec5fdf53f09a353a3339e2a31cc57003637578bc73815def808768b1 libdatadog-x86-windows.zip"
-    )
+        "4e5b05515ab180aec0819608aa5d277ff710055819654147a9d69caea27a0dbc libdatadog-x86_64-unknown-linux-gnu.tar.gz")
 endif()
 
 # Determine platform-specific tarball name in a way that conforms to the libdatadog naming scheme in Github releases
@@ -60,18 +57,6 @@ elseif(UNIX)
     else()
         set(DD_PLATFORM "unknown-linux-gnu")
     endif()
-elseif(WIN32)
-    # WIN32 is True when it's Windows, including Win64
-    set(DD_PLATFORM "windows")
-
-    if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-        set(DD_ARCH "x64")
-    else()
-        set(DD_ARCH "x86")
-    endif()
-
-    set(DD_EXT "zip")
-    set(DD_HASH_ALGO "SHA512")
 else()
     message(FATAL_ERROR "Unsupported operating system")
 endif()
@@ -122,15 +107,11 @@ set(ENV{Datadog_ROOT} "${Datadog_ROOT}")
 set(Datadog_DIR "${Datadog_ROOT}/cmake")
 
 # Configure library preferences (static over shared)
-if(NOT WIN32)
-    set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
-    set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
-endif()
+set(CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP ${CMAKE_FIND_LIBRARY_SUFFIXES})
+set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
 
 # Find the package
 find_package(Datadog REQUIRED)
 
-if(NOT WIN32)
-    # Restore library preferences
-    set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
-endif()
+# Restore library preferences
+set(CMAKE_FIND_LIBRARY_SUFFIXES ${CMAKE_FIND_LIBRARY_SUFFIXES_BACKUP})
