@@ -26,6 +26,9 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.utils import ToolResult
 
 
 try:
@@ -456,26 +459,37 @@ def openai_get_input_messages_from_response_input(
                 arguments = json.loads(item["arguments"])
             except json.JSONDecodeError:
                 arguments = {"value": str(item["arguments"])}
-            processed_item["tool_calls"] = [
+
+            tool_call_info = ToolCall(
+                tool_id=item["call_id"],
+                arguments=arguments,
+                name=item.get("name", ""),
+                type=item.get("type", "function_call"),
+            )
+            processed_item.update(
                 {
-                    "tool_id": item["call_id"],
-                    "arguments": arguments,
-                    "name": item.get("name", ""),
-                    "type": item.get("type", "function_call"),
+                    "role": "user",
+                    "content": "", #TODO(max): figure out how to handle tool content
+                    "tool_calls": [tool_call_info],
                 }
-            ]
+            )
         elif "call_id" in item and "output" in item:
             # Process `FunctionCallOutput` type from input messages
             output = item["output"]
 
             if not isinstance(output, str):
                 output = safe_json(output)
-
+            tool_result_info =ToolResult(
+                tool_id=item["call_id"],
+                result=output,
+                name=item.get("name", ""),
+                type=item.get("type", "function_call_output"),
+            )
             processed_item.update(
                 {
-                    "role": "tool",
-                    "content": output,
-                    "tool_id": item["call_id"],
+                    "role": "user",
+                    "content": "", #TODO(max): figure out how to handle tool content
+                    "tool_results": [tool_result_info],
                 }
             )
         if processed_item:
