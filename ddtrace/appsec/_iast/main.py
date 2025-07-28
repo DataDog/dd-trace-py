@@ -67,6 +67,7 @@ def patch_iast():
     """
     command_injection_patch()
     header_injection_patch()
+    unvalidated_redirect_patch()
     weak_cipher_patch()
     weak_hash_patch()
 
@@ -74,7 +75,6 @@ def patch_iast():
         code_injection_patch()
         insecure_cookie_patch()
         json_tainting_patch()
-        unvalidated_redirect_patch()
         xss_patch()
     else:
         log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
