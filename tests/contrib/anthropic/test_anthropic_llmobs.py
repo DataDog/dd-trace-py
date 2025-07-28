@@ -32,6 +32,17 @@ WEATHER_TOOL_RESULT = [
     {"result": ["The weather is 73f"], "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_result"}
 ]
 
+expected_tool_definition = [
+    {
+        "name": "get_weather",
+        "description": "Get the weather for a specific location",
+        "schema": {
+            "type": "object",
+            "properties": {"location": {"type": "string"}},
+        },
+    }
+]
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -456,6 +467,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -519,6 +531,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -562,6 +575,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -619,6 +633,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -679,6 +694,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -733,6 +749,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -788,6 +805,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
@@ -847,6 +865,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tools=expected_tool_definition,
             )
         )
 
