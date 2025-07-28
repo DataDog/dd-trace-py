@@ -16,11 +16,16 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping.context import WrappingContext
+from ddtrace.settings.integration import IntegrationConfig
 
 
 T = TypeVar("T")
 
 log = get_logger(__name__)
+
+
+# PERF: cache the getattr lookup for the Django config
+config_django: IntegrationConfig = typing.cast(IntegrationConfig, config.django)
 
 
 class DjangoTemplateWrappingContext(WrappingContext):
@@ -37,7 +42,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
         """
         Instrument the django template base module to wrap the render method.
         """
-        if not config.django.instrument_templates:
+        if not config_django.instrument_templates:
             return
 
         # Wrap the render method of the Template class
@@ -63,7 +68,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
     def __enter__(self) -> "DjangoTemplateWrappingContext":
         super().__enter__()
 
-        if not config.django.instrument_templates:
+        if not config_django.instrument_templates:
             return self
 
         # Get the template instance (self parameter of the render method)
@@ -78,7 +83,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
             resource = "{0}.{1}".format(func_name(instance), self.__wrapped__.__name__)
 
         # Build tags
-        tags = {COMPONENT: config.django.integration_name}
+        tags = {COMPONENT: config_django.integration_name}
         if template_name:
             tags["django.template.name"] = template_name
 
@@ -117,13 +122,13 @@ class DjangoTemplateWrappingContext(WrappingContext):
             log.exception("Failed to close Django template render wrapping context")
 
     def __return__(self, value: T) -> T:
-        if config.django.instrument_templates:
+        if config_django.instrument_templates:
             self._close_ctx(None, None, None)
         return super().__return__(value)
 
     def __exit__(
         self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
     ) -> None:
-        if config.django.instrument_templates:
+        if config_django.instrument_templates:
             self._close_ctx(exc_type, exc_val, exc_tb)
         return super().__exit__(exc_type, exc_val, exc_tb)
