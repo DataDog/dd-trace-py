@@ -54,7 +54,6 @@ tests/opentracer                    @DataDog/apm-core-python
 tests/tracer                        @DataDog/apm-core-python
 
 # Test Visibility and related
-ddtrace/contrib/internal/asynctest                    @DataDog/ci-app-libraries
 ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
