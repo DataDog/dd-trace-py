@@ -84,19 +84,9 @@ def get_latest_commit_message() -> str:
     return ""
 
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", os.environ.get("GH_TOKEN"))
 if not GITHUB_TOKEN:
-    try:
-        GITHUB_TOKEN = (
-            check_output(
-                ["dd-octo-sts", "token", "--scope", "DataDog/dd-trace-py", "--policy", "gitlab.github-access.read"]
-            )
-            .decode("utf-8")
-            .strip()
-        )
-        LOGGER.info("GitHub token retrieved from dd-octo-sts")
-    except Exception:
-        LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
+    LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
 else:
     LOGGER.info("GitHub token retrieved from environment")
 
