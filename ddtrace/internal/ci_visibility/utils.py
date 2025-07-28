@@ -131,6 +131,7 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
 
     try:
         ci_visibility_handler.setLevel(level.upper())
+        ddtrace_logger.setLevel(level.upper())
     except ValueError:
         log.warning("Invalid log level: %s", level)
         return

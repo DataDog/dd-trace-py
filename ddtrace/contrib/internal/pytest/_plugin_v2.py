@@ -523,6 +523,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
+        coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
