@@ -85,7 +85,7 @@ def _expected_llmobs_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
-    tools=None,
+    tool_definitions=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -102,7 +102,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
-    tools: list of tool definitions that were available to the LLM
+    tool_definitions: list of tool definitions that were available to the LLM
     """
     span_event = _llmobs_base_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, span_links
@@ -144,8 +144,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
-    if tools is not None:
-        meta_dict["tool_definitions"] = tools
+    if tool_definitions is not None:
+        meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
