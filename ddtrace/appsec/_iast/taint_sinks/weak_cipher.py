@@ -57,6 +57,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     weak_cipher_algorithms = get_weak_cipher_algorithms()

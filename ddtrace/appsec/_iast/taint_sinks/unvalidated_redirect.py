@@ -42,6 +42,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)

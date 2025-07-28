@@ -49,6 +49,10 @@ _IS_PATCHED = False
 
 
 def patch():
+    """Wrap hashing functions.
+    Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
+    and thus are not fit for use.
+    """
     global _IS_PATCHED
     if _IS_PATCHED and not asm_config._iast_is_testing:
         return
@@ -56,10 +60,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
-    """Wrap hashing functions.
-    Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
-    and thus are not fit for use.
-    """
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     weak_hash_algorithms = get_weak_hash_algorithms()

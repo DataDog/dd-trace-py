@@ -37,6 +37,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    _IS_PATCHED = True
+
     @ModuleWatchdog.after_module_imported("subprocess")
     def _(module):
         subprocess_patch.patch()

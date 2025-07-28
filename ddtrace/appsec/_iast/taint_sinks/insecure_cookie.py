@@ -101,6 +101,9 @@ def patch():
 
     if not asm_config._iast_enabled:
         return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)

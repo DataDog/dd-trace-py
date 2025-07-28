@@ -129,6 +129,8 @@ def patch():
     if not asm_config._iast_enabled:
         return
 
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     # For headers["foo"] = "bar"
