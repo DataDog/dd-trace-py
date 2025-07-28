@@ -21,6 +21,7 @@ riotfile.py                         @DataDog/apm-python
 .riot/requirements/                 @DataDog/apm-python
 CHANGELOG.md                        @DataDog/apm-python
 README.md                           @DataDog/apm-python
+ddtrace/internal/telemetry/         @DataDog/apm-python
 tests/telemetry                     @DataDog/apm-python
 
 # Guild
@@ -58,7 +59,7 @@ ddtrace/contrib/internal/coverage                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
-ddtrace/contrib/internal/unittest                              @DataDog/ci-app-libraries
+ddtrace/contrib/internal/unittest                     @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest                       @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_bdd                   @DataDog/ci-app-libraries
 ddtrace/contrib/internal/pytest_benchmark             @DataDog/ci-app-libraries
