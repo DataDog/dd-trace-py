@@ -1,5 +1,6 @@
 import enum
 import os
+import sys
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import Set  # noqa:F401
@@ -44,6 +45,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         if info:
             endpoints = info.get("endpoints", [])
+            print(f"Endpoints: {endpoints}", file=sys.stderr, flush=True)
             if endpoints and (
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):

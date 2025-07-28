@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
@@ -249,6 +250,7 @@ class RemoteConfigClient:
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
+        self._applied_configs.clear()
 
     def register_product(self, product_name: str, pubsub_instance: Optional[PubSub] = None) -> None:
         if pubsub_instance is not None:
@@ -577,6 +579,8 @@ class RemoteConfigClient:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
             response = self._send_request(payload)
+            print(f"Payload sent: {payload}", file=sys.stderr, flush=True)
+            print(f"Response received: {response}", file=sys.stderr, flush=True)
             if response is None:
                 return False
             self._process_response(response)
