@@ -164,6 +164,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     )
 
     integration.record_instance(instance, span)
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
 
     chat_completions = None
     try:
@@ -195,7 +196,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     )
 
     integration.record_instance(instance, span)
-
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
     chat_completions = None
     try:
         chat_completions = await func(*args, **kwargs)
@@ -641,7 +642,19 @@ def patch():
         "language_models.chat_models.BaseChatModel.agenerate",
         traced_chat_model_agenerate(langchain),
     )
-    wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
+    wrap(
+        "langchain_core",
+        "language_models.chat_models.BaseChatModel.invoke",
+        traced_chat_model_invoke(langchain),
+    )
+    wrap(
+        "langchain_core",
+        "language_models.chat_models.BaseChatModel.ainvoke",
+        traced_chat_model_ainvoke(langchain),
+    )
+    wrap(
+        "langchain_core",
+        "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.batch", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.abatch", traced_lcel_runnable_sequence_async(langchain))
@@ -658,6 +671,7 @@ def patch():
         traced_chat_stream(langchain),
     )
     wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", traced_base_prompt_template_invoke(langchain))
+    wrap("langchain_core", "prompts.base.BasePromptTemplate.ainvoke", traced_base_prompt_template_ainvoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
 
@@ -681,10 +695,13 @@ def unpatch():
     langchain._datadog_patch = False
 
     unwrap(langchain_core.language_models.llms.BaseLLM, "generate")
-    unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
     unwrap(langchain_core.language_models.llms.BaseLLM, "agenerate")
+    unwrap(langchain_core.language_models.llms.BaseLLM, "invoke")
+    unwrap(langchain_core.language_models.llms.BaseLLM, "ainvoke")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "generate")
     unwrap(langchain_core.language_models.chat_models.BaseChatModel, "agenerate")
+    unwrap(langchain_core.language_models.chat_models.BaseChatModel, "invoke")
+    unwrap(langchain_core.language_models.chat_models.BaseChatModel, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "invoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "ainvoke")
     unwrap(langchain_core.runnables.base.RunnableSequence, "batch")
@@ -698,6 +715,7 @@ def unpatch():
     unwrap(langchain_core.tools.BaseTool, "invoke")
     unwrap(langchain_core.tools.BaseTool, "ainvoke")
     unwrap(langchain_core.prompts.base.BasePromptTemplate, "invoke")
+    unwrap(langchain_core.prompts.base.BasePromptTemplate, "ainvoke")
     if langchain_openai:
         unwrap(langchain_openai.OpenAIEmbeddings, "embed_documents")
     if langchain_pinecone:
@@ -720,6 +738,14 @@ def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwa
 
 
 @with_traced_module
+async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    prompt = await func(*args, **kwargs)
+    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
+
+
+@with_traced_module
 def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     integration.handle_llm_invoke(instance, args, kwargs)
@@ -729,6 +755,20 @@ def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = await func(*args, **kwargs)
+    return response
+
+@with_traced_module
+def traced_chat_model_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = func(*args, **kwargs)
+    return response
+
+@with_traced_module
+async def traced_chat_model_ainvoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     integration.handle_llm_invoke(instance, args, kwargs)
     response = await func(*args, **kwargs)
