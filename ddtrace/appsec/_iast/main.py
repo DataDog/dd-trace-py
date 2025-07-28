@@ -20,7 +20,6 @@ Supported vulnerability types include:
 - Weak Cryptography
 """
 
-
 def patch_iast():
     """Patch security-sensitive functions (sink points) for IAST analysis.
 
@@ -41,8 +40,11 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
+    from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
     from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
     from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
-
+    code_injection_patch()
+    command_injection_patch()
     weak_cipher_patch()
     weak_hash_patch()
