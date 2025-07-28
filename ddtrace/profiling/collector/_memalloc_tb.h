@@ -64,7 +64,7 @@ memalloc_get_traceback(uint16_t max_nframe,
                        void* ptr,
                        size_t size,
                        PyMemAllocatorDomain domain,
-                       size_t allocated_memory);
+                       size_t weighted_size);
 
 PyObject*
 traceback_to_tuple(traceback_t* tb);

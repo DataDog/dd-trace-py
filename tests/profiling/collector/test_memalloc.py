@@ -71,56 +71,52 @@ def test_iter_events():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
     collector._start_service()
-    try:
+    with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
+    alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        total_alloc_count = sum(s.count for s in alloc_samples)
+    total_alloc_count = sum(s.count for s in alloc_samples)
 
-        assert total_alloc_count >= 1000
-        # Watchout: if we dropped samples the test will likely fail
+    assert total_alloc_count >= 1000
+    # Watchout: if we dropped samples the test will likely fail
 
-        object_count = 0
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
+    object_count = 0
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.alloc_size
 
-            assert 0 < len(stack) <= max_nframe
-            assert size >= 1  # size depends on the object size
-            last_call = stack[0]
-            if last_call == DDFrame(
-                __file__,
-                _ALLOC_LINE_NUMBER,
-                "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                "",
-            ):
-                assert thread_id == threading.main_thread().ident
-                if sys.version_info < (3, 12) and len(stack) > 1:
-                    assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
-                object_count += sample.count
+        assert 0 < len(stack) <= max_nframe
+        assert size >= 1  # size depends on the object size
+        last_call = stack[0]
+        if last_call == DDFrame(
+            __file__,
+            _ALLOC_LINE_NUMBER,
+            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
+            "",
+        ):
+            assert thread_id == threading.main_thread().ident
+            if sys.version_info < (3, 12) and len(stack) > 1:
+                assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+            object_count += sample.count
 
-        assert object_count >= 1000
-    finally:
-        collector._stop_service()
+    assert object_count >= 1000
 
 
 def test_iter_events_dropped():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=100, heap_sample_size=64)
     collector._start_service()
-    try:
+    with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
+    alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        total_alloc_count = sum(s.count for s in alloc_samples)
+    total_alloc_count = sum(s.count for s in alloc_samples)
 
-        assert len(alloc_samples) > 0
-        assert total_alloc_count >= 1000
-    finally:
-        collector._stop_service()
+    assert len(alloc_samples) > 0
+    assert total_alloc_count >= 1000
 
 
 def test_iter_events_not_started():
@@ -138,165 +134,169 @@ def test_iter_events_multi_thread():
     t = threading.Thread(target=_allocate_1k)
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
     collector._start_service()
-    try:
+    with collector:
         _allocate_1k()
         t.start()
         t.join()
 
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
+    alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        total_alloc_count = sum(s.count for s in alloc_samples)
+    total_alloc_count = sum(s.count for s in alloc_samples)
 
-        assert total_alloc_count >= 1000
+    assert total_alloc_count >= 1000
 
-        # Watchout: if we dropped samples the test will likely fail
+    # Watchout: if we dropped samples the test will likely fail
 
-        count_object = 0
-        count_thread = 0
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
+    count_object = 0
+    count_thread = 0
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.alloc_size
 
-            assert 0 < len(stack) <= max_nframe
-            assert size >= 1  # size depends on the object size
-            last_call = stack[0]
-            if last_call == DDFrame(
-                __file__,
-                _ALLOC_LINE_NUMBER,
-                "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                "",
-            ):
-                if thread_id == threading.main_thread().ident:
-                    count_object += sample.count
-                    if sys.version_info < (3, 12) and len(stack) > 1:
-                        assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
-                elif thread_id == t.ident:
-                    count_thread += sample.count
-                    entry = 2 if sys.version_info < (3, 12) else 1
-                    if entry < len(stack):
-                        assert stack[entry].file_name == threading.__file__
-                        assert stack[entry].lineno > 0
-                        assert stack[entry].function_name == "run"
+        assert 0 < len(stack) <= max_nframe
+        assert size >= 1  # size depends on the object size
+        last_call = stack[0]
+        if last_call == DDFrame(
+            __file__,
+            _ALLOC_LINE_NUMBER,
+            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
+            "",
+        ):
+            if thread_id == threading.main_thread().ident:
+                count_object += sample.count
+                if sys.version_info < (3, 12) and len(stack) > 1:
+                    assert stack[1] == DDFrame(__file__, _ALLOC_LINE_NUMBER, "_allocate_1k", "")
+            elif thread_id == t.ident:
+                count_thread += sample.count
+                entry = 2 if sys.version_info < (3, 12) else 1
+                if entry < len(stack):
+                    assert stack[entry].file_name == threading.__file__
+                    assert stack[entry].lineno > 0
+                    assert stack[entry].function_name == "run"
 
-        assert count_object >= 1000
-        assert count_thread >= 1000
-    finally:
-        collector._stop_service()
+    assert count_object >= 1000
+    assert count_thread >= 1000
 
 
 def test_heap():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=1024)
     collector._start_service()
-    try:
+    with collector:
         x = _allocate_1k()
-
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        # Check that at least one sample comes from the main thread
-        thread_found = False
+    alloc_samples = [s for s in samples if s.in_use_size > 0]
 
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
+    # Check that at least one sample comes from the main thread
+    thread_found = False
 
-            assert 0 < len(stack) <= max_nframe
-            assert size > 0
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.in_use_size
 
-            if thread_id == threading.main_thread().ident:
-                thread_found = True
-            assert isinstance(thread_id, int)
-            if stack[0] == DDFrame(
-                __file__,
-                _ALLOC_LINE_NUMBER,
-                "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                "",
-            ):
-                break
-        else:
-            pytest.fail("No trace of allocation in heap")
-        assert thread_found, "Main thread not found"
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
 
+        if thread_id == threading.main_thread().ident:
+            thread_found = True
+        assert isinstance(thread_id, int)
+        if stack[0] == DDFrame(
+            __file__,
+            _ALLOC_LINE_NUMBER,
+            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
+            "",
+        ):
+            break
+    else:
+        pytest.fail("No trace of allocation in heap")
+    assert thread_found, "Main thread not found"
+
+    with collector:
         y = _pre_allocate_1k()
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
+    alloc_samples = [s for s in samples if s.in_use_size > 0]
 
-            assert 0 < len(stack) <= max_nframe
-            assert size > 0
-            assert isinstance(thread_id, int)
-            if stack[0] == DDFrame(
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.in_use_size
+
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        if stack[0] == DDFrame(
+            __file__,
+            _ALLOC_LINE_NUMBER,
+            "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
+            "",
+        ):
+            break
+    else:
+        pytest.fail("No trace of allocation in heap")
+
+    del x
+    gc.collect()
+
+    with collector:
+        samples = collector.test_snapshot()
+
+    alloc_samples = [s for s in samples if s.in_use_size > 0]
+
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.in_use_size
+
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        entry = 2 if sys.version_info < (3, 12) else 1
+        if (
+            len(stack) > entry
+            and stack[0]
+            == DDFrame(
                 __file__,
                 _ALLOC_LINE_NUMBER,
                 "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
                 "",
-            ):
-                break
-        else:
-            pytest.fail("No trace of allocation in heap")
+            )
+            and stack[entry].function_name == "test_heap"
+        ):
+            pytest.fail("Allocated memory still in heap")
 
-        del x
-        gc.collect()
+    del y
+    gc.collect()
+
+    with collector:
         samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
 
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
+    alloc_samples = [s for s in samples if s.in_use_size > 0]
 
-            assert 0 < len(stack) <= max_nframe
-            assert size > 0
-            assert isinstance(thread_id, int)
-            entry = 2 if sys.version_info < (3, 12) else 1
-            if (
-                len(stack) > entry
-                and stack[0]
-                == DDFrame(
-                    __file__,
-                    _ALLOC_LINE_NUMBER,
-                    "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
-                    "",
-                )
-                and stack[entry].function_name == "test_heap"
-            ):
-                pytest.fail("Allocated memory still in heap")
+    for sample in alloc_samples:
+        stack = sample.frames
+        thread_id = sample.thread_id
+        size = sample.in_use_size
 
-        del y
-        gc.collect()
-        samples = collector.test_snapshot()
-        alloc_samples = [s for s in samples if s.alloc_size > 0]
-
-        for sample in alloc_samples:
-            stack = sample.frames
-            thread_id = sample.thread_id
-            size = sample.alloc_size
-
-            assert 0 < len(stack) <= max_nframe
-            assert size > 0
-            assert isinstance(thread_id, int)
-            if (
-                len(stack) >= 3
-                and stack[0].file_name == __file__
-                and stack[0].lineno == _ALLOC_LINE_NUMBER
-                and stack[0].function_name in ("<listcomp>", "_allocate_1k")
-                and stack[1].file_name == __file__
-                and stack[1].lineno == _ALLOC_LINE_NUMBER
-                and stack[1].function_name == "_allocate_1k"
-                and stack[2].file_name == __file__
-                and stack[2].function_name == "_pre_allocate_1k"
-            ):
-                pytest.fail("Allocated memory still in heap")
-    finally:
-        collector._stop_service()
+        assert 0 < len(stack) <= max_nframe
+        assert size > 0
+        assert isinstance(thread_id, int)
+        if (
+            len(stack) >= 3
+            and stack[0].file_name == __file__
+            and stack[0].lineno == _ALLOC_LINE_NUMBER
+            and stack[0].function_name in ("<listcomp>", "_allocate_1k")
+            and stack[1].file_name == __file__
+            and stack[1].lineno == _ALLOC_LINE_NUMBER
+            and stack[1].function_name == "_allocate_1k"
+            and stack[2].file_name == __file__
+            and stack[2].function_name == "_pre_allocate_1k"
+        ):
+            pytest.fail("Allocated memory still in heap")
 
 
 def test_heap_stress():

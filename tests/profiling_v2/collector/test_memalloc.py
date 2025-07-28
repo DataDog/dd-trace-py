@@ -60,9 +60,7 @@ def test_memory_collector(tmp_path):
 
     mc = memalloc.MemoryCollector(heap_sample_size=256)
     with mc:
-        junk = _allocate_1k()
-        del junk
-        mc.periodic()
+        _allocate_1k()
         mc.snapshot()
 
     ddup.upload()
@@ -237,39 +235,8 @@ def get_tracemalloc_stats_per_func(stats, funcs):
     return actual_sizes, actual_counts
 
 
-def test_unified_profiler_allocation_samples():
-    mc = memalloc.MemoryCollector(heap_sample_size=512)
-
-    with mc:
-        allocations = []
-        for i in range(100):
-            allocations.append(one(256))
-            allocations.append(two(512))
-
-        del allocations
-
-        samples = mc.test_snapshot()
-
-    assert len(samples) > 0, "Should have captured some samples"
-
-    allocation_samples = [s for s in samples if s.in_use_size == 0]
-    heap_samples = [s for s in samples if s.in_use_size > 0]
-
-    print(f"Total samples: {len(samples)}")
-    print(f"Allocation samples (in_use_size=0): {len(allocation_samples)}")
-    print(f"Heap samples (in_use_size>0): {len(heap_samples)}")
-
-    assert len(allocation_samples) > 0, "Should have captured allocation samples after deletion"
-
-    for sample in samples:
-        assert isinstance(sample.size, int) and sample.size > 0, f"Invalid size: {sample.size}"
-        assert isinstance(sample.count, int) and sample.count > 0, f"Invalid count: {sample.count}"
-        assert (
-            isinstance(sample.in_use_size, int) and sample.in_use_size >= 0
-        ), f"Invalid in_use_size: {sample.in_use_size}"
-        assert isinstance(sample.alloc_size, int) and sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
-
-
+# TODO: higher sampling intervals have a lot more variance and are flaky
+# but would be nice to test since our default is 1MiB
 @pytest.mark.parametrize("sample_interval", (8, 512, 1024))
 def test_heap_profiler_sampling_accuracy(sample_interval):
     # tracemalloc lets us get ground truth on how many allocations there were
@@ -507,7 +474,10 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
 
     count_error = abs(total_count - actual_count_total) / actual_count_total
     print(f"observed count total: {total_count} actual count total: {actual_count_total} error: {count_error}")
-    # commenting out the total count assertions because we still have more work to do on this
+    # Commenting out the total count assertions because we still have more work to do on this.
+    # Our reported counts differed from the actual count by more than we expected, while the reported sizes are accurate.
+    # Our counts seem to be consistently lower than expected for the sample intervals we're testing.
+    # We'll need to double-check our count scaling before making assertions about the actual values
     # assert abs(1 - total_count / actual_count_total) <= 0.30
 
     print("func\tcount\tsize\tactual_size\tactual_count\trel_size\tactual_rel_size\trel_count\tactual_rel_count")
@@ -537,12 +507,6 @@ def test_memory_collector_allocation_tracking_across_snapshots():
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     with mc:
-        initial_samples = mc.test_snapshot()
-
-        assert all(
-            sample.alloc_size > 0 for sample in initial_samples
-        ), "Initial snapshot should have alloc_size>0 (new allocations)"
-
         data_to_free = []
         for i in range(10):
             data_to_free.append(one(256))
@@ -553,42 +517,31 @@ def test_memory_collector_allocation_tracking_across_snapshots():
 
         del data_to_free
 
-        second_samples = mc.test_snapshot()
+        samples = mc.test_snapshot()
 
-        freed_samples = [s for s in second_samples if s.in_use_size == 0]
-        live_samples = [s for s in second_samples if s.in_use_size > 0]
+        assert all(
+            sample.alloc_size > 0 for sample in samples
+        ), "Initial snapshot should have alloc_size>0 (new allocations)"
+
+        freed_samples = [s for s in samples if s.in_use_size == 0]
+        live_samples = [s for s in samples if s.in_use_size > 0]
 
         assert len(freed_samples) > 0, "Should have some freed samples after deletion"
 
         assert len(live_samples) > 0, "Should have some live samples"
 
-        assert all(sample.in_use_size == 0 for sample in freed_samples), "Freed samples should have in_use_size=0"
-        assert all(sample.in_use_size > 0 for sample in live_samples), "Live samples should have in_use_size>0"
+        for sample in samples:
+            assert sample.size > 0, f"Invalid size: {sample.size}"
+            assert sample.count > 0, f"Invalid count: {sample.count}"
+            assert sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+            assert sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
 
-        for sample in second_samples:
-            assert isinstance(sample.size, int) and sample.size > 0, f"Invalid size: {sample.size}"
-            assert isinstance(sample.count, int) and sample.count > 0, f"Invalid count: {sample.count}"
-            assert (
-                isinstance(sample.in_use_size, int) and sample.in_use_size >= 0
-            ), f"Invalid in_use_size: {sample.in_use_size}"
-            assert (
-                isinstance(sample.alloc_size, int) and sample.alloc_size >= 0
-            ), f"Invalid alloc_size: {sample.alloc_size}"
-
-        one_freed_samples = [
-            sample
-            for sample in second_samples
-            if has_function_in_traceback(sample.frames, "one") and sample.in_use_size == 0
-        ]
+        one_freed_samples = [sample for sample in samples if has_function_in_traceback(sample.frames, "one")]
 
         assert len(one_freed_samples) > 0, "Should have freed samples from function 'one'"
         assert all(sample.in_use_size == 0 and sample.alloc_size > 0 for sample in one_freed_samples)
 
-        two_live_samples = [
-            sample
-            for sample in second_samples
-            if has_function_in_traceback(sample.frames, "two") and sample.in_use_size > 0
-        ]
+        two_live_samples = [sample for sample in samples if has_function_in_traceback(sample.frames, "two")]
 
         assert len(two_live_samples) > 0, "Should have live samples from function 'two'"
         assert all(sample.in_use_size > 0 and sample.alloc_size > 0 for sample in two_live_samples)
@@ -600,14 +553,12 @@ def test_memory_collector_python_interface_with_allocation_tracking():
     mc = memalloc.MemoryCollector(heap_sample_size=128)
 
     with mc:
-        initial_samples = mc.test_snapshot()
-        initial_count = len(initial_samples)
-
         first_batch = []
         for i in range(20):
             first_batch.append(one(256))
 
-        after_first_batch = mc.test_snapshot()
+        # We're taking a snapshot here to ensure that in the next snapshot, we don't see any "one" allocations
+        mc.test_snapshot()
 
         second_batch = []
         for i in range(15):
@@ -617,23 +568,13 @@ def test_memory_collector_python_interface_with_allocation_tracking():
 
         final_samples = mc.test_snapshot()
 
-        assert len(after_first_batch) >= initial_count, "Should have at least as many samples after first batch"
         assert len(final_samples) >= 0, "Final snapshot should be valid"
 
-        for samples in [initial_samples, after_first_batch, final_samples]:
-            for sample in samples:
-                assert (
-                    isinstance(sample.size, int) and sample.size > 0
-                ), f"Size should be positive int, got {sample.size}"
-                assert (
-                    isinstance(sample.count, int) and sample.count > 0
-                ), f"Count should be positive int, got {sample.count}"
-                assert (
-                    isinstance(sample.in_use_size, int) and sample.in_use_size >= 0
-                ), f"in_use_size should be non-negative int, got {sample.in_use_size}"
-                assert (
-                    isinstance(sample.alloc_size, int) and sample.alloc_size >= 0
-                ), f"alloc_size should be non-negative int, got {sample.alloc_size}"
+        for sample in final_samples:
+            assert sample.size > 0, f"Size should be positive int, got {sample.size}"
+            assert sample.count > 0, f"Count should be positive int, got {sample.count}"
+            assert sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
+            assert sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
 
         one_samples_in_final = [sample for sample in final_samples if has_function_in_traceback(sample.frames, "one")]
 
@@ -679,18 +620,10 @@ def test_memory_collector_python_interface_with_allocation_tracking_no_deletion(
 
         for samples in [initial_samples, after_first_batch, final_samples]:
             for sample in samples:
-                assert (
-                    isinstance(sample.size, int) and sample.size > 0
-                ), f"Size should be positive int, got {sample.size}"
-                assert (
-                    isinstance(sample.count, int) and sample.count > 0
-                ), f"Count should be positive int, got {sample.count}"
-                assert (
-                    isinstance(sample.in_use_size, int) and sample.in_use_size >= 0
-                ), f"in_use_size should be non-negative int, got {sample.in_use_size}"
-                assert (
-                    isinstance(sample.alloc_size, int) and sample.alloc_size >= 0
-                ), f"alloc_size should be non-negative int, got {sample.alloc_size}"
+                assert sample.size > 0, f"Size should be positive int, got {sample.size}"
+                assert sample.count > 0, f"Count should be positive int, got {sample.count}"
+                assert sample.in_use_size >= 0, f"in_use_size should be non-negative int, got {sample.in_use_size}"
+                assert sample.alloc_size >= 0, f"alloc_size should be non-negative int, got {sample.alloc_size}"
 
         batch_one_live_samples = [
             sample
@@ -746,11 +679,8 @@ def test_memory_collector_allocation_during_shutdown():
 
     def allocate_continuously():
         while not shutdown_event.is_set():
-            try:
-                data = [0] * 100
-                del data
-            except Exception:
-                pass
+            data = [0] * 100
+            del data
             time.sleep(0.001)
 
     try:
