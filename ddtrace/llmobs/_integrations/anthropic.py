@@ -66,6 +66,7 @@ class AnthropicIntegration(BaseLLMIntegration):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         if kwargs.get("tools"):
             tools = self._extract_tools(kwargs.get("tools", []))
+            span._set_ctx_item(TOOLS, tools)
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
         input_messages = self._extract_input_message(messages, system_prompt)
@@ -87,7 +88,6 @@ class AnthropicIntegration(BaseLLMIntegration):
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
                 METRICS: metrics,
-                TOOLS: tools,
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
