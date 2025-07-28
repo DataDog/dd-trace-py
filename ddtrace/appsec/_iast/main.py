@@ -19,6 +19,31 @@ Supported vulnerability types include:
 - Unvalidated Redirects
 - Weak Cryptography
 """
+from ddtrace.internal.module import ModuleWatchdog
+from ddtrace.internal.module import is_module_installed
+
+
+def _load_modules():
+    from ddtrace.appsec._iast._patches.json_tainting import patch as json_tainting_patch
+    from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.header_injection import patch as header_injection_patch
+    from ddtrace.appsec._iast.taint_sinks.insecure_cookie import patch as insecure_cookie_patch
+    from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import patch as unvalidated_redirect_patch
+    from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
+    from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
+    from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
+
+    code_injection_patch()
+    command_injection_patch()
+    header_injection_patch()
+    insecure_cookie_patch()
+    unvalidated_redirect_patch()
+    weak_cipher_patch()
+    weak_hash_patch()
+    xss_patch()
+    json_tainting_patch()
+
 
 def patch_iast():
     """Patch security-sensitive functions (sink points) for IAST analysis.
@@ -40,11 +65,13 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-    from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
-    from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
-    from ddtrace.appsec._iast.taint_sinks.weak_cipher import patch as weak_cipher_patch
-    from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
-    code_injection_patch()
-    command_injection_patch()
-    weak_cipher_patch()
-    weak_hash_patch()
+    if is_module_installed("gevent"):
+
+        @ModuleWatchdog.after_module_imported("gevent")
+        def _(module):
+            print("LAZY LOAD!!!!!!!!!!!")
+            _load_modules()
+
+    else:
+        print("LOAD NORMAL!!!!!!!!!!!!!!!!")
+        _load_modules()
