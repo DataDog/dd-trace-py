@@ -287,7 +287,7 @@ def _inject():
     INSTALLED_PACKAGES = build_installed_pkgs()
     DDTRACE_REQUIREMENTS = build_requirements(PYTHON_VERSION)
     EXECUTABLES_DENY_LIST = build_denied_executables()
-    integration_incomp = False
+    dependency_incomp = False
     runtime_incomp = False
     spec = None
     try:
@@ -349,6 +349,7 @@ def _inject():
 
         if incompatible_packages:
             _log("Found incompatible ddtrace dependencies: %s." % incompatible_packages, level="debug")
+            dependency_incomp = True
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py installation.", level="debug")
                 abort = True
@@ -502,13 +503,13 @@ def _inject():
                     create_count_metric(
                         "library_entrypoint.complete",
                         [
-                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                            "injection_forced:" + str(runtime_incomp or dependency_incomp).lower(),
                         ],
                     ),
                 )
                 RESULT = "success"
                 RESULT_REASON = "Successfully configured ddtrace package"
-                RESULT_CLASS = "success" if not (runtime_incomp or integration_incomp) else "success_forced"
+                RESULT_CLASS = "success" if not (runtime_incomp or dependency_incomp) else "success_forced"
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
