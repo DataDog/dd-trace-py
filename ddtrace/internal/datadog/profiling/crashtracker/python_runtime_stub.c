@@ -78,3 +78,5 @@ __attribute__((weak)) void* PyObject_CallObject = 0;
 __attribute__((weak)) void* PyMem_Malloc = 0;
 __attribute__((weak)) void* PyCFunction_NewEx = 0;
 __attribute__((weak)) void* PyObject_Free = 0;
+
+
