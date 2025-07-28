@@ -681,6 +681,11 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
         received_configurations.sort(key=lambda c: c["seq_id"])
+        assert (
+            received_configurations[0]["seq_id"]
+            < received_configurations[1]["seq_id"]
+            < received_configurations[2]["seq_id"]
+        )
         # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
         assert received_configurations[0]["name"] == "appsec_enabled"
         assert received_configurations[0]["origin"] == "env_var"
