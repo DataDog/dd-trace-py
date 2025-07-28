@@ -16,7 +16,6 @@ from typing import TextIO
 import ddtrace
 from ddtrace import config
 import ddtrace.internal.native as native
-from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
@@ -793,9 +792,6 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             .set_input_format(self._api_version)
             .set_output_format(self._api_version)
         )
-        if config._telemetry_enabled:
-            heartbeat_ms = int(config._telemetry_heartbeat_interval * 1e3)
-            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
         if self._test_session_token is not None:
             builder.set_test_session_token(self._test_session_token)
         if self._stats_opt_out:
