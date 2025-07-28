@@ -113,7 +113,7 @@ def _handle_rpc_error(span, rpc_error):
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
     details = rpc_error.details()
     if details is not None:
-        span.set_tag_str(ERROR_MSG, details)
+        span.set_tag_str(ERROR_MSG, str(details))
     else:
         span.set_tag_str(ERROR_MSG, "")
     span.set_tag_str(ERROR_TYPE, code)
