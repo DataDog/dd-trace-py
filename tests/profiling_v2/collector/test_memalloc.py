@@ -475,8 +475,8 @@ def test_memory_collector_allocation_accuracy_with_tracemalloc(sample_interval):
     count_error = abs(total_count - actual_count_total) / actual_count_total
     print(f"observed count total: {total_count} actual count total: {actual_count_total} error: {count_error}")
     # Commenting out the total count assertions because we still have more work to do on this.
-    # Our reported counts differed from the actual count by more than we expected, while the reported sizes are accurate.
-    # Our counts seem to be consistently lower than expected for the sample intervals we're testing.
+    # Our reported counts differed from the actual count by more than we expected, while the reported sizes
+    # are accurate. Our counts seem to be consistently lower than expected for the sample intervals we're testing.
     # We'll need to double-check our count scaling before making assertions about the actual values
     # assert abs(1 - total_count / actual_count_total) <= 0.30
 
