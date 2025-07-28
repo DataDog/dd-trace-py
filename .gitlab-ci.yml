@@ -42,6 +42,9 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
     - |
       if [ -z ${GH_TOKEN} ]

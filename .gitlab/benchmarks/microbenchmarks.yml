@@ -64,6 +64,9 @@ baseline:detect:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   stage: build
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
