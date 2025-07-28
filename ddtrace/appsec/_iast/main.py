@@ -19,16 +19,7 @@ Supported vulnerability types include:
 - Unvalidated Redirects
 - Weak Cryptography
 """
-from ddtrace.appsec._iast._patch_modules import WrapFunctonsForIAST
-from ddtrace.appsec._iast._patch_modules import _apply_custom_security_controls
-from ddtrace.appsec._iast.secure_marks import cmdi_sanitizer
-from ddtrace.appsec._iast.secure_marks import path_traversal_sanitizer
-from ddtrace.appsec._iast.secure_marks import sqli_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import header_injection_sanitizer
-from ddtrace.appsec._iast.secure_marks.sanitizers import xss_sanitizer
-from ddtrace.appsec._iast.secure_marks.validators import header_injection_validator
-from ddtrace.appsec._iast.secure_marks.validators import ssrf_validator
-from ddtrace.appsec._iast.secure_marks.validators import unvalidated_redirect_validator
+from ddtrace.internal.module import is_module_installed
 
 
 def patch_iast():
@@ -51,6 +42,7 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
+
     from ddtrace.appsec._iast._patches.json_tainting import patch as json_tainting_patch
     from ddtrace.appsec._iast.taint_sinks.code_injection import patch as code_injection_patch
     from ddtrace.appsec._iast.taint_sinks.command_injection import patch as command_injection_patch
@@ -61,55 +53,14 @@ def patch_iast():
     from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
     from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
 
-    code_injection_patch()
-    command_injection_patch()
-    header_injection_patch()
-    insecure_cookie_patch()
-    unvalidated_redirect_patch()
     weak_cipher_patch()
     weak_hash_patch()
-    xss_patch()
-    json_tainting_patch()
 
-    iast_funcs = WrapFunctonsForIAST()
-
-    _apply_custom_security_controls(iast_funcs)
-
-    # CMDI sanitizers
-    iast_funcs.wrap_function("shlex", "quote", cmdi_sanitizer)
-
-    # SSRF validators
-    iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", ssrf_validator)
-
-    # SQL sanitizers
-    iast_funcs.wrap_function("mysql.connector.conversion", "MySQLConverter.escape", sqli_sanitizer)
-    iast_funcs.wrap_function("pymysql.connections", "Connection.escape_string", sqli_sanitizer)
-    iast_funcs.wrap_function("pymysql.converters", "escape_string", sqli_sanitizer)
-
-    # Header Injection sanitizers
-    iast_funcs.wrap_function("werkzeug.utils", "_str_header_value", header_injection_sanitizer)
-
-    # Header Injection validators
-    # Header injection for > Django 3.2
-    iast_funcs.wrap_function("django.http.response", "ResponseHeaders._convert_to_charset", header_injection_validator)
-
-    # Header injection for <= Django 2.2
-    iast_funcs.wrap_function("django.http.response", "HttpResponseBase._convert_to_charset", header_injection_validator)
-
-    # Unvalidated Redirect validators
-    iast_funcs.wrap_function("django.utils.http", "url_has_allowed_host_and_scheme", unvalidated_redirect_validator)
-
-    # Path Traversal sanitizers
-    iast_funcs.wrap_function("werkzeug.utils", "secure_filename", path_traversal_sanitizer)
-
-    # TODO: werkzeug.utils.safe_join propagation doesn't work because normpath which is not yet supported by IAST
-    #  iast_funcs.wrap_function("werkzeug.utils", "safe_join", path_traversal_sanitizer)
-    # TODO: os.path.normpath propagation is not yet supported by IAST
-    #  iast_funcs.wrap_function("os.pat", "normpath", path_traversal_sanitizer)
-
-    # XSS sanitizers
-    iast_funcs.wrap_function("html", "escape", xss_sanitizer)
-    # TODO:  markupsafe._speedups._escape_inner is not yet supported by IAST
-    #  iast_funcs.wrap_function("markupsafe", "escape", xss_sanitizer)
-
-    iast_funcs.patch()
+    if not is_module_installed("gevent"):
+        code_injection_patch()
+        command_injection_patch()
+        header_injection_patch()
+        insecure_cookie_patch()
+        unvalidated_redirect_patch()
+        json_tainting_patch()
+        xss_patch()
