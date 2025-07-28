@@ -15,6 +15,7 @@ from inspect import isfunction
 from inspect import unwrap
 import os
 from typing import Dict
+from typing import cast
 
 import wrapt
 from wrapt.importer import when_imported
@@ -85,6 +86,9 @@ config._add(
     ),
 )
 
+# PERF: cache the getattr lookup for the Django config
+config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
+
 _NotSet = object()
 psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
 
@@ -140,10 +144,9 @@ def patch_conn(django, conn):
     def cursor(django, pin, func, instance, args, kwargs):
         alias = getattr(conn, "alias", "default")
 
-        if config.django.database_service_name:
-            service = config.django.database_service_name
-        else:
-            database_prefix = config.django.database_service_name_prefix
+        service = config_django.database_service_name
+        if not service:
+            database_prefix = config_django.database_service_name_prefix
             service = "{}{}{}".format(database_prefix, alias, "db")
             service = schematize_service_name(service)
 
@@ -176,11 +179,11 @@ def patch_conn(django, conn):
 
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
-            config.django.global_config,
-            "{}-{}".format("django", alias),  # name not used but set anyway
+            config_django.global_config,
+            "django-database",
             _default_service=config.django._default_service,
             _dbapi_span_name_prefix=prefix,
-            trace_fetch_methods=config.django.trace_fetch_methods,
+            trace_fetch_methods=config_django.trace_fetch_methods,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
         return traced_cursor_cls(cursor, pin, cfg)
@@ -208,11 +211,11 @@ def instrument_dbs(django):
 def traced_cache(django, pin, func, instance, args, kwargs):
     from . import utils
 
-    if not config.django.instrument_caches:
+    if not config_django.instrument_caches:
         return func(*args, **kwargs)
 
     cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-    tags = {COMPONENT: config.django.integration_name, "django.cache.backend": cache_backend}
+    tags = {COMPONENT: config_django.integration_name, "django.cache.backend": cache_backend}
     if args:
         keys = utils.quantize_key_values(args[0])
         tags["django.cache.key"] = keys
@@ -221,7 +224,7 @@ def traced_cache(django, pin, func, instance, args, kwargs):
         "django.cache",
         span_name="django.cache",
         span_type=SpanTypes.CACHE,
-        service=schematize_service_name(config.django.cache_service_name),
+        service=schematize_service_name(config_django.cache_service_name),
         resource=utils.resource_from_cache_prefix(func_name(func), instance),
         tags=tags,
         pin=pin,
@@ -293,14 +296,14 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     settings = django.conf.settings
 
     # Instrument databases
-    if config.django.instrument_databases:
+    if config_django.instrument_databases:
         try:
             instrument_dbs(django)
         except Exception:
             log.debug("Error instrumenting Django database connections", exc_info=True)
 
     # Instrument caches
-    if config.django.instrument_caches:
+    if config_django.instrument_caches:
         try:
             instrument_caches(django)
         except Exception:
@@ -322,7 +325,7 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config.django.integration_name}
+        tags = {COMPONENT: config_django.integration_name}
         with core.context_with_data(
             "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
         ) as ctx, ctx.span:
@@ -343,7 +346,7 @@ def traced_func(django, name, resource=None, ignored_excs=None):
 
 def traced_process_exception(django, name, resource=None):
     def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config.django.integration_name}
+        tags = {COMPONENT: config_django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
         ) as ctx, ctx.span:
@@ -436,14 +439,14 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         metadata = {http.STATUS_CODE: "403", http.METHOD: request.method}
         url = utils.get_request_uri(request)
         query = request.META.get("QUERY_STRING", "")
-        if query and config.django.trace_query_string:
+        if query and config_django.trace_query_string:
             metadata[http.QUERY_STRING] = query
         user_agent = _get_request_header_user_agent(request_headers)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
         log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
-    core.dispatch("django.block_request_callback", (ctx, metadata, config.django, url, query))
+    core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
 
 
 def _block_request_callable(request, request_headers, ctx: core.ExecutionContext):
@@ -482,10 +485,10 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
         headers_case_sensitive=True,
         span_name=schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND),
         resource=utils.REQUEST_DEFAULT_RESOURCE,
-        service=trace_utils.int_service(pin, config.django),
+        service=trace_utils.int_service(pin, config_django),
         span_type=SpanTypes.WEB,
-        tags={COMPONENT: config.django.integration_name, SPAN_KIND: SpanKind.SERVER},
-        integration_config=config.django,
+        tags={COMPONENT: config_django.integration_name, SPAN_KIND: SpanKind.SERVER},
+        integration_config=config_django,
         distributed_headers=request_headers,
         activate_distributed_headers=True,
         pin=pin,
@@ -711,9 +714,9 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
 
     def django_asgi_modifier(span, scope):
         span.name = schematize_url_operation("django.request", protocol="http", direction=SpanDirection.INBOUND)
-        span.set_tag_str(COMPONENT, config.django.integration_name)
+        span.set_tag_str(COMPONENT, config_django.integration_name)
 
-    return TraceMiddleware(func(*args, **kwargs), integration_config=config.django, span_modifier=django_asgi_modifier)
+    return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
 
 class _DjangoUserInfoRetriever(_UserInfoRetriever):
@@ -801,7 +804,7 @@ def traced_login(django, pin, func, instance, args, kwargs):
     try:
         request = get_argument_value(args, kwargs, 0, "request")
         user = get_argument_value(args, kwargs, 1, "user")
-        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config.django))
+        core.dispatch("django.login", (pin, request, user, mode, _DjangoUserInfoRetriever(user), config_django))
     except Exception:
         log.debug("Error while trying to trace Django login", exc_info=True)
 
@@ -815,7 +818,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
     try:
         result = core.dispatch_with_results(
             "django.auth",
-            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config.django),
+            (result_user, mode, kwargs, pin, _DjangoUserInfoRetriever(result_user, credentials=kwargs), config_django),
         ).user
         if result and result.value[0]:
             return result.value[1]
@@ -827,7 +830,7 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
 
 @trace_utils.with_traced_module
 def traced_process_request(django, pin, func, instance, args, kwargs):
-    tags = {COMPONENT: config.django.integration_name}
+    tags = {COMPONENT: config_django.integration_name}
     with core.context_with_data(
         "django.func.wrapped",
         span_name="django.middleware",
@@ -870,7 +873,7 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
                         kwargs,
                         pin,
                         _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                        config.django,
+                        config_django,
                     ),
                 )
         except Exception:
@@ -881,7 +884,7 @@ def traced_process_request(django, pin, func, instance, args, kwargs):
 def patch_create_user(django, pin, func, instance, args, kwargs):
     user = func(*args, **kwargs)
     core.dispatch(
-        "django.create_user", (config.django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
+        "django.create_user", (config_django, pin, func, instance, args, kwargs, user, _DjangoUserInfoRetriever(user))
     )
     return user
 
@@ -914,7 +917,7 @@ def _patch(django):
 
     when_imported("django.apps.registry")(lambda m: trace_utils.wrap(m, "Apps.populate", traced_populate(django)))
 
-    if config.django.instrument_middleware:
+    if config_django.instrument_middleware:
         when_imported("django.core.handlers.base")(
             lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
         )
@@ -950,7 +953,7 @@ def _patch(django):
             lambda m: trace_utils.wrap(m, "get_asgi_application", traced_get_asgi_application(django))
         )
 
-    if config.django.instrument_templates:
+    if config_django.instrument_templates:
         from .templates import DjangoTemplateWrappingContext
 
         when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)

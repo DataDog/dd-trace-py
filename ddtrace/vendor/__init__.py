@@ -92,6 +92,18 @@ License: Apache License 2.0
 Notes:
   - Copied ply into vendors as well.
     Changed "-" to "_" as was causing errors when importing.
+
+
+xmltodict
+---------
+
+Source: https://github.com/martinblech/xmltodict
+Version: 0.14.2
+License: MIT
+
+Notes:
+  - The source were largely modified to keep only the parse function with default parameters.
+
 """
 
 from ddtrace.internal.module import ModuleWatchdog
