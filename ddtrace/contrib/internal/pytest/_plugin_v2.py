@@ -255,7 +255,6 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         return
 
     try:
-        # The itr_skipping_level is already correctly set in the default config based on _DD_CIVISIBILITY_ITR_SUITE_MODE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()

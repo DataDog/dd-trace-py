@@ -30,7 +30,6 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
-from tests.utils import override_env
 
 
 _USE_PLUGIN_V2 = True
@@ -1677,8 +1676,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
@@ -1755,7 +1752,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="False")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
@@ -2083,7 +2080,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2181,8 +2178,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
@@ -2325,8 +2320,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
         ), mock.patch(
@@ -2388,7 +2381,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert True"""
             )
         self.testdir.chdir()
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2461,7 +2454,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert True"""
             )
         self.testdir.chdir()
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2575,7 +2568,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
@@ -2742,8 +2735,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
@@ -2886,8 +2877,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -3026,8 +3015,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
@@ -3136,8 +3123,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
@@ -3280,8 +3265,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -3419,8 +3402,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
