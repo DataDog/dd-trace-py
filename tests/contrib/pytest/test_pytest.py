@@ -1755,7 +1755,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with mock.patch(
+        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="False")), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
@@ -1767,6 +1767,9 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
             side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
