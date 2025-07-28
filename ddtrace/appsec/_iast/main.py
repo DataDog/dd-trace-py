@@ -66,14 +66,14 @@ def patch_iast():
         security instrumentation.
     """
     command_injection_patch()
+    header_injection_patch()
     weak_cipher_patch()
     weak_hash_patch()
 
     if not is_module_installed("gevent"):
         code_injection_patch()
-        header_injection_patch()
-        json_tainting_patch()
         insecure_cookie_patch()
+        json_tainting_patch()
         unvalidated_redirect_patch()
         xss_patch()
     else:
