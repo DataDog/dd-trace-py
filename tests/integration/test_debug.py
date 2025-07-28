@@ -82,7 +82,7 @@ def test_standard_tags():
     assert f.get("dd_version") == ""
     assert f.get("debug") is False
     assert f.get("enabled_cli") is False
-    assert f.get("log_injection_enabled") == "structured"
+    assert f.get("log_injection_enabled") is True
     assert f.get("health_metrics_enabled") is False
     assert f.get("runtime_metrics_enabled") is False
     assert f.get("sampling_rules") == []
@@ -127,7 +127,7 @@ class TestGlobalConfig(SubprocessTestCase):
         f = debug.collect(ddtrace.tracer)
         assert f.get("agent_url") == "http://0.0.0.0:4321"
         assert f.get("health_metrics_enabled") is True
-        assert f.get("log_injection_enabled") == "true"
+        assert f.get("log_injection_enabled") is True
         assert f.get("env") == "prod"
         assert f.get("dd_version") == "123456"
         assert f.get("service") == "service"
@@ -295,9 +295,8 @@ def test_startup_logs_sampling_rules():
     f = debug.collect(tracer)
 
     assert f.get("sampling_rules") == [
-        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE',"
-        " tags='NO_RULE', provenance='default')"
-    ]
+        "SamplingRule(sample_rate=1.0, service=None, name=None, resource=None, tags={}, provenance='default')"
+    ], f.get("sampling_rules")
 
 
 def test_error_output_ddtracerun_debug_mode():
