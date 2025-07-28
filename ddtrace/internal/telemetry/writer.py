@@ -418,6 +418,23 @@ class TelemetryWriter(PeriodicService):
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
 
+    def _add_endpoints_event(self):
+        """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
+        import ddtrace.settings.asm as asm_config_module
+
+        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+            return
+
+        if not asm_config_module.endpoint_collection.endpoints:
+            return
+
+        with self._service_lock:
+            payload = asm_config_module.endpoint_collection.flush(
+                asm_config_module.config._api_security_endpoint_collection_limit
+            )
+
+        self.add_event(payload, "app-endpoints")
+
     def _app_product_change(self):
         # type: () -> None
         """Adds a Telemetry event which reports the enablement of an APM product"""
@@ -660,6 +677,7 @@ class TelemetryWriter(PeriodicService):
             self._app_client_configuration_changed_event(configurations)
 
         self._app_dependencies_loaded_event()
+        self._add_endpoints_event()
 
         if shutting_down:
             self._app_closing_event()

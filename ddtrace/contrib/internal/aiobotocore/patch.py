@@ -5,6 +5,7 @@ import aiobotocore.client
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -16,6 +17,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
@@ -144,6 +146,12 @@ async def _wrapped_api_call(original_func, instance, args, kwargs):
             span.resource = endpoint_name
 
         region_name = deep_getattr(instance, "meta.region_name")
+
+        if in_aws_lambda():
+            # Derive the peer hostname now that we have both service and region.
+            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+            if hostname:
+                span.set_tag_str("peer.service", hostname)
 
         meta = {
             "aws.agent": "aiobotocore",
