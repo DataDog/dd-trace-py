@@ -193,9 +193,10 @@ except ImportError:
         assert telemetry_file.is_file()
         telemetry_data = json.loads(telemetry_file.read_text())
         assert telemetry_data["metadata"]["result"] == "abort"
-        assert "Found incompatible packages: {'opentelemetry-api': '0.17b0'}" in telemetry_data["metadata"][
-            "result_reason"
-        ]
+        assert (
+            "Found incompatible packages: {'opentelemetry-api': '0.17b0'}"
+            in telemetry_data["metadata"]["result_reason"]
+        )
         assert telemetry_data["metadata"]["result_class"] == "incompatible_runtime"
         points = telemetry_data["points"]
         assert len(points) == 2

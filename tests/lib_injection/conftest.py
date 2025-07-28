@@ -200,4 +200,5 @@ if telemetry_output_file:
 
         env["DD_TELEMETRY_FORWARDER_PATH"] = str(forwarder_script_file)
         return telemetry_output_file
+
     return _setup
