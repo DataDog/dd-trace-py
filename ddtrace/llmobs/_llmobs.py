@@ -305,7 +305,7 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
-        else:
+        elif span_kind == "llm":
             parent_span = _get_nearest_llmobs_ancestor(span)
             if parent_span is not None:
                 parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)

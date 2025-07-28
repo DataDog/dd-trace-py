@@ -132,6 +132,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     )
 
     integration.record_instance(instance, span)
+    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
 
     completions = None
     try:
@@ -627,8 +628,9 @@ def patch():
     from langchain_core.tools import BaseTool  # noqa:F401
 
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", traced_llm_invoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", traced_llm_invoke(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.ainvoke", traced_llm_ainvoke(langchain))
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.generate",
@@ -720,4 +722,11 @@ def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     integration.handle_llm_invoke(instance, args, kwargs)
     response = func(*args, **kwargs)
+    return response
+
+@with_traced_module
+async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = await func(*args, **kwargs)
     return response
