@@ -43,7 +43,7 @@ class TraceProcessor(metaclass=abc.ABCMeta):
         """Default post initializer which logs the representation of the
         TraceProcessor at the ``logging.DEBUG`` level.
         """
-        log.debug("initialized trace processor %r", self)
+        pass
 
     @abc.abstractmethod
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
@@ -64,7 +64,7 @@ class SpanProcessor(metaclass=abc.ABCMeta):
         """Default post initializer which logs the representation of the
         Processor at the ``logging.DEBUG`` level.
         """
-        log.debug("initialized processor %r", self)
+        pass
 
     @abc.abstractmethod
     def on_span_start(self, span: Span) -> None:

@@ -21,6 +21,7 @@ from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
+from ddtrace.llmobs._utils import convert_tags_dict_to_list
 
 
 if TYPE_CHECKING:
@@ -153,6 +154,12 @@ class Dataset:
         self._deleted_record_ids.append(record_id)
         del self._records[index]
 
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
         ...
@@ -170,6 +177,50 @@ class Dataset:
     def __iter__(self) -> Iterator[DatasetRecord]:
         return iter(self._records)
 
+    def as_dataframe(self) -> None:
+        try:
+            import pandas as pd
+        except ImportError as e:
+            raise ImportError(
+                "pandas is required to convert dataset to DataFrame. Please install via `pip install pandas`"
+            ) from e
+
+        column_tuples = set()
+        data_rows = []
+        for record in self._records:
+            flat_record = {}  # type: Dict[Union[str, Tuple[str, str]], Any]
+
+            input_data = record.get("input_data", {})
+            if isinstance(input_data, dict):
+                for input_data_col, input_data_val in input_data.items():
+                    flat_record[("input_data", input_data_col)] = input_data_val
+                    column_tuples.add(("input_data", input_data_col))
+            else:
+                flat_record[("input_data", "")] = input_data
+                column_tuples.add(("input_data", ""))
+
+            expected_output = record.get("expected_output", {})
+            if isinstance(expected_output, dict):
+                for expected_output_col, expected_output_val in expected_output.items():
+                    flat_record[("expected_output", expected_output_col)] = expected_output_val
+                    column_tuples.add(("expected_output", expected_output_col))
+            else:
+                flat_record[("expected_output", "")] = expected_output
+                column_tuples.add(("expected_output", ""))
+
+            for metadata_col, metadata_val in record.get("metadata", {}).items():
+                flat_record[("metadata", metadata_col)] = metadata_val
+                column_tuples.add(("metadata", metadata_col))
+
+            data_rows.append(flat_record)
+
+        records_list = []
+        for flat_record in data_rows:
+            row = [flat_record.get(col, None) for col in column_tuples]
+            records_list.append(row)
+
+        return pd.DataFrame(data=records_list, columns=pd.MultiIndex.from_tuples(column_tuples))
+
 
 class Experiment:
     def __init__(
@@ -180,7 +231,7 @@ class Experiment:
         evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         project_name: str,
         description: str = "",
-        tags: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
         config: Optional[ExperimentConfigType] = None,
         _llmobs_instance: Optional["LLMObs"] = None,
     ) -> None:
@@ -189,8 +240,8 @@ class Experiment:
         self._dataset = dataset
         self._evaluators = evaluators
         self._description = description
-        self._tags: List[str] = [f"ddtrace.version:{ddtrace.__version__}"]
-        self._tags.extend(tags or [])
+        self._tags: Dict[str, str] = tags or {}
+        self._tags["ddtrace.version"] = str(ddtrace.__version__)
         self._config: Dict[str, JSONType] = config or {}
         self._llmobs_instance = _llmobs_instance
 
@@ -217,31 +268,40 @@ class Experiment:
         if not self._llmobs_instance.enabled:
             logger.warning(
                 "Skipping experiment as LLMObs is not enabled. "
-                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` or set `DD_LLMOBS_ENABLED=1`."
+                "Ensure LLM Observability is enabled via `LLMObs.enable(...)` "
+                "or set `DD_LLMOBS_ENABLED=1` and use `ddtrace-run` to run your application."
             )
             return []
-        project_id = self._llmobs_instance._dne_client.project_get(self._project_name)
-        if not project_id:
-            project_id = self._llmobs_instance._dne_client.project_create(self._project_name)
+
+        project_id = self._llmobs_instance._dne_client.project_create_or_get(self._project_name)
         self._project_id = project_id
+
         experiment_id, experiment_run_name = self._llmobs_instance._dne_client.experiment_create(
             self.name,
             self._dataset._id,
             self._project_id,
             self._dataset._version,
             self._config,
-            self._tags,
+            convert_tags_dict_to_list(self._tags),
             self._description,
         )
         self._id = experiment_id
-        self._tags.append(f"experiment_id:{experiment_id}")
+        self._tags["experiment_id"] = str(experiment_id)
         self._run_name = experiment_run_name
         task_results = self._run_task(jobs, raise_errors, sample_size)
         evaluations = self._run_evaluators(task_results, raise_errors=raise_errors)
         experiment_results = self._merge_results(task_results, evaluations)
         experiment_evals = self._generate_metrics_from_exp_results(experiment_results)
-        self._llmobs_instance._dne_client.experiment_eval_post(self._id, experiment_evals, self._tags)
+        self._llmobs_instance._dne_client.experiment_eval_post(
+            self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
+        )
         return experiment_results
+
+    @property
+    def url(self) -> str:
+        # FIXME: need to use the user's site
+        # also will not work for subdomain orgs
+        return f"https://app.datadoghq.com/llm/experiments/{self._id}"
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -256,7 +316,12 @@ class Experiment:
                 span_id, trace_id = "", ""
             input_data = record["input_data"]
             record_id = record.get("record_id", "")
-            tags = {"dataset_id": self._dataset._id, "dataset_record_id": record_id, "experiment_id": self._id}
+            tags = {
+                **self._tags,
+                "dataset_id": str(self._dataset._id),
+                "dataset_record_id": str(record_id),
+                "experiment_id": str(self._id),
+            }
             output_data = None
             try:
                 output_data = self._task(input_data, self._config)
@@ -342,7 +407,7 @@ class Experiment:
         experiment_results = []
         for idx, task_result in enumerate(task_results):
             output_data = task_result["output"]
-            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], self._tags)}
+            metadata: Dict[str, JSONType] = {"tags": cast(List[JSONType], convert_tags_dict_to_list(self._tags))}
             metadata.update(task_result.get("metadata") or {})
             record: DatasetRecord = self._dataset[idx]
             evals = evaluations[idx]["evaluations"]
@@ -383,7 +448,7 @@ class Experiment:
             "label": eval_name,
             f"{metric_type}_value": eval_value,  # type: ignore
             "error": err,
-            "tags": self._tags,
+            "tags": convert_tags_dict_to_list(self._tags),
             "experiment_id": self._id,
         }
 

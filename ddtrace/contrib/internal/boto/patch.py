@@ -7,6 +7,7 @@ import boto.connection
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -16,6 +17,7 @@ from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
@@ -122,6 +124,12 @@ def patched_query_request(original_func, instance, args, kwargs):
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
 
+            if in_aws_lambda():
+                # Derive the peer hostname now that we have both service and region.
+                hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+                if hostname:
+                    meta["peer.service"] = hostname
+
         span.set_tags(meta)
 
         # Original func returns a boto.connection.HTTPResponse object
@@ -182,6 +190,12 @@ def patched_auth_request(original_func, instance, args, kwargs):
         if region_name:
             meta[aws.REGION] = region_name
             meta[aws.AWSREGION] = region_name
+
+            if in_aws_lambda():
+                # Derive the peer hostname
+                hostname = _derive_peer_hostname(endpoint_name, region_name, None)
+                if hostname:
+                    meta["peer.service"] = hostname
 
         span.set_tags(meta)
 
