@@ -256,11 +256,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         return
 
     try:
-        # Set default to suite-level mode for backward compatibility, but respect env var if set
-        if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True)):
-            dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
-        else:
-            dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
+        # The itr_skipping_level is already correctly set in the default config based on _DD_CIVISIBILITY_ITR_SUITE_MODE
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
