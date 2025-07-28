@@ -89,24 +89,12 @@ if not GITHUB_TOKEN:
     try:
         GITHUB_TOKEN = (
             check_output(
-                [
-                    "aws",
-                    "ssm",
-                    "get-parameter",
-                    "--region",
-                    "us-east-1",
-                    "--name",
-                    f"ci.{os.environ['CI_PROJECT_NAME']}.gh_token",
-                    "--with-decryption",
-                    "--query",
-                    "Parameter.Value",
-                    "--output=text",
-                ]
+                ["dd-octo-sts", "token", "--scope", "DataDog/dd-trace-py", "--policy", "gitlab.github-access.read"]
             )
             .decode("utf-8")
             .strip()
         )
-        LOGGER.info("GitHub token retrieved from SSM")
+        LOGGER.info("GitHub token retrieved from dd-octo-sts")
     except Exception:
         LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
 else:

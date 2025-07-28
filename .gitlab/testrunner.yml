@@ -1,5 +1,8 @@
+variables:
+  TESTRUNNER_IMAGE: registry.ddbuild.io/images/dd-trace-py:v71878370-6775f6a-testrunner-2025.07.15@sha256:fdf501bfb7a626b4b54602f2aa897d4e301f5d1f6afc7938788c6e2c1391f9c3
+
 .testrunner:
-  image: ghcr.io/datadog/dd-trace-py/testrunner:8b69a2610342b333f8832422ffc4f3a9327bed13@sha256:c2d067947ffdb305fc7dc7ff1f8eb7035cfa110bd1199917dd2519eadd166402
+  image: ${TESTRUNNER_IMAGE}
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m

@@ -43,7 +43,6 @@ tests-gen:
   stage: tests
   extends: .testrunner
   script:
-    - pip install riot==0.20.1
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
