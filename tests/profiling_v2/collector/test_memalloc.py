@@ -668,6 +668,9 @@ def test_memory_collector_exception_handling():
 
 
 def test_memory_collector_allocation_during_shutdown():
+    """Test that verifies that when _memalloc.stop() is called while allocations are still
+    happening in another thread, the shutdown process completes without deadlocks or crashes.
+    """
     import time
 
     from ddtrace.profiling.collector import _memalloc
@@ -698,6 +701,10 @@ def test_memory_collector_allocation_during_shutdown():
 
 
 def test_memory_collector_buffer_pool_exhaustion():
+    """Test that the memory collector handles buffer pool exhaustion.
+    This test creates multiple threads that simultaneously allocate with very deep
+    stack traces, which could potentially exhaust internal buffer pools.
+    """
     mc = memalloc.MemoryCollector(heap_sample_size=64)
 
     with mc:
@@ -728,6 +735,7 @@ def test_memory_collector_buffer_pool_exhaustion():
 
 
 def test_memory_collector_complex_object_graphs():
+    """Test that the memory collector handles complex circular reference graphs."""
     mc = memalloc.MemoryCollector(heap_sample_size=256)
 
     class Node:
@@ -756,6 +764,9 @@ def test_memory_collector_complex_object_graphs():
 
 
 def test_memory_collector_thread_lifecycle():
+    """Test that continuously creates and destroys threads while they perform allocations,
+    verifying that the collector can track allocations across changing thread contexts.
+    """
     mc = memalloc.MemoryCollector(heap_sample_size=512)
 
     with mc:
