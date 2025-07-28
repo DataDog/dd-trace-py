@@ -86,7 +86,11 @@ def get_latest_commit_message() -> str:
 
 GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", os.environ.get("GH_TOKEN"))
 if not GITHUB_TOKEN:
-    LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
+    try:
+        GITHUB_TOKEN = check_output(["gh", "auth", "token"], text=True).strip()
+        LOGGER.info("GitHub token retrieved from gh auth token")
+    except Exception:
+        LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
 else:
     LOGGER.info("GitHub token retrieved from environment")
 

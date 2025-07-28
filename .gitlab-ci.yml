@@ -47,7 +47,9 @@ tests-gen:
       if [ -z ${GH_TOKEN} ]
       then
         # Use dd-octo-sts to get GitHub token
-        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+        dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
+        gh auth login --with-token < token
+        rm token
       fi
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
