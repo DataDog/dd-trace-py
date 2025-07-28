@@ -215,15 +215,7 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
 
-    ci_visibility_service = require_ci_visibility_service()
-    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
-
-    if is_suite_skipping_mode:
-        # Suite-level ITR: add coverage data to the suite
-        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
-    else:
-        # Test-level ITR: add coverage data to the individual test
-        InternalTest.add_coverage_data(test_id, coverage_data)
+    InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
 
 
 def _handle_coverage_dependencies(suite_id) -> None:
