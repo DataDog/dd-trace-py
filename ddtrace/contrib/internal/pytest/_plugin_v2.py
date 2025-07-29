@@ -44,6 +44,7 @@ from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
@@ -255,6 +256,11 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         return
 
     try:
+        dd_config.test_visibility.itr_skipping_level = (
+            ITR_SKIPPING_LEVEL.SUITE
+            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
+            else ITR_SKIPPING_LEVEL.TEST
+        )
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
