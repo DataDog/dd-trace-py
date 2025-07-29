@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import os
-import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -44,9 +43,7 @@ class AppSecRC(PubSub):
 
 
 def _forksafe_appsec_rc():
-    print(f">>> Forksafe AppSec RC: {os.getpid()} | PPID: {os.getppid()}", file=sys.stderr, flush=True)
-    disable_appsec_rc()
-    enable_appsec_rc()
+    remoteconfig_poller.start_subscribers_by_product(APPSEC_PRODUCTS)
 
 
 def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
@@ -70,16 +67,12 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     )
 
     if _asm_feature_is_required():
-        remoteconfig_poller.register(
-            PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()], restart_on_fork=True
-        )
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()])
 
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
-        remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback, restart_on_fork=True)  # IP Blocking
-        remoteconfig_poller.register(
-            PRODUCTS.ASM, asm_callback, restart_on_fork=True
-        )  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback, restart_on_fork=True)  # DD Rules
+        remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
+        remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
+        remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
     # ensure exploit prevention patches are loaded by one-click activation
     if asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -99,14 +92,6 @@ def disable_appsec_rc():
 
 
 def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Tracer] = None) -> None:
-    print(
-        (
-            f"appsec._remoteconfiguration._appsec_callback"
-            f"{tuple(p.path for p in payload_list)}[{os.getpid()}][P: {os.getppid()}]"
-        ),
-        file=sys.stderr,
-        flush=True,
-    )
     if not payload_list:
         return
     debug_info = (
@@ -194,11 +179,9 @@ def _preprocess_results_appsec_1click_activation(
     if "asm" in result:
         if asm_config._asm_static_rule_file is None:
             if result["asm"].get("enabled", False):
-                remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance, restart_on_fork=True)  # IP Blocking
-                remoteconfig_poller.register(
-                    PRODUCTS.ASM, pubsub_instance, restart_on_fork=True
-                )  # Exclusion Filters & Custom Rules
-                remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance, restart_on_fork=True)  # DD Rules
+                remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
+                remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
+                remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
             else:
                 remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
                 remoteconfig_poller.unregister(PRODUCTS.ASM)
