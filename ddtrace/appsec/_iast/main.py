@@ -72,12 +72,12 @@ def patch_iast():
     header_injection_patch()
     weak_cipher_patch()
     weak_hash_patch()
-    xss_patch()
 
     if not is_module_installed("gevent") or asm_config._iast_sink_points_in_gevent_enabled:
         insecure_cookie_patch()
         json_tainting_patch()
         unvalidated_redirect_patch()
+        xss_patch()
     else:
         log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
 
