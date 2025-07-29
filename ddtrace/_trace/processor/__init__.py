@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 from itertools import chain
+import logging
 from threading import RLock
 from typing import Any
 from typing import DefaultDict
@@ -260,6 +261,14 @@ class SpanAggregator(SpanProcessor):
           finished in the collection and ``partial_flush_enabled`` is True.
     """
 
+    SPAN_FINISH_DEBUG_LOG = (
+        "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+        "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
+        "(partial flushing enabled: %s)"
+    )
+
+    SPAN_START_DEBUG_LOG = "Starting span %s, local trace has %d spans in the span aggregator"
+
     def __init__(
         self,
         partial_flush_enabled: bool,
@@ -310,7 +319,6 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
-        log.debug("Starting span %s, local trace has %d spans in the span aggregator", span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
@@ -361,7 +369,6 @@ class SpanAggregator(SpanProcessor):
 
                 # Set partial flush tag on the first span
                 if should_partial_flush:
-                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
                     finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
                 spans: Optional[List[Span]] = finished
@@ -383,19 +390,18 @@ class SpanAggregator(SpanProcessor):
                             config._add_extra_service(span.service)
 
                     log.debug(
-                        "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
-                        "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s id=%s) "
-                        "(partial flushing enabled: %s)",
+                        self.SPAN_FINISH_DEBUG_LOG,
                         len(spans),
                         num_buffered,
                         num_finished - len(spans),
                         num_buffered - num_finished,
                         span.trace_id,
                         spans[0].name,
-                        spans[0].span_id,
                         should_partial_flush,
                     )
-                    self.writer.write(spans)
+                self.writer.write(spans)
+                return
+            return None
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -426,18 +432,19 @@ class SpanAggregator(SpanProcessor):
         # This ensures all remaining counts are sent before the tracer is shutdown.
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
-        unfinished_spans = [
-            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
-            for t in self._traces.values()
-            for s in t.spans
-            if not s.finished
-        ]
-        if unfinished_spans:
-            log.warning(
-                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
-                len(unfinished_spans),
-                ", ".join(unfinished_spans),
-            )
+        if log.isEnabledFor(logging.WARNING):
+            unfinished_spans = [
+                f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
+                for t in self._traces.values()
+                for s in t.spans
+                if not s.finished
+            ]
+            if unfinished_spans:
+                log.warning(
+                    "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
+                    len(unfinished_spans),
+                    ", ".join(unfinished_spans),
+                )
 
         try:
             self._traces.clear()

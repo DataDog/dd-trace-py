@@ -78,6 +78,11 @@ class DatadogSampler:
     )
     _default_key = "service:,env:"
 
+    SAMPLE_DEBUG_LOG = (
+        "%s was sampled. sampled=%s sample_rate=%s sampling_mechanism=%s "
+        "matched_trace_sampling_rule=%s matched_agent_sampler=%s"
+    )
+
     def __init__(
         self,
         rules: Optional[List[SamplingRule]] = None,
@@ -169,7 +174,6 @@ class DatadogSampler:
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
         agent_sampler = None
-        agent_key = None
         sampled = True
         sample_rate = 1.0
         if matched_rule:
@@ -200,15 +204,13 @@ class DatadogSampler:
             sampling_mechanism,
         )
         log.debug(
-            "%s was sampled. sampled=%s sample_rate=%s sampling_mechanism=%s "
-            "matched_trace_sampling_rule=%s matched_agent_sampler=%s expected_agent_service_key=%s",
+            self.SAMPLE_DEBUG_LOG,
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
             matched_rule,
             agent_sampler is not None,
-            agent_key,
         )
         return sampled
 

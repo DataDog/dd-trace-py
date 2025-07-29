@@ -682,8 +682,6 @@ def test_partial_flush_log():
 
     from ddtrace.trace import tracer as t
 
-    partial_flush_min_spans = 2
-
     s1 = t.trace("1")
     s2 = t.trace("2")
     s3 = t.trace("3")
@@ -694,7 +692,6 @@ def test_partial_flush_log():
         s2.finish()
 
     calls = [
-        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
         mock.call(
             "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
             "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s id=%s) "
