@@ -2,7 +2,6 @@ from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
-import sys
 from typing import List
 from typing import Sequence
 from uuid import UUID
@@ -71,13 +70,6 @@ class PublisherSubscriberConnector:
     def read(self) -> SharedDataType:
         config_raw = to_unicode(self.data.value)
         config = json.loads(config_raw) if config_raw else None
-        print(
-            f"[{os.getpid()}][P: {os.getppid()}] ({self.shared_data_counter} "
-            f"{config.get('shared_data_counter') if config else '?'}) read message of "
-            f"length {len(config_raw)} {list(config.keys()) if config else 'None'}",
-            file=sys.stderr,
-            flush=True,
-        )
         if config is not None:
             shared_data_counter = config["shared_data_counter"]
             if os.getpid() != self.pid:
@@ -97,7 +89,6 @@ class PublisherSubscriberConnector:
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
             self.data.value = data
             log.debug("[%s][P: %s] write message of length %s", os.getpid(), os.getppid(), data_len)
-            print(f"[{os.getpid()}][P: {os.getppid()}] write message of length {data_len}", file=sys.stderr, flush=True)
             self.checksum = last_checksum
 
     @staticmethod

@@ -45,7 +45,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
 
         if info:
             endpoints = info.get("endpoints", [])
-            print(f"Endpoints: {endpoints}", file=sys.stderr, flush=True)
             if endpoints and (
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):
@@ -82,8 +81,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 return True
 
             self.start()
-            # Immediately run the periodic method at startup
-            # self.periodic()
 
             return True
         return False

@@ -1,5 +1,4 @@
 import os
-import sys
 from typing import Callable
 from typing import Sequence
 
@@ -27,7 +26,6 @@ class RemoteConfigSubscriber(PeriodicService):
         log.debug("[PID %d] %s initialized", os.getpid(), self)
 
     def _exec_callback(self, data: SharedDataType) -> None:
-        print(f"[PID {os.getpid()}] {self} _exec_callback: {str(data)[:50]}", file=sys.stderr, flush=True)
         if data:
             log.debug("[PID %d] %s _exec_callback: %s", os.getpid(), self, str(data)[:50])
             self._callback(data)
