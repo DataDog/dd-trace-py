@@ -71,7 +71,9 @@ class PublisherSubscriberConnector:
         config_raw = to_unicode(self.data.value)
         config = json.loads(config_raw) if config_raw else None
         print(
-            f"[{os.getpid()}][P: {os.getppid()}] ({self.shared_data_counter}) read message of length {config_raw}",
+            f"[{os.getpid()}][P: {os.getppid()}] ({self.shared_data_counter} "
+            f"{config.get('shared_data_counter') if config else '?'}) read message of "
+            f"length {len(config_raw)} {list(config.keys()) if config else 'None'}",
             file=sys.stderr,
             flush=True,
         )
