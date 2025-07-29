@@ -101,7 +101,7 @@ The OpenTelemetry API support implementation maps OpenTelemetry spans to Datadog
       - Derived from status
     * - ``events[]``
       - ``meta["events"]``
-      -
+      - Note: span events are stored as ``Span.span_events`` if v0.4 API is used
 
 
 """  # noqa: E501
