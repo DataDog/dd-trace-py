@@ -99,6 +99,10 @@ def disable_appsec_rc():
 
 
 def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Tracer] = None) -> None:
+    print((
+        f"appsec._remoteconfiguration._appsec_callback"
+        f"{tuple(p.path for p in payload_list)}[{os.getpid()}][P: {os.getppid()}]"
+    ), file=sys.stderr, flush=True)
     if not payload_list:
         return
     debug_info = (
