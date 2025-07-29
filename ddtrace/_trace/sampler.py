@@ -79,7 +79,7 @@ class DatadogSampler:
     _default_key = "service:,env:"
 
     SAMPLE_DEBUG_LOG = (
-        "%s was sampled. sampled=%s sample_rate=%s sampling_mechanism=%s "
+        "Sampling decision applied to %s: sampled=%s sample_rate=%s sampling_mechanism=%s "
         "matched_trace_sampling_rule=%s matched_agent_sampler=%s"
     )
 
