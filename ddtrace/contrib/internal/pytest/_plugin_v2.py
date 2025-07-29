@@ -521,6 +521,11 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    # IMPORTANT: Collect coverage data BEFORE finishing the test
+    # This ensures that coverage data is available when the span is finished
+    if coverage_collector is not None:
+        _handle_collected_coverage(test_id, coverage_collector)
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
@@ -530,9 +535,6 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
-
-    if coverage_collector is not None:
-        _handle_collected_coverage(test_id, coverage_collector)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
@@ -603,9 +605,6 @@ def _pytest_run_one_test(item, nextitem):
     is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
-
-    if not InternalTest.is_finished(test_id):
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
