@@ -84,7 +84,7 @@ class PublisherSubscriberConnector:
                 self.pid = os.getpid()
                 self.shared_data_counter = 0
             if shared_data_counter > self.shared_data_counter:
-                self.shared_data_counter = self.shared_data_counter
+                self.shared_data_counter = shared_data_counter
                 return [Payload(**value) for value in config["payload_list"]]
         return []
 
