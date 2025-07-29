@@ -79,7 +79,7 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True)
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
@@ -300,6 +300,7 @@ import ddtrace.settings.exception_replay
         ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
     )
     assert configurations
+    configurations.sort(key=lambda x: x["name"])
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
@@ -994,7 +995,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
     assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}

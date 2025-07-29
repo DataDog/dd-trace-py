@@ -34,7 +34,7 @@ def report_config_telemetry(effective_env, val, source, otel_env, config_id=None
         if otel_env is not None and otel_env in os.environ:
             if source in ("fleet_stable_config", "env_var"):
                 _hiding_otel_config(otel_env, effective_env)
-            else:
+            elif otel_env not in ENV_VAR_MAPPINGS:
                 _invalid_otel_config(otel_env)
         telemetry_writer.add_configuration(effective_env, val, source, config_id)
 
