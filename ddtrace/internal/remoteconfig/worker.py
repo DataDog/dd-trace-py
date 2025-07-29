@@ -1,6 +1,5 @@
 import enum
 import os
-import sys
 from typing import Dict  # noqa:F401
 from typing import Iterable  # noqa:F401
 from typing import Set  # noqa:F401
