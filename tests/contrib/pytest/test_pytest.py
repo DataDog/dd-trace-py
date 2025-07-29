@@ -1680,7 +1680,15 @@ class PytestTestCase(PytestTestCaseBase):
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run(
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "True",
+                },
+            )
+
         spans = self.pop_spans()
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -1688,30 +1696,37 @@ class PytestTestCase(PytestTestCaseBase):
         assert session_span.get_tag("test.code_coverage.enabled") == "true"
 
         first_test_span = spans[0]
+
+        # Find the specific test span we want to check
+        test_cov_spans = [span for span in test_spans if span.get_tag("test.name") == "test_cov"]
+        assert len(test_cov_spans) > 0, "Could not find test_cov span"
+        first_test_span = test_cov_spans[0]
+
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
 
         # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # assert COVERAGE_TAG_NAME in first_test_span.get_tags()
-        # first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
-        # files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 2
-        # assert files[0]["filename"] == "lib_fn.py"
-        # assert files[1]["filename"] == "test_cov.py"
+        # Coverage data is stored as a struct tag, not a regular tag
+        coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        assert coverage_data is not None
+        first_tag_data = coverage_data
+        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "/lib_fn.py"
+        assert files[1]["filename"] == "/test_cov.py"
         # assert len(files[0]["segments"]) == 1
         # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
         # assert len(files[1]["segments"]) == 1
         # assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
 
-        # second_test_span = spans[1]
-        # assert second_test_span.get_tag("type") == "test"
-        # assert second_test_span.get_tag("test.name") == "test_second"
-        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 2
-        # assert files[0]["filename"] == "ret_false.py"
-        # assert files[1]["filename"] == "test_cov.py"
+        second_test_span = spans[1]
+        assert second_test_span.get_tag("type") == "test"
+        assert second_test_span.get_tag("test.name") == "test_second"
+        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "/ret_false.py"
+        assert files[1]["filename"] == "/test_cov.py"
         # assert len(files[0]["segments"]) == 1
         # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
         # assert len(files[1]["segments"]) == 1
@@ -1788,7 +1803,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_test_span.get_tag("test.name") == "test_second"
 
         # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "/test_cov.py"
+        assert files[1]["filename"] == "/test_ret_false.py"
         # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
         # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
         # assert len(files) == 2
@@ -1850,13 +1869,20 @@ class PytestTestCase(PytestTestCaseBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
             return_value=True,
         ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run(
+                # "--ddtrace", os.path.basename(py_cov_file.strpath))  # TODO(@gnufede)
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+            )
         spans = self.pop_spans()
         assert len(spans) == 7
 
@@ -1875,30 +1901,25 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_test_span.get_tag("test.name") == "test_second"
 
         # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        # second_test_files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(second_test_files) == 2
-        # assert second_test_files[0]["filename"] == "test_cov.py"
-        # assert len(second_test_files[0]["segments"]) == 1
-        # assert second_test_files[0]["segments"][0] == [9, 0, 10, 0, -1]
-        # assert second_test_files[1]["filename"] == "test_ret_false.py"
-        # assert len(second_test_files[1]["segments"]) == 1
-        # assert second_test_files[1]["segments"][0] == [1, 0, 2, 0, -1]
+        # second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 2
+        # assert files[0]["filename"] == "/test_cov.py"
+        # assert files[1]["filename"] == "/test_ret_false.py"
 
-        # third_test_span = spans[2]
-        # assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
-        # assert COVERAGE_TAG_NAME in third_test_span.get_tags()
+        third_test_span = spans[2]
+        assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
+        third_tag_data = third_test_span.get_struct_tag(COVERAGE_TAG_NAME)
         # third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
-        # third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(third_test_files) == 2
-        # assert third_test_files[0]["filename"] == "test_cov.py"
+        third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
+        assert len(third_test_files) == 2
+        assert third_test_files[0]["filename"] == "/test_cov.py"
         # assert len(third_test_files[0]["segments"]) == 1
         # assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
-        assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
+        assert fourth_test_span.get_struct_tag(COVERAGE_TAG_NAME) is None
 
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
@@ -1936,6 +1957,9 @@ class PytestTestCase(PytestTestCaseBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
@@ -1956,6 +1980,12 @@ class PytestTestCase(PytestTestCaseBase):
 
         # FIXME(@gnufede): coverage tag for individual tests not implemented yet
         # assert COVERAGE_TAG_NAME in first_test_span.get_tags()
+        coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        assert coverage_data is not None
+        first_tag_data = coverage_data
+        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 1
+        assert files[0]["filename"] == "/test_cov.py"
         # first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
         # files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
         # assert len(files) == 1
@@ -1969,6 +1999,13 @@ class PytestTestCase(PytestTestCaseBase):
 
         # FIXME(@gnufede): coverage tag for individual tests not implemented yet
         # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+
+        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        assert second_tag_data is not None
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "/test_cov.py"
+        assert files[1]["filename"] == "/test_ret_false.py"
         # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
         # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
         # assert len(files) == 2
