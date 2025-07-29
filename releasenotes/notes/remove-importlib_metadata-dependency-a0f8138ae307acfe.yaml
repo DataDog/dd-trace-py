@@ -1,0 +1,4 @@
+---
+deprecations:
+  - |
+    Remove importlib_metadata dependency as it is no longer needed as dd-trace-py supports Python 3.8+.
