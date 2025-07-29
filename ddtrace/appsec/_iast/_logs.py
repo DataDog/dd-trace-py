@@ -1,5 +1,3 @@
-import inspect
-
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal.logger import get_logger
@@ -46,6 +44,8 @@ def iast_propagation_error_log(msg):
 
 def iast_error(msg, default_prefix="iast::"):
     if _is_iast_debug_enabled():
+        import inspect
+
         stack = inspect.stack()
         frame_info = "\n".join("%s %s" % (frame_info.filename, frame_info.lineno) for frame_info in stack[:7])
         log.debug("%s%s:\n%s", default_prefix, msg, frame_info)

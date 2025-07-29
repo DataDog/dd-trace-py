@@ -1,4 +1,3 @@
-import inspect
 from typing import Text
 
 from ddtrace.appsec._constants import IAST
@@ -56,8 +55,9 @@ class CodeInjection(VulnerabilityBase):
 def _iast_coi(wrapped, instance, args, kwargs):
     if len(args) >= 1:
         _iast_report_code_injection(args[0])
-
     try:
+        import inspect
+
         caller_frame = None
         if len(args) > 1:
             func_globals = args[1]

@@ -24,6 +24,7 @@ def post_preload():
             del sys.modules["importlib.metadata"]
         except KeyError:
             log.debug("IAST: importlib.metadata wasn't loaded")
+        del sys.modules["inspect"]
 
 
 def start():

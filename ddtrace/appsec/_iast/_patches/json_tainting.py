@@ -24,8 +24,8 @@ def patch():
 
     if not asm_config._iast_enabled:
         return
-    iast_funcs = WrapFunctonsForIAST()
 
+    iast_funcs = WrapFunctonsForIAST()
     iast_funcs.wrap_function("json", "loads", wrapped_loads)
     if asm_config._iast_lazy_taint:
         iast_funcs.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
