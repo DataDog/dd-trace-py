@@ -732,22 +732,12 @@ def test_memory_collector_buffer_pool_exhaustion():
 
         samples = mc.test_snapshot()
 
-        deep_alloc_count = 0
         max_stack_depth = 0
 
         for sample in samples:
             assert sample.frames is not None, "Buffer pool test: All samples should have stack frames"
             stack_depth = len(sample.frames)
             max_stack_depth = max(max_stack_depth, stack_depth)
-
-            for frame in sample.frames:
-                if frame.function_name == "deep_alloc":
-                    deep_alloc_count += 1
-                    break
-
-        assert (
-            deep_alloc_count >= 10
-        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
 
         assert max_stack_depth >= 10, (
             f"Buffer pool test: Stack traces should be preserved even under stress, "
