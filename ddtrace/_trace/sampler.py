@@ -78,9 +78,9 @@ class DatadogSampler:
     )
     _default_key = "service:,env:"
 
-    SAMPLE_DEBUG_LOG = (
+    SAMPLE_DEBUG_MESSAGE = (
         "Sampling decision applied to %s: sampled=%s sample_rate=%s sampling_mechanism=%s "
-        "matched_trace_sampling_rule=%s matched_agent_sampler=%s"
+        "matched_trace_sampling_rule=%s agent_sampled=%s"
     )
 
     def __init__(
@@ -204,7 +204,7 @@ class DatadogSampler:
             sampling_mechanism,
         )
         log.debug(
-            self.SAMPLE_DEBUG_LOG,
+            self.SAMPLE_DEBUG_MESSAGE,
             span,
             sampled,
             sample_rate,

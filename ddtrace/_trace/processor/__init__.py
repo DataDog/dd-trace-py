@@ -261,13 +261,13 @@ class SpanAggregator(SpanProcessor):
           finished in the collection and ``partial_flush_enabled`` is True.
     """
 
-    SPAN_FINISH_DEBUG_LOG = (
+    SPAN_FINISH_DEBUG_MESSAGE = (
         "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
         "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
         "(partial flushing enabled: %s)"
     )
 
-    SPAN_START_DEBUG_LOG = "Starting span %s, local trace has %d spans in the span aggregator"
+    SPAN_START_DEBUG_MESSAGE = "Starting span %s, local trace has %d spans in the span aggregator"
 
     def __init__(
         self,
@@ -319,6 +319,7 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
+        log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
@@ -390,7 +391,7 @@ class SpanAggregator(SpanProcessor):
                             config._add_extra_service(span.service)
 
                     log.debug(
-                        self.SPAN_FINISH_DEBUG_LOG,
+                        self.SPAN_FINISH_DEBUG_MESSAGE,
                         len(spans),
                         num_buffered,
                         num_finished - len(spans),
