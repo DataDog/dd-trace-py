@@ -186,6 +186,10 @@ def four(size):
     return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
 
 
+def _create_allocation(size):
+    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+
+
 class HeapInfo:
     def __init__(self, count, size):
         self.count = count
@@ -716,7 +720,7 @@ def test_memory_collector_buffer_pool_exhaustion():
 
             def deep_alloc(depth):
                 if depth == 0:
-                    return [0] * 100
+                    return _create_allocation(100)
                 return deep_alloc(depth - 1)
 
             data = deep_alloc(50)
@@ -732,6 +736,7 @@ def test_memory_collector_buffer_pool_exhaustion():
 
         samples = mc.test_snapshot()
 
+        deep_alloc_count = 0
         max_stack_depth = 0
 
         for sample in samples:
@@ -739,8 +744,17 @@ def test_memory_collector_buffer_pool_exhaustion():
             stack_depth = len(sample.frames)
             max_stack_depth = max(max_stack_depth, stack_depth)
 
-        assert max_stack_depth >= 10, (
-            f"Buffer pool test: Stack traces should be preserved even under stress, "
+            for frame in sample.frames:
+                if frame.function_name == "deep_alloc":
+                    deep_alloc_count += 1
+                    break
+
+        assert (
+            deep_alloc_count >= 10
+        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
+
+        assert max_stack_depth >= 50, (
+            f"Buffer pool test: Stack traces should be preserved even under stress (expecting at least 50 frames), "
             f"but max depth was only {max_stack_depth}"
         )
 
