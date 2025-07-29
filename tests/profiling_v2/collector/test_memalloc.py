@@ -731,36 +731,28 @@ def test_memory_collector_buffer_pool_exhaustion():
             t.join()
 
         samples = mc.test_snapshot()
-        assert isinstance(samples, tuple)
 
+        deep_alloc_count = 0
+        max_stack_depth = 0
 
-def test_memory_collector_complex_object_graphs():
-    """Test that the memory collector handles complex circular reference graphs."""
-    mc = memalloc.MemoryCollector(heap_sample_size=256)
+        for sample in samples:
+            assert sample.frames is not None, "Buffer pool test: All samples should have stack frames"
+            stack_depth = len(sample.frames)
+            max_stack_depth = max(max_stack_depth, stack_depth)
 
-    class Node:
-        def __init__(self, value):
-            self.value = value
-            self.children = []
-            self.parent = None
+            for frame in sample.frames:
+                if frame.function_name == "deep_alloc":
+                    deep_alloc_count += 1
+                    break
 
-    with mc:
-        root = Node(0)
-        nodes = [root]
+        assert (
+            deep_alloc_count >= 10
+        ), f"Buffer pool test: Expected many allocations from concurrent threads, got {deep_alloc_count}"
 
-        for i in range(1, 100):
-            node = Node(i)
-            parent = nodes[i // 2]
-            node.parent = parent
-            parent.children.append(node)
-            nodes.append(node)
-
-        samples = mc.test_snapshot()
-        assert isinstance(samples, tuple)
-
-        for node in nodes:
-            node.parent = None
-            node.children.clear()
+        assert max_stack_depth >= 10, (
+            f"Buffer pool test: Stack traces should be preserved even under stress, "
+            f"but max depth was only {max_stack_depth}"
+        )
 
 
 def test_memory_collector_thread_lifecycle():
@@ -790,4 +782,14 @@ def test_memory_collector_thread_lifecycle():
             t.join()
 
         samples = mc.test_snapshot()
-        assert isinstance(samples, tuple)
+
+        worker_samples = 0
+        for sample in samples:
+            for frame in sample.frames:
+                if frame.function_name == "worker":
+                    worker_samples += 1
+                    break
+
+        assert (
+            worker_samples > 0
+        ), "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"

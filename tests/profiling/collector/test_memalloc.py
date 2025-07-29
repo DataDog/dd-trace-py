@@ -70,7 +70,6 @@ def _pre_allocate_1k():
 def test_iter_events():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
-    collector._start_service()
     with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
@@ -107,7 +106,6 @@ def test_iter_events():
 def test_iter_events_dropped():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=100, heap_sample_size=64)
-    collector._start_service()
     with collector:
         _allocate_1k()
         samples = collector.test_snapshot()
@@ -133,7 +131,6 @@ def test_iter_events_multi_thread():
     max_nframe = 32
     t = threading.Thread(target=_allocate_1k)
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=64)
-    collector._start_service()
     with collector:
         _allocate_1k()
         t.start()
@@ -183,10 +180,13 @@ def test_iter_events_multi_thread():
 def test_heap():
     max_nframe = 32
     collector = memalloc.MemoryCollector(max_nframe=max_nframe, _max_events=10000, heap_sample_size=1024)
-    collector._start_service()
     with collector:
-        x = _allocate_1k()
-        samples = collector.test_snapshot()
+        _test_heap_impl(collector, max_nframe)
+
+
+def _test_heap_impl(collector, max_nframe):
+    x = _allocate_1k()
+    samples = collector.test_snapshot()
 
     alloc_samples = [s for s in samples if s.in_use_size > 0]
 
@@ -215,9 +215,8 @@ def test_heap():
         pytest.fail("No trace of allocation in heap")
     assert thread_found, "Main thread not found"
 
-    with collector:
-        y = _pre_allocate_1k()
-        samples = collector.test_snapshot()
+    y = _pre_allocate_1k()
+    samples = collector.test_snapshot()
 
     alloc_samples = [s for s in samples if s.in_use_size > 0]
 
@@ -242,8 +241,7 @@ def test_heap():
     del x
     gc.collect()
 
-    with collector:
-        samples = collector.test_snapshot()
+    samples = collector.test_snapshot()
 
     alloc_samples = [s for s in samples if s.in_use_size > 0]
 
@@ -265,15 +263,14 @@ def test_heap():
                 "<listcomp>" if sys.version_info < (3, 12) else "_allocate_1k",
                 "",
             )
-            and stack[entry].function_name == "test_heap"
+            and stack[entry].function_name == "_test_heap_impl"
         ):
             pytest.fail("Allocated memory still in heap")
 
     del y
     gc.collect()
 
-    with collector:
-        samples = collector.test_snapshot()
+    samples = collector.test_snapshot()
 
     alloc_samples = [s for s in samples if s.in_use_size > 0]
 
