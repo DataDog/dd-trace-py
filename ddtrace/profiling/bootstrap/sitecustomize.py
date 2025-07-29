@@ -20,18 +20,11 @@ def start_profiler():
     bootstrap.profiler.start()
 
 
-if (platform.system() == "Linux" and not (sys.maxsize > (1 << 32))) or platform.system() == "Windows":
+if platform.system() == "Linux" and not (sys.maxsize > (1 << 32)):
     LOG.error(
-        "The Datadog Profiler is not supported on 32-bit Linux systems nor on Windows. "
-        "To use the profiler on Linux 32-bit, please upgrade to a 64-bit system. "
+        "The Datadog Profiler is not supported on 32-bit Linux systems. "
+        "To use the profiler, please upgrade to a 64-bit Linux system. "
         "If you believe this is an error or need assistance, please report it at "
-        "https://github.com/DataDog/dd-trace-py/issues"
-    )
-elif platform.system() == "Windows":
-    LOG.error(
-        "The Datadog Profiler is not supported on Windows. "
-        "To use the profiler, please use a 64-bit Linux or macOS system. "
-        "If you need assistance related to Windows support for the Profiler, please open a ticket at "
         "https://github.com/DataDog/dd-trace-py/issues"
     )
 else:
