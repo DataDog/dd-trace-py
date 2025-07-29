@@ -599,8 +599,17 @@ def _pytest_run_one_test(item, nextitem):
 
     # Finish the test if it hasn't been finished yet
     # This needs to happen before retry logic so that retry mechanisms can check the test status
+    # However, we need to be careful not to finish the test if coverage collection is still in progress
+    # The coverage collection in _pytest_runtest_protocol_post_yield will handle finishing the test
     if not InternalTest.is_finished(test_id):
-        InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+        # Only finish the test here if coverage collection is not expected
+        # If coverage collection is happening, let _pytest_runtest_protocol_post_yield handle the finishing
+        should_collect_coverage = InternalTestSession.should_collect_coverage()
+        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+        coverage_will_be_collected = should_collect_coverage and not item_will_skip
+
+        if not coverage_will_be_collected:
+            InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
