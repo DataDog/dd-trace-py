@@ -516,7 +516,7 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
       "process_id": 32526,
-      "test.itr.tests_skipping.count": 8
+      "test.itr.tests_skipping.count": 7
     },
     "duration": 21031042,
     "start": 1733391723985124255
@@ -1068,7 +1068,7 @@
          "_dd.py.partial_flush": 1,
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": 1,
-         "test.itr.tests_skipping.count": 6
+         "test.itr.tests_skipping.count": 5
        },
        "duration": 888750,
        "start": 1733391724005150505
@@ -1137,7 +1137,7 @@
             "_dd.py.partial_flush": 1,
             "_dd.tracer_kr": 1.0,
             "_sampling_priority_v1": 1,
-            "test.itr.tests_skipping.count": 4
+            "test.itr.tests_skipping.count": 3
           },
           "duration": 381166,
           "start": 1733391724005172797

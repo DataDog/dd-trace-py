@@ -99,7 +99,8 @@ def patched_query_request(original_func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         operation_name = None
         if args:
@@ -173,7 +174,8 @@ def patched_auth_request(original_func, instance, args, kwargs):
         service=schematize_service_name("{}.{}".format(pin.service, endpoint_name)),
         span_type=SpanTypes.HTTP,
     ) as span:
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())

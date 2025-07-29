@@ -277,6 +277,9 @@ class TestXdistHooksUnit:
 
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
+        mock_service = mock.MagicMock()
+        mock_service._suite_skipping_mode = True
+
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
@@ -287,6 +290,8 @@ class TestXdistHooksUnit:
             "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
+        ), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service", return_value=mock_service
         ):
             result = _handle_itr_should_skip(mock_item, test_id)
 
@@ -303,6 +308,9 @@ class TestXdistHooksUnit:
 
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
+        mock_service = mock.MagicMock()
+        mock_service._suite_skipping_mode = True
+
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
@@ -313,6 +321,8 @@ class TestXdistHooksUnit:
             "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_skipped"
+        ), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service", return_value=mock_service
         ):
             result = _handle_itr_should_skip(mock_item, test_id)
 
@@ -326,6 +336,9 @@ class TestXdistHooksUnit:
         mock_item.config.workeroutput = {}
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
+        mock_service = mock.MagicMock()
+        mock_service._suite_skipping_mode = True
+
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
@@ -334,6 +347,8 @@ class TestXdistHooksUnit:
             "ddtrace.internal.test_visibility.api.InternalTest.is_attempt_to_fix", return_value=False
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=False
+        ), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service", return_value=mock_service
         ):  # Not skippable
             result = _handle_itr_should_skip(mock_item, test_id)
 
@@ -348,6 +363,9 @@ class TestXdistHooksUnit:
         mock_item.config.workeroutput = {}
         test_id = TestId(TestSuiteId(TestModuleId("test_module"), "test_suite"), "test_name")
 
+        mock_service = mock.MagicMock()
+        mock_service._suite_skipping_mode = True
+
         with mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTestSession.is_test_skipping_enabled", return_value=True
         ), mock.patch(
@@ -358,7 +376,9 @@ class TestXdistHooksUnit:
             "ddtrace.internal.test_visibility.api.InternalTestSuite.is_itr_skippable", return_value=True
         ), mock.patch(
             "ddtrace.internal.test_visibility.api.InternalTest.mark_itr_forced_run"
-        ) as mock_forced_run:
+        ) as mock_forced_run, mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.require_ci_visibility_service", return_value=mock_service
+        ):
             result = _handle_itr_should_skip(mock_item, test_id)
 
             assert result is False

@@ -150,7 +150,8 @@ class _ClientInterceptor:
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)

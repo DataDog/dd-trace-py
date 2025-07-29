@@ -70,7 +70,8 @@ class BaseLLMIntegration:
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
             span._set_ctx_item(INTEGRATION, self._integration_name)
