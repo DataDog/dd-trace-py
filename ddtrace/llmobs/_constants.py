@@ -55,8 +55,8 @@ AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
 AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
 AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
-EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
+EVP_PAYLOAD_SIZE_LIMIT = 10 << 20  # 10MiB (actual limit 10MiB)
+EVP_EVENT_SIZE_LIMIT = 5_000_000 - 1024  # Slightly less than 5MB (actual limit 10MiB)
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
