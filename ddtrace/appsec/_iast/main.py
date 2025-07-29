@@ -40,6 +40,7 @@ from ddtrace.appsec._iast.taint_sinks.weak_hash import patch as weak_hash_patch
 from ddtrace.appsec._iast.taint_sinks.xss import patch as xss_patch
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import is_module_installed
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -65,6 +66,11 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
+    # propagation
+    if asm_config._iast_propagation_enabled:
+        json_tainting_patch()
+
+    # sink points
     code_injection_patch()
     command_injection_patch()
     header_injection_patch()
@@ -72,9 +78,9 @@ def patch_iast():
     weak_hash_patch()
     xss_patch()
 
-    if not is_module_installed("gevent"):
+    if not is_module_installed("gevent") or asm_config._iast_sink_points_in_gevent_enabled:
         insecure_cookie_patch()
-        json_tainting_patch()
+
         unvalidated_redirect_patch()
     else:
         log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
