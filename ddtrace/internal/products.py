@@ -21,7 +21,7 @@ log = get_logger(__name__)
 
 if sys.version_info >= (3, 10):
 
-    def get_product_entry_points() -> list[Any]:
+    def get_product_entry_points() -> t.List[t.Any]:
         return list(entry_points(group="ddtrace.products"))
 
 else:
