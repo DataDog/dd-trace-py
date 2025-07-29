@@ -582,8 +582,8 @@ class RemoteConfigClient:
             state = self._build_state()
             payload = json.dumps(self._build_payload(state))
             response = self._send_request(payload)
-            print(f"Payload sent: {payload}", file=sys.stderr, flush=True)
-            print(f"Response received: {response}", file=sys.stderr, flush=True)
+            print(f"Payload sent: {len(payload)}", file=sys.stderr, flush=True)
+            print(f"Response received: {len(response or {})}", file=sys.stderr, flush=True)
             if response is None:
                 return False
             self._process_response(response)
