@@ -250,10 +250,10 @@ class RemoteConfigClient:
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
-        self._applied_configs.clear()
-        self._last_targets_version = 0
-        self._last_error = None
-        self._backend_state = None
+        # self._applied_configs.clear()
+        # self._last_targets_version = 0
+        # self._last_error = None
+        # self._backend_state = None
 
     def register_product(self, product_name: str, pubsub_instance: Optional[PubSub] = None) -> None:
         if pubsub_instance is not None:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -43,7 +44,9 @@ class AppSecRC(PubSub):
 
 
 def _forksafe_appsec_rc():
-    remoteconfig_poller.start_subscribers_by_product(APPSEC_PRODUCTS)
+    print(f">>> Forksafe AppSec RC: {os.getpid()} | PPID: {os.getppid()}", file=sys.stderr, flush=True)
+    disable_appsec_rc()
+    enable_appsec_rc()
 
 
 def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
