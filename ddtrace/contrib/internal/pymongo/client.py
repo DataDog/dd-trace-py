@@ -143,7 +143,8 @@ def _datadog_trace_operation(operation, wrapped):
     # set span.kind to the operation type being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tag_str(mongox.DB, cmd.db)
     span.set_tag_str(mongox.COLLECTION, cmd.coll)
     span.set_tag_str(db.SYSTEM, mongox.SERVICE)
@@ -266,7 +267,8 @@ def _trace_cmd(cmd, socket_instance, address):
     # set span.kind to the type of operation being performed
     s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    s.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    s.set_metric(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
         s.set_tag_str(mongox.DB, cmd.db)
     if cmd:
