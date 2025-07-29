@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix improves the compatibility and the efficiency of the Remote Config update mechanism with the respawned processes.
