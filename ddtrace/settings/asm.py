@@ -74,9 +74,7 @@ class ASMConfig(DDConfig):
     _asm_http_span_types = {SpanTypes.WEB}
     _iast_enabled = tracer_config._from_endpoint.get("iast_enabled", DDConfig.var(bool, IAST.ENV, default=False))
     _iast_propagation_enabled = DDConfig.var(bool, IAST.ENV_PROPAGATION_ENABLED, default=True, private=True)
-    _iast_sink_points_in_gevent_enabled = DDConfig.var(
-        bool, IAST.ENV_SINK_POINTS_IN_GEVENT_ENABLED, default=True, private=True
-    )
+    _iast_sink_points_enabled = DDConfig.var(bool, IAST.ENV_SINK_POINTS_ENABLED, default=True, private=True)
     _iast_request_sampling = DDConfig.var(float, IAST.ENV_REQUEST_SAMPLING, default=30.0)
     _iast_debug = DDConfig.var(bool, IAST.ENV_DEBUG, default=False, private=True)
     _iast_propagation_debug = DDConfig.var(bool, IAST.ENV_PROPAGATION_DEBUG, default=False, private=True)
