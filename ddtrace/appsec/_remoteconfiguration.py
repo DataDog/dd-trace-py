@@ -67,12 +67,12 @@ def enable_appsec_rc(test_tracer: Optional[Tracer] = None) -> None:
     )
 
     if _asm_feature_is_required():
-        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()])
+        remoteconfig_poller.register(PRODUCTS.ASM_FEATURES, asm_callback, capabilities=[_rc_capabilities()], restart_on_fork=True)
 
     if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
-        remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback)  # IP Blocking
-        remoteconfig_poller.register(PRODUCTS.ASM, asm_callback)  # Exclusion Filters & Custom Rules
-        remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback)  # DD Rules
+        remoteconfig_poller.register(PRODUCTS.ASM_DATA, asm_callback, restart_on_fork=True)  # IP Blocking
+        remoteconfig_poller.register(PRODUCTS.ASM, asm_callback, restart_on_fork=True)  # Exclusion Filters & Custom Rules
+        remoteconfig_poller.register(PRODUCTS.ASM_DD, asm_callback, restart_on_fork=True)  # DD Rules
     # ensure exploit prevention patches are loaded by one-click activation
     if asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_common_appsec_modules
@@ -179,9 +179,9 @@ def _preprocess_results_appsec_1click_activation(
     if "asm" in result:
         if asm_config._asm_static_rule_file is None:
             if result["asm"].get("enabled", False):
-                remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance)  # IP Blocking
-                remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance)  # Exclusion Filters & Custom Rules
-                remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance)  # DD Rules
+                remoteconfig_poller.register(PRODUCTS.ASM_DATA, pubsub_instance, restart_on_fork=True)  # IP Blocking
+                remoteconfig_poller.register(PRODUCTS.ASM, pubsub_instance, restart_on_fork=True)  # Exclusion Filters & Custom Rules
+                remoteconfig_poller.register(PRODUCTS.ASM_DD, pubsub_instance, restart_on_fork=True)  # DD Rules
             else:
                 remoteconfig_poller.unregister(PRODUCTS.ASM_DATA)
                 remoteconfig_poller.unregister(PRODUCTS.ASM)
