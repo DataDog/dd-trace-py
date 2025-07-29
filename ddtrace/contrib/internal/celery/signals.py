@@ -59,7 +59,8 @@ def trace_prerun(*args, **kwargs):
     # set component tag equal to name of integration
     span.set_tag_str(COMPONENT, config.celery.integration_name)
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -128,7 +129,8 @@ def trace_before_publish(*args, **kwargs):
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)

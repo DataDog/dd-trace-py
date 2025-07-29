@@ -42,7 +42,8 @@ def get_psycopg2_extensions(psycopg_module):
                 # set span.kind to the type of operation being performed
                 s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-                s.set_tag(_SPAN_MEASURED_KEY)
+                # PERF: avoid setting via Span.set_tag
+                s.set_metric(_SPAN_MEASURED_KEY, 1)
                 if s.context.sampling_priority is None or s.context.sampling_priority <= 0:
                     return super(TracedCursor, self).execute(query, vars)
 

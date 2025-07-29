@@ -345,6 +345,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         _env_vars.update({"DD_CIVISIBILITY_AGENTLESS_ENABLED": "true", "DD_API_KEY": "api_key_for_testing"})
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        else:
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -406,6 +408,8 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
 
         if itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE:
             _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "true"
+        else:
+            _env_vars["_DD_CIVISIBILITY_ITR_SUITE_MODE"] = "false"
         configurations = {
             "os.architecture": "testarch64",
             "os.platform": "Not Actually Linux",
@@ -524,10 +528,14 @@ class TestTestVisibilityAPIClient(TestTestVisibilityAPIClientBase):
         }
 
         git_data = GitData("git@github.com:TestDog/dd-test-py.git", "notmainbranch", "mytestcommitsha1234", "message")
-        with _ci_override_env(full_clear=True), _patch_env_for_testing(), mock.patch(
+        with _ci_override_env(
+            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "false"}, full_clear=True
+        ), _patch_env_for_testing(), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._agent_evp_proxy_base_url",
             return_value=EVP_PROXY_AGENT_BASE_PATH,
-        ), mock.patch("ddtrace.internal.agent.info", return_value=agent_info_response), mock.patch(
+        ), mock.patch(
+            "ddtrace.internal.agent.info", return_value=agent_info_response
+        ), mock.patch(
             "ddtrace.settings._agent.config.trace_agent_url",
             new_callable=mock.PropertyMock,
             return_value="http://shouldntbeused:6218",

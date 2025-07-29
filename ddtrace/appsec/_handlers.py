@@ -6,8 +6,6 @@ from typing import Dict
 from typing import Optional
 from typing import Union
 
-import xmltodict
-
 from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
@@ -29,6 +27,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 log = get_logger(__name__)
@@ -326,7 +325,7 @@ def _wsgi_make_block_content(ctx, construct_url):
         if user_agent:
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
@@ -369,7 +368,7 @@ def _asgi_make_block_content(ctx, url):
         if user_agent:
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
@@ -390,7 +389,7 @@ def _on_flask_blocked_request(span):
         if user_agent:
             span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
