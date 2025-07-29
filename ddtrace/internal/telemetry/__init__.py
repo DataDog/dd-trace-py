@@ -25,7 +25,7 @@ log = get_logger(__name__)
 __all__ = ["telemetry_writer"]
 
 
-def report_config_telemetry(effective_env, val, source, otel_env, config_id):
+def report_config_telemetry(effective_env, val, source, otel_env, config_id=None):
     if effective_env == otel_env:
         # We only report the raw value for OpenTelemetry configurations, we should make this consistent
         raw_val = os.environ.get(effective_env, "").lower()
@@ -47,63 +47,77 @@ def get_config(
     report_telemetry=True,
 ) -> t.Any:
     """Retrieve a configuration value in order of precedence:
-    1. Fleet stable config
+    1. Fleet stable config (highest)
     2. Datadog env vars
     3. OpenTelemetry env vars
     4. Local stable config
-    5. Default value
+    5. Default value (lowest)
+
+    Reports telemetry for every detected configuration source.
     """
     if isinstance(envs, str):
         envs = [envs]
-    source = ""
-    effective_env = ""
-    val = None
-    config_id = None
-    # Get configurations from fleet stable config
+
+    # Default value will be used if no other configuration source is found
+    effective_val = default
+    if report_telemetry:
+        report_config_telemetry(envs[0], default, "default", otel_env)
+
+    # 1. Check local stable config first (lowest precedence)
+    for env in envs:
+        if env in LOCAL_CONFIG:
+            val = LOCAL_CONFIG[env]
+            # Apply modifier if provided
+            if modifier:
+                val = modifier(val)
+
+            if report_telemetry:
+                report_config_telemetry(env, val, "local_stable_config", otel_env)
+            effective_val = val
+            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            break
+
+    # 2. Check OpenTelemetry env vars (higher precedence)
+    if otel_env is not None and otel_env in os.environ:
+        parsed_val = parse_otel_env(otel_env)
+        if parsed_val is not None:
+            val = parsed_val
+            if modifier:
+                val = modifier(val)
+
+            if report_telemetry:
+                report_config_telemetry(otel_env, val, "env_var", otel_env, None)
+            effective_val = val
+
+    # 3. Check Datadog env vars (higher precedence)
+    for env in envs:
+        if env in os.environ:
+            val = os.environ[env]
+            if modifier:
+                val = modifier(val)
+
+            if report_telemetry:
+                report_config_telemetry(env, val, "env_var", otel_env, None)
+            effective_val = val
+            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            break
+
+    # 4. Check fleet stable config last (highest precedence)
     for env in envs:
         if env in FLEET_CONFIG:
-            source = "fleet_stable_config"
-            effective_env = env
             val = FLEET_CONFIG[env]
             config_id = FLEET_CONFIG_IDS.get(env)
-            break
-    # Get configurations from datadog env vars
-    if val is None:
-        for env in envs:
-            if env in os.environ:
-                source = "env_var"
-                effective_env = env
-                val = os.environ[env]
-                break
-    # Get configurations from otel env vars
-    if val is None:
-        if otel_env is not None and otel_env in os.environ:
-            parsed_val = parse_otel_env(otel_env)
-            if parsed_val is not None:
-                source = "env_var"
-                effective_env = otel_env
-                val = parsed_val
-    # Get configurations from local stable config
-    if val is None:
-        for env in envs:
-            if env in LOCAL_CONFIG:
-                source = "local_stable_config"
-                effective_env = env
-                val = LOCAL_CONFIG[env]
-                break
-    # Convert the raw value to expected format, if a modifier is provided
-    if val is not None and modifier:
-        val = modifier(val)
-    # If no value is found, use the default
-    if val is None:
-        effective_env = envs[0]
-        val = default
-        source = "default"
-    # Report telemetry
-    if report_telemetry:
-        report_config_telemetry(effective_env, val, source, otel_env, config_id)
+            if modifier:
+                val = modifier(val)
 
-    return val
+            if report_telemetry:
+                report_config_telemetry(env, val, "fleet_stable_config", otel_env, config_id)
+            effective_val = val
+            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            break
+
+    # Return the highest precedence configuration value
+    return effective_val
 
 
 telemetry_enabled = get_config("DD_INSTRUMENTATION_TELEMETRY_ENABLED", True, asbool, report_telemetry=False)
