@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability: Added support for tool definitions, tool calls and tool results.
