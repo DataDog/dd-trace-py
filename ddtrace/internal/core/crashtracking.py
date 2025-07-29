@@ -28,6 +28,7 @@ def add_tag(key: str, value: str) -> None:
 
 def start() -> bool:
     if not is_available:
+        print(failure_msg)
         return False
 
     import platform
