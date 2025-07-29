@@ -335,7 +335,7 @@ def test_iast_unvalidated_redirect():
                 "workers": "1",
                 "use_threads": True,
                 "use_gevent": True,
-                "env": {"_DD_IAST_SINK_POINTS_ENABLED": "false"},
+                "env": {"_DD_IAST_PROPAGATION_ENABLED": "false"},
             },
         ),
         (flask_server, {"env": {"DD_APM_TRACING_ENABLED": "false"}}),
