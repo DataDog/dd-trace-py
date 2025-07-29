@@ -153,9 +153,9 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         # in the streamed responses case, `resp` is a list with `usage` being stored in the first element
         if resp and isinstance(resp, list) and _get_attr(resp[0], "usage", None):
-            token_usage = resp[0].get("usage", {})
-        elif resp and getattr(resp, "usage", None):
-            token_usage = resp.usage
+            token_usage = _get_attr(resp[0], "usage", {})
+        elif resp and _get_attr(resp, "usage", None):
+            token_usage = _get_attr(resp, "usage", {})
         if token_usage is not None:
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)
