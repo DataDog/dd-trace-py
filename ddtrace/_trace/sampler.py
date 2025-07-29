@@ -168,7 +168,8 @@ class DatadogSampler:
         span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
-        agent_service_based = False
+        agent_sampler = None
+        agent_key = None
         sampled = True
         sample_rate = 1.0
         if matched_rule:
@@ -176,12 +177,12 @@ class DatadogSampler:
             sampled = matched_rule.sample(span)
             sample_rate = matched_rule.sample_rate
         else:
-            key = self._key(span.service, span.get_tag(ENV_KEY))
-            if key in self._agent_based_samplers:
+            agent_key = self._key(span.service, span.get_tag(ENV_KEY))
+            if agent_key in self._agent_based_samplers:
                 # Agent service based sampling
-                agent_service_based = True
-                sampled = self._agent_based_samplers[key].sample(span)
-                sample_rate = self._agent_based_samplers[key].sample_rate
+                agent_sampler = self._agent_based_samplers[agent_key]
+                sampled = agent_sampler.sample(span)
+                sample_rate = agent_sampler.sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -191,12 +192,23 @@ class DatadogSampler:
                 sampled = self.limiter.is_allowed()
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
-        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
+        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
+        )
+        log.debug(
+            "%s was sampled. sampled=%s sample_rate=%s sampling_mechanism=%s "
+            "matched_trace_sampling_rule=%s matched_agent_sampler=%s expected_agent_service_key=%s",
+            span,
+            sampled,
+            sample_rate,
+            sampling_mechanism,
+            matched_rule,
+            agent_sampler is not None,
+            agent_key,
         )
         return sampled
 

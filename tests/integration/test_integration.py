@@ -694,8 +694,20 @@ def test_partial_flush_log():
         s2.finish()
 
     calls = [
-        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
         mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
+        mock.call(
+            "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+            "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s id=%s) "
+            "(partial flushing enabled: %s)",
+            2,
+            3,
+            0,
+            1,
+            t_id,
+            "2",
+            s2.span_id,
+            True,
+        ),
     ]
 
     log.debug.assert_has_calls(calls)

@@ -310,6 +310,7 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
+        log.debug("Starting span %s, local trace has %d spans in the span aggregator", span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
@@ -328,6 +329,7 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             trace.num_finished += 1
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
+            num_buffered = len(trace.spans)
             if trace.num_finished == len(trace.spans) or should_partial_flush:
                 trace_spans = trace.spans
                 trace.spans = []
@@ -379,11 +381,21 @@ class SpanAggregator(SpanProcessor):
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
-                self.writer.write(spans)
-                return
 
-            log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
-            return None
+                    log.debug(
+                        "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+                        "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s id=%s) "
+                        "(partial flushing enabled: %s)",
+                        len(spans),
+                        num_buffered,
+                        num_finished - len(spans),
+                        num_buffered - num_finished,
+                        span.trace_id,
+                        spans[0].name,
+                        spans[0].span_id,
+                        should_partial_flush,
+                    )
+                    self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
