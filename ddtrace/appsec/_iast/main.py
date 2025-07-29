@@ -67,13 +67,13 @@ def patch_iast():
         security instrumentation.
     """
     # sink points
-    code_injection_patch()
     command_injection_patch()
     header_injection_patch()
     weak_cipher_patch()
     weak_hash_patch()
 
     if not is_module_installed("gevent") or asm_config._iast_sink_points_in_gevent_enabled:
+        code_injection_patch()
         insecure_cookie_patch()
         json_tainting_patch()
         unvalidated_redirect_patch()
