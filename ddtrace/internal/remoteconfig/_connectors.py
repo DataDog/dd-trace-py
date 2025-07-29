@@ -57,6 +57,7 @@ class PublisherSubscriberConnector:
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
         self.shared_data_counter = 0
+        self.pid = os.getpid()
 
     @staticmethod
     def _hash_config(payload_sequence: Sequence[Payload]):
@@ -79,8 +80,11 @@ class PublisherSubscriberConnector:
         )
         if config is not None:
             shared_data_counter = config["shared_data_counter"]
+            if os.getpid() != self.pid:
+                self.pid = os.getpid()
+                self.shared_data_counter = 0
             if shared_data_counter > self.shared_data_counter:
-                self.shared_data_counter += 1
+                self.shared_data_counter = self.shared_data_counter
                 return [Payload(**value) for value in config["payload_list"]]
         return []
 
