@@ -66,10 +66,6 @@ def patch_iast():
         are patched when they are first imported. This allows for lazy loading of
         security instrumentation.
     """
-    # propagation
-    if asm_config._iast_propagation_enabled:
-        json_tainting_patch()
-
     # sink points
     code_injection_patch()
     command_injection_patch()
@@ -80,7 +76,7 @@ def patch_iast():
 
     if not is_module_installed("gevent") or asm_config._iast_sink_points_in_gevent_enabled:
         insecure_cookie_patch()
-
+        json_tainting_patch()
         unvalidated_redirect_patch()
     else:
         log.debug("iast::instrumentation::sink_points::gevent is present, skip some sink points to prevent conflicts")
