@@ -1,4 +1,4 @@
 ---
 deprecations:
   - |
-    Remove importlib_metadata dependency as it is no longer needed as dd-trace-py supports Python 3.8+.
+    dependencies: Remove importlib_metadata dependency since it is no longer needed. Support for Python 3.7 has been dropped, and dd-trace-py now requires Python 3.8 or later, which includes importlib.metadata in the standard library.
