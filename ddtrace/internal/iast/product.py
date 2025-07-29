@@ -17,7 +17,7 @@ def post_preload():
         from ddtrace.appsec._iast import enable_iast_propagation
         from ddtrace.appsec._iast.main import patch_iast
 
-        log.debug("Enabling the IAST by auto import")
+        log.debug("Enabling IAST by auto import")
         enable_iast_propagation()
         patch_iast()
         try:
