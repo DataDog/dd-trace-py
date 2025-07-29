@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai, LLM Observability: fixed an issue when using the openai responses api with ``openai>=1.66.0,<1.66.2`` would result in an ``AttributeError``.
