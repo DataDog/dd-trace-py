@@ -335,6 +335,7 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -395,6 +396,8 @@ venv = Venv(
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
+                "xmltodict": latest,
+                "django": latest,
             },
         ),
         Venv(
@@ -471,6 +474,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={

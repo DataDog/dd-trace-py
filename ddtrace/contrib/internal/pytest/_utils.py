@@ -184,18 +184,29 @@ def _pytest_version_supports_attempt_to_fix():
     return _get_pytest_version_tuple() >= ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 
 
+def _get_skipif_condition(marker):
+    if marker.args:
+        condition = marker.args[0]
+    elif marker.kwargs:
+        condition = marker.kwargs.get("condition")
+    else:
+        condition = True  # `skipif` with no condition is equivalent to plain `skip`.
+
+    return condition
+
+
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:
     """Checks whether Pytest will skip an item"""
     if item.get_closest_marker("skip") is not None:
         return True
 
-    return any(marker.args[0] for marker in item.iter_markers(name="skipif"))
+    return any(_get_skipif_condition(marker) is True for marker in item.iter_markers(name="skipif"))
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
     """Returns True if a test has a skipif marker with value false and reason ITR_UNSKIPPABLE_REASON"""
     return any(
-        (marker.args[0] is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
+        (_get_skipif_condition(marker) is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
         for marker in item.iter_markers(name="skipif")
     )
 

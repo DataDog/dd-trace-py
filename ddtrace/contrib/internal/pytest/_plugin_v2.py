@@ -345,7 +345,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="5" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -523,6 +523,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
+        coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
