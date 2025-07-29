@@ -35,7 +35,6 @@ from ddtrace.ext import net
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
-from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.core.event_hub import ResultType
 from ddtrace.internal.logger import get_logger
@@ -573,36 +572,6 @@ def traced_get_response(django, pin, func, instance, args, kwargs):
                     return response  # noqa: B012
 
 
-@trace_utils.with_traced_module
-def traced_template_render(django, pin, wrapped, instance, args, kwargs):
-    # DEV: Check here in case this setting is configured after a template has been instrumented
-    if not config_django.instrument_templates:
-        return wrapped(*args, **kwargs)
-
-    template_name = maybe_stringify(getattr(instance, "name", None))
-    if template_name:
-        resource = template_name
-    else:
-        resource = "{0}.{1}".format(func_name(instance), wrapped.__name__)
-
-    tags = {COMPONENT: config_django.integration_name}
-    if template_name:
-        tags["django.template.name"] = template_name
-    engine = getattr(instance, "engine", None)
-    if engine:
-        tags["django.template.engine.class"] = func_name(engine)
-
-    with core.context_with_data(
-        "django.template.render",
-        span_name="django.template.render",
-        resource=resource,
-        span_type=http.TEMPLATE,
-        tags=tags,
-        pin=pin,
-    ) as ctx, ctx.span:
-        return wrapped(*args, **kwargs)
-
-
 def instrument_view(django, view, path=None):
     """
     Helper to wrap Django views.
@@ -985,9 +954,9 @@ def _patch(django):
         )
 
     if config_django.instrument_templates:
-        when_imported("django.template.base")(
-            lambda m: trace_utils.wrap(m, "Template.render", traced_template_render(django))
-        )
+        from .templates import DjangoTemplateWrappingContext
+
+        when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)
 
     if django.VERSION < (4, 0, 0):
         when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
@@ -1059,6 +1028,11 @@ def _unpatch(django):
     for conn in django.db.connections.all():
         trace_utils.unwrap(conn, "cursor")
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
+
+    if config.django.instrument_templates:
+        from .templates import DjangoTemplateWrappingContext
+
+        DjangoTemplateWrappingContext.uninstrument_module(django.template.base)
 
 
 def unpatch():
