@@ -26,7 +26,7 @@ if sys.version_info >= (3, 10):
 
 else:
 
-    def get_product_entry_points() -> list[t.Any]:
+    def get_product_entry_points() -> t.List[t.Any]:
         return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
 
 
