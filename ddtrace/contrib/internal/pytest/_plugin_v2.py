@@ -223,18 +223,9 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     ci_visibility_service = require_ci_visibility_service()
     is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
 
-    log.debug(
-        "[DEBUG] Adding coverage data for %s: %d files, suite_skipping_mode=%s",
-        test_id,
-        len(coverage_data),
-        is_suite_skipping_mode,
-    )
-
     if is_suite_skipping_mode:
-        log.debug("[DEBUG] Adding coverage data to SUITE %s", test_id.parent_id)
         InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
     else:
-        log.debug("[DEBUG] Adding coverage data to TEST %s", test_id)
         InternalTest.add_coverage_data(test_id, coverage_data)
 
 
