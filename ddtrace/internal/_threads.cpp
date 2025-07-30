@@ -275,18 +275,14 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
+        bool first_run = self->_no_wait_at_start;
 
         while (!self->_stopping) {
             {
                 AllowThreads _;
 
-                if (self->_no_wait_at_start) {
-                    // Awake signal at start
-                    self->_served->clear();
-                    self->_served->set();
-                }
-
-                if (self->_request->wait(interval)) {
+                if (first_run || self->_request->wait(interval)) {
+                    first_run = false;
                     if (self->_stopping)
                         break;
 
