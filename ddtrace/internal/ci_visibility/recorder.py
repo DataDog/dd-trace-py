@@ -6,6 +6,7 @@ import re
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
@@ -71,6 +72,8 @@ from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabi
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.trace import Span
+from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
 
 
@@ -168,6 +171,9 @@ class CIVisibility(Service):
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
+                self.tracer.context_provider = CIContextProvider()
+            elif asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+                self.tracer = CIVisibilityTracer()
                 self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
@@ -643,6 +649,9 @@ class CIVisibility(Service):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)
 
+        if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            ddtrace.tracer.configure(trace_processors=[CIVisibilitySpanForwarder(self.tracer)])
+
         def _task_fetch_tests_to_skip():
             if self.test_skipping_enabled():
                 self._fetch_tests_to_skip()
@@ -1020,3 +1029,13 @@ def on_discover_session(
 
     CIVisibility.add_session(session)
     instance.set_test_session_name(test_command=test_command)
+
+
+class CIVisibilitySpanForwarder(TraceFilter):
+    def __init__(self, tracer):
+        self.tracer = tracer
+
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+        log.debug("Forwarding trace to CI Visibility: %r", trace)
+        self.tracer._span_aggregator.writer.write(trace)
+        return None

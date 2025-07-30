@@ -3,6 +3,7 @@ import dataclasses
 from enum import Enum
 import functools
 import json
+import os
 from pathlib import Path
 import typing
 from typing import Any
@@ -13,6 +14,7 @@ from typing import Optional
 from typing import TypeVar
 from typing import Union
 
+import ddtrace
 from ddtrace._trace.context import Context
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
@@ -39,6 +41,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 
@@ -200,6 +203,9 @@ class TestVisibilityItemBase(abc.ABC):
         self._span.set_tag(SPAN_KIND, "test")
         log.debug("Started span %s for item %s", self._span, self)
 
+        if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            ddtrace.tracer.context_provider.activate(Context(trace_id=self._span.trace_id, span_id=self._span.span_id))
+
     @_require_span
     def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
         if self._span is None:
@@ -234,6 +240,9 @@ class TestVisibilityItemBase(abc.ABC):
 
         self._add_all_tags_to_span()
         self._span.finish(finish_time=override_finish_time)
+
+        if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            self._distributed_span.finish(finish_time=override_finish_time)
 
         parent_span = self.get_parent_span()
         if parent_span:
