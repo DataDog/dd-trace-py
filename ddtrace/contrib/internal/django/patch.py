@@ -40,6 +40,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -79,14 +80,14 @@ config._add(
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
         trace_asgi_websocket_messages=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=os.getenv("DD_ASGI_TRACE_WEBSOCKET", False))
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", False))
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         )
-        and asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        and asbool(_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
         websocket_messages_separate_traces=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
         ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),

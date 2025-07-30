@@ -52,14 +52,14 @@ config._add(
         request_span_name="asgi.request",
         distributed_tracing=True,
         trace_asgi_websocket_messages=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=os.getenv("DD_ASGI_TRACE_WEBSOCKET", False))
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", False))
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
         )
-        and asbool(os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        and asbool(_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
         websocket_messages_separate_traces=asbool(
-            os.getenv("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
         ),
         obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
     ),
