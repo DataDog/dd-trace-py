@@ -922,6 +922,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
+                extra_source_dirs=[CRASHTRACKER_DIR / ".." / "dd_wrapper"],
                 optional=False,
                 dependencies=[
                     CRASHTRACKER_DIR.parent / "libdd_wrapper",
@@ -933,6 +934,7 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                 source_dir=STACK_V2_DIR,
+                extra_source_dirs=[STACK_V2_DIR / ".." / "dd_wrapper"],
                 optional=False,
             ),
         )
