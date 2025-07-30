@@ -44,6 +44,10 @@ def iast_propagation_error_log(msg):
 
 def iast_error(msg, default_prefix="iast::"):
     if _is_iast_debug_enabled():
+        # Import inspect locally to avoid gevent compatibility issues.
+        # Top-level imports of inspect can interfere with gevent's monkey patching
+        # and cause sporadic worker timeouts in Gunicorn applications.
+        # See ddtrace/internal/iast/product.py for detailed explanation.
         import inspect
 
         stack = inspect.stack()

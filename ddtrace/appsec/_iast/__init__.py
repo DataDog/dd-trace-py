@@ -27,8 +27,6 @@ def wrapped_function(wrapped, instance, args, kwargs):
     )
     return wrapped(*args, **kwargs)
 """  # noqa: RST201, RST213, RST210
-
-import inspect
 import os
 import sys
 import types
@@ -57,6 +55,12 @@ def ddtrace_iast_flask_patch():
     """
     if not asm_config._iast_enabled:
         return
+
+    # Import inspect locally to avoid gevent compatibility issues.
+    # Top-level imports of inspect can interfere with gevent's monkey patching
+    # and cause sporadic worker timeouts in Gunicorn applications.
+    # See ddtrace/internal/iast/product.py for detailed explanation.
+    import inspect
 
     from ._ast.ast_patching import astpatch_module
 

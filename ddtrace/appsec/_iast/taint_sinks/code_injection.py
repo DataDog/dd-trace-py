@@ -56,6 +56,10 @@ def _iast_coi(wrapped, instance, args, kwargs):
     if len(args) >= 1:
         _iast_report_code_injection(args[0])
     try:
+        # Import inspect locally to avoid gevent compatibility issues.
+        # Top-level imports of inspect can interfere with gevent's monkey patching
+        # and cause sporadic worker timeouts in Gunicorn applications.
+        # See ddtrace/internal/iast/product.py for detailed explanation.
         import inspect
 
         caller_frame = None
