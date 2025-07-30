@@ -14,7 +14,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
 from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
@@ -109,11 +108,12 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     try:
         generations = await func(*args, **kwargs)
         if stream:
-            return make_traced_async_stream(
+            return make_traced_stream(
                 generations,
                 VertexAIAsyncStreamHandler(
                     integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
                 ),
+                is_async=True,
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())

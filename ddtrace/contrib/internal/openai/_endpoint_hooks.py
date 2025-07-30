@@ -7,7 +7,6 @@ from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
@@ -95,8 +94,10 @@ class _BaseCompletionHook(_EndpointHook):
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
-                return make_traced_async_stream(
-                    resp, OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type)
+                return make_traced_stream(
+                    resp,
+                    OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type),
+                    is_async=True,
                 )
             elif _is_generator(resp):
                 return make_traced_stream(

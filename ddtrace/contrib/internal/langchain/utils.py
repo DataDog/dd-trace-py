@@ -4,7 +4,6 @@ import sys
 from ddtrace.internal import core
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
@@ -65,11 +64,12 @@ def shared_stream(
         resp = func(*args, **kwargs)
         chunk_callback = _get_chunk_callback(interface_type, args, kwargs)
         if inspect.isasyncgen(resp):
-            return make_traced_async_stream(
+            return make_traced_stream(
                 resp,
                 LangchainAsyncStreamHandler(
                     integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
                 ),
+                is_async=True,
             )
         return make_traced_stream(
             resp,

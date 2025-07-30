@@ -1,7 +1,6 @@
 """
 This file contains shared utilities for tracing streams in LLMobs integrations. A stream handler along with the stream to wrap
-should be passed into the make_traced_stream or make_traced_async_stream factory functions to create a TracedStream or
-TracedAsyncStream object.
+should be passed into the make_traced_stream factory function to create a TracedStream or TracedAsyncStream object.
 """
 from abc import ABC
 from abc import abstractmethod
@@ -263,9 +262,10 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return self._self_handler
 
 
-def make_traced_stream(wrapped, handler: StreamHandler, on_stream_created=None):
+def make_traced_stream(wrapped, handler: StreamHandler, is_async=False, on_stream_created=None):
+    """
+    Create a TracedStream or TracedAsyncStream object from a stream object and a stream handler.
+    """
+    if is_async:
+        return TracedAsyncStream(wrapped, handler, on_stream_created)
     return TracedStream(wrapped, handler, on_stream_created)
-
-
-def make_traced_async_stream(wrapped, handler: AsyncStreamHandler, on_stream_created=None):
-    return TracedAsyncStream(wrapped, handler, on_stream_created)

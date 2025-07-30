@@ -7,6 +7,8 @@ class BaseVertexAIStreamHandler:
         return []
 
     def _process_chunk(self, chunk):
+        # only keep track of the first chunk for chat messages since
+        # it is modified during the streaming process
         if not self.options.get("is_chat", False) or not self.chunks:
             self.chunks.append(chunk)
 

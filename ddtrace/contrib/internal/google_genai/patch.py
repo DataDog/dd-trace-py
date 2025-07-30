@@ -9,7 +9,6 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
@@ -98,7 +97,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
     )
     try:
         resp = await func(*args, **kwargs)
-        return make_traced_async_stream(resp, GoogleGenAIAsyncStreamHandler(integration, span, args, kwargs))
+        return make_traced_stream(resp, GoogleGenAIAsyncStreamHandler(integration, span, args, kwargs), is_async=True)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="llm")

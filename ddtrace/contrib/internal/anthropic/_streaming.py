@@ -8,7 +8,6 @@ import anthropic
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
 from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
 
@@ -41,8 +40,8 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
         )
         return traced_stream
     elif _is_async_stream(resp) or _is_async_stream_manager(resp):
-        traced_stream = make_traced_async_stream(
-            resp, AnthropicAsyncStreamHandler(integration, span, args, kwargs), on_stream_created=add_async_text_stream
+        traced_stream = make_traced_stream(
+            resp, AnthropicAsyncStreamHandler(integration, span, args, kwargs), is_async=True, on_stream_created=add_async_text_stream
         )
         return traced_stream
 

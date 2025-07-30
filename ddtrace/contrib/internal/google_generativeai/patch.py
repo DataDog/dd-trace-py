@@ -11,7 +11,6 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
-from ddtrace.llmobs._integrations.base_stream_handler import make_traced_async_stream
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.utils import extract_model_name_google
 from ddtrace.trace import Pin
@@ -85,11 +84,12 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     try:
         generations = await func(*args, **kwargs)
         if stream:
-            return make_traced_async_stream(
+            return make_traced_stream(
                 generations,
                 GoogleGenerativeAIAsyncStreamHandler(
                     integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
                 ),
+                is_async=True,
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())
