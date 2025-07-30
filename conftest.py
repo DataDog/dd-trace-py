@@ -75,7 +75,12 @@ def pytest_runtest_makereport(item, call):
 
 
 @pytest.fixture(scope="session", autouse=True)
-def collect_global_attributes(record_testsuite_property):
+def collect_global_attributes(record_testsuite_property, pytestconfig):
+    randomly_seed = pytestconfig.getoption("randomly_seed")
+    # Record the random seed used for this test run.
+    # This is useful to reproduce test failures.
+    record_testsuite_property("randomly.seed", f"{randomly_seed or -1}")
+
     # Convert all RIOT_* variables to `riot.*` attributes in the test suite.
     # https://github.com/DataDog/riot/blob/a412e98fe6194284b97235942a6e3eff7e8d0a0b/riot/riot.py#L786-L797
     for env, value in os.environ.items():
@@ -87,7 +92,7 @@ def collect_global_attributes(record_testsuite_property):
         #   - RIOT_VENV_PKGS into `riot.venv.pkgs`
         #   - RIOT_VENV_FULL_PKGS into `riot.venv.full_pkgs`
         #   - RIOT_PYTHON_VERSION into `riot.python.version`
-        env = env[6:]  # Remove "RIOT_" prefix
+        env = env[5:]  # Remove "RIOT_" prefix
         prefix, _, name = env.partition("_")
         if prefix and name:
             # Convert `RIOT_VENV_PKGS` to `riot.venv.pkgs`
