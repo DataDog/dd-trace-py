@@ -126,15 +126,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if tool_call:
             tool_name = getattr(tool_call, "tool_name", "")
             tool_input = getattr(tool_call, "args", {})
+        tool_def = getattr(tool_instance, "tool_def", None)
+        tool_description = getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
         span._set_ctx_items(
             {
                 NAME: tool_name,
-                METADATA: {"description": getattr(tool_instance, "description", "")},
+                METADATA: {"description": tool_description},
                 INPUT_VALUE: tool_input,
             }
         )
         if not span.error:
-            span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
+            # depending on the version, the output may be a ToolReturnPart or the raw response
+            output_content = getattr(response, "content", "") if hasattr(response, "content") else response
+            span._set_ctx_item(OUTPUT_VALUE, output_content)
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
@@ -154,8 +158,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = agent._instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        if hasattr(agent, "_function_tools"):
-            manifest["tools"] = self._get_agent_tools(agent._function_tools)
+        if hasattr(agent, "_function_tools") or hasattr(agent, "_function_toolset"):
+            tools = getattr(agent, "_function_tools", None)
+            toolset = getattr(agent, "_function_toolset", None)
+            if toolset:
+                tools = getattr(toolset, "tools", {})
+            manifest["tools"] = self._get_agent_tools(tools)
         if kwargs.get("deps", None):
             agent_dependencies = kwargs.get("deps", None)
             manifest["dependencies"] = getattr(agent_dependencies, "__dict__", agent_dependencies)
