@@ -38,12 +38,9 @@ def traced_stream_read(traced_stream, original_read, amt=None):
         handler.chunks.append(json.loads(body))
         if traced_stream.__wrapped__.tell() == int(traced_stream.__wrapped__._content_length):
             formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-            model_provider = execution_ctx["model_provider"]
-            model_name = execution_ctx["model_name"]
-            should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [execution_ctx, formatted_response, None, handler.chunks[0], should_set_choice_ids],
+                [execution_ctx, formatted_response],
             )
         return body
     except Exception:
@@ -60,12 +57,9 @@ def traced_stream_readlines(traced_stream, original_readlines):
         for line in lines:
             handler.chunks.append(json.loads(line))
         formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
-        model_provider = execution_ctx["model_provider"]
-        model_name = execution_ctx["model_name"]
-        should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
         core.dispatch(
             "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response, None, handler.chunks[0], should_set_choice_ids],
+            [execution_ctx, formatted_response],
         )
         return lines
     except Exception:
@@ -89,16 +83,10 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         if exception:
             return
         execution_ctx = self.options.get("execution_ctx", {})
-        metadata = _extract_streamed_response_metadata(execution_ctx, self.chunks)
         formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
-        model_provider = execution_ctx["model_provider"]
-        model_name = execution_ctx["model_name"]
-        should_set_choice_ids = (
-            model_provider == _COHERE and "is_finished" not in self.chunks[0] and "embed" not in model_name
-        )
         core.dispatch(
             "botocore.bedrock.process_response",
-            [execution_ctx, formatted_response, metadata, self.chunks, should_set_choice_ids],
+            [execution_ctx, formatted_response],
         )
 
 
@@ -455,18 +443,6 @@ def handle_bedrock_response(
         safe_token_count(total_tokens),
         safe_token_count(cache_read_tokens),
         safe_token_count(cache_write_tokens),
-    )
-
-    # for both converse & invoke, dispatch success event to store basic metrics
-    core.dispatch(
-        "botocore.patched_bedrock_api_call.success",
-        [
-            ctx,
-            str(metadata.get("RequestId", "")),
-            request_latency,
-            str(input_tokens),
-            str(output_tokens),
-        ],
     )
 
     if ctx["resource"] == "Converse":

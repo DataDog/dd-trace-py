@@ -15,7 +15,7 @@ from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
 from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.llmobs._integrations.utils import extract_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
 
@@ -61,11 +61,12 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
+    provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=extract_model_name_google(model_instance, "_model_name"),
+        provider=provider_name,
+        model=model_name,
         submit_to_llmobs=True,
     )
     # history must be copied since it is modified during the LLM interaction
@@ -96,11 +97,12 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     integration = vertexai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
+    provider_name, model_name = extract_provider_and_model_name(instance=model_instance, model_name_attr="_model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=extract_model_name_google(model_instance, "_model_name"),
+        provider=provider_name,
+        model=model_name,
         submit_to_llmobs=True,
     )
     # history must be copied since it is modified during the LLM interaction

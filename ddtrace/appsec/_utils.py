@@ -182,8 +182,6 @@ class Telemetry_result:
 
 
 def parse_response_body(raw_body, headers):
-    import xmltodict
-
     if not raw_body:
         return
 
@@ -214,6 +212,8 @@ def parse_response_body(raw_body, headers):
         if "json" in content_type:
             req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
+            import ddtrace.vendor.xmltodict as xmltodict
+
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return

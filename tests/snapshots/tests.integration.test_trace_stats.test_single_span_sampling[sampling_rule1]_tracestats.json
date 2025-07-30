@@ -7,7 +7,7 @@
         "Name": "parent",
         "Resource": "parent",
         "Service": "test",
-        "Type": null,
+        "Type": "",
         "HTTPStatusCode": 0,
         "Synthetics": false,
         "Hits": 1,

@@ -287,7 +287,7 @@ def _inject():
     INSTALLED_PACKAGES = build_installed_pkgs()
     DDTRACE_REQUIREMENTS = build_requirements(PYTHON_VERSION)
     EXECUTABLES_DENY_LIST = build_denied_executables()
-    integration_incomp = False
+    dependency_incomp = False
     runtime_incomp = False
     spec = None
     try:
@@ -323,7 +323,12 @@ def _inject():
                 abort = True
                 TELEMETRY_DATA.append(
                     create_count_metric(
-                        "library_entrypoint.abort.integration",
+                        "library_entrypoint.abort",
+                        [
+                            "reason:incompatible_executable",
+                            "runtime_name:" + PYTHON_RUNTIME,
+                            "runtime_version:" + PYTHON_VERSION,
+                        ],
                     )
                 )
                 RESULT = "abort"
@@ -344,6 +349,7 @@ def _inject():
 
         if incompatible_packages:
             _log("Found incompatible ddtrace dependencies: %s." % incompatible_packages, level="debug")
+            dependency_incomp = True
             if not FORCE_INJECT:
                 _log("Aborting dd-trace-py installation.", level="debug")
                 abort = True
@@ -353,8 +359,11 @@ def _inject():
                         create_count_metric(
                             "library_entrypoint.abort",
                             [
+                                "reason:incompatible_dependency",
                                 "dependency:" + key,
-                                "reason:" + value,
+                                "dependency_version:" + value,
+                                "runtime_name:" + PYTHON_RUNTIME,
+                                "runtime_version:" + PYTHON_VERSION,
                             ],
                         )
                     )
@@ -378,7 +387,16 @@ def _inject():
                 _log("Aborting dd-trace-py instrumentation.", level="debug")
                 abort = True
 
-                TELEMETRY_DATA.append(create_count_metric("library_entrypoint.abort.runtime"))
+                TELEMETRY_DATA.append(
+                    create_count_metric(
+                        "library_entrypoint.abort.runtime",
+                        [
+                            "reason:incompatible_runtime",
+                            "runtime_name:" + PYTHON_RUNTIME,
+                            "runtime_version:" + PYTHON_VERSION,
+                        ],
+                    )
+                )
                 RESULT = "abort"
                 RESULT_REASON = "Found incompatible runtime: %s %s. Supported runtimes: %s" % (
                     PYTHON_RUNTIME,
@@ -396,7 +414,9 @@ def _inject():
                 create_count_metric(
                     "library_entrypoint.abort",
                     [
-                        "reason:integration" if integration_incomp else "reason:incompatible_runtime",
+                        "reason:" + RESULT_CLASS,
+                        "runtime_name:" + PYTHON_RUNTIME,
+                        "runtime_version:" + PYTHON_VERSION,
                     ],
                 )
             )
@@ -409,7 +429,14 @@ def _inject():
         if not os.path.exists(site_pkgs_path):
             _log("ddtrace site-packages not found in %r, aborting" % site_pkgs_path, level="error")
             TELEMETRY_DATA.append(
-                create_count_metric("library_entrypoint.abort", ["reason:missing_" + site_pkgs_path]),
+                create_count_metric(
+                    "library_entrypoint.abort",
+                    [
+                        "reason:missing_" + site_pkgs_path,
+                        "runtime_name:" + PYTHON_RUNTIME,
+                        "runtime_version:" + PYTHON_VERSION,
+                    ],
+                ),
             )
             RESULT = "error"
             RESULT_REASON = "ddtrace site-packages not found in %r, aborting" % site_pkgs_path
@@ -476,13 +503,13 @@ def _inject():
                     create_count_metric(
                         "library_entrypoint.complete",
                         [
-                            "injection_forced:" + str(runtime_incomp or integration_incomp).lower(),
+                            "injection_forced:" + str(runtime_incomp or dependency_incomp).lower(),
                         ],
                     ),
                 )
                 RESULT = "success"
                 RESULT_REASON = "Successfully configured ddtrace package"
-                RESULT_CLASS = "success" if not (runtime_incomp or integration_incomp) else "success_forced"
+                RESULT_CLASS = "success" if not (runtime_incomp or dependency_incomp) else "success_forced"
             except Exception as e:
                 TELEMETRY_DATA.append(
                     create_count_metric(
@@ -502,6 +529,8 @@ def _inject():
                 "library_entrypoint.abort",
                 [
                     "reason:ddtrace_already_present",
+                    "runtime_name:" + PYTHON_RUNTIME,
+                    "runtime_version:" + PYTHON_VERSION,
                 ],
             )
         )
