@@ -53,156 +53,8 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
     return provider, model_name
 
 
-@with_traced_module
-def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
-    """Trace LLM.generate() method for offline inference."""
-    integration = vllm._datadog_integration
-    provider, model = _get_provider_and_model(instance, kwargs)
-    
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider,
-        model=model,
-        submit_to_llmobs=True,
-    )
-    
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
-        span.finish()
-    
-    return result
-
-
-@with_traced_module
-def traced_llm_encode(vllm, pin, func, instance, args, kwargs):
-    """Trace LLM.encode() method for offline embeddings."""
-    integration = vllm._datadog_integration
-    provider, model = _get_provider_and_model(instance, kwargs)
-    
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider,
-        model=model,
-        submit_to_llmobs=True,
-    )
-    
-    try:
-        result = func(*args, **kwargs)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="embedding")
-        span.finish()
-    
-    return result
-
-
-@with_traced_module
-async def traced_async_generate(vllm, pin, func, instance, args, kwargs):
-    """Trace AsyncLLMEngine.generate() method for async inference."""
-    integration = vllm._datadog_integration
-    provider, model = _get_provider_and_model(instance, kwargs)
-    
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider,
-        model=model,
-        submit_to_llmobs=True,
-    )
-    
-    try:
-        result = func(*args, **kwargs)  # Don't await - might be async generator
-        
-        # Check if result is an async generator
-        if hasattr(result, '__aiter__'):
-            # It's an async generator - wrap it to capture final result
-            async def traced_async_generator():
-                final_result = None
-                try:
-                    async for item in result:
-                        final_result = item
-                        yield item
-                except Exception as e:
-                    span.set_exc_info(*sys.exc_info())
-                    raise
-                finally:
-                    kwargs["instance"] = instance
-                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")
-                    span.finish()
-            
-            return traced_async_generator()
-        else:
-            # It's a regular coroutine
-            result = await result
-            # For regular coroutines, finish span here
-            kwargs["instance"] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
-            span.finish()
-            return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
-
-
-@with_traced_module
-async def traced_async_encode(vllm, pin, func, instance, args, kwargs):
-    """Trace AsyncLLMEngine.encode() method for async embeddings."""
-    integration = vllm._datadog_integration
-    provider, model = _get_provider_and_model(instance, kwargs)
-    
-    span = integration.trace(
-        pin,
-        "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider=provider,
-        model=model,
-        submit_to_llmobs=True,
-    )
-    
-    try:
-        result = func(*args, **kwargs)  # Don't await - might be async generator
-        
-        # Check if result is an async generator
-        if hasattr(result, '__aiter__'):
-            # It's an async generator - wrap it to capture final result
-            async def traced_async_generator():
-                final_result = None
-                try:
-                    async for item in result:
-                        final_result = item
-                        yield item
-                except Exception as e:
-                    span.set_exc_info(*sys.exc_info())
-                    raise
-                finally:
-                    kwargs["instance"] = instance
-                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="embedding")
-                    span.finish()
-            
-            return traced_async_generator()
-        else:
-            # It's a regular coroutine
-            result = await result
-            # For regular coroutines, finish span here
-            kwargs["instance"] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="embedding")
-            span.finish()
-            return result
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        span.finish()
-        raise
+# Temporarily removed LLM and AsyncLLMEngine methods to focus on core llm_request tracing
+# TODO: Add back LLM.generate, LLM.encode, AsyncLLMEngine.generate, AsyncLLMEngine.encode once core works
 
 
 @with_traced_module 
@@ -252,7 +104,7 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
 
 
 def patch():
-    """Patch vLLM methods for tracing."""
+    """Patch vLLM methods for tracing - focusing on core llm_request operation first."""
     try:
         import vllm
     except ImportError:
@@ -266,26 +118,18 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
     
-    # Patch offline LLM class methods
+    # Focus on the critical llm_request operation - the main step() method
     try:
-        wrap("vllm", "LLM.generate", traced_llm_generate(vllm))
-        wrap("vllm", "LLM.encode", traced_llm_encode(vllm))
-    except (AttributeError, ImportError):
-        pass  # Methods might not exist in all versions
-    
-    # Patch async engine methods
-    try:
-        wrap("vllm", "AsyncLLMEngine.generate", traced_async_generate(vllm))
-        wrap("vllm", "AsyncLLMEngine.encode", traced_async_encode(vllm))
-    except (AttributeError, ImportError):
-        pass  # Methods might not exist in all versions
-    
-    # Patch the critical llm_request operation - the main step() method
-    try:
-        # This is the main execution loop where vLLM calls do_tracing
+        # This is the main execution loop where vLLM calls do_tracing for llm_request spans
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
     except (AttributeError, ImportError):
         pass  # This captures the full request lifecycle like vLLM's llm_request span
+    
+    # TODO: Add back other method patches once core llm_request tracing is working:
+    # - vllm.LLM.generate (sync)
+    # - vllm.LLM.encode (sync) 
+    # - vllm.AsyncLLMEngine.generate (async)
+    # - vllm.AsyncLLMEngine.encode (async)
 
 
 def unpatch():
@@ -300,19 +144,7 @@ def unpatch():
     
     vllm._datadog_patch = False
     
-    # Unpatch methods
-    try:
-        unwrap(vllm.LLM, "generate")
-        unwrap(vllm.LLM, "encode")
-    except (AttributeError, ImportError):
-        pass
-    
-    try:
-        unwrap(vllm.AsyncLLMEngine, "generate")
-        unwrap(vllm.AsyncLLMEngine, "encode")
-    except (AttributeError, ImportError):
-        pass
-    
+    # Unpatch the core llm_request method
     try:
         # Import and unwrap the engine method if we patched it
         from vllm.engine.llm_engine import LLMEngine
