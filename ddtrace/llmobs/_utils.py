@@ -13,6 +13,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import CREWAI_APM_SPAN_NAME
+from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
+from ddtrace.llmobs._constants import DEFAULT_DD_SITE
 from ddtrace.llmobs._constants import GEMINI_APM_SPAN_NAME
 from ddtrace.llmobs._constants import INTERNAL_CONTEXT_VARIABLE_KEYS
 from ddtrace.llmobs._constants import INTERNAL_QUERY_VARIABLE_KEYS
@@ -203,6 +205,18 @@ def _unserializable_default_repr(obj):
     except Exception:
         log.warning("I/O object is neither JSON serializable nor string-able. Defaulting to placeholder value instead.")
         return "[Unserializable object: {}]".format(repr(obj))
+
+
+def _get_base_url() -> str:
+    subdomain = ""
+    site = DEFAULT_DD_SITE
+    if config._dd_site:
+        site = config._dd_site
+
+    if site in DD_SITES_NEEDING_APP_SUBDOMAIN:
+        subdomain = "app."
+
+    return f"https://{subdomain}{site}"
 
 
 def safe_json(obj, ensure_ascii=True):
