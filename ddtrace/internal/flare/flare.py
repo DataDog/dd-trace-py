@@ -57,7 +57,7 @@ class Flare:
         # Use a fixed boundary for consistency
         self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
-    def prepare(self, log_level: str):
+    def prepare(self, log_level: str) -> bool:
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
