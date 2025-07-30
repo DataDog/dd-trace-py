@@ -25,6 +25,7 @@ def get_version() -> str:
 def _supported_versions() -> Dict[str, str]:
     return {"pydantic_ai": "*"}
 
+
 PYDANTIC_AI_SLIM_VERSION = parse_version(get_version())
 
 
@@ -58,6 +59,7 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
     kwargs["instance"] = instance
     return TracedPydanticAsyncContextManager(result, span, instance, integration, args, kwargs)
 
+
 @with_traced_module
 async def traced_tool_manager_call(pydantic_ai, pin, func, instance, args, kwargs):
     tool_call = get_argument_value(args, kwargs, 0, "tool_call", True)
@@ -65,6 +67,7 @@ async def traced_tool_manager_call(pydantic_ai, pin, func, instance, args, kwarg
     tool_manager_tools = getattr(instance, "tools", {})
     tool_instance = tool_manager_tools.get(tool_name) or None
     return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name, tool_instance)
+
 
 @with_traced_module
 async def traced_tool_call(pydantic_ai, pin, func, instance, args, kwargs):

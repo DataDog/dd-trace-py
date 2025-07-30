@@ -127,7 +127,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
             tool_name = getattr(tool_call, "tool_name", "")
             tool_input = getattr(tool_call, "args", {})
         tool_def = getattr(tool_instance, "tool_def", None)
-        tool_description = getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
+        tool_description = (
+            getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
+        )
         span._set_ctx_items(
             {
                 NAME: tool_name,
@@ -185,7 +187,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         if not tools:
             return []
-        
+
         formatted_tools = []
         for tool_name, tool_instance in tools.items():
             tool_dict = {}

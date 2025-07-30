@@ -12,6 +12,7 @@ def expected_calculate_square_tool():
         }
     ]
 
+
 def expected_foo_tool():
     return [
         {
@@ -85,6 +86,7 @@ def get_usage(result):
 def calculate_square_tool(x: int) -> int:
     """Calculates the square of a number"""
     return x * x
+
 
 def foo_tool() -> str:
     """Return foo string"""

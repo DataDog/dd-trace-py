@@ -220,18 +220,26 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["status"] == "error"
         assert llmobs_events[0]["meta"]["error.message"] == "test error"
-    
+
     @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
     async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
         """Test that the agent manifest includes tools from both the function toolset and the user-defined toolsets"""
         from pydantic_ai.toolsets import FunctionToolset
+
         with request_vcr.use_cassette("agent_run_stream_with_toolset.yaml"):
-            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[FunctionToolset(tools=[calculate_square_tool])], tools=[foo_tool])
+            agent = pydantic_ai.Agent(
+                model="gpt-4o",
+                name="test_agent",
+                toolsets=[FunctionToolset(tools=[calculate_square_tool])],
+                tools=[foo_tool],
+            )
             result = await agent.run("Hello, world!")
         token_metrics = get_usage(result)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
-        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, token_metrics, tools=expected_calculate_square_tool() + expected_foo_tool())
+        assert llmobs_events[0] == expected_run_agent_span_event(
+            span, result.output, token_metrics, tools=expected_calculate_square_tool() + expected_foo_tool()
+        )
 
 
 class TestLLMObsPydanticAISpanLinks:
