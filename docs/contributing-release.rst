@@ -16,7 +16,7 @@ Prerequisites
 
 2. Ensure the CI is green on the branch on which the release will be based.
 
-3. Ensure the SLOs have not been breached on the release branch (`main` for new major/minor, `major.minor` branch for patch releases). See section below for details.
+3. Ensure there are no SLO breaches on the release branch (``main`` for new major/minor, ``major.minor`` branch for patch releases). See section below for details.
 
 Pre-Release Performance Gates
 -----------------------------
@@ -25,7 +25,7 @@ This repository is using pre-release performance quality gates.
 
 On ``main`` or the ``major.minor`` release branch, verify that the latest CI pipeline passed the ``check-slo-breaches`` job.
 If any SLO is breached, the release pipeline on GitLab will be blocked.
-See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml>`_ for macrobenchmarks, and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml>`_ for microbenchmarks.
+See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml>`_ and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml>`_.
 
 There are a few ways to resolve this and unblock the release.
 
@@ -39,7 +39,7 @@ Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/arch
    This should be considered first, and owned by the author(s) for the change(s) that introduced significant performance regression(s).
 2. **Revert the change(s) that contributed the most to performance regression.**
    This should be considered if the regression is not acceptable, but the fix will take longer than a day to merge to the release branch.
-3. **Bump the SLOs to accommodate for the regressions.**
+3. **Bump the SLO(s) to accommodate for the regressions.**
    This should only be considered if the regressions are reasonable for the change(s) introduced (ex - new feature with expected overhead, crash fixes, major security issues, etc.).
    When updating the SLO thresholds, authors must add a comment to their PR justifying the trade offs.
    See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
