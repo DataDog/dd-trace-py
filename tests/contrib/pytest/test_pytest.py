@@ -1711,8 +1711,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
 
-        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # Coverage data is stored as a struct tag, not a regular tag
         coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
         assert coverage_data is not None
         first_tag_data = coverage_data
@@ -1720,10 +1718,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(files) == 2
         assert files[0]["filename"] == "/lib_fn.py"
         assert files[1]["filename"] == "/test_cov.py"
-        # assert len(files[0]["segments"]) == 1
-        # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
-        # assert len(files[1]["segments"]) == 1
-        # assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
@@ -1733,10 +1727,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(files) == 2
         assert files[0]["filename"] == "/ret_false.py"
         assert files[1]["filename"] == "/test_cov.py"
-        # assert len(files[0]["segments"]) == 1
-        # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
-        # assert len(files[1]["segments"]) == 1
-        # assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1812,21 +1802,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
 
-        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
         second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
         files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 2
         assert files[0]["filename"] == "/test_cov.py"
         assert files[1]["filename"] == "/test_ret_false.py"
-        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 2
-        # assert files[0]["filename"] == "test_cov.py"
-        # assert files[1]["filename"] == "test_ret_false.py"
-        # assert len(files[0]["segments"]) == 1
-        # assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
-        # assert len(files[1]["segments"]) == 1
-        # assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1914,22 +1894,18 @@ class PytestTestCase(PytestTestCaseBase):
         second_test_span = spans[1]
         assert second_test_span.get_tag("test.name") == "test_second"
 
-        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 2
-        # assert files[0]["filename"] == "/test_cov.py"
-        # assert files[1]["filename"] == "/test_ret_false.py"
+        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
+        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        assert len(files) == 2
+        assert files[0]["filename"] == "/test_cov.py"
+        assert files[1]["filename"] == "/test_ret_false.py"
 
         third_test_span = spans[2]
         assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
         third_tag_data = third_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        # third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
         third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
         assert len(third_test_files) == 2
         assert third_test_files[0]["filename"] == "/test_cov.py"
-        # assert len(third_test_files[0]["segments"]) == 1
-        # assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
@@ -1996,27 +1972,16 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
 
-        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # assert COVERAGE_TAG_NAME in first_test_span.get_tags()
         coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
         assert coverage_data is not None
         first_tag_data = coverage_data
         files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
         assert len(files) == 1
         assert files[0]["filename"] == "/test_cov.py"
-        # first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
-        # files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 1
-        # assert files[0]["filename"] == "test_cov.py"
-        # assert len(files[0]["segments"]) == 1
-        # assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
-
-        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
-        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
 
         second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
         assert second_tag_data is not None
@@ -2024,15 +1989,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(files) == 2
         assert files[0]["filename"] == "/test_cov.py"
         assert files[1]["filename"] == "/test_ret_false.py"
-        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        # assert len(files) == 2
-        # assert files[0]["filename"] == "test_cov.py"
-        # assert files[1]["filename"] == "test_ret_false.py"
-        # assert len(files[0]["segments"]) == 1
-        # assert files[0]["segments"][0] == [10, 0, 11, 0, -1]
-        # assert len(files[1]["segments"]) == 1
-        # assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
