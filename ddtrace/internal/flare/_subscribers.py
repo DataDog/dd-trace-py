@@ -79,7 +79,7 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     else:
                         log.warning("Failed to prepare tracer flare. Skipping new request.")
                         continue
-                
+
                 log.info("Generating and sending tracer flare")
                 # Handle both list (unit tests) and dict (system tests) data structures
                 task_data = md.content if isinstance(md.content, list) else [md.content]
