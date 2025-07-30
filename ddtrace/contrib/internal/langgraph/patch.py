@@ -334,11 +334,12 @@ def patch():
     langgraph._datadog_integration = integration
 
     from langgraph.pregel import Pregel
-    from langgraph.utils.runnable import RunnableSeq
 
     if LANGGRAPH_VERSION < (0, 6, 0):
         from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
     else:
+        from langgraph._internal._runnable import RunnableSeq
         from langgraph.pregel._loop import PregelLoop
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
@@ -351,7 +352,10 @@ def patch():
     wrap(PregelLoop, "tick", patched_pregel_loop_tick(langgraph))
 
     if LANGGRAPH_VERSION >= (0, 3, 29):
-        wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
+        if LANGGRAPH_VERSION < (0, 6, 0):
+            wrap(langgraph.utils.runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
+        else:
+            wrap(langgraph._internal._runnable, "_consume_aiter", traced_runnable_seq_consume_aiter(langgraph))
 
 
 def unpatch():
@@ -361,11 +365,12 @@ def unpatch():
     langgraph._datadog_patch = False
 
     from langgraph.pregel import Pregel
-    from langgraph.utils.runnable import RunnableSeq
 
     if LANGGRAPH_VERSION < (0, 6, 0):
         from langgraph.pregel.loop import PregelLoop
+        from langgraph.utils.runnable import RunnableSeq
     else:
+        from langgraph._internal._runnable import RunnableSeq
         from langgraph.pregel._loop import PregelLoop
 
     unwrap(RunnableSeq, "invoke")
@@ -376,6 +381,9 @@ def unpatch():
     unwrap(PregelLoop, "tick")
 
     if LANGGRAPH_VERSION >= (0, 3, 29):
-        unwrap(langgraph.utils.runnable, "_consume_aiter")
+        if LANGGRAPH_VERSION < (0, 6, 0):
+            unwrap(langgraph.utils.runnable, "_consume_aiter")
+        else:
+            unwrap(langgraph._internal._runnable, "_consume_aiter")
 
     delattr(langgraph, "_datadog_integration")
