@@ -197,16 +197,4 @@ suites:
       - tests/snapshots/tests.contrib.pydantic_ai.*
     runner: riot
     snapshot: true
-  vllm:
-    parallelism: 2
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@tracing'
-      - '@contrib'
-      - '@vllm'
-      - '@llmobs'
-      - tests/contrib/vllm/*
-      - tests/snapshots/tests.contrib.vllm.*
-    runner: riot
-    snapshot: true
+
