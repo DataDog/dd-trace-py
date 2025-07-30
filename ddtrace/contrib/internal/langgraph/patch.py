@@ -230,16 +230,13 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
         instance=instance,
-        is_graph=True,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(
-            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
-        )
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -254,7 +251,7 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 integration.llmobs_set_tags(
                     span,
                     args=args,
-                    kwargs={**kwargs, "name": name, "instance": instance},
+                    kwargs={**kwargs, "name": name},
                     response=response,
                     operation="graph",
                 )
@@ -266,7 +263,7 @@ def traced_pregel_stream(langgraph, pin, func, instance, args, kwargs):
                 integration.llmobs_set_tags(
                     span,
                     args=args,
-                    kwargs={**kwargs, "name": name, "instance": instance},
+                    kwargs={**kwargs, "name": name},
                     response=None,
                     operation="graph",
                 )
@@ -286,16 +283,13 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
         "%s.%s.%s" % (instance.__module__, instance.__class__.__name__, name),
         submit_to_llmobs=True,
         instance=instance,
-        is_graph=True,
     )
 
     try:
         result = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        integration.llmobs_set_tags(
-            span, args=args, kwargs={**kwargs, "name": name, "instance": instance}, response=None, operation="graph"
-        )
+        integration.llmobs_set_tags(span, args=args, kwargs={**kwargs, "name": name}, response=None, operation="graph")
         span.finish()
         raise
 
@@ -310,7 +304,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 integration.llmobs_set_tags(
                     span,
                     args=args,
-                    kwargs={**kwargs, "name": name, "instance": instance},
+                    kwargs={**kwargs, "name": name},
                     response=response,
                     operation="graph",
                 )
@@ -322,7 +316,7 @@ def traced_pregel_astream(langgraph, pin, func, instance, args, kwargs):
                 integration.llmobs_set_tags(
                     span,
                     args=args,
-                    kwargs={**kwargs, "name": name, "instance": instance},
+                    kwargs={**kwargs, "name": name},
                     response=None,
                     operation="graph",
                 )
