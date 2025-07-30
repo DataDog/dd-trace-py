@@ -1,5 +1,5 @@
-#include "crashtracker_interface.hpp"
 #include "crashtracker.hpp"
+#include "crashtracker_interface.hpp"
 
 #include <fcntl.h>
 #include <pthread.h>
@@ -8,6 +8,13 @@
 // A global instance of the crashtracker is created here.
 Datadog::Crashtracker crashtracker;
 bool crashtracker_initialized = false;
+static const char* crashtracker_exe_name = "_dd_crashtracker_receiver";
+
+const char*
+crashtracker_get_exe_name() // cppcheck-suppress unusedFunction
+{
+    return crashtracker_exe_name;
+}
 
 void
 crashtracker_set_url(std::string_view url) // cppcheck-suppress unusedFunction
