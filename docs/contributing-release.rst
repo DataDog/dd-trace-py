@@ -16,6 +16,22 @@ Prerequisites
 
 2. Ensure the CI is green on the branch on which the release will be based.
 
+3. Ensure the SLOs have not been breached on the release branch (`main` for new major/minor, `major.minor` branch for patch releases). See section below for details.
+
+Pre-Release Performance Gates
+-----------------------------
+
+This repository is using pre-release performance quality gates.
+
+On `main` or the `major.minor` release branch, verify that the latest CI pipeline passed the `check-slo-breaches` job.
+
+If any SLO is breached, the release pipeline on GitLab will be blocked.
+
+See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml#L4>`_ for macrobenchmarks, and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml#L4>`_ for microbenchmarks.
+
+If bypassing is necessary, see `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
+
+
 Instructions
 ------------
 
