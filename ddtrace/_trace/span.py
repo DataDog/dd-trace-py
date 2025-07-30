@@ -1,6 +1,5 @@
 from io import StringIO
 import math
-import pprint
 import sys
 import traceback
 from types import TracebackType
@@ -80,14 +79,12 @@ class SpanEvent:
             d["attributes"] = self.attributes
         return d
 
-    def __str__(self):
+    def __repr__(self):
         """
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
-
-        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
-        return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
 
     def __iter__(self):
         yield "name", self.name
@@ -704,31 +701,6 @@ class Span(object):
 
         return False
 
-    def _pprint(self) -> str:
-        """Return a human readable version of the span."""
-        data = [
-            ("name", self.name),
-            ("id", self.span_id),
-            ("trace_id", self.trace_id),
-            ("parent_id", self.parent_id),
-            ("service", self.service),
-            ("resource", self.resource),
-            ("type", self.span_type),
-            ("start", self.start),
-            ("end", None if not self.duration else self.start + self.duration),
-            ("duration", self.duration),
-            ("error", self.error),
-            ("tags", dict(sorted(self._meta.items()))),
-            ("metrics", dict(sorted(self._metrics.items()))),
-            ("links", ", ".join([str(link) for link in self._links])),
-            ("events", ", ".join([str(e) for e in self._events])),
-        ]
-        return " ".join(
-            # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
-            for (k, v) in data
-        )
-
     @property
     def context(self) -> Context:
         """Return the trace context for this span."""
@@ -857,7 +829,41 @@ class Span(object):
         except Exception:
             log.exception("error closing trace")
 
+    def _pprint(self) -> str:
+        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
+        # used to debug spans in the wild. Introducing a deprecation warning here to
+        # give users a chance to migrate to __repr__ before we remove it.
+        deprecate(
+            prefix="The _pprint method is deprecated for __repr__",
+            message="""Use __repr__ instead.""",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        return self.__repr__()
+
     def __repr__(self) -> str:
+        """Return a detailed string representation of a span."""
+        return (
+            f"Span(name='{self.name}', "
+            f"span_id={self.span_id}, "
+            f"parent_id={self.parent_id}, "
+            f"trace_id={self.trace_id}, "
+            f"service='{self.service}', "
+            f"resource='{self.resource}', "
+            f"type='{self.span_type}', "
+            f"start={self.start_ns}, "
+            f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
+            f"duration={self.duration_ns}, "
+            f"error={self.error}, "
+            f"tags={self._meta}, "
+            f"metrics={self._metrics}, "
+            f"links={self._links}, "
+            f"events={self._events}, "
+            f"context={self._context})"
+        )
+
+    def __str__(self) -> str:
+        """Return a concise string representation of a span."""
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
             self.span_id,
             self.trace_id,
