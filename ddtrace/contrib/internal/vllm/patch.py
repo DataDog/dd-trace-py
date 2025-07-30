@@ -122,16 +122,38 @@ async def traced_async_generate(vllm, pin, func, instance, args, kwargs):
     )
     
     try:
-        result = await func(*args, **kwargs)
+        result = func(*args, **kwargs)  # Don't await - might be async generator
+        
+        # Check if result is an async generator
+        if hasattr(result, '__aiter__'):
+            # It's an async generator - wrap it to capture final result
+            async def traced_async_generator():
+                final_result = None
+                try:
+                    async for item in result:
+                        final_result = item
+                        yield item
+                except Exception as e:
+                    span.set_exc_info(*sys.exc_info())
+                    raise
+                finally:
+                    kwargs["instance"] = instance
+                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")
+                    span.finish()
+            
+            return traced_async_generator()
+        else:
+            # It's a regular coroutine
+            result = await result
+            # For regular coroutines, finish span here
+            kwargs["instance"] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
+            span.finish()
+            return result
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
         span.finish()
-    
-    return result
+        raise
 
 
 @with_traced_module
@@ -149,16 +171,38 @@ async def traced_async_encode(vllm, pin, func, instance, args, kwargs):
     )
     
     try:
-        result = await func(*args, **kwargs)
+        result = func(*args, **kwargs)  # Don't await - might be async generator
+        
+        # Check if result is an async generator
+        if hasattr(result, '__aiter__'):
+            # It's an async generator - wrap it to capture final result
+            async def traced_async_generator():
+                final_result = None
+                try:
+                    async for item in result:
+                        final_result = item
+                        yield item
+                except Exception as e:
+                    span.set_exc_info(*sys.exc_info())
+                    raise
+                finally:
+                    kwargs["instance"] = instance
+                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="embedding")
+                    span.finish()
+            
+            return traced_async_generator()
+        else:
+            # It's a regular coroutine
+            result = await result
+            # For regular coroutines, finish span here
+            kwargs["instance"] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="embedding")
+            span.finish()
+            return result
     except Exception:
         span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="embedding")
         span.finish()
-    
-    return result
+        raise
 
 
 @with_traced_module 
