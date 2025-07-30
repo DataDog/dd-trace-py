@@ -2,14 +2,20 @@ import mock
 import pytest
 from typing_extensions import TypedDict
 
+import pydantic_ai
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
 from tests.contrib.pydantic_ai.utils import calculate_square_tool
+from tests.contrib.pydantic_ai.utils import foo_tool
 from tests.contrib.pydantic_ai.utils import expected_agent_metadata
 from tests.contrib.pydantic_ai.utils import expected_calculate_square_tool
+from tests.contrib.pydantic_ai.utils import expected_foo_tool
 from tests.contrib.pydantic_ai.utils import expected_run_agent_span_event
 from tests.contrib.pydantic_ai.utils import expected_run_tool_span_event
 from tests.contrib.pydantic_ai.utils import get_usage
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+PYDANTIC_AI_VERSION = parse_version(pydantic_ai.__version__)
 
 
 @pytest.mark.parametrize(
@@ -214,6 +220,18 @@ class TestLLMObsPydanticAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["status"] == "error"
         assert llmobs_events[0]["meta"]["error.message"] == "test error"
+    
+    @pytest.mark.skipif(PYDANTIC_AI_VERSION < (0, 4, 4), reason="pydantic-ai < 0.4.4 does not support toolsets")
+    async def test_agent_run_with_toolset(self, pydantic_ai, request_vcr, llmobs_events, mock_tracer):
+        """Test that the agent manifest includes tools from both the function toolset and the user-defined toolsets"""
+        from pydantic_ai.toolsets import FunctionToolset
+        with request_vcr.use_cassette("agent_run_stream_with_toolset.yaml"):
+            agent = pydantic_ai.Agent(model="gpt-4o", name="test_agent", toolsets=[FunctionToolset(tools=[calculate_square_tool])], tools=[foo_tool])
+            result = await agent.run("Hello, world!")
+        token_metrics = get_usage(result)
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0] == expected_run_agent_span_event(span, result.output, token_metrics, tools=expected_calculate_square_tool() + expected_foo_tool())
 
 
 class TestLLMObsPydanticAISpanLinks:

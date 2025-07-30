@@ -12,6 +12,15 @@ def expected_calculate_square_tool():
         }
     ]
 
+def expected_foo_tool():
+    return [
+        {
+            "name": "foo_tool",
+            "description": "Return foo string",
+            "parameters": {},
+        }
+    ]
+
 
 def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> Dict:
     metadata = {
@@ -76,3 +85,7 @@ def get_usage(result):
 def calculate_square_tool(x: int) -> int:
     """Calculates the square of a number"""
     return x * x
+
+def foo_tool() -> str:
+    """Return foo string"""
+    return "foo"

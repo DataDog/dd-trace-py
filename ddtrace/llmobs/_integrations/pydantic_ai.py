@@ -158,21 +158,34 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = agent._instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        if hasattr(agent, "_function_tools") or hasattr(agent, "_function_toolset"):
-            tools = getattr(agent, "_function_tools", None)
-            toolset = getattr(agent, "_function_toolset", None)
-            if toolset:
-                tools = getattr(toolset, "tools", {})
-            manifest["tools"] = self._get_agent_tools(tools)
         if kwargs.get("deps", None):
             agent_dependencies = kwargs.get("deps", None)
             manifest["dependencies"] = getattr(agent_dependencies, "__dict__", agent_dependencies)
+        manifest["tools"] = self._get_agent_tools(agent)
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
-    def _get_agent_tools(self, tools: Any) -> List[Dict[str, Any]]:
+    def _get_agent_tools(self, agent: Any) -> List[Dict[str, Any]]:
+        """
+        Extract tools from the agent and format them to be used in the agent manifest.
+
+        For pydantic-ai < 0.4.4, tools are stored in the agent's _function_tools attribute.
+        For pydantic-ai >= 0.4.4, tools are stored in the agent's _function_toolset (tools) and
+        _user_toolsets (user-defined toolsets) attributes.
+        """
+        tools = {}
+        if hasattr(agent, "_function_tools"):
+            tools = getattr(agent, "_function_tools", {})
+        elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
+            user_toolsets = getattr(agent, "_user_toolsets", [])
+            function_toolset = getattr(agent, "_function_toolset", None)
+            combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
+            for toolset in combined_toolsets:
+                tools.update(getattr(toolset, "tools", {}))
+
         if not tools:
             return []
+        
         formatted_tools = []
         for tool_name, tool_instance in tools.items():
             tool_dict = {}
