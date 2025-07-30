@@ -23,15 +23,17 @@ Pre-Release Performance Gates
 
 This repository is using pre-release performance quality gates.
 
-On `main` or the `major.minor` release branch, verify that the latest CI pipeline passed the `check-slo-breaches` job.
+On ``main`` or the ``major.minor`` release branch, verify that the latest CI pipeline passed the ``check-slo-breaches`` job.
 
 If any SLO is breached, the release pipeline on GitLab will be blocked.
 
 See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml>`_ for macrobenchmarks, and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml>`_ for microbenchmarks.
 
 There are a few ways to resolve this and unblock the release.
-Prerequisite: Find the change(s) that contributed the most to performance regression.
-You can check from the Benchmarking Platform UI to see these commits.
+
+**Prerequisite**
+Find the change(s) that contributed the most to performance regression.
+You can check from the `Benchmarking Platform - Benchmarks tab <https://benchmarking.us1.prod.dog/benchmarks?projectId=3&ciJobDateStart=1753290587498&ciJobDateEnd=1753895387498&gitBranch=main>`_ and filter by project and branch to see these commits.
 Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/archives/C04MK6NNDG9>`_ to see if there are any easy fixes (less than a day of work) that can be pushed to the release branch.
 
 1. Merge a fix to resolve the performance regression.
