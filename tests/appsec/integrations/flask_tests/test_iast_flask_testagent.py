@@ -3,6 +3,7 @@ import pytest
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.constants import VULN_STACKTRACE_LEAK
+from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
 from tests.appsec.appsec_utils import flask_server
 from tests.appsec.appsec_utils import gunicorn_server
 from tests.appsec.iast.iast_utils import load_iast_report
@@ -235,3 +236,34 @@ def test_iast_code_injection_with_stacktrace(server):
         assert metastruct
     else:
         assert len(vulnerabilities) == 0
+
+
+def test_iast_unvalidated_redirect():
+    token = "test_iast_cmdi"
+    _ = start_trace(token)
+    with gunicorn_server(iast_enabled="true", token=token, port=8050) as context:
+        _, flask_client, pid = context
+
+        response = flask_client.get("/iast-unvalidated_redirect-header?location=malicious_url")
+
+        assert response.status_code == 200
+
+    response_tracer = _get_span(token)
+    spans_with_iast = []
+    vulnerabilities = []
+    for trace in response_tracer:
+        for span in trace:
+            if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
+                spans_with_iast.append(span)
+            iast_data = load_iast_report(span)
+            if iast_data:
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
+    clear_session(token)
+
+    assert len(spans_with_iast) == 2
+    assert len(vulnerabilities) == 1
+    assert len(vulnerabilities[0]) == 1
+    vulnerability = vulnerabilities[0][0]
+    assert vulnerability["type"] == VULN_UNVALIDATED_REDIRECT
+    assert vulnerability["evidence"]["valueParts"] == [{"source": 0, "value": "malicious_url"}]
+    assert vulnerability["hash"]
