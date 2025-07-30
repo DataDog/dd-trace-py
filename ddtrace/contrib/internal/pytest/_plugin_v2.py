@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
@@ -43,7 +42,6 @@ from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -53,6 +51,7 @@ from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
@@ -134,9 +133,21 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    # Check what ITR skipping level is configured
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    # Determine if the item should be skipped based on the skipping level
+    if is_suite_skipping_mode:
+        # Suite-level skipping: check if the suite is skippable
+        should_skip = InternalTestSuite.is_itr_skippable(suite_id)
+        item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    else:
+        # Test-level skipping: check if the individual test is skippable
+        should_skip = InternalTest.is_itr_skippable(test_id)
+        item_is_unskippable = InternalTest.is_itr_unskippable(test_id) or InternalTest.is_attempt_to_fix(test_id)
+
+    if should_skip:
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
@@ -239,17 +250,17 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
+    take_over_logger_stream_handler()
+
     if not _is_enabled_early(early_config, args):
         return
 
     try:
-        take_over_logger_stream_handler()
-        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
-            from ddtrace._monkey import patch
-
-            # Freezegun is proactively patched to avoid it interfering with internal timing
-            patch(freezegun=True)
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
+        dd_config.test_visibility.itr_skipping_level = (
+            ITR_SKIPPING_LEVEL.SUITE
+            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
+            else ITR_SKIPPING_LEVEL.TEST
+        )
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
             workspace_path = InternalTestSession.get_workspace_path()
@@ -260,6 +271,18 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     except Exception:  # noqa: E722
         log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
         _disable_ci_visibility()
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
 
 
 def pytest_configure(config: pytest_Config) -> None:
@@ -275,6 +298,8 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
+        from ddtrace.contrib.internal.pytest.plugin import is_enabled
+
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
@@ -337,7 +362,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="5" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -515,6 +540,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     try:
         coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
+        coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
@@ -817,8 +843,16 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             run_coverage_report()
 
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if not isinstance(lines_pct_value, float):
-            log.warning("Tried to add total covered percentage to session span but the format was unexpected")
+        if lines_pct_value is None:
+            log.debug("Unable to retrieve coverage data for the session span")
+        elif not isinstance(lines_pct_value, (float, int)):
+            t = type(lines_pct_value)
+            log.warning(
+                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+                t.__module__,
+                t.__name__,
+                lines_pct_value,
+            )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 

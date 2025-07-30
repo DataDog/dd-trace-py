@@ -55,24 +55,20 @@ fi
 TAG="dd-trace-py/perf-${SCENARIO}"
 scripts/perf-build-scenario "${SCENARIO}" "${TAG}"
 
+CMD="docker run -it --rm --network host"
 if [[ -n ${ARTIFACTS} ]]; then
    # Resolve artifacts to an absolute path
    ARTIFACTS="$(echo $ARTIFACTS | python -c 'import os,sys; print(os.path.abspath(sys.stdin.read()))')"
    mkdir -p ${ARTIFACTS}
-   docker run -it --rm \
-          --network host \
-          -v "${ARTIFACTS}:/artifacts/" \
-          -v "$(pwd):/src/" \
-          -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
-          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
-          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
-          $TAG
-else
-   docker run -it --rm \
-          --network host \
-          -v "$(pwd):/src/" \
-          -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
-          -e DDTRACE_INSTALL_V1="$(expand_git_version $DDTRACE_V1)" \
-          -e DDTRACE_INSTALL_V2="$(expand_git_version $DDTRACE_V2)" \
-          $TAG
+   CMD+=" -v ${ARTIFACTS}:/artifacts/"
 fi
+CMD+=" -v $(pwd):/src/ \
+  -e PROFILE_BENCHMARKS=${PROFILE_BENCHMARKS:-0} \
+  -e DD_FAST_BUILD=1 \
+  -e CMAKE_BUILD_PARALLEL_LEVEL=12 \
+  -e CARGO_BUILD_JOBS=12 \
+  -e DDTRACE_INSTALL_V1=$(expand_git_version $DDTRACE_V1) \
+  -e DDTRACE_INSTALL_V2=$(expand_git_version $DDTRACE_V2) \
+  ${TAG}"
+
+$CMD

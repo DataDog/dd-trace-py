@@ -6,10 +6,8 @@ components:
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:
-    - ddtrace/contrib/_urllib.py
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
-    - ddtrace/contrib/_webbrowser.py
     - ddtrace/contrib/internal/webbrowser/*
 suites:
   appsec:
@@ -65,7 +63,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: hatch
+    runner: riot
   iast_aggregated_leak_testing:
     parallelism: 3
     paths:
@@ -104,7 +102,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_packages:
     env:
@@ -121,7 +119,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - postgres
       - mysql
@@ -214,7 +212,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_flask:
     parallelism: 10
     paths:

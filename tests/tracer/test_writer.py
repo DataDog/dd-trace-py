@@ -332,6 +332,57 @@ class AgentWriterTests(BaseTestCase):
                 any_order=True,
             )
 
+    def test_gzip_compression_exception_logging_and_metrics(self):
+        """
+        Regression test to ensure gzip compression exceptions are properly logged and metrics recorded.
+        """
+        n_traces = 5
+        statsd = mock.Mock()
+
+        with override_global_config(dict(_health_metrics_enabled=True)):
+            writer = self.WRITER_CLASS("http://asdf:1234", dogstatsd=statsd, sync_mode=True)
+            # Manually enable gzip compression to trigger the compression code path
+            writer._intake_accepts_gzip = True
+
+            # Create mock client for testing
+            mock_client = mock.Mock()
+            mock_client.encoder = mock.Mock()
+
+            # Test payload data
+            test_payload = b"test encoded data"
+
+            # Mock gzip.compress to raise an exception
+            with mock.patch("gzip.compress") as mock_gzip_compress:
+                mock_gzip_compress.side_effect = RuntimeError("Gzip compression failed")
+
+                # Mock _send_payload_with_backoff to verify it's not called
+                with mock.patch.object(writer, "_send_payload_with_backoff") as mock_send_payload:
+                    # Mock the logger to capture log calls
+                    with mock.patch("ddtrace.internal.writer.writer.log") as mock_log:
+                        # Call _flush_single_payload directly to test gzip compression exception
+                        writer._flush_single_payload(test_payload, n_traces, mock_client)
+
+                        # Verify gzip.compress was called
+                        mock_gzip_compress.assert_called_once_with(test_payload, compresslevel=6)
+
+                        # Verify _send_payload_with_backoff was NOT called (early return)
+                        mock_send_payload.assert_not_called()
+
+                        # Verify error was logged with proper message and exc_info=True
+                        mock_log.error.assert_called_once()
+                        call_args, call_kwargs = mock_log.error.call_args
+
+                        # Check the error message
+                        self.assertEqual(call_args[0], "failed to compress traces with encoder %r")
+                        self.assertEqual(call_args[1], mock_client.encoder)
+                        # Verify exc_info=True was passed
+                        self.assertTrue(call_kwargs.get("exc_info", False))
+
+                        # Verify encoder.dropped.traces metric was recorded
+                        statsd.distribution.assert_called_once_with(
+                            "datadog.%s.encoder.dropped.traces" % writer.STATSD_NAMESPACE, n_traces, tags=None
+                        )
+
     def test_keep_rate(self):
         statsd = mock.Mock()
         writer_run_periodic = mock.Mock()
@@ -439,7 +490,9 @@ class CIVisibilityWriterTests(AgentWriterTests):
         writer = CIVisibilityWriter("http://localhost:9126")
         for client in writer._clients:
             client.encoder.put([Span("foobar")])
-            payload = client.encoder.encode()[0]
+            encoded_traces = client.encoder.encode()
+            assert encoded_traces
+            payload = encoded_traces[0][0]
             try:
                 unpacked_metadata = msgpack.unpackb(payload, raw=True, strict_map_key=False)[b"metadata"][b"*"]
             except KeyError:
@@ -705,7 +758,7 @@ def test_additional_headers():
 
 def test_additional_headers_constructor():
     writer = AgentWriter(
-        agent_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
+        intake_url="http://localhost:9126", headers={"additional-header": "additional-value", "header2": "value2"}
     )
     assert writer._headers["additional-header"] == "additional-value"
     assert writer._headers["header2"] == "value2"
