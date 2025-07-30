@@ -242,7 +242,7 @@ class TestVisibilityItemBase(abc.ABC):
         self._span.finish(finish_time=override_finish_time)
 
         if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            self._distributed_span.finish(finish_time=override_finish_time)
+            self._distributed_span.finish(finish_time=override_finish_time)  # type: ignore
 
         parent_span = self.get_parent_span()
         if parent_span:
