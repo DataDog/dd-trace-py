@@ -1675,24 +1675,17 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
-            return_value=True,
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run(
                 "--ddtrace",
                 os.path.basename(py_cov_file.strpath),
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
-                    "_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE": "True",
                 },
             )
 
@@ -1771,19 +1764,19 @@ class PytestTestCase(PytestTestCaseBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
-            return_value=True,
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
             side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run(
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                },
+            )
         spans = self.pop_spans()
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
@@ -1860,12 +1853,6 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
-            return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
@@ -1873,10 +1860,13 @@ class PytestTestCase(PytestTestCaseBase):
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
             self.inline_run(
-                # "--ddtrace", os.path.basename(py_cov_file.strpath))  # TODO(@gnufede)
                 "--ddtrace",
                 os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                },
             )
+
         spans = self.pop_spans()
         assert len(spans) == 7
 
@@ -1947,19 +1937,19 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
-            return_value=True,
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.ddconfig",
-            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
-            self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
+            self.inline_run(
+                "--ddtrace",
+                os.path.basename(py_cov_file.strpath),
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",
+                },
+            )
         spans = self.pop_spans()
 
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
