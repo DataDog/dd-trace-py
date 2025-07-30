@@ -147,7 +147,7 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
     with integration.trace(
-        pin, "CrewAI Flow", span_name=span_name, operation="flow_method", submit_to_llmobs=True
+        pin, "CrewAI Flow Method", span_name=span_name, operation="flow_method", submit_to_llmobs=True
     ) as span:
         result = await func(*args, **kwargs)
         kwargs["_dd.instance"] = instance
@@ -199,5 +199,8 @@ def unpatch():
     unwrap(crewai.Task, "execute_async")
     unwrap(crewai.Agent, "execute_task")
     unwrap(crewai.tools.structured_tool.CrewStructuredTool, "invoke")
+    unwrap(crewai.Flow, "kickoff_async")
+    unwrap(crewai.Flow, "_execute_method")
+    unwrap(crewai.Flow, "_find_triggered_methods")
 
     delattr(crewai, "_datadog_integration")

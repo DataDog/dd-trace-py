@@ -77,8 +77,8 @@ def genai(ddtrace_global_config, ddtrace_config_google_generativeai, mock_client
                 dict(GOOGLE_GENERATIVEAI_API_KEY=os.getenv("GOOGLE_GENERATIVEAI_API_KEY", "<not-a-real-key>"))
             ):
                 patch()
-                import google.generativeai as genai
                 from google.generativeai import client as client_lib
+                import google.generativeai as genai
 
                 client_lib._client_manager.clients["generative"] = mock_client
                 client_lib._client_manager.clients["generative_async"] = mock_client_async

@@ -107,3 +107,23 @@ async def test_hierarchical_crew_async(crewai, hierarchical_crew, request_vcr):
 async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, request_vcr):
     with request_vcr.use_cassette("test_hierarchical_crew.yaml"):
         await hierarchical_crew.kickoff_for_each_async(inputs=[{"ages": [10, 12, 14, 16, 18]}])
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+def test_simple_flow(crewai, simple_flow):
+    simple_flow.kickoff(inputs={"continent": "North America"})
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_simple_flow")
+async def test_simple_flow_async(crewai, simple_flow_async):
+    await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
+def test_complex_flow(crewai, complex_flow):
+    complex_flow.kickoff(inputs={"continent": "North America"})
+
+
+@pytest.mark.snapshot(token="tests.contrib.crewai.test_crewai.test_complex_flow")
+async def test_complex_flow_async(crewai, complex_flow_async):
+    await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
