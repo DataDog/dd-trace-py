@@ -29,7 +29,8 @@ def _set_span_tags(
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag_str(COMPONENT, config_integration.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     if query is not None:
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         span.set_tag_str(span_name, query)

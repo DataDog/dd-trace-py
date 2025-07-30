@@ -792,7 +792,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) or CURRENT_OS == "Windows":
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",

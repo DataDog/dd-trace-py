@@ -25,6 +25,12 @@ Global Configuration
    variables.
    Default: ``DD_SERVICE``
 
+.. py:data:: ddtrace.config.mcp["distributed_tracing"]
+   Whether or not to enable distributed tracing for MCP requests.
+   Alternatively, you can set this option with the ``DD_MCP_DISTRIBUTED_TRACING`` environment
+   variable.
+   Default: ``True``
+
 Instance Configuration
 ~~~~~~~~~~~~~~~~~~~~~~
 

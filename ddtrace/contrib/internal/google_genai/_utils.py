@@ -6,7 +6,7 @@ from typing import Optional
 
 import wrapt
 
-from ddtrace.llmobs._integrations.google_genai_utils import DEFAULT_MODEL_ROLE
+from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._utils import _get_attr
 
 
@@ -32,7 +32,7 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
                     continue
 
                 if role is None:
-                    role = _get_attr(content, "role", DEFAULT_MODEL_ROLE)
+                    role = _get_attr(content, "role", GOOGLE_GENAI_DEFAULT_MODEL_ROLE)
 
                 parts = _get_attr(content, "parts", [])
                 for part in parts:
