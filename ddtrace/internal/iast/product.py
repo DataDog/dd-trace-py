@@ -12,6 +12,13 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 
+def _drop_safe(module):
+    try:
+        del sys.modules[module]
+    except KeyError:
+        log.debug("IAST: %s module wasn't loaded, drop from sys.modules not needed", module)
+
+
 def post_preload():
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast import enable_iast_propagation
@@ -20,11 +27,9 @@ def post_preload():
         log.debug("Enabling IAST by auto import")
         enable_iast_propagation()
         patch_iast()
-        try:
-            del sys.modules["importlib.metadata"]
-        except KeyError:
-            log.debug("IAST: importlib.metadata wasn't loaded")
-        del sys.modules["inspect"]
+
+        _drop_safe("importlib.metadata")
+        _drop_safe("inspect")
 
 
 def start():
