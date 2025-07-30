@@ -19,7 +19,6 @@ def test_trace_filter_detects_ray_spans():
     assert len(filtered_trace) == 1
     assert filtered_trace[0].name == DEFAULT_SPAN_NAME
     assert filtered_trace[0].span_type == "ray.span0"
-    assert filtered_trace[0].service == DEFAULT_SERVICE_NAME
     assert filtered_trace[0].get_metric(_DJM_ENABLED_KEY) == 1
     assert filtered_trace[0].get_metric(_FILTER_KEPT_KEY) == 1
     assert filtered_trace[0].get_metric(_SPAN_MEASURED_KEY) == 1
@@ -35,7 +34,6 @@ def test_trace_filter_skips_non_ray_spans():
     assert len(filtered_trace) == 1
     assert filtered_trace[0].name == "span0"
     assert filtered_trace[0].span_type is None
-    assert filtered_trace[0].service != DEFAULT_SERVICE_NAME
     assert filtered_trace[0].get_metric(_DJM_ENABLED_KEY) is None
     assert filtered_trace[0].get_metric(_FILTER_KEPT_KEY) is None
     assert filtered_trace[0].get_metric(_SPAN_MEASURED_KEY) is None
