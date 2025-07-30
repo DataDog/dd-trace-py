@@ -121,6 +121,7 @@ class APPSEC(metaclass=Constant_Class):
     RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
     ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
     ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
+    UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -148,6 +149,7 @@ class IAST(metaclass=Constant_Class):
     ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
+    STRUCT: Literal["iast"] = "iast"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
     ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
@@ -273,6 +275,12 @@ class API_SECURITY(metaclass=Constant_Class):
     SAMPLE_RATE: Literal["DD_API_SECURITY_REQUEST_SAMPLE_RATE"] = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
     SAMPLE_DELAY: Literal["DD_API_SECURITY_SAMPLE_DELAY"] = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE: Literal[0x1000000] = 0x1000000  # 16MB maximum size
+    ENDPOINT_COLLECTION: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ENDPOINT_COLLECTION_LIMIT: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
 
 
 class WAF_CONTEXT_NAMES(metaclass=Constant_Class):
@@ -346,6 +354,7 @@ class DEFAULT(metaclass=Constant_Class):
         r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
         r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )
+    ENDPOINT_COLLECTION_LIMIT = 300
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):

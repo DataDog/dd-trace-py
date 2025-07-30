@@ -13,6 +13,8 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
@@ -46,12 +48,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
                 formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-                model_provider = self._execution_ctx["model_provider"]
-                model_name = self._execution_ctx["model_name"]
-                should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
                 core.dispatch(
                     "botocore.bedrock.process_response",
-                    [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
+                    [self._execution_ctx, formatted_response],
                 )
             return body
         except Exception:
@@ -65,12 +64,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             for line in lines:
                 self._body.append(json.loads(line))
             formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-            model_provider = self._execution_ctx["model_provider"]
-            model_name = self._execution_ctx["model_name"]
-            should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
+                [self._execution_ctx, formatted_response],
             )
             return lines
         except Exception:
@@ -91,16 +87,10 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         finally:
             if exception_raised:
                 return
-            metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
-            model_provider = self._execution_ctx["model_provider"]
-            model_name = self._execution_ctx["model_name"]
-            should_set_choice_ids = (
-                model_provider == _COHERE and "is_finished" not in self._body[0] and "embed" not in model_name
-            )
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response, metadata, self._body, should_set_choice_ids],
+                [self._execution_ctx, formatted_response],
             )
 
 
@@ -149,6 +139,8 @@ def _set_llmobs_usage(
     input_tokens: Optional[int],
     output_tokens: Optional[int],
     total_tokens: Optional[int] = None,
+    cache_read_tokens: Optional[int] = None,
+    cache_write_tokens: Optional[int] = None,
 ) -> None:
     """
     Sets LLM usage metrics in the execution context for LLM Observability.
@@ -160,6 +152,10 @@ def _set_llmobs_usage(
         llmobs_usage["output_tokens"] = output_tokens
     if total_tokens is not None:
         llmobs_usage["total_tokens"] = total_tokens
+    if cache_read_tokens is not None:
+        llmobs_usage[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+    if cache_write_tokens is not None:
+        llmobs_usage[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
     if llmobs_usage:
         ctx.set_item("llmobs.usage", llmobs_usage)
 
@@ -370,7 +366,7 @@ def _extract_streamed_response_metadata(
     input_tokens = metadata.get("inputTokenCount")
     output_tokens = metadata.get("outputTokenCount")
 
-    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens))
+    _set_llmobs_usage(ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), None, None, None)
     return {
         "response.duration": metadata.get("invocationLatency", None),
         "usage.prompt_tokens": input_tokens,
@@ -385,6 +381,7 @@ def handle_bedrock_request(ctx: core.ExecutionContext) -> None:
         if ctx["resource"] in ("Converse", "ConverseStream")
         else _extract_request_params_for_invoke(ctx["params"], ctx["model_provider"])
     )
+
     core.dispatch("botocore.patched_bedrock_api_call.started", [ctx, request_params])
     if ctx["bedrock_integration"].llmobs_enabled:
         ctx.set_item("llmobs.request_params", request_params)
@@ -402,6 +399,9 @@ def handle_bedrock_response(
     output_tokens = http_headers.get("x-amzn-bedrock-output-token-count", "")
     request_latency = str(http_headers.get("x-amzn-bedrock-invocation-latency", ""))
 
+    cache_read_tokens = None
+    cache_write_tokens = None
+
     if ctx["resource"] == "Converse":
         if "metrics" in result:
             latency = result.get("metrics", {}).get("latencyMs", "")
@@ -412,23 +412,23 @@ def handle_bedrock_response(
                 input_tokens = usage.get("inputTokens", input_tokens)
                 output_tokens = usage.get("outputTokens", output_tokens)
                 total_tokens = usage.get("totalTokens", total_tokens)
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
         if "stopReason" in result:
             ctx.set_item("llmobs.stop_reason", result.get("stopReason"))
 
     _set_llmobs_usage(
-        ctx, safe_token_count(input_tokens), safe_token_count(output_tokens), safe_token_count(total_tokens)
-    )
-
-    # for both converse & invoke, dispatch success event to store basic metrics
-    core.dispatch(
-        "botocore.patched_bedrock_api_call.success",
-        [
-            ctx,
-            str(metadata.get("RequestId", "")),
-            request_latency,
-            str(input_tokens),
-            str(output_tokens),
-        ],
+        ctx,
+        safe_token_count(input_tokens),
+        safe_token_count(output_tokens),
+        safe_token_count(total_tokens),
+        safe_token_count(cache_read_tokens),
+        safe_token_count(cache_write_tokens),
     )
 
     if ctx["resource"] == "Converse":

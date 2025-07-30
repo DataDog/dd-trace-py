@@ -1,15 +1,16 @@
+import asyncio
 import io
 import json
 from typing import Any
 from typing import Dict
 from typing import Optional
-
-import xmltodict
+from typing import Union
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
+from ddtrace.appsec._asm_request_context import set_body_response
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
@@ -26,6 +27,7 @@ from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 log = get_logger(__name__)
@@ -156,24 +158,42 @@ def _on_lambda_start_response(
     _call_waf(("aws_lambda",))
 
 
+def _on_lambda_parse_body(
+    response_body: Optional[Union[str, Dict[str, Any]]],
+):
+    if asm_config._api_security_feature_active:
+        if response_body:
+            set_body_response(response_body)
+
+
 # ASGI
 
 
 async def _on_asgi_request_parse_body(receive, headers):
     if asm_config._asm_enabled:
+        more_body = True
+        body_parts = []
         try:
-            data_received = await receive()
+            while more_body:
+                data_received = await asyncio.wait_for(receive(), asm_config._fast_api_async_body_timeout)
+                if data_received is None:
+                    more_body = False
+                if isinstance(data_received, dict):
+                    more_body = data_received.get("more_body", False)
+                    body_parts.append(data_received.get("body", b""))
+        except asyncio.TimeoutError:
+            pass
         except Exception:
             return receive, None
+        body = b"".join(body_parts)
 
         async def receive_wrapped(once=[True]):
             if once[0]:
                 once[0] = False
-                return data_received
+                return {"type": "http.request", "body": body, "more_body": more_body}
             return await receive()
 
         try:
-            body = data_received.get("body", b"")
             content_type = headers.get("content-type") or headers.get("Content-Type")
             if content_type in ("application/json", "text/json"):
                 if body is None or body == b"":
@@ -305,7 +325,7 @@ def _wsgi_make_block_content(ctx, construct_url):
         if user_agent:
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append(("Content-Length", str(len(content))))
     return status, resp_headers, content
 
@@ -348,7 +368,7 @@ def _asgi_make_block_content(ctx, url):
         if user_agent:
             req_span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
     resp_headers.append((b"Content-Length", str(len(content)).encode()))
     return status, resp_headers, content
 
@@ -369,7 +389,7 @@ def _on_flask_blocked_request(span):
         if user_agent:
             span.set_tag_str(http.USER_AGENT, user_agent)
     except Exception as e:
-        log.warning("Could not set some span tags on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not set some span tags on blocked request: %s", str(e))
 
 
 def _on_start_response_blocked(ctx, flask_config, response_headers, status):
@@ -397,6 +417,7 @@ def listen():
 
     core.on("aws_lambda.start_request", _on_lambda_start_request)
     core.on("aws_lambda.start_response", _on_lambda_start_response)
+    core.on("aws_lambda.parse_body", _on_lambda_parse_body)
 
     core.on("grpc.server.response.message", _on_grpc_server_response)
     core.on("grpc.server.data", _on_grpc_server_data)

@@ -14,6 +14,9 @@ from typing import Set
 from typing import Tuple
 from typing import Union
 
+from ddtrace.ext import SpanTypes
+from ddtrace.internal import core
+
 
 if TYPE_CHECKING:
     import ddtrace.appsec._ddwaf as ddwaf
@@ -181,6 +184,16 @@ class AppSecSpanProcessor(SpanProcessor):
         if span.span_type not in asm_config._asm_processed_span_types:
             return
 
+        if span.span_type == SpanTypes.SERVERLESS:
+            skip_event = core.get_item("appsec_skip_next_lambda_event")
+            if skip_event:
+                core.discard_item("appsec_skip_next_lambda_event")
+                log.debug(
+                    "appsec: ignoring unsupported lambda event",
+                )
+                span.set_metric(APPSEC.UNSUPPORTED_EVENT_TYPE, 1.0)
+                return
+
         ctx = self._ddwaf._at_request_start()
         _asm_request_context.start_context(span, ctx.rc_products if ctx is not None else "")
         peer_ip = _asm_request_context.get_ip()
@@ -265,7 +278,7 @@ class AppSecSpanProcessor(SpanProcessor):
                     data[waf_name] = _transform_headers(value) if key.endswith("HEADERS_NO_COOKIES") else value
                     if waf_name in WAF_DATA_NAMES.PERSISTENT_ADDRESSES:
                         data_already_sent.add(key)
-                    log.debug("[action] WAF got value %s", SPAN_DATA_NAMES.get(key, key))
+                    log.debug("[action] WAF got value %s", WAF_DATA_NAMES.get(key, key))
 
         # small optimization to avoid running the waf if there is no data to check
         if not data and not ephemeral_data:

@@ -52,6 +52,18 @@ Configuration
 
    Default: ``'asgi'``
 
+.. _asgi-config-obfuscation:
+
+.. py:data:: ddtrace.config.asgi['obfuscate_404_resource']
+
+   Indicates whether to obfuscate resource name for spans that result in a 404 response code.
+
+   This setting also applies to other integrations built on ASGI, including FastAPI and Starlette.
+
+   Can also be configured via the ``DD_ASGI_OBFUSCATE_404_RESOURCE`` environment variable.
+
+   Default: ``'False'``
+
 .. __: https://asgi.readthedocs.io/
 """
 

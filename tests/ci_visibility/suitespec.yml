@@ -7,17 +7,12 @@ components:
   dd_coverage:
     - ddtrace/internal/coverage/*
   pytest:
-    - ddtrace/contrib/_pytest.py
-    - ddtrace/contrib/_pytest_bdd.py
-    - ddtrace/contrib/_pytest_benchmark.py
     - ddtrace/contrib/internal/pytest/*
     - ddtrace/contrib/internal/pytest_bdd/*
     - ddtrace/contrib/internal/pytest_benchmark/*
   selenium:
-    - ddtrace/contrib/_selenium.py
     - ddtrace/contrib/internal/selenium/*
   unittest:
-    - ddtrace/contrib/_unittest.py
     - ddtrace/contrib/internal/unittest/*
   freezegun:
     - ddtrace/contrib/internal/freezegun/*
@@ -62,6 +57,7 @@ suites:
       - tests/contrib/pytest/*
       - tests/contrib/pytest_benchmark/*
       - tests/contrib/pytest_bdd/*
+      - tests/contrib/pytest_flaky/*
       - tests/snapshots/tests.contrib.pytest.*
     runner: riot
     snapshot: true
@@ -82,10 +78,10 @@ suites:
       - tests/contrib/pytest_bdd/*
       - tests/snapshots/tests.contrib.pytest.*
     pattern: pytest_plugin_v2
-    runner: hatch
+    runner: riot
     snapshot: true
   selenium:
-    parallelism: 4
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'

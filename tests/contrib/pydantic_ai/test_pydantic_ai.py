@@ -1,5 +1,7 @@
 import pytest
 
+from tests.contrib.pydantic_ai.utils import calculate_square_tool
+
 
 async def test_agent_run(pydantic_ai, snapshot_context, request_vcr):
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_run"):
@@ -48,10 +50,6 @@ def test_agent_with_tool(pydantic_ai, snapshot_context, request_vcr):
     instructions = "Use the provided tool to calculate the square of 2."
     with snapshot_context(token="tests.contrib.pydantic_ai.test_pydantic_ai.test_agent_with_tools"):
         with request_vcr.use_cassette("agent_with_tools.yaml"):
-
-            def calculate_square_tool(x: int) -> int:
-                return x * x
-
             agent = pydantic_ai.Agent(
                 model="gpt-4o", name="test_agent", tools=[calculate_square_tool], instructions=instructions
             )

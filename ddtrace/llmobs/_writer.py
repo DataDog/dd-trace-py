@@ -1,9 +1,13 @@
 import atexit
+import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
+from typing import cast
+from urllib.parse import quote
 
 
 # TypedDict was added to typing in python 3.8
@@ -24,6 +28,7 @@ from ddtrace.internal.utils.http import get_connection
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
+from ddtrace.llmobs._constants import AGENTLESS_EXP_BASE_URL
 from ddtrace.llmobs._constants import AGENTLESS_SPAN_BASE_URL
 from ddtrace.llmobs._constants import DROPPED_IO_COLLECTION_ERROR
 from ddtrace.llmobs._constants import DROPPED_VALUE_TEXT
@@ -33,8 +38,13 @@ from ddtrace.llmobs._constants import EVP_EVENT_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PAYLOAD_SIZE_LIMIT
 from ddtrace.llmobs._constants import EVP_PROXY_AGENT_BASE_PATH
 from ddtrace.llmobs._constants import EVP_SUBDOMAIN_HEADER_NAME
+from ddtrace.llmobs._constants import EXP_SUBDOMAIN_NAME
 from ddtrace.llmobs._constants import SPAN_ENDPOINT
 from ddtrace.llmobs._constants import SPAN_SUBDOMAIN_NAME
+from ddtrace.llmobs._experiment import Dataset
+from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordRaw
+from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -68,9 +78,24 @@ class LLMObsEvaluationMetricEvent(TypedDict, total=False):
     categorical_value: str
     numerical_value: float
     score_value: float
+    boolean_value: bool
     ml_app: str
     timestamp_ms: int
     tags: List[str]
+
+
+class LLMObsExperimentEvalMetricEvent(TypedDict, total=False):
+    span_id: str
+    trace_id: str
+    timestamp_ms: int
+    metric_type: str
+    label: str
+    categorical_value: str
+    score_value: float
+    boolean_value: bool
+    error: Optional[Dict[str, str]]
+    tags: List[str]
+    experiment_id: str
 
 
 def should_use_agentless(user_defined_agentless_enabled: Optional[bool] = None) -> bool:
@@ -109,6 +134,7 @@ class BaseLLMObsWriter(PeriodicService):
         is_agentless: bool,
         _site: str = "",
         _api_key: str = "",
+        _app_key: str = "",
         _override_url: str = "",
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
@@ -118,6 +144,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._timeout: float = timeout
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
+        self._app_key: str = _app_key
         self._override_url: str = _override_url
 
         self._agentless: bool = is_agentless
@@ -128,6 +155,8 @@ class BaseLLMObsWriter(PeriodicService):
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
+            if self._app_key:
+                self._headers["DD-APPLICATION-KEY"] = self._app_key
         else:
             self._headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
@@ -263,6 +292,223 @@ class LLMObsEvalMetricWriter(BaseLLMObsWriter):
         return {"data": {"type": "evaluation_metric", "attributes": {"metrics": events}}}
 
 
+class LLMObsExperimentsClient(BaseLLMObsWriter):
+    EVENT_TYPE = "experiment"
+    EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
+    AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
+    ENDPOINT = ""
+
+    def request(self, method: str, path: str, body: JSONType = None) -> Response:
+        headers = {
+            "Content-Type": "application/json",
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+        if not self._agentless:
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+
+        encoded_body = json.dumps(body).encode("utf-8") if body else b""
+        conn = get_connection(self._intake)
+        try:
+            url = self._intake + self._endpoint + path
+            logger.debug("requesting %s", url)
+            conn.request(method, url, encoded_body, headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+    def dataset_delete(self, dataset_id: str) -> None:
+        path = "/api/unstable/llm-obs/v1/datasets/delete"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "datasets",
+                    "attributes": {
+                        "type": "soft",
+                        "dataset_ids": [dataset_id],
+                    },
+                },
+            },
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to delete dataset {id}: {resp.get_json()}")
+        return None
+
+    def dataset_create(self, name: str, description: str) -> Dataset:
+        path = "/api/unstable/llm-obs/v1/datasets"
+        body: JSONType = {
+            "data": {
+                "type": "datasets",
+                "attributes": {"name": name, "description": description},
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        dataset_id = response_data["data"]["id"]
+        curr_version = response_data["data"]["attributes"]["current_version"]
+        return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
+
+    def dataset_batch_update(
+        self,
+        dataset_id: str,
+        insert_records: List[DatasetRecordRaw],
+        update_records: List[DatasetRecord],
+        delete_record_ids: List[str],
+    ) -> Tuple[int, List[str]]:
+        irs: JSONType = [
+            {
+                "input": cast(Dict[str, JSONType], r["input_data"]),
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+            }
+            for r in insert_records
+        ]
+        urs: JSONType = [
+            {
+                "input": cast(Dict[str, JSONType], r["input_data"]),
+                "expected_output": r["expected_output"],
+                "metadata": r.get("metadata", {}),
+                "id": r["record_id"],
+            }
+            for r in update_records
+        ]
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
+        body: JSONType = {
+            "data": {
+                "type": "datasets",
+                "id": dataset_id,
+                "attributes": {
+                    "insert_records": irs,
+                    "update_records": urs,
+                    "delete_records": cast(JSONType, delete_record_ids),  # mypy bug?
+                },
+            }
+        }
+        resp = self.request("POST", path, body)
+        if resp.status != 200:
+            raise ValueError(f"Failed to update dataset {dataset_id}: {resp.status}")  # nosec
+        response_data = resp.get_json()
+        data = response_data["data"]
+
+        # FIXME: we don't get version numbers in responses to deletion requests
+        new_version = data[0]["attributes"]["version"] if data else -1
+        new_record_ids: List[str] = [r["id"] for r in data] if data else []
+        return new_version, new_record_ids
+
+    def dataset_get_with_records(self, name: str) -> Dataset:
+        path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status}")
+
+        response_data = resp.get_json()
+        data = response_data["data"]
+        if not data:
+            raise ValueError(f"Dataset '{name}' not found")
+
+        curr_version = data[0]["attributes"]["current_version"]
+        dataset_description = data[0]["attributes"].get("description", "")
+        dataset_id = data[0]["id"]
+
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
+        records_data = resp.get_json()
+
+        class_records: List[DatasetRecord] = []
+        for record in records_data.get("data", []):
+            attrs = record.get("attributes", {})
+            class_records.append(
+                {
+                    "record_id": record["id"],
+                    "input_data": attrs["input"],
+                    "expected_output": attrs["expected_output"],
+                    "metadata": attrs.get("metadata", {}),
+                }
+            )
+        return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
+
+    def project_create_or_get(self, name: str) -> str:
+        path = "/api/unstable/llm-obs/v1/projects"
+        resp = self.request(
+            "POST",
+            path,
+            body={"data": {"type": "projects", "attributes": {"name": name, "description": ""}}},
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create project {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        return response_data["data"]["id"]
+
+    def experiment_create(
+        self,
+        name: str,
+        dataset_id: str,
+        project_id: str,
+        dataset_version: int = 0,
+        exp_config: Optional[Dict[str, JSONType]] = None,
+        tags: Optional[List[str]] = None,
+        description: Optional[str] = None,
+    ) -> Tuple[str, str]:
+        path = "/api/unstable/llm-obs/v1/experiments"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": {
+                        "name": name,
+                        "description": description or "",
+                        "dataset_id": dataset_id,
+                        "project_id": project_id,
+                        "dataset_version": dataset_version,
+                        "config": exp_config or {},
+                        "metadata": {"tags": cast(JSONType, tags or [])},
+                        "ensure_unique": True,
+                    },
+                }
+            },
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to create experiment {name}: {resp.status} {resp.get_json()}")
+        response_data = resp.get_json()
+        experiment_id = response_data["data"]["id"]
+        experiment_run_name = response_data["data"]["attributes"]["name"]  # API calls run-name as name
+        return experiment_id, experiment_run_name
+
+    def experiment_eval_post(
+        self, experiment_id: str, events: List[LLMObsExperimentEvalMetricEvent], tags: List[str]
+    ) -> None:
+        path = f"/api/unstable/llm-obs/v1/experiments/{experiment_id}/events"
+        resp = self.request(
+            "POST",
+            path,
+            body={
+                "data": {
+                    "type": "experiments",
+                    "attributes": {
+                        "scope": "experiments",
+                        "metrics": cast(List[JSONType], events),
+                        "tags": cast(List[JSONType], tags),
+                    },
+                }
+            },
+        )
+        if resp.status not in (200, 202):
+            raise ValueError(
+                f"Failed to post experiment evaluation metrics for {experiment_id}: {resp.status} {resp.get_json()}"
+            )
+        logger.debug("Sent %d experiment evaluation metrics for %s", len(events), experiment_id)
+        return None
+
+
 class LLMObsSpanWriter(BaseLLMObsWriter):
     """Writes span events to the LLMObs Span Endpoint."""
 
@@ -287,10 +533,18 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         self._enqueue(event, truncated_event_size or raw_event_size)
 
     def _data(self, events: List[LLMObsSpanEvent]) -> List[Dict[str, Any]]:
-        return [
-            {"_dd.stage": "raw", "_dd.tracer_version": ddtrace.__version__, "event_type": "span", "spans": [event]}
-            for event in events
-        ]
+        payload = []
+        for event in events:
+            event_data = {
+                "_dd.stage": "raw",
+                "_dd.tracer_version": ddtrace.__version__,
+                "event_type": "span",
+                "spans": [event],
+            }
+            if event.get("_dd", {}).get("scope") == "experiments":
+                event_data["_dd.scope"] = "experiments"
+            payload.append(event_data)
+        return payload
 
 
 def _truncate_span_event(event: LLMObsSpanEvent) -> LLMObsSpanEvent:
