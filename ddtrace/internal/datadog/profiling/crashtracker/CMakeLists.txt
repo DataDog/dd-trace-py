@@ -80,37 +80,7 @@ if(LIB_INSTALL_DIR)
         RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
 
-# Crashtracker receiver binary
-add_executable(crashtracker_exe python_runtime_stub.c src/crashtracker.cpp)
-target_include_directories(crashtracker_exe PRIVATE .. ${Datadog_INCLUDE_DIRS})
-
-# The CRASHTRACKER_EXE_TARGET_NAME should have been set by dd_wrapper
-if(NOT CRASHTRACKER_EXE_TARGET_NAME)
-    message(FATAL_ERROR "CRASHTRACKER_EXE_TARGET_NAME not set")
-endif()
-
-if(APPLE)
-    set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "@loader_path/.." OUTPUT_NAME
-                                                                                      ${CRASHTRACKER_EXE_TARGET_NAME})
-elseif(UNIX)
-    set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH "$ORIGIN/.." OUTPUT_NAME
-                                                                                 ${CRASHTRACKER_EXE_TARGET_NAME})
-
-    # To let crashtracker find Python library at runtime
-    set_target_properties(crashtracker_exe PROPERTIES INSTALL_RPATH_USE_LINK_PATH TRUE)
-endif()
-
-target_link_libraries(crashtracker_exe PRIVATE dd_wrapper)
-
 # See the dd_wrapper CMakeLists.txt for a more detailed explanation of why we do what we do.
 if(INPLACE_LIB_INSTALL_DIR)
     set(LIB_INSTALL_DIR "${INPLACE_LIB_INSTALL_DIR}")
-endif()
-
-if(LIB_INSTALL_DIR)
-    install(
-        TARGETS crashtracker_exe
-        LIBRARY DESTINATION ${LIB_INSTALL_DIR}
-        ARCHIVE DESTINATION ${LIB_INSTALL_DIR}
-        RUNTIME DESTINATION ${LIB_INSTALL_DIR})
 endif()
