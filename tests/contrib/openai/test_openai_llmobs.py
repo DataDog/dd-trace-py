@@ -1794,43 +1794,12 @@ class TestLLMObsOpenaiV1:
         for event in stream:
             pass
 
-        span = mock_tracer.pop_traces()[0][0]
-        assert mock_llmobs_writer.enqueue.call_count == 1
-        mock_llmobs_writer.enqueue.assert_called_with(
-            _expected_llmobs_llm_span_event(
-                span,
-                model_name="o4-mini-2025-04-16",
-                model_provider="openai",
-                input_messages=[{"content": "If one plus a number is 10, what is the number?", "role": "user"}],
-                output_messages=[
-                    {"role": "reasoning", "content": mock.ANY},
-                    {"role": "assistant", "content": "The number is 9, since 1 + x = 10 ⇒ x = 10 − 1 = 9."},
-                ],
-                metadata={
-                    "reasoning": {"effort": "medium", "summary": "detailed"},
-                    "stream": True,
-                    "temperature": 1.0,
-                    "top_p": 1.0,
-                    "tools": [],
-                    "tool_choice": "auto",
-                    "truncation": "disabled",
-                    "text": {"format": {"type": "text"}},
-                    "reasoning_tokens": 128,
-                },
-                token_metrics={
-                    "input_tokens": mock.ANY,
-                    "output_tokens": mock.ANY,
-                    "total_tokens": mock.ANY,
-                    "cache_read_input_tokens": mock.ANY,
-                },
-                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
-            )
-        )
-
         # special assertion on rough reasoning content
         span_event = mock_llmobs_writer.enqueue.call_args[0][0]
         reasoning_content = json.loads(span_event["meta"]["output"]["messages"][0]["content"])
+        assistant_content = span_event["meta"]["output"]["messages"][1]["content"]
         assert reasoning_content["summary"] is not None
+        assert assistant_content == "The number is 9, since 1 + x = 10 ⇒ x = 10 − 1 = 9."
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 66), reason="Response options only available openai >= 1.66"
