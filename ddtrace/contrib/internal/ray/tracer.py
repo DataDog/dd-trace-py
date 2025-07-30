@@ -1,20 +1,29 @@
 import os
 
-import ddtrace.auto
+import ddtrace.auto  # ignore: F401
+from ddtrace.constants import _DJM_ENABLED_KEY
+from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer
 
 
+RAY_JOB_ID_TAG_KEY = "ray.job_id"
+DEFAULT_SERVICE_NAME = "unspecified-ray-job"
+DEFAULT_SPAN_NAME = "ray.job"
+
 class RayTraceFilter(TraceFilter):
     def process_trace(self, trace):
         for span in trace:
-            span.span_type = "ray." + span.name
-            span.name = "ray.job"
-            span.service = os.environ.get("DD_SERVICE", "unspecified-ray-job")
-            span.set_metric("_dd.djm.enabled", 1)
-            span.set_metric("_dd.filter.kept", 1)
-            span.set_metric("_dd.measured", 1)
-            span.set_metric("_sampling_priority_v1", 2)
+            if span.get_tag(RAY_JOB_ID_TAG_KEY) is not None:
+                span.span_type = f"ray.{span.name}"
+                span.name = DEFAULT_SPAN_NAME
+                span.service = os.environ.get("DD_SERVICE", DEFAULT_SERVICE_NAME)
+                span.set_metric(_DJM_ENABLED_KEY, 1)
+                span.set_metric(_FILTER_KEPT_KEY, 1)
+                span.set_metric(_SPAN_MEASURED_KEY, 1)
+                span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
         return trace
 
 

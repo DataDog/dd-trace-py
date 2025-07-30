@@ -1,4 +1,10 @@
 from ddtrace._trace.span import Span
+from ddtrace.constants import _DJM_ENABLED_KEY
+from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.contrib.internal.ray.tracer import DEFAULT_SERVICE_NAME
+from ddtrace.contrib.internal.ray.tracer import DEFAULT_SPAN_NAME
 from ddtrace.contrib.internal.ray.tracer import RayTraceFilter
 
 
@@ -9,9 +15,9 @@ def test_trace_filter():
 
     assert len(filtered_trace) == 1
     assert filtered_trace[0].span_type == "ray.span0"
-    assert filtered_trace[0].name == "ray.job"
-    assert filtered_trace[0].service == "unspecified-ray-job"
-    assert filtered_trace[0].get_metric("_dd.djm.enabled") == 1
-    assert filtered_trace[0].get_metric("_dd.filter.kept") == 1
-    assert filtered_trace[0].get_metric("_dd.measured") == 1
-    assert filtered_trace[0].get_metric("_sampling_priority_v1") == 2
+    assert filtered_trace[0].name == DEFAULT_SPAN_NAME
+    assert filtered_trace[0].service == DEFAULT_SERVICE_NAME
+    assert filtered_trace[0].get_metric(_DJM_ENABLED_KEY) == 1
+    assert filtered_trace[0].get_metric(_FILTER_KEPT_KEY) == 1
+    assert filtered_trace[0].get_metric(_SPAN_MEASURED_KEY) == 1
+    assert filtered_trace[0].get_metric(_SAMPLING_PRIORITY_KEY) == 2
