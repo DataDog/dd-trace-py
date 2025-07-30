@@ -445,7 +445,7 @@ class CustomBuildExt(build_ext):
         link_file = None
         if sys.platform == "win32":
             try:
-                library, = target_dir.glob("_native.dll")
+                (library,) = target_dir.glob("_native.dll")
             except StopIteration:
                 raise RuntimeError(f"Could not find _native.dll in {target_dir}")
 
