@@ -286,17 +286,11 @@ class Context(object):
         return False
 
     def __repr__(self) -> str:
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s, _is_remote=%s)" % (
-            self.trace_id,
-            self.span_id,
-            self._meta,
-            self._metrics,
-            self._span_links,
-            self._baggage,
-            self._is_remote,
+        return (
+            f"Context(trace_id={self.trace_id}, span_id={self.span_id}, _meta={self._meta}, "
+            f"_metrics={self._metrics}, _span_links={self._span_links}, _baggage={self._baggage}, "
+            f"_is_remote={self._is_remote})"
         )
 
     def __hash__(self) -> int:
         return hash(self.trace_id)
-
-    __str__ = __repr__
