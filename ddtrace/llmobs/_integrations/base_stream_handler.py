@@ -151,8 +151,8 @@ class TracedStream(wrapt.ObjectProxy):
             self._self_handler.finalize_stream()
             raise
         except Exception as e:
-            self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
+            self._self_handler.handle_exception(e)
+            self._self_handler.finalize_stream(e)
             raise
 
     def __enter__(self):
@@ -226,8 +226,8 @@ class TracedAsyncStream(wrapt.ObjectProxy):
             self._self_handler.finalize_stream()
             raise
         except Exception as e:
-            self._handler.handle_exception(e)
-            self._handler.finalize_stream(e)
+            self._self_handler.handle_exception(e)
+            self._self_handler.finalize_stream(e)
             raise
 
     async def __aenter__(self):
