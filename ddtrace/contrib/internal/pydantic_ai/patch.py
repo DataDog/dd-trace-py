@@ -106,7 +106,7 @@ def patch():
     wrap(pydantic_ai, "agent.Agent.iter", traced_agent_iter(pydantic_ai))
     wrap(pydantic_ai, "agent.Agent.run_stream", traced_agent_run_stream(pydantic_ai))
     if PYDANTIC_AI_SLIM_VERSION >= (0, 4, 4):
-        wrap(pydantic_ai, "_tool_manager.ToolManager.handle_call", traced_tool_manager_call(pydantic_ai))
+        wrap(pydantic_ai, "agent.ToolManager.handle_call", traced_tool_manager_call(pydantic_ai))
     else:
         wrap(pydantic_ai, "tools.Tool.run", traced_tool_call(pydantic_ai))
 
@@ -122,7 +122,7 @@ def unpatch():
     unwrap(pydantic_ai.agent.Agent, "iter")
     unwrap(pydantic_ai.agent.Agent, "run_stream")
     if PYDANTIC_AI_SLIM_VERSION >= (0, 4, 4):
-        unwrap(pydantic_ai._tool_manager.ToolManager, "handle_call")
+        unwrap(pydantic_ai.agent.ToolManager, "handle_call")
     else:
         unwrap(pydantic_ai.tools.Tool, "run")
 
