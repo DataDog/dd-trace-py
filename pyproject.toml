@@ -35,13 +35,15 @@ dependencies = [
     "opentelemetry-api>=1",
     "protobuf>=3",
     "typing_extensions",
-    "xmltodict>=0.12",
     "wrapt>=1",
 ]
 
 [project.optional-dependencies]
 opentracing = [
     "opentracing>=2.0.0",
+]
+opentelemetry = [
+    "opentelemetry-exporter-otlp>=1.0.0",
 ]
 openai = [
     "tiktoken",

@@ -13,6 +13,7 @@ import pytest
 import ddtrace
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
+from ddtrace.appsec._utils import get_security
 from ddtrace.appsec._utils import get_triggers
 from ddtrace.internal import constants
 from ddtrace.settings.asm import config as asm_config
@@ -1842,23 +1843,25 @@ class Contrib_TestClass_For_Threats:
             sampling_decision = root_span().get_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
             assert span_sampling_priority < 2 or sampling_decision != f"-{constants.SamplingMechanism.APPSEC}"
 
-    def test_iast(self, interface, root_span, get_tag):
+    @pytest.mark.parametrize("metastruct", [True, False])
+    def test_iast(self, interface, root_span, get_tag, metastruct):
         from ddtrace.ext import http
 
-        url = "/rasp/command_injection/?cmds=."
-        self.update_tracer(interface)
-        response = interface.client.get(url)
-        assert self.status(response) == 200
-        assert get_tag(http.STATUS_CODE) == "200"
-        assert self.body(response).startswith("command_injection endpoint")
-        stack_traces = self.get_stack_trace(root_span, "vulnerability")
-        if asm_config._iast_enabled:
-            assert get_tag("_dd.iast.json") is not None
-            # checking for iast stack traces
-            assert stack_traces
-        else:
-            assert get_tag("_dd.iast.json") is None
-            assert stack_traces == []
+        with override_global_config(dict(_use_metastruct_for_iast=metastruct)):
+            url = "/rasp/command_injection/?cmds=."
+            self.update_tracer(interface)
+            response = interface.client.get(url)
+            assert self.status(response) == 200
+            assert get_tag(http.STATUS_CODE) == "200"
+            assert self.body(response).startswith("command_injection endpoint")
+            stack_traces = self.get_stack_trace(root_span, "vulnerability")
+            if asm_config._iast_enabled:
+                assert get_security(root_span()) is not None
+                # checking for iast stack traces
+                assert stack_traces
+            else:
+                assert get_security(root_span()) is None
+                assert stack_traces == []
 
 
 @contextmanager

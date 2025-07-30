@@ -10,23 +10,19 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "67adccc600000000",
-      "langchain.request.inputs.0.language": "Spanish",
-      "langchain.request.inputs.0.person": "Spongebob Squarepants",
-      "langchain.request.type": "chain",
-      "langchain.response.outputs.0": "La ciudad ficticia de Fondo de Bikini, de la serie de televisi\u00f3n Spongebob Squarepants, est\u00e1 ubicada en el fondo del mar en un l...",
+      "_dd.p.tid": "687509d100000000",
       "language": "python",
-      "runtime-id": "8ce587add20f44bd81b0c66be4a88894"
+      "runtime-id": "0e0fcbcf2970484e9ac7faed7e74ab0e"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 69386
+      "process_id": 23889
     },
-    "duration": 49157000,
-    "start": 1739443398066669000
+    "duration": 12833000,
+    "start": 1752500689056515000
   },
      {
        "name": "langchain.request",
@@ -37,17 +33,11 @@
        "parent_id": 1,
        "type": "",
        "error": 0,
-       "meta": {
-         "langchain.request.inputs.0.language": "Spanish",
-         "langchain.request.inputs.0.person": "Spongebob Squarepants",
-         "langchain.request.type": "chain",
-         "langchain.response.outputs.0": "Spongebob Squarepants is from the fictional underwater city of Bikini Bottom."
-       },
        "metrics": {
          "_dd.measured": 1
        },
-       "duration": 32983000,
-       "start": 1739443398077524000
+       "duration": 5319000,
+       "start": 1752500689059867000
      },
         {
           "name": "langchain.request",
@@ -59,28 +49,14 @@
           "type": "",
           "error": 0,
           "meta": {
-            "langchain.request.api_key": "...key>",
-            "langchain.request.messages.0.0.content": "what is the city Spongebob Squarepants is from?",
-            "langchain.request.messages.0.0.message_type": "HumanMessage",
             "langchain.request.model": "gpt-3.5-turbo",
-            "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
-            "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
-            "langchain.request.openai.parameters.n": "1",
-            "langchain.request.openai.parameters.stream": "False",
-            "langchain.request.openai.parameters.temperature": "0.7",
-            "langchain.request.provider": "openai",
-            "langchain.request.type": "chat_model",
-            "langchain.response.completions.0.0.content": "Spongebob Squarepants is from the fictional underwater city of Bikini Bottom.",
-            "langchain.response.completions.0.0.message_type": "AIMessage"
+            "langchain.request.provider": "openai"
           },
           "metrics": {
-            "_dd.measured": 1,
-            "langchain.tokens.completion_tokens": 16,
-            "langchain.tokens.prompt_tokens": 18,
-            "langchain.tokens.total_tokens": 34
+            "_dd.measured": 1
           },
-          "duration": 30679000,
-          "start": 1739443398079268000
+          "duration": 3491000,
+          "start": 1752500689061425000
         },
      {
        "name": "langchain.request",
@@ -92,26 +68,12 @@
        "type": "",
        "error": 0,
        "meta": {
-         "langchain.request.api_key": "...key>",
-         "langchain.request.messages.0.0.content": "what country is the city Spongebob Squarepants is from the fictional underwater city of Bikini Bottom. in? respond in Spanish",
-         "langchain.request.messages.0.0.message_type": "HumanMessage",
          "langchain.request.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.model_name": "gpt-3.5-turbo",
-         "langchain.request.openai.parameters.n": "1",
-         "langchain.request.openai.parameters.stream": "False",
-         "langchain.request.openai.parameters.temperature": "0.7",
-         "langchain.request.provider": "openai",
-         "langchain.request.type": "chat_model",
-         "langchain.response.completions.0.0.content": "La ciudad ficticia de Fondo de Bikini, de la serie de televisi\u00f3n Spongebob Squarepants, est\u00e1 ubicada en el fondo del mar en un l...",
-         "langchain.response.completions.0.0.message_type": "AIMessage"
+         "langchain.request.provider": "openai"
        },
        "metrics": {
-         "_dd.measured": 1,
-         "langchain.tokens.completion_tokens": 37,
-         "langchain.tokens.prompt_tokens": 32,
-         "langchain.tokens.total_tokens": 69
+         "_dd.measured": 1
        },
-       "duration": 4200000,
-       "start": 1739443398111387000
+       "duration": 3232000,
+       "start": 1752500689065903000
      }]]

@@ -393,6 +393,16 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
+- integration_name: gunicorn
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - gunicorn
+  tested_versions_by_dependency:
+    gunicorn:
+      min: 20.0.4
+      max: 23.0.0
+
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
@@ -555,6 +565,16 @@ integrations:
       min: 1.0.11
       max: 1.1.12
 
+- integration_name: mcp
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - mcp
+  tested_versions_by_dependency:
+    mcp:
+      min: 1.10.0
+      max: 1.11.0
+
 - integration_name: molten
   is_external_package: true
   is_tested: true
@@ -647,7 +667,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.3.3
+      max: 0.3.5
 
 - integration_name: pylibmc
   is_external_package: true
@@ -833,7 +853,7 @@ integrations:
   tested_versions_by_dependency:
     starlette:
       min: 0.14.2
-      max: 0.39.2
+      max: 0.47.1
 
 - integration_name: structlog
   is_external_package: true
