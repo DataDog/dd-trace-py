@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "ExFlow",
+    "service": "tests.contrib.crewai",
+    "resource": "CrewAI Flow",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688a6cac00000000",
+      "language": "python",
+      "runtime-id": "5dd5230615214af6a668a6124e22e4b4"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 26333
+    },
+    "duration": 120768000,
+    "start": 1753902252890209000
+  },
+     {
+       "name": "generate_city",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Flow Method",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 55178000,
+       "start": 1753902252890303000
+     },
+     {
+       "name": "generate_fun_fact",
+       "service": "tests.contrib.crewai",
+       "resource": "CrewAI Flow Method",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.measured": 1
+       },
+       "duration": 65128000,
+       "start": 1753902252945642000
+     }]]
