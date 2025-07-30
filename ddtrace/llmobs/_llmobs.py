@@ -44,6 +44,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -77,6 +78,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
@@ -256,7 +258,10 @@ class LLMObs(Service):
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        meta["metadata"] = span._get_ctx_item(METADATA) or {}
+        metadata = span._get_ctx_item(METADATA) or {}
+        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
+            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+        meta["metadata"] = metadata
 
         input_type: Literal["value", "messages", ""] = ""
         output_type: Literal["value", "messages", ""] = ""
@@ -300,6 +305,8 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
+        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
+            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
             meta.update(
                 {

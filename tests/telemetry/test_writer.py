@@ -79,7 +79,7 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = test_agent_session.get_configurations(name=env_var)
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
@@ -296,14 +296,17 @@ import ddtrace.settings.exception_replay
 
     # DD_TRACE_AGENT_URL in gitlab is different from CI, to keep things simple we will
     # skip validating this config
-    configurations = test_agent_session.get_configurations(ignores=["DD_TRACE_AGENT_URL"])
+    configurations = test_agent_session.get_configurations(
+        ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
+    )
     assert configurations
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
-        {"name": "DD_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_API_KEY", "origin": "default", "value": None},
         {"name": "DD_API_SECURITY_ENABLED", "origin": "env_var", "value": False},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED", "origin": "default", "value": True},
+        {"name": "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT", "origin": "default", "value": 300},
         {"name": "DD_API_SECURITY_PARSE_RESPONSE_BODY", "origin": "default", "value": True},
         {"name": "DD_API_SECURITY_SAMPLE_DELAY", "origin": "default", "value": 30.0},
         {"name": "DD_APM_TRACING_ENABLED", "origin": "default", "value": True},
@@ -445,7 +448,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_STACK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_STACK_V2_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_TAGS", "origin": "default", "value": ""},
-        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_PROFILING_TIMELINE_ENABLED", "origin": "default", "value": True},
         {"name": "DD_PROFILING_UPLOAD_INTERVAL", "origin": "env_var", "value": 10.0},
         {"name": "DD_REMOTE_CONFIGURATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_REMOTE_CONFIG_POLL_INTERVAL_SECONDS", "origin": "env_var", "value": 1.0},
@@ -469,7 +472,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_TRACE_128_BIT_TRACEID_GENERATION_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_TRACE_128_BIT_TRACEID_LOGGING_ENABLED", "origin": "default", "value": False},
         {"name": "DD_TRACE_AGENT_HOSTNAME", "origin": "default", "value": None},
-        {"name": "DD_TRACE_AGENT_PORT", "origin": "default", "value": None},
         {"name": "DD_TRACE_AGENT_TIMEOUT_SECONDS", "origin": "default", "value": 2.0},
         {"name": "DD_TRACE_API_VERSION", "origin": "env_var", "value": "v0.5"},
         {"name": "DD_TRACE_BAGGAGE_TAG_KEYS", "origin": "default", "value": "user.id,account.id,session.id"},
@@ -552,6 +554,75 @@ def test_update_dependencies_event(test_agent_session, ddtrace_run_python_code_i
     assert status == 0, stderr
     deps = test_agent_session.get_dependencies("xmltodict")
     assert len(deps) == 1, deps
+
+
+def test_endpoint_discovery_event(test_agent_session, ddtrace_run_python_code_in_subprocess):
+    env = os.environ.copy()
+    # app-started events are sent 10 seconds after ddtrace imported, this configuration overrides this
+    # behavior to force the app-started event to be queued immediately
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    # Import httppretty after ddtrace is imported, this ensures that the module is sent in a dependencies event
+    # Imports httpretty twice and ensures only one dependency entry is sent
+
+    mini_django_app = """
+from os import path as osp
+def rel_path(*p): return osp.normpath(osp.join(rel_path.path, *p))
+rel_path.path = osp.abspath(osp.dirname(__file__))
+this = osp.splitext(osp.basename(__file__))[0]
+from django.conf import settings
+SETTINGS = dict(
+    DATABASES = {},
+    DEBUG=True,
+    TEMPLATE_DEBUG=True,
+    ROOT_URLCONF = this
+)
+SETTINGS['DATABASES']={
+    'default':{
+        'ENGINE':'django.db.backends.sqlite3',
+        'NAME':rel_path('db')
+    }
+}
+
+if __name__=='__main__':
+    settings.configure(**SETTINGS)
+
+if __name__ == '__main__':
+    from django.core import management
+    management.execute_from_command_line()
+
+from django.urls import path
+from django.http import HttpResponse
+from django.views.decorators.http import require_http_methods
+@require_http_methods(["GET"])
+def view_name(request):
+    return HttpResponse('response text')
+def mini_app(request):
+    return HttpResponse('response text')
+urlpatterns = [ path('mini_app/',mini_app), path('view_name/', view_name) ]
+"""
+
+    _, stderr, status, _ = ddtrace_run_python_code_in_subprocess(mini_django_app, env=env)
+    assert status == 0, stderr
+    deps = test_agent_session.get_dependencies("django")
+    assert len(deps) == 1, deps
+
+    events = test_agent_session.get_events("app-endpoints")
+    assert len(events) == 1, events
+    payload = events[0]["payload"]
+    assert payload["is_first"] is True
+    endpoints = payload["endpoints"]
+    assert len(endpoints) == 2, endpoints
+    assert any(
+        e["path"] == "mini_app/" and e["method"] == "*" and e["operation_name"] == "django.request" for e in endpoints
+    ), endpoints
+    assert any(
+        e["path"] == "view_name/"
+        and e["method"] == "GET"
+        and e["resource_name"] == "GET view_name/"
+        and e["operation_name"] == "django.request"
+        for e in endpoints
+    ), endpoints
 
 
 def test_instrumentation_source_config(
@@ -672,28 +743,30 @@ def test_app_client_configuration_changed_event(telemetry_writer, test_agent_ses
     telemetry_writer.periodic(force_flush=True)
     """asserts that queuing a configuration sends a valid telemetry request"""
     with override_global_config(dict()):
-        telemetry_writer.add_configuration("appsec_enabled", True)
-        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog")
-        telemetry_writer.add_configuration("appsec_enabled", False, "env_var")
+        telemetry_writer.add_configuration("appsec_enabled", True, "env_var")
+        telemetry_writer.add_configuration("DD_TRACE_PROPAGATION_STYLE_EXTRACT", "datadog", "default")
+        telemetry_writer.add_configuration("appsec_enabled", False, "code")
 
         telemetry_writer.periodic(force_flush=True)
 
         events = test_agent_session.get_events("app-client-configuration-change")
         received_configurations = [c for event in events for c in event["payload"]["configuration"]]
-        received_configurations.sort(key=lambda c: c["name"])
-        # assert the latest configuration value is send to the agent
-        assert received_configurations == [
-            {
-                "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
-                "origin": "unknown",
-                "value": "datadog",
-            },
-            {
-                "name": "appsec_enabled",
-                "origin": "env_var",
-                "value": False,
-            },
-        ]
+        received_configurations.sort(key=lambda c: c["seq_id"])
+        assert (
+            received_configurations[0]["seq_id"]
+            < received_configurations[1]["seq_id"]
+            < received_configurations[2]["seq_id"]
+        )
+        # assert that all configuration values are sent to the agent in the order they were added (by seq_id)
+        assert received_configurations[0]["name"] == "appsec_enabled"
+        assert received_configurations[0]["origin"] == "env_var"
+        assert received_configurations[0]["value"] is True
+        assert received_configurations[1]["name"] == "DD_TRACE_PROPAGATION_STYLE_EXTRACT"
+        assert received_configurations[1]["origin"] == "default"
+        assert received_configurations[1]["value"] == "datadog"
+        assert received_configurations[2]["name"] == "appsec_enabled"
+        assert received_configurations[2]["origin"] == "code"
+        assert received_configurations[2]["value"] is False
 
 
 def test_add_integration_disabled_writer(telemetry_writer, test_agent_session):
@@ -921,7 +994,7 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    configurations = {c["name"]: c for c in test_agent_session.get_configurations()}
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
     assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}

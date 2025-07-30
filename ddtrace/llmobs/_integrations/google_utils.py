@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Tuple
 
 from ddtrace.llmobs._constants import BILLABLE_CHARACTER_COUNT_METRIC_KEY
@@ -9,11 +10,12 @@ from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 
 
-# google genai has roles "model" and "user", but in order to stay consistent with other integrations,
+# Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
 # we use "assistant" as the default role for model messages
-DEFAULT_MODEL_ROLE = "assistant"
+GOOGLE_GENAI_DEFAULT_MODEL_ROLE = "assistant"
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models
 # GeminiAPI: only exports google provided models
@@ -40,9 +42,31 @@ KNOWN_MODEL_PREFIX_TO_PROVIDER = {
 }
 
 
-def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
-    model_path = kwargs.get("model", "")
-    model_name = model_path.split("/")[-1]
+def extract_provider_and_model_name(
+    kwargs: Optional[Dict[str, Any]] = None, instance: Any = None, model_name_attr: Optional[str] = None
+) -> Tuple[str, str]:
+    """
+    Function to extract provider and model name from either kwargs or instance attributes.
+    Args:
+        kwargs: Dictionary containing model information (used for google_genai)
+        instance: Model instance with attributes (used for vertexai and google_generativeai)
+        model_name_attr: Attribute name to extract from instance (e.g., "_model_name", "model_name", used for vertexai
+                         and google_generativeai)
+
+    Returns:
+        Tuple of (provider_name, model_name)
+    """
+    model_path = ""
+    if kwargs is not None:
+        model_path = kwargs.get("model", "")
+    elif instance is not None and model_name_attr is not None:
+        model_path = _get_attr(instance, model_name_attr, "")
+
+    if not model_path or not isinstance(model_path, str):
+        return "custom", "custom"
+
+    model_name = model_path.split("/")[-1] if "/" in model_path else model_path
+
     for prefix in KNOWN_MODEL_PREFIX_TO_PROVIDER.keys():
         if model_name.lower().startswith(prefix):
             provider_name = KNOWN_MODEL_PREFIX_TO_PROVIDER[prefix]
@@ -50,7 +74,7 @@ def extract_provider_and_model_name(kwargs: Dict[str, Any]) -> Tuple[str, str]:
     return "custom", model_name if model_name else "custom"
 
 
-def normalize_contents(contents) -> List[Dict[str, Any]]:
+def normalize_contents_google_genai(contents) -> List[Dict[str, Any]]:
     """
     contents has a complex union type structure:
     - contents: Union[ContentListUnion, ContentListUnionDict]
@@ -142,7 +166,7 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     returns a dict representing a message with format {"role": role, "content": content}
     """
     if role == "model":
-        role = DEFAULT_MODEL_ROLE
+        role = GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 
     message: Dict[str, Any] = {"role": role}
     if isinstance(part, str):
@@ -176,14 +200,87 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     if executable_code:
         language = _get_attr(executable_code, "language", "UNKNOWN")
         code = _get_attr(executable_code, "code", "")
-        message["content"] = {"language": str(language), "code": str(code)}
+        message["content"] = safe_json({"language": str(language), "code": str(code)})
         return message
 
     code_execution_result = _get_attr(part, "code_execution_result", None)
     if code_execution_result:
         outcome = _get_attr(code_execution_result, "outcome", "OUTCOME_UNSPECIFIED")
         output = _get_attr(code_execution_result, "output", "")
-        message["content"] = {"outcome": str(outcome), "output": str(output)}
+        message["content"] = safe_json({"outcome": str(outcome), "output": str(output)})
         return message
 
     return {"content": "Unsupported file type: {}".format(type(part)), "role": role}
+
+
+def llmobs_get_metadata_gemini_vertexai(kwargs, instance):
+    metadata = {}
+    model_config = getattr(instance, "_generation_config", {}) or {}
+    model_config = model_config.to_dict() if hasattr(model_config, "to_dict") else model_config
+    request_config = kwargs.get("generation_config", {}) or {}
+    request_config = request_config.to_dict() if hasattr(request_config, "to_dict") else request_config
+
+    parameters = ("temperature", "max_output_tokens", "candidate_count", "top_p", "top_k")
+    for param in parameters:
+        model_config_value = _get_attr(model_config, param, None)
+        request_config_value = _get_attr(request_config, param, None)
+        if model_config_value or request_config_value:
+            metadata[param] = request_config_value or model_config_value
+    return metadata
+
+
+def extract_message_from_part_gemini_vertexai(part, role=None):
+    text = _get_attr(part, "text", "")
+    function_call = _get_attr(part, "function_call", None)
+    function_response = _get_attr(part, "function_response", None)
+    message = {"content": text}
+    if role:
+        message["role"] = role
+    if function_call:
+        function_call_dict = function_call
+        if not isinstance(function_call, dict):
+            function_call_dict = type(function_call).to_dict(function_call)
+        message["tool_calls"] = [
+            {"name": function_call_dict.get("name", ""), "arguments": function_call_dict.get("args", {})}
+        ]
+    if function_response:
+        function_response_dict = function_response
+        if not isinstance(function_response, dict):
+            function_response_dict = type(function_response).to_dict(function_response)
+        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+    return message
+
+
+def get_system_instructions_gemini_vertexai(model_instance):
+    """
+    Extract system instructions from model and convert to []str for tagging.
+    """
+    try:
+        from google.ai.generativelanguage_v1beta.types.content import Content
+    except ImportError:
+        Content = None
+    try:
+        from vertexai.generative_models._generative_models import Part
+    except ImportError:
+        Part = None
+
+    raw_system_instructions = getattr(model_instance, "_system_instruction", [])
+    if Content is not None and isinstance(raw_system_instructions, Content):
+        system_instructions = []
+        for part in raw_system_instructions.parts:
+            system_instructions.append(_get_attr(part, "text", ""))
+        return system_instructions
+    elif isinstance(raw_system_instructions, str):
+        return [raw_system_instructions]
+    elif Part is not None and isinstance(raw_system_instructions, Part):
+        return [_get_attr(raw_system_instructions, "text", "")]
+    elif not isinstance(raw_system_instructions, list):
+        return []
+
+    system_instructions = []
+    for elem in raw_system_instructions:
+        if isinstance(elem, str):
+            system_instructions.append(elem)
+        elif Part is not None and isinstance(elem, Part):
+            system_instructions.append(_get_attr(elem, "text", ""))
+    return system_instructions

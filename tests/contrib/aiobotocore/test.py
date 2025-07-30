@@ -553,3 +553,102 @@ async def test_response_context_manager(tracer):
         assert span.name == "s3.command"
         assert span.get_tag("component") == "aiobotocore"
         assert span.get_tag("span.kind") == "client"
+
+
+# Peer service tests
+@pytest.mark.asyncio
+async def test_sqs_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for SQS when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("sqs", tracer) as sqs:
+        await sqs.list_queues()
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to sqs hostname
+    assert span.get_tag("peer.service") == "sqs.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_s3_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for S3 when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+    bucket_name = f"{time.time()}bucket".replace(".", "")
+
+    async with aiobotocore_client("s3", tracer) as s3:
+        # Test with bucket parameter
+        await s3.create_bucket(Bucket=bucket_name, CreateBucketConfiguration={"LocationConstraint": "us-west-2"})
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to bucket-specific hostname
+    assert span.get_tag("peer.service") == f"{bucket_name}.s3.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_dynamodb_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for DynamoDB when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("dynamodb", tracer) as dynamodb:
+        await dynamodb.list_tables()
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to dynamodb hostname
+    assert span.get_tag("peer.service") == "dynamodb.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_kinesis_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for Kinesis when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("kinesis", tracer) as kinesis:
+        await kinesis.list_streams()
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to kinesis hostname
+    assert span.get_tag("peer.service") == "kinesis.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_sns_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for SNS when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("sns", tracer) as sns:
+        await sns.list_topics()
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to sns hostname
+    assert span.get_tag("peer.service") == "sns.us-west-2.amazonaws.com"
+
+
+@pytest.mark.asyncio
+async def test_eventbridge_client_peer_service_in_lambda(tracer, monkeypatch):
+    """Test that peer.service tag is set for EventBridge when running in AWS Lambda"""
+    monkeypatch.setenv("AWS_LAMBDA_FUNCTION_NAME", "my-func")
+
+    async with aiobotocore_client("events", tracer) as events:
+        await events.list_rules()
+
+    traces = tracer.pop_traces()
+    assert len(traces) == 1
+    assert len(traces[0]) == 1
+    span = traces[0][0]
+    # Should have peer.service set to events hostname
+    assert span.get_tag("peer.service") == "events.us-west-2.amazonaws.com"
