@@ -64,6 +64,40 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
             if k and v:
                 tags[k] = v
 
+def start() -> bool:
+    if not is_available:
+        print(failure_msg)
+        return False
+
+    import platform
+
+    crashtracker.set_url(crashtracker_config.debug_url or agent_config.trace_agent_url)
+    crashtracker.set_service(config.service)
+    crashtracker.set_version(config.version)
+    crashtracker.set_env(config.env)
+    crashtracker.set_runtime_id(get_runtime_id())
+    crashtracker.set_runtime_version(platform.python_version())
+    crashtracker.set_library_version(version.get_version())
+    crashtracker.set_create_alt_stack(bool(crashtracker_config.create_alt_stack))
+    crashtracker.set_use_alt_stack(bool(crashtracker_config.use_alt_stack))
+    if crashtracker_config.stacktrace_resolver == "fast":
+        crashtracker.set_resolve_frames_fast()
+    elif crashtracker_config.stacktrace_resolver == "full":
+        crashtracker.set_resolve_frames_full()
+    elif crashtracker_config.stacktrace_resolver == "safe":
+        crashtracker.set_resolve_frames_safe()
+    else:
+        crashtracker.set_resolve_frames_disable()
+
+    if crashtracker_config.stdout_filename:
+        crashtracker.set_stdout_filename(crashtracker_config.stdout_filename)
+    if crashtracker_config.stderr_filename:
+        crashtracker.set_stderr_filename(crashtracker_config.stderr_filename)
+
+    # Add user tags
+    for key, value in crashtracker_config.tags.items():
+        add_tag(key, value)
+
     if profiling_config.enabled:
         tags["profiler_config"] = config_str(profiling_config)
 
