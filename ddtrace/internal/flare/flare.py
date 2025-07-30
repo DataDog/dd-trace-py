@@ -134,7 +134,7 @@ class Flare:
             log.warning("Case ID cannot be 0, skipping flare send")
             return False
 
-        if not case_id.isdigit():
+        if not any(c.isdigit() for c in case_id):
             log.warning("Case ID string must contain a digit, skipping flare send")
             return False
 
