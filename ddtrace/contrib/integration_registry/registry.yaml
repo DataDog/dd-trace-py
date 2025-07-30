@@ -917,6 +917,16 @@ integrations:
       min: 6.0.2
       max: 6.0.2
 
+- integration_name: vllm
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - vllm
+  tested_versions_by_dependency:
+    vllm:
+      min: 0.10.0
+      max: 0.10.0
+
 - integration_name: vertexai
   is_external_package: true
   is_tested: true
