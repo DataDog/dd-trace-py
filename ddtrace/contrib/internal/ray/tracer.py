@@ -12,6 +12,7 @@ RAY_JOB_ID_TAG_KEY = "ray.job_id"
 DEFAULT_SERVICE_NAME = "unspecified-ray-job"
 DEFAULT_SPAN_NAME = "ray.job"
 
+
 class RayTraceFilter(TraceFilter):
     def process_trace(self, trace):
         for span in trace:
