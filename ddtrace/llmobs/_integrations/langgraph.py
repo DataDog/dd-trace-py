@@ -46,7 +46,7 @@ EXCLUDED_MODEL_SETTINGS_KEYS = [
 class LangGraphIntegration(BaseLLMIntegration):
     _integration_name = "langgraph"
     _graph_nodes_for_graph_by_task_id: WeakKeyDictionary[Span, Dict[str, Any]] = WeakKeyDictionary()
-    _react_agents_manifests: WeakKeyDictionary[Any, Dict[str, Any]] = WeakKeyDictionary()
+    _agent_manifests: WeakKeyDictionary[Any, Dict[str, Any]] = WeakKeyDictionary()
     _graph_spans_to_graph_instances: WeakKeyDictionary[Span, Any] = WeakKeyDictionary()
 
     def trace(
@@ -54,13 +54,12 @@ class LangGraphIntegration(BaseLLMIntegration):
         pin: Pin,
         operation_id: str,
         submit_to_llmobs: bool = False,
-        is_graph: bool = False,
         instance=None,
         **kwargs,
     ) -> Span:
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
-        if instance and is_graph:
+        if instance:  # instances are only sent as a kwarg for graph spans, not node spans
             self._graph_spans_to_graph_instances[span] = instance
 
         return span
@@ -109,7 +108,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         )
 
         if operation == "graph":
-            agent = kwargs.get("instance")
+            agent = self._graph_spans_to_graph_instances[span]
             agent_manifest = self._get_agent_manifest(span, agent, args, config)
             span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
 
@@ -123,11 +122,11 @@ class LangGraphIntegration(BaseLLMIntegration):
         if agent is None:
             return None
 
-        agent_manifest = self._react_agents_manifests.get(agent)
+        agent_manifest = self._agent_manifests.get(agent)
         if agent_manifest is None:
             tools = _get_tools_from_tool_nodes(agent)
             agent_manifest = {"name": agent.name or "LangGraph", "tools": tools}
-            self._react_agents_manifests[agent] = agent_manifest
+            self._agent_manifests[agent] = agent_manifest
 
         if "framework" not in agent_manifest:
             agent_manifest["framework"] = "LangGraph"
@@ -141,20 +140,6 @@ class LangGraphIntegration(BaseLLMIntegration):
             and isinstance(args[0], dict)
         ):
             agent_manifest["dependencies"] = list(args[0].keys())
-
-        if "handoffs" in agent_manifest:
-            return agent_manifest
-
-        parent_span = _get_nearest_llmobs_ancestor(span)
-        if parent_span is None:
-            return agent_manifest
-
-        parent_graph = self._graph_spans_to_graph_instances.get(parent_span)
-        if parent_graph is None:
-            return agent_manifest
-
-        handoffs = _get_agent_handoffs(agent, parent_graph)
-        agent_manifest["handoffs"] = handoffs
 
         return agent_manifest
 
@@ -177,10 +162,14 @@ class LangGraphIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
 
-        model = get_argument_value(args, kwargs, 0, "model")
+        model = get_argument_value(
+            args, kwargs, 0, "model", True
+        )  # required parameter on the langgraph side, but optional should that ever change
         model_name, model_provider, model_settings = _get_model_info(model)
 
-        agent_tools: List[Any] = get_argument_value(args, kwargs, 1, "tools") or []
+        agent_tools: List[Any] = (
+            get_argument_value(args, kwargs, 1, "tools", True) or []
+        )  # required parameter on the langgraph side, but optional should that ever change
         system_prompt: Optional[str] = kwargs.get("prompt")
         name: Optional[str] = kwargs.get("name")
 
@@ -199,7 +188,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         if name:
             agent_manifest["name"] = name
 
-        self._react_agents_manifests[agent] = agent_manifest
+        self._agent_manifests[agent] = agent_manifest
 
     def llmobs_handle_pregel_loop_tick(
         self, finished_tasks: dict, next_tasks: dict, more_tasks: bool, is_subgraph_node: bool = False
@@ -331,85 +320,6 @@ class LangGraphIntegration(BaseLLMIntegration):
                 }
             )
         graph_span._set_ctx_item(SPAN_LINKS, graph_span_links)
-
-
-def _get_agent_handoffs(agent, agent_parent) -> List[Union[str, Dict[str, Any]]]:
-    handoffs: List[Union[str, Dict[str, Any]]] = []
-
-    disallowed_handoff_nodes = [agent.name, "__start__", "__end__"]
-
-    if agent_parent is None or agent is None:
-        return handoffs
-
-    builder = getattr(agent_parent, "builder", None)
-    if builder is None:
-        return handoffs
-
-    agent_name = getattr(agent, "name", None)
-    if agent_name is None:
-        return handoffs
-
-    edges_handoffs = _get_handoffs_from_edges(builder, agent_name, disallowed_handoff_nodes)
-    handoffs.extend(edges_handoffs)
-
-    branches_handoffs = _get_handoffs_from_branches(builder, agent_name, disallowed_handoff_nodes, agent_parent)
-    handoffs.extend(branches_handoffs)
-
-    return handoffs
-
-
-def _get_handoffs_from_edges(
-    builder, agent_name: str, disallowed_handoff_nodes: List[str]
-) -> List[Union[str, Dict[str, Any]]]:
-    handoffs: List[Union[str, Dict[str, Any]]] = []
-
-    edges: Optional[Set[Tuple[str, str]]] = getattr(builder, "edges", None)
-    if edges is None:
-        return handoffs
-
-    for from_node, to_node in edges:
-        if from_node == agent_name and to_node not in disallowed_handoff_nodes:
-            handoffs.append(to_node)
-    return handoffs
-
-
-def _get_handoffs_from_branches(
-    builder,
-    agent_name: str,
-    disallowed_handoff_nodes: List[str],
-    agent_parent,
-) -> List[Union[str, Dict[str, Any]]]:
-    handoffs: List[Union[str, Dict[str, Any]]] = []
-
-    branches: Optional[Dict[str, Dict[str, Any]]] = getattr(builder, "branches", None)
-    if branches is None:
-        return handoffs
-
-    conditional_edges = dict(branches)
-    conditional_edge = conditional_edges.get(agent_name, {})
-
-    parent_nodes_dict = getattr(agent_parent, "nodes", {}) or {}
-    parent_nodes = parent_nodes_dict.keys()
-
-    if not conditional_edge:
-        return handoffs
-
-    for routing_func, branch in conditional_edge.items():
-        node_ends_from_handoff_dict = getattr(branch, "ends", {}) or {}
-        node_ends_from_handoff = node_ends_from_handoff_dict.values()
-
-        possible_handoff_nodes = node_ends_from_handoff or parent_nodes
-        if not possible_handoff_nodes:
-            continue
-
-        possible_handoff_nodes = [node for node in possible_handoff_nodes if node not in disallowed_handoff_nodes]
-        if not possible_handoff_nodes:
-            handoffs.append({"tool_name": routing_func})
-        else:
-            for node in possible_handoff_nodes:
-                handoffs.append({"tool_name": routing_func, "agent_name": node})
-
-    return handoffs
 
 
 def _get_model_info(model) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:

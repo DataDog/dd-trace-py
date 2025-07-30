@@ -312,10 +312,6 @@ class TestLangGraphLLMObs:
             "max_iterations": 25,
             "dependencies": ["a_list", "which"],
             "name": "agent_a",
-            "handoffs": [
-                {"agent_name": "agent_b", "tool_name": "which"},
-                {"agent_name": "agent_c", "tool_name": "which"},
-            ],
             "tools": [],
         }
 
@@ -324,7 +320,6 @@ class TestLangGraphLLMObs:
             "max_iterations": 25,
             "dependencies": ["a_list", "which"],
             "name": conditional_agent_name,
-            "handoffs": ["agent_d"],
             "tools": [],
         }
 
@@ -333,7 +328,6 @@ class TestLangGraphLLMObs:
             "max_iterations": 25,
             "dependencies": ["a_list", "which"],
             "name": "agent_d",
-            "handoffs": [],
             "tools": [],
         }
 
