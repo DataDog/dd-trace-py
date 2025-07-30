@@ -1127,7 +1127,17 @@ class HTTPPropagator(object):
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
-        :param Union[Span, Context] context: A re
+                with tracer.start_span('child_span2') as span:
+                    headers = {}
+                    # Inject headers using the span object instead of the span context
+                    # since the span is NOT active.
+                    HTTPPropagator.inject(span, headers)
+                    url = '<some RPC endpoint>'
+                    r = requests.get(url, headers=headers)
+
+        :param Union[Span, Context] context: A reference to the span or span context to use to inject headers. In most
+            cases, the span context should be used. However, if the span is not active, the span object should be used
+            to inject headers. This ensures that a sampling decision is made before injecting headers.
         :param dict headers: HTTP headers to extend with tracing attributes.
         :param Span non_active_span: deprecated, use the context parameter instead.
         """
