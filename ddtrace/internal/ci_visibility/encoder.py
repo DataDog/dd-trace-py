@@ -191,6 +191,9 @@ class CIVisibilityEncoderV01(BufferedEncoder):
     def _convert_span(
         self, span: Span, dd_origin: Optional[str] = None, new_parent_session_span_id: int = 0
     ) -> Dict[str, Any]:
+        if span.span_type != "test":
+            return _non_test_span_to_dict(span, dd_origin)
+
         sp = JSONEncoderV2._span_to_dict(span)
         sp = JSONEncoderV2._normalize_span(sp)
         sp["type"] = span.get_tag(EVENT_TYPE) or span.span_type
@@ -209,7 +212,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             event_type = span.get_tag(EVENT_TYPE)
         else:
             event_type = "span"
-
         return {"version": version, "type": event_type, "content": sp}
 
     @staticmethod
@@ -336,3 +338,28 @@ class CIVisibilityCoverageEncoderV02(CIVisibilityEncoderV01):
         log.debug("Span converted to coverage event: %s", converted_span)
 
         return converted_span
+
+
+BITMASK_64BIT = (1 << 64) - 1
+
+
+def _non_test_span_to_dict(span: Span, dd_origin: Optional[str] = None) -> Dict[str, Any]:
+    content = {
+        "trace_id": (span.trace_id & BITMASK_64BIT) or 1,
+        "span_id": (span.span_id & BITMASK_64BIT) or 1,
+        "parent_id": (span.parent_id & BITMASK_64BIT) if span.parent_id else 1,
+        "error": int(span.error),
+        "name": span.name,
+        "service": span.service,
+        "resource": span.resource,
+        "start": span.start_ns,
+        "type": span.span_type,
+        "duration": span.duration_ns,
+        "meta": span._meta,
+        "metrics": span._metrics,
+    }
+
+    if dd_origin is not None:
+        content["meta"]["_dd.origin"] = dd_origin
+
+    return {"version": 1, "type": "span", "content": content}
