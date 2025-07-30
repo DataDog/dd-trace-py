@@ -3000,6 +3000,7 @@ venv = Venv(
                 "vcrpy": "==7.0.0",
             },
         ),
+<<<<<<< HEAD
         Venv(
             name="ray",
             command="pytest {cmdargs} tests/contrib/ray",
@@ -3011,21 +3012,6 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "ray": ["~=2.48.0", latest],
             },
-        ),
-        Venv(
-            name="vllm",
-            command="pytest {cmdargs} tests/contrib/vllm",
-            pys=select_pys(min_version="3.8", max_version="3.12"),
-            pkgs={
-                "pytest-asyncio": latest,
-                "torch": latest,
-            },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.8", max_version="3.12"),
-                    pkgs={"vllm": latest},
-                ),
-            ],
         ),
         Venv(
             name="logbook",
