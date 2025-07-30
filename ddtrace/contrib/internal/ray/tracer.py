@@ -1,6 +1,6 @@
 import os
 
-import ddtrace.auto  # ignore: F401
+import ddtrace.auto  # noqa: F401
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
