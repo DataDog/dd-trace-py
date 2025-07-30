@@ -13,7 +13,8 @@ from ddtrace.appsec._constants import EXPLOIT_PREVENTION
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import LOGIN_EVENTS_MODE
 from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
-from ddtrace.constants import APPSEC_ENV
+from ddtrace.constants import APPSEC_ENV, AI_GUARD_ENABLED, AI_GUARD_ENDPOINT, AI_GUARD_API_KEY, \
+    AI_GUARD_APPLICATION_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.endpoints import HttpEndPointsCollection
@@ -322,3 +323,12 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
+
+
+class AIGuardConfig(DDConfig):
+    enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=True)
+    endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
+    api_key = DDConfig.var(str, AI_GUARD_API_KEY, default=""),
+    app_key = DDConfig.var( str, AI_GUARD_APPLICATION_KEY, default="")
+
+ai_guard_config = AIGuardConfig()

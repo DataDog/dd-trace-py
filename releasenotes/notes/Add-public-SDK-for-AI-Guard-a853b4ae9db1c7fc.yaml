@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    App and API Protection (AAP): Implement a publicly available Python SDK enabling programmatic access to AI Guard’s public endpoints.
