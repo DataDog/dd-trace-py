@@ -631,6 +631,10 @@ class NativeWriterTests(AgentWriterTests):
             for trace in payload:
                 assert 0.6 == trace[0]["metrics"].get(_KEEP_SPANS_RATE_KEY, -1)
 
+    # Http related metrics are sent by the native code
+    def test_drop_reason_bad_endpoint(self):
+        pytest.skip()
+
     # The NativeWriter does not support gzip compression
     def test_gzip_compression_exception_logging_and_metrics(self):
         pytest.skip()
