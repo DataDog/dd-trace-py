@@ -320,15 +320,6 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
-            log.debug(
-                "Span name='%s' id='%d' started and was added to the span aggregator. "
-                "Trace: %d: %d/%d spans finished",
-                span.name,
-                span.span_id,
-                span.trace_id,
-                trace.num_finished,
-                len(trace.spans),
-            )
 
     def on_span_finish(self, span: Span) -> None:
         # Aqcuire lock to get finished and update trace.spans
