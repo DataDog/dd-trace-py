@@ -149,7 +149,7 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
-            root_ctx = chunk_root._context
+            root_ctx = chunk_root.context
 
             if self.apm_opt_out:
                 for span in trace:
@@ -227,8 +227,8 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         chunk_root = trace[0]
-        ctx = chunk_root._context
-        if not ctx:
+        ctx = chunk_root.context
+        if not ctx._meta and not ctx._metrics:
             return trace
 
         chunk_root._update_tags_from_context()
