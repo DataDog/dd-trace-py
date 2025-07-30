@@ -279,7 +279,12 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
         flow_instance = kwargs.pop("_dd.instance", None)
-        input_dict = {"args": [str(arg) for arg in args[2:]], "kwargs": {k: str(v) for k, v in kwargs.items()}}
+        initial_flow_state = kwargs.pop("_dd.flow_state", {})
+        input_dict = {
+            "args": [str(arg) for arg in args[2:]],
+            "kwargs": {k: str(v) for k, v in kwargs.items()},
+            "flow_state": initial_flow_state,
+        }
         span_links = (
             self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
         )

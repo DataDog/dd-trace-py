@@ -149,8 +149,10 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
     with integration.trace(
         pin, "CrewAI Flow Method", span_name=span_name, operation="flow_method", submit_to_llmobs=True
     ) as span:
+        initial_flow_state = {**getattr(instance, "state", {})}
         result = await func(*args, **kwargs)
         kwargs["_dd.instance"] = instance
+        kwargs["_dd.flow_state"] = initial_flow_state
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="flow_method")
         return result
 
