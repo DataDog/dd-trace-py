@@ -4,6 +4,7 @@ from ddtrace.contrib.internal.pydantic_ai.patch import unpatch
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.patch import PatchTestCase
 
+
 PYDANTIC_AI_SLIM_VERSION = parse_version(get_version())
 
 
