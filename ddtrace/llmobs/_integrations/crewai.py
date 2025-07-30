@@ -273,7 +273,8 @@ class CrewAIIntegration(BaseLLMIntegration):
         return formatted_tools
 
     def _llmobs_set_tags_flow(self, span, args, kwargs, response):
-        span._set_ctx_items({NAME: span.name or "CrewAI Flow", OUTPUT_VALUE: str(response)})
+        inputs = get_argument_value(args, kwargs, 0, "inputs", optional=True) or {}
+        span._set_ctx_items({NAME: span.name or "CrewAI Flow", INPUT_VALUE: inputs, OUTPUT_VALUE: str(response)})
         return
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
@@ -301,17 +302,20 @@ class CrewAIIntegration(BaseLLMIntegration):
         return
 
     def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
+        """Set span links for the next queued listener method(s) in a CrewAI flow."""
         trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
         if not self.llmobs_enabled or not trigger_method:
             return
         trigger_span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).get(trigger_method)
         if not trigger_span_dict:
             return
-        listeners = getattr(flow_instance, "_listeners", [])
+        listeners = getattr(flow_instance, "_listeners", {})
+        triggered = False
         # Check trigger method against each listener methods' triggers
         for listener_name, (_, listener_triggers) in listeners.items():
             if trigger_method not in listener_triggers:
                 continue
+            triggered = True
             span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).setdefault(listener_name, {})
             span_dict["trace_id"] = format_trace_id(flow_span.trace_id)
             span_links = span_dict.setdefault("span_links", [])
@@ -322,8 +326,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     "attributes": {"from": "output", "to": "input"},
                 }
             )
-        # If no listeners are triggered/AND_triggered, then link trigger span to its parent.
-        if not any(trigger_method in listener_triggers for _, (_, listener_triggers) in listeners.items()):
+        if triggered is False:
             flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
             flow_span_span_links.append(
                 {
