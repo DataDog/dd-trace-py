@@ -112,6 +112,7 @@ PATCH_MODULES = {
     "anthropic": True,
     "crewai": True,
     "pydantic_ai": True,
+    "vllm": True,
     "subprocess": True,
     "unittest": True,
     "coverage": False,
