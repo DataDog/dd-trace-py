@@ -107,7 +107,8 @@ def _connect(func, instance, args, kwargs):
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 
