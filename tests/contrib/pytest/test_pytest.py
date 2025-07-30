@@ -30,6 +30,7 @@ from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
+from tests.contrib.pytest.utils import _get_span_coverage_data
 from tests.utils import TracerTestCase
 
 
@@ -1711,22 +1712,21 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
 
-        coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        assert coverage_data is not None
-        first_tag_data = coverage_data
-        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "/lib_fn.py"
-        assert files[1]["filename"] == "/test_cov.py"
+        first_tag_data = _get_span_coverage_data(first_test_span, True)
+        assert len(first_tag_data) == 2
+        assert sorted(first_tag_data.keys()) == ["/lib_fn.py", "/test_cov.py"]
+        assert first_tag_data["/lib_fn.py"] == [(2, 2)]
+        assert first_tag_data["/test_cov.py"] == [(4, 5)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
-        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "/ret_false.py"
-        assert files[1]["filename"] == "/test_cov.py"
+
+        second_tag_data = _get_span_coverage_data(second_test_span, True)
+        assert len(second_tag_data) == 2
+        assert sorted(second_tag_data.keys()) == ["/ret_false.py", "/test_cov.py"]
+        assert second_tag_data["/ret_false.py"] == [(2, 2)]
+        assert second_tag_data["/test_cov.py"] == [(8, 9)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1802,11 +1802,11 @@ class PytestTestCase(PytestTestCaseBase):
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
 
-        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "/test_cov.py"
-        assert files[1]["filename"] == "/test_ret_false.py"
+        second_tag_data = _get_span_coverage_data(second_test_span, True)
+        assert len(second_tag_data) == 2
+        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
+        assert second_tag_data["/test_cov.py"] == [(8, 9)]
 
     @pytest.mark.skipif(
         not _PYTEST_SUPPORTS_ITR,
@@ -1894,18 +1894,20 @@ class PytestTestCase(PytestTestCaseBase):
         second_test_span = spans[1]
         assert second_test_span.get_tag("test.name") == "test_second"
 
-        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "/test_cov.py"
-        assert files[1]["filename"] == "/test_ret_false.py"
+        second_tag_data = _get_span_coverage_data(second_test_span, True)
+        assert len(second_tag_data) == 2
+        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
+        assert second_tag_data["/test_cov.py"] == [(9, 10)]
 
         third_test_span = spans[2]
         assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
-        third_tag_data = third_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
-        assert len(third_test_files) == 2
-        assert third_test_files[0]["filename"] == "/test_cov.py"
+
+        third_tag_data = _get_span_coverage_data(second_test_span, True)
+        assert len(third_tag_data) == 2
+        assert sorted(third_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+        assert third_tag_data["/test_cov.py"] == [(9, 10)]
+        assert third_tag_data["/test_ret_false.py"] == [(2, 2)]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
