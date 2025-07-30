@@ -115,7 +115,7 @@ class BaseStreamHandler(ABC):
         2. Set appropriate span tags
         3. Finish all spans
         """
-        pass
+        raise NotImplementedError("finalize_stream must be implemented by the subclass")
 
 
 class StreamHandler(BaseStreamHandler):
@@ -131,7 +131,7 @@ class StreamHandler(BaseStreamHandler):
             chunk: The chunk object from the stream
             iterator: The sync iterator object from the stream
         """
-        pass
+        raise NotImplementedError("process_chunk must be implemented by the subclass")
 
 
 class AsyncStreamHandler(BaseStreamHandler):
@@ -147,7 +147,7 @@ class AsyncStreamHandler(BaseStreamHandler):
             chunk: The chunk object from the stream
             iterator: The async iterator object from the stream
         """
-        pass
+        raise NotImplementedError("process_chunk must be implemented by the subclass")
 
 
 class TracedStream(wrapt.ObjectProxy):
