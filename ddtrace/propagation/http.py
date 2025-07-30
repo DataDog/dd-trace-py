@@ -1028,7 +1028,7 @@ class HTTPPropagator(object):
             span_context = trace_info.context
         else:
             span_context = trace_info
-            current_root_span = core.tracer.current_root_span()
+            current_root_span = core.tracer and core.tracer.current_root_span()
             if current_root_span is not None and current_root_span.trace_id == trace_info.trace_id:
                 root_span = current_root_span
             else:
@@ -1160,10 +1160,9 @@ class HTTPPropagator(object):
         if not config._propagation_style_inject:
             return
         # Sample the local root span before injecting headers.
-        if span_to_sample is not None:
-            if span_to_sample.context.sampling_priority is None:
-                core.tracer.sample(span_to_sample)
-                log.debug("%s sampled before propagating trace: span_context=%s", span_to_sample, span_context)
+        if span_to_sample and core.tracer and span_to_sample.context.sampling_priority is None:
+            core.tracer.sample(span_to_sample)
+            log.debug("%s sampled before propagating trace: span_context=%s", span_to_sample, span_context)
         # Log a warning if we cannot determine a sampling decision before injecting headers.
         if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
             log.debug(
