@@ -344,7 +344,7 @@ BITMASK_64BIT = (1 << 64) - 1
 
 
 def _non_test_span_to_dict(span: Span, dd_origin: Optional[str] = None) -> Dict[str, Any]:
-    content = {
+    content: Dict[str, Any] = {
         "trace_id": (span.trace_id & BITMASK_64BIT) or 1,
         "span_id": (span.span_id & BITMASK_64BIT) or 1,
         "parent_id": (span.parent_id & BITMASK_64BIT) if span.parent_id else 1,
@@ -360,6 +360,6 @@ def _non_test_span_to_dict(span: Span, dd_origin: Optional[str] = None) -> Dict[
     }
 
     if dd_origin is not None:
-        content["meta"]["_dd.origin"] = dd_origin
+        content["meta"].update({"_dd.origin": dd_origin})
 
     return {"version": 1, "type": "span", "content": content}
