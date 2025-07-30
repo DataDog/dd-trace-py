@@ -8,6 +8,7 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import Union
 from typing import cast  # noqa:F401
 import urllib.parse
 
@@ -21,8 +22,10 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -1009,6 +1012,31 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
+    def _resolve_root_span_and_context(
+        trace_info: Union[Context, Span], span: Optional[Span] = None
+    ) -> Tuple[Optional[Span], Context]:
+        """
+        Resolve the local root span (span used to sample a trace) and the span context to use to inject headers.
+        Note: The span parameter currently takes precedence over the trace_info however this parameter is deprecated
+        and will be removed in a future version.
+        """
+        if span is not None:
+            root_span = span._local_root
+            span_context = span.context
+        elif isinstance(trace_info, Span):
+            root_span = trace_info._local_root
+            span_context = trace_info.context
+        else:
+            span_context = trace_info
+            current_root_span = core.tracer.current_root_span()
+            if current_root_span is not None and current_root_span.trace_id == trace_info.trace_id:
+                root_span = current_root_span
+            else:
+                root_span = None
+
+        return root_span, span_context
+
+    @staticmethod
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
@@ -1083,8 +1111,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers, non_active_span=None):
-        # type: (Context, Dict[str, str], Optional[Span]) -> None
+    def inject(context: Union[Context, Span], headers: Dict[str, str], non_active_span: Optional[Span] = None) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -1100,43 +1127,43 @@ class HTTPPropagator(object):
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
-        :param Context span_context: Span context to propagate.
+        :param Union[Span, Context] context: A re
         :param dict headers: HTTP headers to extend with tracing attributes.
-        :param Span non_active_span: Only to be used if injecting a non-active span.
+        :param Span non_active_span: deprecated, use the context parameter instead.
         """
+        if non_active_span is not None:
+            deprecate(
+                "The non_active_span parameter is deprecated",
+                message="Use the context parameter instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+        # Rename context to trace_info to improve readability. We can not rename the context parameter because
+        # we need to maintain the same signature for the function for backwards compatibility.
+        trace_info = context
+        del context
+        # Determine the span_context to use use to inject headers and the span to sample (if any).
+        # Due of lazy sampling, we need to make a sampling decision before injecting headers.
+        span_to_sample, span_context = HTTPPropagator._resolve_root_span_and_context(trace_info, non_active_span)
+
         core.dispatch("http.span_inject", (span_context, headers))
         if not config._propagation_style_inject:
             return
-        if non_active_span is not None and non_active_span.context is not span_context:
-            log.error(
-                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
-                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
+        # Sample the local root span before injecting headers.
+        if span_to_sample is not None:
+            if span_to_sample.context.sampling_priority is None:
+                core.tracer.sample(span_to_sample)
+                log.debug("%s sampled before propagating trace: span_context=%s", span_to_sample, span_context)
+        # Log a warning if we cannot determine a sampling decision before injecting headers.
+        if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
+            log.debug(
+                "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
+                "args=(context=%s, ..., non_active_span=%s) detected local root span=%s detected span context=%s",
+                trace_info,
+                non_active_span,
+                span_to_sample,
                 span_context,
-                non_active_span.context,
             )
-
-            span_context = non_active_span.context
-
-        if core.tracer and hasattr(core.tracer, "sample"):
-            root_span: Optional[Span] = None
-            if non_active_span is not None:
-                root_span = non_active_span._local_root
-            else:
-                root_span = core.tracer.current_root_span()
-
-                if root_span is not None and root_span.context is not span_context:
-                    log.error(
-                        "The passed in span_context is not the active context. The span must be passed in with"
-                        "non_active_span in order to be sampled. span_context: {}, non_active_span.context: {}",
-                        span_context,
-                        root_span.context,
-                    )
-                    root_span = None
-
-            if root_span is not None and root_span.context.sampling_priority is None:
-                core.tracer.sample(root_span)
-        else:
-            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
