@@ -225,10 +225,6 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         chunk_root = trace[0]
-        ctx = chunk_root.context
-        if not ctx._meta and not ctx._metrics:
-            return trace
-
         chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
