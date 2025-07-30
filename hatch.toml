@@ -1,5 +1,4 @@
 [envs.lint]
-
 detached = true
 python = "3.10"
 dependencies = [
