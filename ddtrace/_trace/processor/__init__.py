@@ -149,7 +149,6 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
-            root_ctx = chunk_root.context
 
             if self.apm_opt_out:
                 for span in trace:
@@ -157,13 +156,12 @@ class TraceSamplingProcessor(TraceProcessor):
                         span.set_metric(MK_APM_ENABLED, 0)
 
             # only trace sample if we haven't already sampled
-            if root_ctx and root_ctx.sampling_priority is None:
+            if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(trace[0])
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled and not self.apm_opt_out:
-                priority = root_ctx.sampling_priority if root_ctx is not None else None
-                if priority is not None and priority <= 0:
+                if chunk_root.context.sampling_priority is not None and chunk_root.context.sampling_priority <= 0:
                     # When any span is marked as keep by a single span sampling
                     # decision then we still send all and only those spans.
                     single_spans = [_ for _ in trace if is_single_span_sampled(_)]
