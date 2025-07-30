@@ -68,8 +68,8 @@ class Flare:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
             return
 
-        flare_log_level_int = logging.getLevelName(log_level)
-        if type(flare_log_level_int) != int:
+        flare_log_level_int = getattr(logging, log_level.upper(), None)
+        if flare_log_level_int is None or not isinstance(flare_log_level_int, int):
             raise TypeError("Flare prepare: Invalid log level provided: %s", log_level)
 
         # Setup logging and create config file
