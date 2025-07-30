@@ -11,11 +11,6 @@ get_filename_component(dd_wrapper_BUILD_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../ddtr
 # Custom modules are in the parent directory
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../cmake")
 
-if(MSVC)
-    set(CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS TRUE)
-    set(BUILD_SHARED_LIBS TRUE)
-endif()
-
 # Includes
 include(AnalysisFunc)
 include(FindClangtidy)
@@ -38,51 +33,32 @@ set(Datadog_LIBRARIES
     ${Datadog_LIBRARIES}
     PARENT_SCOPE)
 
-if(WIN32)
-    # Library sources
-    add_library(
-        dd_wrapper SHARED
-        src/code_provenance.cpp
-        src/code_provenance_interface.cpp
-        src/ddup_interface.cpp
-        src/profile.cpp
-        src/sample.cpp
-        src/sample_manager.cpp
-        src/static_sample_pool.cpp
-        src/uploader.cpp
-        src/uploader_builder.cpp)
-else()
-    set(THREADS_PREFER_PTHREAD_FLAG ON)
-    find_package(Threads REQUIRED)
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
-    if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
-        message(FATAL_ERROR "pthread compatible library not found")
-    endif()
-
-    # Library sources
-    add_library(
-        dd_wrapper SHARED
-        src/code_provenance.cpp
-        src/code_provenance_interface.cpp
-        src/ddup_interface.cpp
-        src/profile.cpp
-        src/sample.cpp
-        src/sample_manager.cpp
-        src/static_sample_pool.cpp
-        src/uploader.cpp
-        src/uploader_builder.cpp)
+if(NOT Threads_FOUND OR NOT CMAKE_USE_PTHREADS_INIT)
+    message(FATAL_ERROR "pthread compatible library not found")
 endif()
+
+# Library sources
+add_library(
+    dd_wrapper SHARED
+    src/code_provenance.cpp
+    src/code_provenance_interface.cpp
+    src/ddup_interface.cpp
+    src/profile.cpp
+    src/sample.cpp
+    src/sample_manager.cpp
+    src/static_sample_pool.cpp
+    src/uploader.cpp
+    src/uploader_builder.cpp)
 
 # Add common configuration flags
 add_ddup_config(dd_wrapper)
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
-if(WIN32)
-    target_link_libraries(dd_wrapper PRIVATE _native)
-else()
-    target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
-endif()
+target_link_libraries(dd_wrapper PRIVATE Datadog::Profiling Threads::Threads)
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
 check_symbol_exists(__GLIBC__ "features.h" HAVE_GLIBC)
