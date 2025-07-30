@@ -33,6 +33,8 @@ class TestVLLMLLMObs(SubprocessTestCase):
         # Force CPU-only mode for vLLM
         CUDA_VISIBLE_DEVICES="",
         VLLM_DEVICE="cpu",
+        # Suppress vLLM logging to avoid interfering with test output
+        VLLM_LOGGING_LEVEL="ERROR",
     )
 
     def setUp(self):
@@ -64,7 +66,6 @@ class TestVLLMLLMObs(SubprocessTestCase):
                 trust_remote_code=True,
                 tensor_parallel_size=1,
                 dtype="auto",
-                device="cpu" if not (torch and torch.cuda.is_available()) else "auto",
                 enforce_eager=True,  # Disable CUDA graphs
                 disable_log_stats=True
             )
@@ -88,7 +89,6 @@ class TestVLLMLLMObs(SubprocessTestCase):
                 trust_remote_code=True,
                 tensor_parallel_size=1,
                 dtype="auto",
-                device="cpu" if not (torch and torch.cuda.is_available()) else "auto",
                 enforce_eager=True,  # Disable CUDA graphs
                 disable_log_stats=True
             )
