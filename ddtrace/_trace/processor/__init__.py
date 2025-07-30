@@ -337,12 +337,6 @@ class SpanAggregator(SpanProcessor):
             self._span_metrics["spans_finished"][integration_name] += 1
 
             if span.trace_id not in self._traces:
-                log.debug(
-                    "Span '%s' was started before tracing was enabled. "
-                    "Trace '%d' not found in the span aggregator. This span will be dropped.",
-                    span.name,
-                    span.trace_id,
-                )
                 return
 
             trace = self._traces[span.trace_id]
@@ -356,11 +350,6 @@ class SpanAggregator(SpanProcessor):
             if not is_trace_complete:
                 finished = [s for s in trace.spans if s.finished]
                 if not finished:
-                    log.warning(
-                        "Programming Error: No finished spans to process for trace %d."
-                        "Please open a Github issue at https://github.com/DataDog/dd-trace-py/issues",
-                        span.trace_id,
-                    )
                     return
                 trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
                 trace.num_finished = 0
@@ -392,13 +381,6 @@ class SpanAggregator(SpanProcessor):
                 initial_count = len(spans)
                 spans = tp.process_trace(spans) or []
                 if len(spans) != initial_count:
-                    log.debug(
-                        "Processor %s: %d → %d spans for trace %d",
-                        type(tp).__name__,
-                        initial_count,
-                        len(spans),
-                        span.trace_id,
-                    )
                 if not spans:
                     return
             except Exception:
@@ -408,7 +390,6 @@ class SpanAggregator(SpanProcessor):
             self._queue_span_count_metrics("spans_finished", "integration_name")
 
         if spans:
-            log.debug("Encoding %d spans for trace %d (local root: %s)", len(spans), span.trace_id, spans[0].name)
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
