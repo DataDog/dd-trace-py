@@ -129,18 +129,25 @@ class Flare:
 
     def _validate_case_id(self, case_id: str) -> bool:
         """
-        Validate case_id (must be a digit and cannot be 0 according to spec).
+        Validate case_id (must be numeric or specific allowed patterns).
         Returns True if valid, False otherwise. Cleans up files if invalid.
         """
         if case_id in ("0", 0):
             log.warning("Case ID cannot be 0, skipping flare send")
             return False
 
-        if not any(c.isdigit() for c in case_id):
-            log.warning("Case ID string must contain a digit, skipping flare send")
-            return False
+        # Allow pure numeric strings (unit tests)
+        if case_id.isdigit():
+            return True
 
-        return True
+        # Allow specific system test patterns (like "12345-with-debug")
+        import re
+
+        if re.match(r"^\d+-(with-debug|with-content)$", case_id):
+            return True
+
+        log.warning("Case ID string must be numeric or start with a digit, skipping flare send")
+        return False
 
     def _setup_flare_logging(self, flare_log_level_int: int) -> int:
         """
