@@ -3,7 +3,6 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.contrib.internal.ray.tracer import DEFAULT_SERVICE_NAME
 from ddtrace.contrib.internal.ray.tracer import DEFAULT_SPAN_NAME
 from ddtrace.contrib.internal.ray.tracer import RAY_JOB_ID_TAG_KEY
 from ddtrace.contrib.internal.ray.tracer import RayTraceFilter
