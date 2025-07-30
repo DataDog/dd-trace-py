@@ -1964,23 +1964,20 @@ class PytestTestCase(PytestTestCaseBase):
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
 
-        coverage_data = first_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        assert coverage_data is not None
-        first_tag_data = coverage_data
-        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 1
-        assert files[0]["filename"] == "/test_cov.py"
+        first_tag_data = _get_span_coverage_data(first_test_span, True)
+        assert len(first_tag_data) == 1
+        assert sorted(first_tag_data.keys()) == ["/test_cov.py"]
+        assert first_tag_data["/test_cov.py"] == [(4, 5)]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
 
-        second_tag_data = second_test_span.get_struct_tag(COVERAGE_TAG_NAME)
-        assert second_tag_data is not None
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "/test_cov.py"
-        assert files[1]["filename"] == "/test_ret_false.py"
+        second_tag_data = _get_span_coverage_data(second_test_span, True)
+        assert len(second_tag_data) == 2
+        assert sorted(second_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
+        assert second_tag_data["/test_ret_false.py"] == [(2, 2)]
+        assert second_tag_data["/test_cov.py"] == [(10, 11)]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
