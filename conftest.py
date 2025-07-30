@@ -76,7 +76,7 @@ def pytest_runtest_makereport(item, call):
 
 @pytest.fixture(scope="session", autouse=True)
 def collect_global_attributes(record_testsuite_property, pytestconfig):
-    randomly_seed = pytestconfig.getoption("randomly_seed")
+    randomly_seed = pytestconfig.getoption("randomly_seed", None)
     # Record the random seed used for this test run.
     # This is useful to reproduce test failures.
     record_testsuite_property("randomly.seed", f"{randomly_seed or -1}")
