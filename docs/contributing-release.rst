@@ -32,6 +32,7 @@ See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <htt
 There are a few ways to resolve this and unblock the release.
 
 **Prerequisite**
+
 Find the change(s) that contributed the most to performance regression.
 You can check from the `Benchmarking Platform - Benchmarks tab <https://benchmarking.us1.prod.dog/benchmarks?projectId=3&ciJobDateStart=1753290587498&ciJobDateEnd=1753895387498&gitBranch=main>`_ and filter by project and branch to see these commits.
 Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/archives/C04MK6NNDG9>`_ to see if there are any easy fixes (less than a day of work) that can be pushed to the release branch.
