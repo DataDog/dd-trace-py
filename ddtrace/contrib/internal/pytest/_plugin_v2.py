@@ -507,6 +507,48 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     return None
 
 
+def _handle_retry_logic(item, test_id, reports_dict, test_outcome):
+    """Handle retry logic for EFD, ATR, and Attempt to Fix features."""
+    is_quarantined = InternalTest.is_quarantined_test(test_id)
+    is_disabled = InternalTest.is_disabled_test(test_id)
+    is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
+    
+    # Check if setup or teardown failed
+    setup_or_teardown_failed = False
+    for report in reports_dict.values():
+        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
+            setup_or_teardown_failed = True
+            break
+    
+    retry_handler = None
+    
+    if setup_or_teardown_failed:
+        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
+        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+        retry_handler = attempt_to_fix_handle_retries
+    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+        retry_handler = efd_handle_retries
+    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+        retry_handler = atr_handle_retries
+    
+    if retry_handler:
+        # Retry handler is responsible for logging the test reports.
+        retry_handler(
+            test_id=test_id,
+            item=item,
+            test_reports=reports_dict,
+            test_outcome=test_outcome,
+            is_quarantined=is_quarantined,
+        )
+        return True  # Retry handler was called
+    else:
+        # If no retry handler, we log the reports ourselves.
+        for report in reports_dict.values():
+            item.ihook.pytest_runtest_logreport(report=report)
+        return False  # No retry handler was called
+
+
 def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     test_id = _get_test_id_from_item(item)
     suite_id = test_id.parent_id
@@ -517,15 +559,34 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
 
+    test_was_finished_here = False
+    retry_handler_called = False
+    
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
+            test_was_finished_here = True
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
+            test_was_finished_here = True
+
+    # Handle retry logic if the test was finished here and coverage was collected
+    # This is the case when ITR test-level skipping + coverage collection + retry features are all enabled
+    if test_was_finished_here and coverage_collector is not None:
+        # Check if retry logic was deferred to this function due to coverage collection
+        should_collect_coverage = InternalTestSession.should_collect_coverage()
+        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+        coverage_was_expected = should_collect_coverage and not item_will_skip
+        
+        if coverage_was_expected:
+            reports_dict = reports_by_item.get(item)
+            if reports_dict:
+                test_outcome = _process_reports_dict(item, reports_dict)
+                retry_handler_called = _handle_retry_logic(item, test_id, reports_dict, test_outcome)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
@@ -597,6 +658,12 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
+    # Check if coverage collection is expected before determining whether to finish the test
+    # and handle retry logic
+    should_collect_coverage = InternalTestSession.should_collect_coverage()
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+    coverage_will_be_collected = should_collect_coverage and not item_will_skip
+
     # Finish the test if it hasn't been finished yet
     # This needs to happen before retry logic so that retry mechanisms can check the test status
     # However, we need to be careful not to finish the test if coverage collection is still in progress
@@ -604,10 +671,6 @@ def _pytest_run_one_test(item, nextitem):
     if not InternalTest.is_finished(test_id):
         # Only finish the test here if coverage collection is not expected
         # If coverage collection is happening, let _pytest_runtest_protocol_post_yield handle the finishing
-        should_collect_coverage = InternalTestSession.should_collect_coverage()
-        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-        coverage_will_be_collected = should_collect_coverage and not item_will_skip
-
         if not coverage_will_be_collected:
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
@@ -626,27 +689,35 @@ def _pytest_run_one_test(item, nextitem):
 
     retry_handler = None
 
-    if setup_or_teardown_failed:
-        # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
-        log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
-    elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
-        retry_handler = attempt_to_fix_handle_retries
-    elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
-        retry_handler = efd_handle_retries
-    elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
-        retry_handler = atr_handle_retries
+    # Only handle retry logic here if coverage collection is not expected
+    # If coverage collection is happening, retry logic will be handled in _pytest_runtest_protocol_post_yield
+    if not coverage_will_be_collected:
+        if setup_or_teardown_failed:
+            # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
+            log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
+        elif is_attempt_to_fix and _pytest_version_supports_attempt_to_fix():
+            retry_handler = attempt_to_fix_handle_retries
+        elif InternalTestSession.efd_enabled() and InternalTest.efd_should_retry(test_id):
+            retry_handler = efd_handle_retries
+        elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
+            retry_handler = atr_handle_retries
 
-    if retry_handler:
-        # Retry handler is responsible for logging the test reports.
-        retry_handler(
-            test_id=test_id,
-            item=item,
-            test_reports=reports_dict,
-            test_outcome=test_outcome,
-            is_quarantined=is_quarantined,
-        )
+        if retry_handler:
+            # Retry handler is responsible for logging the test reports.
+            retry_handler(
+                test_id=test_id,
+                item=item,
+                test_reports=reports_dict,
+                test_outcome=test_outcome,
+                is_quarantined=is_quarantined,
+            )
+        else:
+            # If no retry handler, we log the reports ourselves.
+            for report in reports:
+                item.ihook.pytest_runtest_logreport(report=report)
     else:
-        # If no retry handler, we log the reports ourselves.
+        # Coverage collection is expected, so retry logic will be handled later
+        # But we still need to log the reports here
         for report in reports:
             item.ihook.pytest_runtest_logreport(report=report)
 
