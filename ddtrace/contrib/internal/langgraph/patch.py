@@ -334,8 +334,12 @@ def patch():
     langgraph._datadog_integration = integration
 
     from langgraph.pregel import Pregel
-    from langgraph.pregel.loop import PregelLoop
     from langgraph.utils.runnable import RunnableSeq
+
+    if LANGGRAPH_VERSION < (0, 6, 0):
+        from langgraph.pregel.loop import PregelLoop
+    else:
+        from langgraph.pregel._loop import PregelLoop
 
     wrap(RunnableSeq, "invoke", traced_runnable_seq_invoke(langgraph))
     wrap(RunnableSeq, "ainvoke", traced_runnable_seq_ainvoke(langgraph))
@@ -357,8 +361,12 @@ def unpatch():
     langgraph._datadog_patch = False
 
     from langgraph.pregel import Pregel
-    from langgraph.pregel.loop import PregelLoop
     from langgraph.utils.runnable import RunnableSeq
+
+    if LANGGRAPH_VERSION < (0, 6, 0):
+        from langgraph.pregel.loop import PregelLoop
+    else:
+        from langgraph.pregel._loop import PregelLoop
 
     unwrap(RunnableSeq, "invoke")
     unwrap(RunnableSeq, "ainvoke")
