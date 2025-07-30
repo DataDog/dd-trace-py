@@ -1893,10 +1893,10 @@ class PytestTestCase(PytestTestCaseBase):
         third_test_span = spans[2]
         assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
 
-        third_tag_data = _get_span_coverage_data(second_test_span, True)
+        third_tag_data = _get_span_coverage_data(third_test_span, True)
         assert len(third_tag_data) == 2
         assert sorted(third_tag_data.keys()) == ["/test_cov.py", "/test_ret_false.py"]
-        assert third_tag_data["/test_cov.py"] == [(9, 10)]
+        assert third_tag_data["/test_cov.py"] == [(19, 20)]
         assert third_tag_data["/test_ret_false.py"] == [(2, 2)]
 
         fourth_test_span = spans[3]
