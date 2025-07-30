@@ -279,6 +279,11 @@ memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocat
 
     traceback->reported = false;
 
+    // Size 0 allocations are legal and we can hypothetically sample them,
+    // e.g. if an allocation during sampling pushes us over the next sampling threshold,
+    // but we can't sample it, so we sample the next allocation which happens to be 0
+    // bytes. Defensively make sure size isn't 0.
+    size = size > 0 ? size : 1;
     double scaled_count = ((double)weighted_size) / ((double)size);
     traceback->count = (size_t)scaled_count;
 
