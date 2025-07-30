@@ -66,15 +66,17 @@ class Flare:
             self.flare_dir.mkdir(exist_ok=True)
         except Exception as e:
             log.error("Flare prepare: failed to create %s directory: %s", self.flare_dir, e)
-            return
+            return False
 
         flare_log_level_int = getattr(logging, log_level.upper(), None)
         if flare_log_level_int is None or not isinstance(flare_log_level_int, int):
-            raise TypeError("Flare prepare: Invalid log level provided: %s", log_level)
+            log.error("Flare prepare: Invalid log level provided: %s", log_level)
+            return False
 
         # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
         self._generate_config_file(pid)
+        return True
 
     def send(self, flare_send_req: FlareSendRequest):
         """
