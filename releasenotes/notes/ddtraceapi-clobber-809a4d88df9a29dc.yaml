@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    ddtrace_api: Fixes a bug in the ddtrace_api integration in which ``patch()`` with no arguments, and
+    thus ``patch_all()``, breaks the integration.

@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    LLM Observability, mcp: Adds distributed tracing support for MCP tool calls across client-server boundaries by default.
+      To disable distributed tracing for mcp, set the configuration: `DD_MCP_DISTRIBUTED_TRACING=False` for both the client and server.
