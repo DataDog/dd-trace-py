@@ -27,5 +27,12 @@ if platform.system() == "Linux" and not (sys.maxsize > (1 << 32)):
         "If you believe this is an error or need assistance, please report it at "
         "https://github.com/DataDog/dd-trace-py/issues"
     )
+elif platform.system() == "Windows":
+    LOG.error(
+        "The Datadog Profiler is not supported on Windows. "
+        "To use the profiler, please use a 64-bit Linux or macOS system. "
+        "If you need assistance related to Windows support for the Profiler, please open a ticket at "
+        "https://github.com/DataDog/dd-trace-py/issues"
+    )
 else:
     start_profiler()

@@ -1,4 +1,5 @@
 from pathlib import Path
+from random import random
 import typing as t
 
 from _config import config as expl_config
@@ -25,18 +26,30 @@ class FunctionCollector(ModuleCollector):
     def on_collect(self, discovery: FunctionDiscovery) -> None:
         module = discovery._module
         status("[profiler] Collecting functions from %s" % module.__name__)
-        for fname, f in discovery._fullname_index.items():
-            if origin(module) != Path(f.__code__.co_filename).resolve():
+        try:  # Python < 3.11
+            fcps = [fcp for fcps in discovery._name_index.values() for fcp in fcps]
+        except AttributeError:  # Python >= 3.11
+            fcps = list(discovery._fullname_index.values())
+
+        for fcp in fcps:
+            if random() >= config.profiler.instrumentation_rate:
+                continue
+            try:
+                f = fcp.resolve()
+            except ValueError:
+                # This function-code pair is not from a function, e.g. a class.
+                continue
+            if (o := origin(module)) != Path(f.__code__.co_filename).resolve():
                 # Do not wrap functions that do not belong to the module. We
                 # will have a chance to wrap them when we discover the module
                 # they belong to.
                 continue
-            _tracked_funcs[fname] = 0
+            _tracked_funcs[f"{module.__name__}.{f.__qualname__}"] = 0
             DeterministicProfiler.add_probe(
                 create_snapshot_function_probe(
-                    probe_id=str(hash(f)),
+                    probe_id=f"{o}:{f.__code__.co_firstlineno}",
                     module=module.__name__,
-                    func_qname=fname.replace(module.__name__, "").lstrip("."),
+                    func_qname=f.__qualname__,
                     rate=float("inf"),
                     limits=expl_config.limits,
                 )
@@ -49,7 +62,7 @@ class DeterministicProfiler(ExplorationDebugger):
     @classmethod
     def report_func_calls(cls) -> None:
         for probe in (_ for _ in cls.get_triggered_probes() if isinstance(_, FunctionLocationMixin)):
-            _tracked_funcs[".".join([probe.module, probe.func_qname])] += 1
+            _tracked_funcs[f"{probe.module}.{probe.func_qname}"] += 1
         log(("{:=^%ds}" % COLS).format(" Function coverage "))
         log("")
         calls = sorted([(v, k) for k, v in _tracked_funcs.items()], reverse=True)

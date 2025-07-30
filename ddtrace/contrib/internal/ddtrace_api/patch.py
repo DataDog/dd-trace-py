@@ -91,10 +91,12 @@ def _supported_versions() -> Dict[str, str]:
 def patch(tracer=None):
     if getattr(ddtrace_api, "__datadog_patch", False):
         return
-    _STUB_TO_REAL[ddtrace_api.tracer] = tracer
+    if tracer is not None:
+        _STUB_TO_REAL[ddtrace_api.tracer] = tracer
 
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.start_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.trace).wrap()
+    DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.set_tags).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.current_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.current_root_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Span.finish).wrap()
@@ -115,6 +117,7 @@ def unpatch():
 
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.start_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.trace).unwrap()
+    DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.set_tags).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.current_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Tracer.current_root_span).unwrap()
     DDTraceAPIWrappingContextBase.extract(ddtrace_api.Span.finish).unwrap()

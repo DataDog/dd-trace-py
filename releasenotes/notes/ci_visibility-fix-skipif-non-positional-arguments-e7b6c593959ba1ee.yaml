@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where using the pytest ``skipif`` marker with the condition passed as a
+    keyword argument (or not provided at all) would cause the test to be reported as failed, in particular when the
+    ``flaky`` or ``pytest-rerunfailures`` were also used.

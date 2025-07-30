@@ -16,6 +16,7 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.endpoints import HttpEndPointsCollection
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -59,8 +60,12 @@ def build_libddwaf_filename() -> str:
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
 
 
+endpoint_collection = HttpEndPointsCollection()
+
+
 class ASMConfig(DDConfig):
     _asm_enabled = DDConfig.var(bool, APPSEC_ENV, default=False)
+    _asm_enabled_origin = APPSEC.ENABLED_ORIGIN_UNKNOWN
     _asm_static_rule_file = DDConfig.var(Optional[str], APPSEC.RULE_FILE, default=None)
     # prevent empty string
     if _asm_static_rule_file == "":
@@ -74,6 +79,7 @@ class ASMConfig(DDConfig):
     _iast_telemetry_report_lvl = DDConfig.var(str, IAST.ENV_TELEMETRY_REPORT_LVL, default=TELEMETRY_INFORMATION_NAME)
     _apm_tracing_enabled = DDConfig.var(bool, APPSEC.APM_TRACING_ENV, default=True)
     _use_metastruct_for_triggers = True
+    _use_metastruct_for_iast = True
 
     _auto_user_instrumentation_local_mode = DDConfig.var(
         str,
@@ -90,6 +96,10 @@ class ASMConfig(DDConfig):
     _api_security_enabled = DDConfig.var(bool, API_SECURITY.ENV_VAR_ENABLED, default=True)
     _api_security_sample_delay = DDConfig.var(float, API_SECURITY.SAMPLE_DELAY, default=30.0)
     _api_security_parse_response_body = DDConfig.var(bool, API_SECURITY.PARSE_RESPONSE_BODY, default=True)
+    _api_security_endpoint_collection = DDConfig.var(bool, API_SECURITY.ENDPOINT_COLLECTION, default=True)
+    _api_security_endpoint_collection_limit = DDConfig.var(
+        int, API_SECURITY.ENDPOINT_COLLECTION_LIMIT, default=DEFAULT.ENDPOINT_COLLECTION_LIMIT
+    )
 
     # internal state of the API security Manager service.
     # updated in API Manager enable/disable
@@ -169,6 +179,10 @@ class ASMConfig(DDConfig):
     _django_include_user_login = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_LOGIN", default=True)
     _django_include_user_realname = DDConfig.var(bool, "DD_DJANGO_INCLUDE_USER_REALNAME", default=False)
 
+    # FASTAPI ASYNC
+    # Timeout for the request body reading in seconds.
+    _fast_api_async_body_timeout = DDConfig.var(float, "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", default=0.1)
+
     # for tests purposes
     _asm_config_keys = [
         "_asm_enabled",
@@ -176,6 +190,7 @@ class ASMConfig(DDConfig):
         "_asm_static_rule_file",
         "_asm_obfuscation_parameter_key_regexp",
         "_asm_obfuscation_parameter_value_regexp",
+        "_asm_processed_span_types",
         "_apm_tracing_enabled",
         "_bypass_instrumentation_for_waf",
         "_iast_enabled",
@@ -187,6 +202,7 @@ class ASMConfig(DDConfig):
         "_iast_is_testing",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
+        "_use_metastruct_for_iast",
         "_auto_user_instrumentation_local_mode",
         "_auto_user_instrumentation_rc_mode",
         "_auto_user_instrumentation_enabled",
@@ -238,9 +254,8 @@ class ASMConfig(DDConfig):
             self._asm_processed_span_types.add(SpanTypes.SERVERLESS)
             self._asm_http_span_types.add(SpanTypes.SERVERLESS)
 
-            # As a first step, only Threat Management in monitoring mode should be enabled in AWS Lambda
+            # Disable all features that are not supported in Lambda
             tracer_config._remote_config_enabled = False
-            self._api_security_enabled = False
             self._ep_enabled = False
             self._iast_supported = False
 
@@ -260,6 +275,12 @@ class ASMConfig(DDConfig):
         else:
             # Is one click available?
             self._eval_asm_can_be_enabled()
+
+    @property
+    def asm_enabled_origin(self):
+        if APPSEC_ENV in os.environ:
+            return APPSEC.ENABLED_ORIGIN_ENV
+        return self._asm_enabled_origin
 
     def reset(self):
         """For testing purposes, reset the configuration to its default values given current environment variables."""

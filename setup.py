@@ -81,7 +81,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.25.1"
+LIBDDWAF_VERSION = "1.26.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -226,7 +226,7 @@ class ExtensionHashes(build_ext):
 
 class LibraryDownload:
     CACHE_DIR = HERE / ".download_cache"
-    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "0").lower() in ("1", "yes", "on", "true")
+    USE_CACHE = os.getenv("DD_SETUP_CACHE_DOWNLOADS", "1").lower() in ("1", "yes", "on", "true")
 
     name = None
     download_dir = Path.cwd()
@@ -392,7 +392,7 @@ class CleanLibraries(CleanCommand):
 
 
 class CMakeBuild(build_ext):
-    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "0").lower() in ("1", "yes", "on", "true")
+    INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
 
     @staticmethod
     def try_strip_symbols(so_file):
@@ -793,7 +793,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) or CURRENT_OS == "Windows":
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -802,7 +802,6 @@ if not IS_PYSTON:
             )
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",

@@ -1,0 +1,1135 @@
+# Thresholds set based on guidance in https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5070193198/How+to+set+up+pre-release+performance+quality+gates#How-to-choose-thresholds-for-pre-release-gates%3F
+
+experiments:
+  - name: SLO Check
+    steps:
+      - name: SLO Check
+        run: fail_on_breach
+        scenarios:
+          # coreapiscenario
+          - name: coreapiscenario-context_with_data_listeners
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: coreapiscenario-context_with_data_no_listeners
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: coreapiscenario-context_with_data_only_all_listeners
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: coreapiscenario-get_item_exists
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: coreapiscenario-get_item_missing
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: coreapiscenario-set_item
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+
+          # djangosimple
+          - name: djangosimple-appsec
+            thresholds:
+              - execution_time < 22.30 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-exception-replay-enabled
+            thresholds:
+              - execution_time < 1.45 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-iast
+            thresholds:
+              - execution_time < 22.25 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-profiler
+            thresholds:
+              - execution_time < 16.55 ms
+              - max_rss_usage < 53.00 MB
+          - name: djangosimple-span-code-origin
+            thresholds:
+              - execution_time < 28.20 ms
+              - max_rss_usage < 68.00 MB
+          - name: djangosimple-tracer
+            thresholds:
+              - execution_time < 22.70 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-tracer-and-profiler
+            thresholds:
+              - execution_time < 24.90 ms
+              - max_rss_usage < 67.00 MB
+          - name: djangosimple-tracer-no-caches
+            thresholds:
+              - execution_time < 19.65 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-tracer-no-databases
+            thresholds:
+              - execution_time < 20.10 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-tracer-no-middleware
+            thresholds:
+              - execution_time < 22.50 ms
+              - max_rss_usage < 65.50 MB
+          - name: djangosimple-tracer-no-templates
+            thresholds:
+              - execution_time < 22.25 ms
+              - max_rss_usage < 65.50 MB
+
+          # errortrackingdjangosimple
+          - name: errortrackingdjangosimple-errortracking-enabled-all
+            thresholds:
+              - execution_time < 19.85 ms
+              - max_rss_usage < 65.50 MB
+          - name: errortrackingdjangosimple-errortracking-enabled-user
+            thresholds:
+              - execution_time < 19.40 ms
+              - max_rss_usage < 65.50 MB
+          - name: errortrackingdjangosimple-tracer-enabled
+            thresholds:
+              - execution_time < 19.45 ms
+              - max_rss_usage < 65.50 MB
+
+          # errortrackingflasksqli
+          - name: errortrackingflasksqli-errortracking-enabled-all
+            thresholds:
+              - execution_time < 2.30 ms
+              - max_rss_usage < 53.00 MB
+          - name: errortrackingflasksqli-errortracking-enabled-user
+            thresholds:
+              - execution_time < 2.25 ms
+              - max_rss_usage < 53.00 MB
+          - name: errortrackingflasksqli-tracer-enabled
+            thresholds:
+              - execution_time < 2.30 ms
+              - max_rss_usage < 53.00 MB
+
+          # flask_simple
+          - name: flasksimple-tracer
+            thresholds:
+              - execution_time < 3.65 ms
+              - max_rss_usage < 53.00 MB
+          - name: flasksimple-profiler
+            thresholds:
+              - execution_time < 2.10 ms
+              - max_rss_usage < 44.00 MB
+          - name: flasksimple-debugger
+            thresholds:
+              - execution_time < 2.00 ms
+              - max_rss_usage < 44.00 MB
+          - name: flasksimple-iast-get
+            thresholds:
+              - execution_time < 2.00 ms
+              - max_rss_usage < 45.00 MB
+          - name: flasksimple-appsec-get
+            thresholds:
+              - execution_time < 4.75 ms
+              - max_rss_usage < 64.00 MB
+          - name: flasksimple-appsec-post
+            thresholds:
+              - execution_time < 6.75 ms
+              - max_rss_usage < 64.00 MB
+          - name: flasksimple-appsec-telemetry
+            thresholds:
+              - execution_time < 4.75 ms
+              - max_rss_usage < 64.00 MB
+
+          # flasksqli
+          - name: flasksqli-appsec-enabled
+            thresholds:
+              - execution_time < 4.20 ms
+              - max_rss_usage < 66.00 MB
+          - name: flasksqli-iast-enabled
+            thresholds:
+              - execution_time < 2.80 ms
+              - max_rss_usage < 58.00 MB
+          - name: flasksqli-tracer-enabled
+            thresholds:
+              - execution_time < 2.25 ms
+              - max_rss_usage < 53.00 MB
+
+          # httppropagationextract
+          - name: httppropagationextract-all_styles_all_headers
+            thresholds:
+              - execution_time < 0.10 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-b3_headers
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-b3_single_headers
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-datadog_tracecontext_tracestate_not_propagated_on_trace_id_no_match
+            thresholds:
+              - execution_time < 0.08 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-datadog_tracecontext_tracestate_propagated_on_trace_id_match
+            thresholds:
+              - execution_time < 0.08 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-empty_headers
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-full_t_id_datadog_headers
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-invalid_priority_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-invalid_span_id_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-invalid_tags_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-invalid_trace_id_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-large_header_no_matches
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-large_valid_headers_all
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-medium_header_no_matches
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-medium_valid_headers_all
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-none_propagation_style
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-tracecontext_headers
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-valid_headers_all
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-valid_headers_basic
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_empty_headers
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_invalid_priority_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_invalid_span_id_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_invalid_tags_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_invalid_trace_id_header
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_large_header_no_matches
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_large_valid_headers_all
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_medium_header_no_matches
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_medium_valid_headers_all
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_valid_headers_all
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationextract-wsgi_valid_headers_basic
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+
+          # httppropagationinject
+          - name: httppropagationinject-ids_only
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_all
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_dd_origin
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_priority_and_origin
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_sampling_priority
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_tags
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_tags_invalid
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+          - name: httppropagationinject-with_tags_max_size
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 31.00 MB
+
+          # iast_aspects
+          - name: iast_aspects-re_expand_aspect
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_expand_noaspect
+            thresholds:
+              - execution_time < 0.04 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_findall_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_findall_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_finditer_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_finditer_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_fullmatch_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_fullmatch_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_group_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_group_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_groups_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_groups_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_match_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_match_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_search_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_search_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_sub_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_sub_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iast_aspects-re_subn_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: iast_aspects-re_subn_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+
+          # iastaspects
+          - name: iastaspects-add_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-add_inplace_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-add_inplace_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-add_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytearray_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytearray_extend_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytearray_extend_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytearray_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytes_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytes_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytesio_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-bytesio_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-capitalize_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-capitalize_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-casefold_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-casefold_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-decode_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-decode_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-encode_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-encode_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-format_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-format_map_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-format_map_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-format_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-index_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-index_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-join_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-join_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-ljust_aspect
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-ljust_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-lower_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-lower_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-lstrip_aspect
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-lstrip_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-modulo_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-modulo_aspect_for_bytearray_bytearray
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-modulo_aspect_for_bytes
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-modulo_aspect_for_bytes_bytearray
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-modulo_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-replace_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-replace_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-repr_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-repr_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-rstrip_aspect
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-rstrip_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-slice_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-slice_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-stringio_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-stringio_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-strip_aspect
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastaspects-strip_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-swapcase_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-swapcase_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-title_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-title_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-translate_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-translate_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-upper_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspects-upper_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+
+          # iastaspectsospath
+          - name: iastaspectsospath-ospathbasename_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathbasename_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathjoin_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathjoin_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathnormcase_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathnormcase_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplit_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplit_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplitdrive_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplitdrive_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplitext_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectsospath-ospathsplitext_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+
+          # iastaspectssplit
+          - name: iastaspectssplit-rsplit_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectssplit-rsplit_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectssplit-split_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectssplit-split_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectssplit-splitlines_aspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastaspectssplit-splitlines_noaspect
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.00 MB
+
+          # iastpropagation
+          - name: iastpropagation-no-propagation
+            thresholds:
+              - execution_time < 0.06 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastpropagation-propagation_enabled
+            thresholds:
+              - execution_time < 0.16 ms
+              - max_rss_usage < 35.50 MB
+          - name: iastpropagation-propagation_enabled_100
+            thresholds:
+              - execution_time < 1.80 ms
+              - max_rss_usage < 35.00 MB
+          - name: iastpropagation-propagation_enabled_1000
+            thresholds:
+              - execution_time < 30.55 ms
+              - max_rss_usage < 35.50 MB
+
+          # otelsdkspan
+          - name: otelsdkspan-add-event
+            thresholds:
+              - execution_time < 42.00 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-add-link
+            thresholds:
+              - execution_time < 38.55 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-add-metrics
+            thresholds:
+              - execution_time < 232.00 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-add-tags
+            thresholds:
+              - execution_time < 221.60 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-get-context
+            thresholds:
+              - execution_time < 31.30 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-is-recording
+            thresholds:
+              - execution_time < 31.00 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-record-exception
+            thresholds:
+              - execution_time < 65.85 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-set-status
+            thresholds:
+              - execution_time < 34.15 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-start
+            thresholds:
+              - execution_time < 30.15 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-start-finish
+            thresholds:
+              - execution_time < 35.35 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-start-finish-telemetry
+            thresholds:
+              - execution_time < 35.45 ms
+              - max_rss_usage < 35.00 MB
+          - name: otelsdkspan-update-name
+            thresholds:
+              - execution_time < 33.40 ms
+              - max_rss_usage < 35.00 MB
+
+          # otelspan
+          - name: otelspan-add-event
+            thresholds:
+              - execution_time < 47.15 ms
+              - max_rss_usage < 42.50 MB
+          - name: otelspan-add-metrics
+            thresholds:
+              - execution_time < 344.80 ms
+              - max_rss_usage < 562.00 MB
+          - name: otelspan-add-tags
+            thresholds:
+              - execution_time < 314.00 ms
+              - max_rss_usage < 563.50 MB
+          - name: otelspan-get-context
+            thresholds:
+              - execution_time < 92.35 ms
+              - max_rss_usage < 38.00 MB
+          - name: otelspan-is-recording
+            thresholds:
+              - execution_time < 44.50 ms
+              - max_rss_usage < 42.00 MB
+          - name: otelspan-record-exception
+            thresholds:
+              - execution_time < 67.65 ms
+              - max_rss_usage < 38.00 MB
+          - name: otelspan-set-status
+            thresholds:
+              - execution_time < 50.40 ms
+              - max_rss_usage < 42.00 MB
+          - name: otelspan-start
+            thresholds:
+              - execution_time < 43.45 ms
+              - max_rss_usage < 42.00 MB
+          - name: otelspan-start-finish
+            thresholds:
+              - execution_time < 86.00 ms
+              - max_rss_usage < 32.00 MB
+          - name: otelspan-start-finish-telemetry
+            thresholds:
+              - execution_time < 86.00 ms
+              - max_rss_usage < 32.00 MB
+          - name: otelspan-update-name
+            thresholds:
+              - execution_time < 45.15 ms
+              - max_rss_usage < 42.50 MB
+
+          # packagespackageforrootmodulemapping
+          - name: packagespackageforrootmodulemapping-cache_off
+            thresholds:
+              - execution_time < 354.30 ms
+              - max_rss_usage < 38.00 MB
+          - name: packagespackageforrootmodulemapping-cache_on
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 38.00 MB
+
+          # packagesupdateimporteddependencies
+          - name: packagesupdateimporteddependencies-import_many
+            thresholds:
+              - execution_time < 0.17 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_many_cached
+            thresholds:
+              - execution_time < 0.13 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_many_stdlib
+            thresholds:
+              - execution_time < 1.75 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_many_stdlib_cached
+            thresholds:
+              - execution_time < 1.10 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_many_unknown
+            thresholds:
+              - execution_time < 0.89 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_many_unknown_cached
+            thresholds:
+              - execution_time < 0.87 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one
+            thresholds:
+              - execution_time < 0.03 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one_cache
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one_stdlib
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one_stdlib_cache
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one_unknown
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 35.50 MB
+          - name: packagesupdateimporteddependencies-import_one_unknown_cache
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 35.50 MB
+
+          # ratelimiter
+          - name: ratelimiter-defaults
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: ratelimiter-high_rate_limit
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: ratelimiter-long_window
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: ratelimiter-low_rate_limit
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: ratelimiter-no_rate_limit
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: ratelimiter-short_window
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+
+          # recursivecomputation
+          - name: recursivecomputation-deep
+            thresholds:
+              - execution_time < 320.95 ms
+              - max_rss_usage < 31.00 MB
+          - name: recursivecomputation-deep-profiled
+            thresholds:
+              - execution_time < 359.15 ms
+              - max_rss_usage < 35.50 MB
+          - name: recursivecomputation-medium
+            thresholds:
+              - execution_time < 7.40 ms
+              - max_rss_usage < 31.00 MB
+          - name: recursivecomputation-shallow
+            thresholds:
+              - execution_time < 1.05 ms
+              - max_rss_usage < 31.00 MB
+
+          # samplingrules
+          - name: samplingrules-average_match
+            thresholds:
+              - execution_time < 0.35 ms
+              - max_rss_usage < 31.00 MB
+          - name: samplingrules-high_match
+            thresholds:
+              - execution_time < 0.55 ms
+              - max_rss_usage < 31.00 MB
+          - name: samplingrules-low_match
+            thresholds:
+              - execution_time < 0.19 ms
+              - max_rss_usage < 432.50 MB
+          - name: samplingrules-very_low_match
+            thresholds:
+              - execution_time < 9.15 ms
+              - max_rss_usage < 55.00 MB
+
+          # sethttpmeta
+          - name: sethttpmeta-all-disabled
+            thresholds:
+              - execution_time < 0.02 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-all-enabled
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-collectipvariant_exists
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-no-collectipvariant
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-no-useragentvariant
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-no-query
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-regular-case-explicit-query
+            thresholds:
+              - execution_time < 0.09 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-regular-case-implicit-query
+            thresholds:
+              - execution_time < 0.09 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-send-querystring-disabled
+            thresholds:
+              - execution_time < 0.17 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-worst-case-explicit-query
+            thresholds:
+              - execution_time < 0.16 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-obfuscation-worst-case-implicit-query
+            thresholds:
+              - execution_time < 0.17 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-useragentvariant_exists_1
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-useragentvariant_exists_2
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-useragentvariant_exists_3
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-useragentvariant_not_exists_1
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: sethttpmeta-useragentvariant_not_exists_2
+            thresholds:
+              - execution_time < 0.05 ms
+              - max_rss_usage < 31.00 MB
+
+          # span
+          - name: span-add-event
+            thresholds:
+              - execution_time < 26.20 ms
+              - max_rss_usage < 49.00 MB
+          - name: span-add-metrics
+            thresholds:
+              - execution_time < 98.35 ms
+              - max_rss_usage < 961.00 MB
+          - name: span-add-tags
+            thresholds:
+              - execution_time < 168.55 ms
+              - max_rss_usage < 962.50 MB
+          - name: span-get-context
+            thresholds:
+              - execution_time < 23.70 ms
+              - max_rss_usage < 47.50 MB
+          - name: span-is-recording
+            thresholds:
+              - execution_time < 23.90 ms
+              - max_rss_usage < 47.50 MB
+          - name: span-record-exception
+            thresholds:
+              - execution_time < 44.50 ms
+              - max_rss_usage < 40.50 MB
+          - name: span-set-status
+            thresholds:
+              - execution_time < 26.00 ms
+              - max_rss_usage < 47.50 MB
+          - name: span-start
+            thresholds:
+              - execution_time < 23.50 ms
+              - max_rss_usage < 47.50 MB
+          - name: span-start-finish
+            thresholds:
+              - execution_time < 52.50 ms
+              - max_rss_usage < 31.00 MB
+          - name: span-start-finish-telemetry
+            thresholds:
+              - execution_time < 55.30 ms
+              - max_rss_usage < 31.00 MB
+          - name: span-start-finish-traceid128
+            thresholds:
+              - execution_time < 56.05 ms
+              - max_rss_usage < 31.00 MB
+          - name: span-start-traceid128
+            thresholds:
+              - execution_time < 24.60 ms
+              - max_rss_usage < 47.50 MB
+          - name: span-update-name
+            thresholds:
+              - execution_time < 24.10 ms
+              - max_rss_usage < 48.00 MB
+
+          # telemetryaddmetric
+          - name: telemetryaddmetric-1-count-metric-1-times
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-count-metrics-100-times
+            thresholds:
+              - execution_time < 0.24 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-distribution-metric-1-times
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-distribution-metrics-100-times
+            thresholds:
+              - execution_time < 0.21 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-gauge-metric-1-times
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-gauge-metrics-100-times
+            thresholds:
+              - execution_time < 0.14 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-rate-metric-1-times
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-1-rate-metrics-100-times
+            thresholds:
+              - execution_time < 0.23 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-100-count-metrics-100-times
+            thresholds:
+              - execution_time < 22.50 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-100-distribution-metrics-100-times
+            thresholds:
+              - execution_time < 2.10 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-100-gauge-metrics-100-times
+            thresholds:
+              - execution_time < 1.40 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-100-rate-metrics-100-times
+            thresholds:
+              - execution_time < 2.40 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-flush-1-metric
+            thresholds:
+              - execution_time < 0.01 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-flush-100-metrics
+            thresholds:
+              - execution_time < 0.20 ms
+              - max_rss_usage < 31.00 MB
+          - name: telemetryaddmetric-flush-1000-metrics
+            thresholds:
+              - execution_time < 2.35 ms
+              - max_rss_usage < 31.00 MB
+
+          # tracer
+          - name: tracer-large
+            thresholds:
+              - execution_time < 32.95 ms
+              - max_rss_usage < 31.00 MB
+          - name: tracer-medium
+            thresholds:
+              - execution_time < 3.20 ms
+              - max_rss_usage < 31.00 MB
+          - name: tracer-small
+            thresholds:
+              - execution_time < 0.37 ms
+              - max_rss_usage < 31.00 MB
