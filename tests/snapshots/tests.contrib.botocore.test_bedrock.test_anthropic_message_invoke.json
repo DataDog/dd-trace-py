@@ -11,30 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6604ae4600000000",
-      "bedrock.request.max_tokens": "",
+      "_dd.p.tid": "687f907200000000",
       "bedrock.request.model": "claude-3-sonnet-20240229-v1:0",
       "bedrock.request.model_provider": "anthropic",
-      "bedrock.request.prompt": "[{'role': 'user', 'content': [{'type': 'text', 'text': 'summarize the plot to the lord of the rings in a dozen words'}]}]",
-      "bedrock.request.stop_sequences": "[]",
-      "bedrock.request.temperature": "0",
-      "bedrock.request.top_k": "",
-      "bedrock.request.top_p": "",
-      "bedrock.response.choices.0.finish_reason": "end_turn",
-      "bedrock.response.choices.0.text": "{'type': 'text', 'text': 'Hobbits embark on epic quest to destroy powerful ring, battling dark forces.'}",
-      "bedrock.response.duration": "886",
-      "bedrock.response.id": "cfb79f63-67cf-45b5-8a3c-9f5bf02064f5",
       "language": "python",
-      "runtime-id": "d2a21cfa56b94b50bae2ca63f83c50f9"
+      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "bedrock.response.usage.completion_tokens": 22,
-      "bedrock.response.usage.prompt_tokens": 21,
-      "process_id": 40705
+      "process_id": 25551
     },
-    "duration": 2160000,
-    "start": 1711582790110771000
+    "duration": 2471000,
+    "start": 1753190514051234000
   }]]

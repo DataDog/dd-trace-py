@@ -7,14 +7,11 @@ import google.generativeai as genai
 from ddtrace import config
 from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
 from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
-from ddtrace.contrib.internal.google_generativeai._utils import _extract_api_key
-from ddtrace.contrib.internal.google_generativeai._utils import tag_request
-from ddtrace.contrib.internal.google_generativeai._utils import tag_response
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
-from ddtrace.llmobs._integrations.utils import extract_model_name_google
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
 
@@ -43,22 +40,18 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
+    provider_name, model_name = extract_provider_and_model_name(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=extract_model_name_google(instance, "model_name"),
+        provider=provider_name,
+        model=model_name,
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
         generations = func(*args, **kwargs)
-        api_key = _extract_api_key(instance)
-        if api_key:
-            span.set_tag("google_generativeai.request.api_key", "...{}".format(api_key[-4:]))
         if stream:
             return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -76,19 +69,18 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
     stream = kwargs.get("stream", False)
     generations = None
+    provider_name, model_name = extract_provider_and_model_name(instance=instance, model_name_attr="model_name")
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
-        provider="google",
-        model=extract_model_name_google(instance, "model_name"),
+        provider=provider_name,
+        model=model_name,
         submit_to_llmobs=True,
     )
     try:
-        tag_request(span, integration, instance, args, kwargs)
         generations = await func(*args, **kwargs)
         if stream:
             return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)
-        tag_response(span, generations, integration, instance)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise

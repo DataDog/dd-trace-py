@@ -32,8 +32,6 @@ log = get_logger(__name__)
 
 _NODEID_REGEX = re.compile("^(((?P<module>.*)/)?(?P<suite>[^/]*?))::(?P<name>.*?)$")
 
-_USE_PLUGIN_V2 = not _get_config("_DD_PYTEST_USE_LEGACY_PLUGIN", False, asbool)
-
 
 class _PYTEST_STATUS:
     ERROR = "error"
@@ -186,29 +184,37 @@ def _pytest_version_supports_attempt_to_fix():
     return _get_pytest_version_tuple() >= ATTEMPT_TO_FIX_MIN_SUPPORTED_VERSION
 
 
+def _get_skipif_condition(marker):
+    if marker.args:
+        condition = marker.args[0]
+    elif marker.kwargs:
+        condition = marker.kwargs.get("condition")
+    else:
+        condition = True  # `skipif` with no condition is equivalent to plain `skip`.
+
+    return condition
+
+
 def _pytest_marked_to_skip(item: pytest.Item) -> bool:
     """Checks whether Pytest will skip an item"""
     if item.get_closest_marker("skip") is not None:
         return True
 
-    return any(marker.args[0] for marker in item.iter_markers(name="skipif"))
+    return any(_get_skipif_condition(marker) is True for marker in item.iter_markers(name="skipif"))
 
 
 def _is_test_unskippable(item: pytest.Item) -> bool:
     """Returns True if a test has a skipif marker with value false and reason ITR_UNSKIPPABLE_REASON"""
     return any(
-        (marker.args[0] is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
+        (_get_skipif_condition(marker) is False and marker.kwargs.get("reason") == ITR_UNSKIPPABLE_REASON)
         for marker in item.iter_markers(name="skipif")
     )
 
 
 def _extract_span(item):
     """Extract span from `pytest.Item` instance."""
-    if _USE_PLUGIN_V2:
-        test_id = _get_test_id_from_item(item)
-        return InternalTest.get_span(test_id)
-
-    return getattr(item, "_datadog_span", None)
+    test_id = _get_test_id_from_item(item)
+    return InternalTest.get_span(test_id)
 
 
 def _is_enabled_early(early_config, args):

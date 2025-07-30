@@ -26,30 +26,12 @@ from tests.subprocesstest import run_in_subprocess
 PINECONE_VERSION = parse_version(pinecone_.__version__)
 
 
-def _expected_metadata(span, provider):
-    metadata = {}
-    temperature_key = "temperature"
-    if provider == "huggingface_hub":
-        temperature_key = "model_kwargs.temperature"
-        max_tokens_key = "model_kwargs.max_tokens"
-    elif provider == "ai21":
-        max_tokens_key = "maxTokens"
-    else:
-        max_tokens_key = "max_tokens"
-    temperature = span.get_tag(f"langchain.request.{provider}.parameters.{temperature_key}")
-    max_tokens = span.get_tag(f"langchain.request.{provider}.parameters.{max_tokens_key}")
-    if temperature is not None:
-        metadata["temperature"] = float(temperature)
-    if max_tokens is not None:
-        metadata["max_tokens"] = int(max_tokens)
-    return metadata
-
-
 def _expected_langchain_llmobs_llm_span(
-    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False
+    span, input_role=None, mock_io=False, mock_token_metrics=False, span_links=False, metadata=None
 ):
     provider = span.get_tag("langchain.request.provider")
-    metadata = _expected_metadata(span, provider)
+
+    metadata = metadata if metadata else mock.ANY
 
     input_messages = [{"content": mock.ANY}]
     output_messages = [{"content": mock.ANY}]
@@ -74,8 +56,8 @@ def _expected_langchain_llmobs_llm_span(
     )
 
 
-def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=None, span_links=False):
-    metadata = _expected_metadata(span, span.get_tag("langchain.request.provider"))
+def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=None, span_links=False, metadata=None):
+    metadata = metadata if metadata else mock.ANY
     return _expected_llmobs_non_llm_span_event(
         span,
         "workflow",
@@ -127,7 +109,18 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
         span,
         input_role="user",
         mock_token_metrics=True,
+        metadata={"temperature": 0.0, "max_tokens": 256},
     )
+
+
+def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+
+    assert len(llmobs_events) == 1
+    assert llmobs_events[0]["metrics"].get("input_tokens") is None
+    assert llmobs_events[0]["metrics"].get("output_tokens") is None
+    assert llmobs_events[0]["metrics"].get("total_tokens") is None
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
@@ -141,6 +134,7 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         span,
         input_value=json.dumps([{"content": "What is the capital of France?", "role": "user"}]),
+        metadata={"temperature": 0.0, "max_tokens": 256},
     )
 
     # span created from request with non-proxy URL should result in an LLM span
@@ -322,6 +316,7 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer)
         span,
         input_role="user",
         mock_token_metrics=True,
+        metadata={"temperature": 0, "max_tokens": 15},
     )
 
 
@@ -646,7 +641,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         llm = BedrockLLM(
             model_id="amazon.titan-tg1-large",
             region_name="us-east-1",
-            model_kwargs={"temperature": 0, "topP": 0.9, "stopSequences": [], "maxTokenCount": 50},
+            model_kwargs={"temperature": 0.0, "topP": 0.9, "stopSequences": [], "maxTokenCount": 50},
         )
 
         with get_request_vcr().use_cassette("bedrock_amazon_invoke.yaml"):

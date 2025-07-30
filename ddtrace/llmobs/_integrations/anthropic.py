@@ -7,16 +7,20 @@ from typing import Optional
 from typing import Union
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
@@ -25,7 +29,6 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 
-API_KEY = "anthropic.request.api_key"
 MODEL = "anthropic.request.model"
 
 
@@ -42,11 +45,6 @@ class AnthropicIntegration(BaseLLMIntegration):
         """Set base level tags that should be present on all Anthropic spans (if they are not None)."""
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, f"sk-...{str(api_key[-4:])}")
-            else:
-                span.set_tag_str(API_KEY, api_key)
 
     def _llmobs_set_tags(
         self,
@@ -71,6 +69,9 @@ class AnthropicIntegration(BaseLLMIntegration):
             output_messages = self._extract_output_message(response)
         span_kind = "workflow" if span._get_ctx_item(PROXY_REQUEST) else "llm"
 
+        usage = _get_attr(response, "usage", {})
+        metrics = self._extract_usage(span, usage) if span_kind != "workflow" else {}
+
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
@@ -79,7 +80,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 INPUT_MESSAGES: input_messages,
                 METADATA: parameters,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("anthropic", span) if span_kind != "workflow" else {},
+                METRICS: metrics,
             }
         )
         update_proxy_workflow_input_output_value(span, span_kind)
@@ -180,18 +181,30 @@ class AnthropicIntegration(BaseLLMIntegration):
                         output_messages.append({"content": text, "role": role, "tool_calls": [tool_call_info]})
         return output_messages
 
-    def record_usage(self, span: Span, usage: Dict[str, Any]) -> None:
+    def _extract_usage(self, span: Span, usage: Dict[str, Any]):
         if not usage:
             return
         input_tokens = _get_attr(usage, "input_tokens", None)
         output_tokens = _get_attr(usage, "output_tokens", None)
+        cache_write_tokens = _get_attr(usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(usage, "cache_read_input_tokens", None)
 
-        if input_tokens is not None:
-            span.set_metric("anthropic.response.usage.input_tokens", input_tokens)
+        metrics = {}
+
+        # `input_tokens` in the returned usage is the number of non-cached tokens. We normalize it to mean
+        # the total tokens sent to the model to be consistent with other model providers.
+        metrics[INPUT_TOKENS_METRIC_KEY] = (input_tokens or 0) + (cache_write_tokens or 0) + (cache_read_tokens or 0)
+
         if output_tokens is not None:
-            span.set_metric("anthropic.response.usage.output_tokens", output_tokens)
-        if input_tokens is not None and output_tokens is not None:
-            span.set_metric("anthropic.response.usage.total_tokens", input_tokens + output_tokens)
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if INPUT_TOKENS_METRIC_KEY in metrics and output_tokens is not None:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = metrics[INPUT_TOKENS_METRIC_KEY] + output_tokens
+
+        if cache_write_tokens is not None:
+            metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+        if cache_read_tokens is not None:
+            metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+        return metrics
 
     def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
         instance = kwargs.get("instance")

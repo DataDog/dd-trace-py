@@ -24,7 +24,14 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
+        filter_headers=[
+            "authorization",
+            "OpenAI-Organization",
+            "api-key",
+            "x-api-key",
+            ("DD-API-KEY", "XXXXXX"),
+            ("DD-APPLICATION-KEY", "XXXXXX"),
+        ],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -78,6 +85,7 @@ def _expected_llmobs_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
+    tool_definitions=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -94,6 +102,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
+    tool_definitions: list of tool definitions that were available to the LLM
     """
     span_event = _llmobs_base_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, span_links
@@ -135,6 +144,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
+    if tool_definitions is not None:
+        meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
