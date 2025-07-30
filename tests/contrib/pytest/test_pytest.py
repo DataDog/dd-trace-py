@@ -9,6 +9,7 @@ import pytest
 import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.pytest.constants import ITR_MIN_SUPPORTED_VERSION
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -33,6 +34,7 @@ from tests.utils import TracerTestCase
 
 
 _USE_PLUGIN_V2 = True
+_PYTEST_VERSION_TUPLE = tuple(map(int, get_version().split(".")))
 
 
 def _get_spans_from_list(
@@ -1640,6 +1642,10 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(test_suite_spans) == 1
         assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
 
+    @pytest.mark.skipif(
+        _PYTEST_VERSION_TUPLE < ITR_MIN_SUPPORTED_VERSION,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -1732,6 +1738,10 @@ class PytestTestCase(PytestTestCaseBase):
         # assert len(files[1]["segments"]) == 1
         # assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
 
+    @pytest.mark.skipif(
+        _PYTEST_VERSION_TUPLE < ITR_MIN_SUPPORTED_VERSION,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1818,6 +1828,10 @@ class PytestTestCase(PytestTestCaseBase):
         # assert len(files[1]["segments"]) == 1
         # assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
+    @pytest.mark.skipif(
+        _PYTEST_VERSION_TUPLE < ITR_MIN_SUPPORTED_VERSION,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1921,6 +1935,10 @@ class PytestTestCase(PytestTestCaseBase):
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert fourth_test_span.get_struct_tag(COVERAGE_TAG_NAME) is None
 
+    @pytest.mark.skipif(
+        _PYTEST_VERSION_TUPLE < ITR_MIN_SUPPORTED_VERSION,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
