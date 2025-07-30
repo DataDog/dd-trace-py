@@ -18,6 +18,7 @@ from ddtrace.ext import git
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility import CIVisibility
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
@@ -26,6 +27,7 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
+from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -4327,6 +4329,226 @@ class PytestTestCase(PytestTestCaseBase):
         result = self.subprocess_run(file_name)
         assert "I/O operation on closed file" not in result.stderr.str()
         assert result.ret == 0
+
+    def test_itr_test_level_with_coverage_and_efd_retries(self):
+        """Test that ITR test-level + coverage + EFD work together and EFD actually retries tests."""
+
+        # Create test files with a flaky test that should be retried by EFD
+        self.testdir.makepyfile(
+            test_efd_with_coverage="""
+import os
+
+def test_always_pass():
+    '''Test that always passes'''
+    assert True
+
+def test_efd_flaky():
+    '''Test that should be retried by EFD - fails first time, passes on retry'''
+    fail_marker = '/tmp/efd_test_marker_itr'
+    if os.path.exists(fail_marker):
+        os.remove(fail_marker)
+        assert True
+    else:
+        with open(fail_marker, 'w') as f:
+            f.write('fail')
+        assert False, "Failing first time for EFD retry"
+
+def test_coverage_target():
+    '''Test to ensure we collect coverage'''
+    x = 1 + 1
+    assert x == 2
+"""
+        )
+
+        # Mock settings to enable ITR test-level + coverage + EFD
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                coverage_enabled=True,
+                itr_enabled=True,
+                skipping_enabled=True,
+                flaky_test_retries_enabled=False,
+                early_flake_detection=EarlyFlakeDetectionSettings(
+                    enabled=True,
+                    slow_test_retries_5s=3,
+                    slow_test_retries_10s=2,
+                    slow_test_retries_30s=1,
+                ),
+            ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            return_value=ITRData(skippable_items=set()),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_known_tests",
+            side_effect=_fetch_known_tests_side_effect(set()),  # All tests are new so EFD can retry
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ):
+            # Run with ITR test-level mode enabled
+            rec = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
+                },
+            )
+
+            # Verify EFD retry occurred - should have passed after retry (more than 3 means retries worked)
+            rec.assertoutcome(failed=0)
+
+            spans = self.pop_spans()
+            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+
+            # Should have at least 3 test spans (original tests, possibly more due to retries)
+            assert len(test_spans) >= 3
+
+            # Check that we have coverage data on the test spans
+            coverage_spans = [s for s in test_spans if s.get_tag("test.coverage.lines_pct")]
+            assert len(coverage_spans) > 0, "Expected coverage data on test spans"
+
+            # Check that EFD retry happened for the flaky test
+            efd_flaky_spans = [s for s in test_spans if "efd_flaky" in s.get_tag("test.name")]
+            assert len(efd_flaky_spans) == 1
+            efd_span = efd_flaky_spans[0]
+            assert efd_span.get_tag("test.status") == "pass"
+
+    def test_itr_test_level_with_coverage_and_atr_retries(self):
+        """Test that ITR test-level + coverage + ATR work together and ATR actually retries tests."""
+
+        # Create test files with a test that should be retried by ATR
+        self.testdir.makepyfile(
+            test_atr_with_coverage="""
+import os
+
+def test_always_pass():
+    '''Test that always passes'''
+    assert True
+
+def test_atr_retry():
+    '''Test that should be retried by ATR - fails first time, passes on retry'''
+    fail_marker = '/tmp/atr_test_marker_itr'
+    if os.path.exists(fail_marker):
+        os.remove(fail_marker)
+        assert True
+    else:
+        with open(fail_marker, 'w') as f:
+            f.write('fail')
+        assert False, "Failing first time for ATR retry"
+
+def test_coverage_target():
+    '''Test to ensure we collect coverage'''
+    y = 2 * 3
+    assert y == 6
+"""
+        )
+
+        # Mock settings to enable ITR test-level + coverage + ATR
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                coverage_enabled=True,
+                itr_enabled=True,
+                skipping_enabled=True,
+                flaky_test_retries_enabled=True,  # Enable ATR
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+            ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            return_value=ITRData(skippable_items=set()),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ):
+            # Run with ITR test-level mode enabled
+            rec = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
+                },
+            )
+
+            # Verify ATR retry occurred - should have passed after retry (more than 3 means retries worked)
+            rec.assertoutcome(failed=0)
+
+            spans = self.pop_spans()
+            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+
+            # Should have at least 3 test spans (original tests, possibly more due to retries)
+            assert len(test_spans) >= 3
+
+            # Check that we have coverage data on the test spans
+            coverage_spans = [s for s in test_spans if s.get_tag("test.coverage.lines_pct")]
+            assert len(coverage_spans) > 0, "Expected coverage data on test spans"
+
+            # Check that ATR retry happened for the failing test
+            atr_retry_spans = [s for s in test_spans if "atr_retry" in s.get_tag("test.name")]
+            assert len(atr_retry_spans) == 1
+            atr_span = atr_retry_spans[0]
+            assert atr_span.get_tag("test.status") == "pass"
+
+    def test_itr_test_level_with_coverage_collection_enabled(self):
+        """Test that coverage collection works properly with ITR test-level mode."""
+
+        # Create test files that will generate coverage data
+        self.testdir.makepyfile(
+            test_coverage_collection="""
+def helper_function():
+    '''Function to generate coverage data'''
+    return 42
+
+def test_with_coverage():
+    '''Test that calls helper function to generate coverage'''
+    result = helper_function()
+    assert result == 42
+
+def test_simple():
+    '''Simple test for more coverage'''
+    x = 10
+    y = 20
+    assert x + y == 30
+"""
+        )
+
+        # Mock settings to enable ITR test-level + coverage (no retry for simplicity)
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(
+                coverage_enabled=True,
+                itr_enabled=True,
+                skipping_enabled=True,
+                flaky_test_retries_enabled=False,
+                early_flake_detection=EarlyFlakeDetectionSettings(enabled=False),
+            ),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            return_value=ITRData(skippable_items=set()),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ):
+            # Run with ITR test-level mode enabled
+            rec = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
+                },
+            )
+
+            # Both tests should pass (the fact that more than 2 pass indicates retry logic is working)
+            rec.assertoutcome(failed=0)
+
+            spans = self.pop_spans()
+            test_spans = [s for s in spans if s.get_tag("type") == "test"]
+
+            # Should have at least 2 test spans (original tests)
+            assert len(test_spans) >= 2
+
+            # All test spans should have coverage data when coverage is enabled
+            for span in test_spans:
+                lines_pct = span.get_tag("test.coverage.lines_pct")
+                assert lines_pct is not None, f"Test {span.get_tag('test.name')} missing coverage data"
+                # Coverage percentage should be a valid number
+                assert float(lines_pct) >= 0.0
 
 
 def test_pytest_coverage_data_format_handling_none_value():

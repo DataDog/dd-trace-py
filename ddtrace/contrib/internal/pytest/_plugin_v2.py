@@ -510,18 +510,17 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
 def _handle_retry_logic(item, test_id, reports_dict, test_outcome):
     """Handle retry logic for EFD, ATR, and Attempt to Fix features."""
     is_quarantined = InternalTest.is_quarantined_test(test_id)
-    is_disabled = InternalTest.is_disabled_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
-    
+
     # Check if setup or teardown failed
     setup_or_teardown_failed = False
     for report in reports_dict.values():
         if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
             setup_or_teardown_failed = True
             break
-    
+
     retry_handler = None
-    
+
     if setup_or_teardown_failed:
         # ATR and EFD retry tests only if their teardown succeeded to ensure the best chance the retry will succeed.
         log.debug("Test %s failed during setup or teardown, skipping retries", test_id)
@@ -531,7 +530,7 @@ def _handle_retry_logic(item, test_id, reports_dict, test_outcome):
         retry_handler = efd_handle_retries
     elif InternalTestSession.atr_is_enabled() and InternalTest.atr_should_retry(test_id):
         retry_handler = atr_handle_retries
-    
+
     if retry_handler:
         # Retry handler is responsible for logging the test reports.
         retry_handler(
@@ -560,8 +559,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         _handle_collected_coverage(test_id, coverage_collector)
 
     test_was_finished_here = False
-    retry_handler_called = False
-    
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
@@ -581,12 +579,12 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         should_collect_coverage = InternalTestSession.should_collect_coverage()
         item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
         coverage_was_expected = should_collect_coverage and not item_will_skip
-        
+
         if coverage_was_expected:
             reports_dict = reports_by_item.get(item)
             if reports_dict:
                 test_outcome = _process_reports_dict(item, reports_dict)
-                retry_handler_called = _handle_retry_logic(item, test_id, reports_dict, test_outcome)
+                _handle_retry_logic(item, test_id, reports_dict, test_outcome)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
