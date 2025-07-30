@@ -167,16 +167,17 @@ class TracedStream(wrapt.ObjectProxy):
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
-        if hasattr(self.__wrapped__, "__enter__"):
-            result = self.__wrapped__.__enter__()
-            # update iterator in case we are wrapping a stream manager
-            if result is not self.__wrapped__:
-                self._self_stream_iter = result
-                traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
-                if self._self_on_stream_created:
-                    self._self_on_stream_created(traced_stream)
-                return traced_stream
-        return self
+        if not hasattr(self.__wrapped__, "__enter__"):
+            return self
+        result = self.__wrapped__.__enter__()
+        if result is self.__wrapped__:
+            return self
+        # update iterator in case we are wrapping a stream manager
+        self._self_stream_iter = result
+        traced_stream = TracedStream(result, self._self_handler, self._self_on_stream_created)
+        if self._self_on_stream_created:
+            self._self_on_stream_created(traced_stream)
+        return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         if hasattr(self.__wrapped__, "__exit__"):
@@ -241,16 +242,17 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
-        if hasattr(self.__wrapped__, "__aenter__"):
-            result = await self.__wrapped__.__aenter__()
-            # update iterator in case we are wrapping a stream manager
-            if result is not self.__wrapped__:
-                self._self_async_stream_iter = result
-                traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
-                if self._self_on_stream_created:
-                    self._self_on_stream_created(traced_stream)
-                return traced_stream
-        return self
+        if not hasattr(self.__wrapped__, "__aenter__"):
+            return self
+        result = await self.__wrapped__.__aenter__()
+        if result is self.__wrapped__:
+            return self
+        # update iterator in case we are wrapping a stream manager
+        self._self_async_stream_iter = result
+        traced_stream = TracedAsyncStream(result, self._self_handler, self._self_on_stream_created)
+        if self._self_on_stream_created:
+            self._self_on_stream_created(traced_stream)
+        return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         if hasattr(self.__wrapped__, "__aexit__"):
