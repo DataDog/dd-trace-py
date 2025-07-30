@@ -1,7 +1,7 @@
 import os
 import time
-from typing import Dict
 import typing as t
+from typing import Dict
 
 from wrapt.importer import when_imported
 

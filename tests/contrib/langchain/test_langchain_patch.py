@@ -48,9 +48,9 @@ class TestLangchainPatch(PatchTestCase.Base):
 
     def assert_not_module_patched(self, langchain):
         try:
+            import langchain_community as gated_langchain
             from langchain_community import embeddings  # noqa: F401
             from langchain_community import vectorstores  # noqa: F401
-            import langchain_community as gated_langchain
         except ImportError:
             gated_langchain = None
         import langchain_core
