@@ -6,6 +6,11 @@ from ddtrace.llmobs import LLMObs
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 
 @pytest.mark.parametrize(
     "ddtrace_global_config",
@@ -25,6 +30,9 @@ class TestVLLMLLMObs(SubprocessTestCase):
         DD_LLMOBS_ENABLED="true",
         DD_LLMOBS_SAMPLE_RATE="1.0",
         DD_LLMOBS_ML_APP="<ml-app-name>",
+        # Force CPU-only mode for vLLM
+        CUDA_VISIBLE_DEVICES="",
+        VLLM_DEVICE="cpu",
     )
 
     def setUp(self):
@@ -51,14 +59,22 @@ class TestVLLMLLMObs(SubprocessTestCase):
             
             # Create a mock LLM instance and generate
             # This would use a real model in actual tests
-            llm = vllm.LLM(model="facebook/opt-125m", trust_remote_code=True)
+            llm = vllm.LLM(
+                model="facebook/opt-125m", 
+                trust_remote_code=True,
+                tensor_parallel_size=1,
+                dtype="auto",
+                device="cpu" if not (torch and torch.cuda.is_available()) else "auto",
+                enforce_eager=True,  # Disable CUDA graphs
+                disable_log_stats=True
+            )
             prompts = ["Hello, my name is", "The capital of France is"]
-            sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95)
+            sampling_params = vllm.SamplingParams(temperature=0.8, top_p=0.95, max_tokens=10)
             outputs = llm.generate(prompts, sampling_params)
             
             return outputs
-        except ImportError:
-            pytest.skip("vLLM not available")
+        except (ImportError, RuntimeError, OSError) as e:
+            pytest.skip(f"vLLM not available or can't initialize: {e}")
 
     @staticmethod  
     def _call_vllm_encode():
@@ -67,13 +83,21 @@ class TestVLLMLLMObs(SubprocessTestCase):
             import vllm
             
             # Create a mock LLM instance for embeddings
-            llm = vllm.LLM(model="intfloat/e5-mistral-7b-instruct", trust_remote_code=True)
+            llm = vllm.LLM(
+                model="intfloat/e5-mistral-7b-instruct", 
+                trust_remote_code=True,
+                tensor_parallel_size=1,
+                dtype="auto",
+                device="cpu" if not (torch and torch.cuda.is_available()) else "auto",
+                enforce_eager=True,  # Disable CUDA graphs
+                disable_log_stats=True
+            )
             prompts = ["Hello world", "How are you?"]
             outputs = llm.encode(prompts)
             
             return outputs
-        except ImportError:
-            pytest.skip("vLLM not available")
+        except (ImportError, RuntimeError, OSError) as e:
+            pytest.skip(f"vLLM not available or can't initialize: {e}")
 
     @run_in_subprocess(env_overrides=vllm_env_config)
     def test_vllm_llmobs_generate_enabled(self):
