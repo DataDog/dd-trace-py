@@ -60,7 +60,7 @@ def get_config(
             if report_telemetry:
                 telemetry_writer.add_configuration(env, val, "local_stable_config")
             effective_val = val
-            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            # Only match the first config
             break
 
     # 2. Check OpenTelemetry env vars (higher precedence)
@@ -90,7 +90,7 @@ def get_config(
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
-            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            # Only match the first config
             break
 
     # 4. Check fleet stable config last (highest precedence)
@@ -106,7 +106,7 @@ def get_config(
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
-            # TODO(munir): Report telemetry for all matching configs even if they are not used.
+            # Only match the first config
             break
 
     # Return the highest precedence configuration value
