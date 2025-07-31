@@ -63,9 +63,7 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     integration = vllm._datadog_integration
     
     # Get model info from the engine instance
-    model_config = getattr(instance, 'model_config', None)
-    model = getattr(model_config, 'model', 'unknown') if model_config else 'unknown'
-    provider = _extract_provider_from_model(model)
+    provider, model = _get_provider_and_model(instance, kwargs)
     
     span = integration.trace(
         pin,
@@ -109,9 +107,7 @@ async def traced_async_engine_step_async(vllm, pin, func, instance, args, kwargs
     integration = vllm._datadog_integration
     
     # Get model info from the engine instance
-    model_config = getattr(instance, 'model_config', None)
-    model = getattr(model_config, 'model', 'unknown') if model_config else 'unknown'
-    provider = _extract_provider_from_model(model)
+    provider, model = _get_provider_and_model(instance, kwargs)
     
     span = integration.trace(
         pin,
