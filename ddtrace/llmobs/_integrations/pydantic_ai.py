@@ -175,7 +175,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         For pydantic-ai >= 0.4.4, tools are stored in the agent's _function_toolset (tools) and
         _user_toolsets (user-defined toolsets) attributes.
         """
-        tools = {}
+        tools: Dict[str, Any] = {}
         if hasattr(agent, "_function_tools"):
             tools = getattr(agent, "_function_tools", {})
         elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
