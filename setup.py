@@ -217,7 +217,6 @@ class ExtensionHashes(build_ext):
                 else:
                     sources = [Path(_) for _ in ext.sources]
 
-
                 for source in sources:
                     print(source)
 
