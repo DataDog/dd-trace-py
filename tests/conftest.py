@@ -129,7 +129,7 @@ def auto_enable_crashtracking():
 @pytest.fixture(autouse=True)
 def enable_crashtracking(auto_enable_crashtracking):
     if auto_enable_crashtracking:
-        crashtracking.start()
+        assert crashtracking.start()
         assert crashtracking.is_started()
     yield
 
