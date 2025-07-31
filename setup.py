@@ -921,6 +921,7 @@ if not IS_PYSTON:
                 extra_source_dirs=[CRASHTRACKER_DIR / ".." / "dd_wrapper"],
                 optional=False,
                 dependencies=[
+                    CRASHTRACKER_DIR / "crashtracker_exe",
                     CRASHTRACKER_DIR.parent / "libdd_wrapper",
                 ],
             )
@@ -952,6 +953,7 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
+        "ddtrace.internal.datadog.profiling.crashtracker": ["crashtracker_exe*"],
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python

@@ -8,6 +8,7 @@
 extern "C"
 {
 #endif
+    const char* crashtracker_get_exe_name();
     void crashtracker_set_url(std::string_view url);
     void crashtracker_set_service(std::string_view service);
     void crashtracker_set_env(std::string_view env);
