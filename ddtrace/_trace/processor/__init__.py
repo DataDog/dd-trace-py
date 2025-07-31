@@ -267,7 +267,7 @@ class SpanAggregator(SpanProcessor):
         "(partial flushing enabled: %s)"
     )
 
-    SPAN_START_DEBUG_MESSAGE = "Starting span %s, local trace has %d spans in the span aggregator"
+    SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
 
     def __init__(
         self,
