@@ -36,6 +36,13 @@ def start() -> bool:
             if f.is_file():
                 print(f.name)
 
+        # also print the contents of the profiling directory
+        # ddtrace/internal/datadog/profiling
+        profiling_dir = Path(__file__).parent.parent / "datadog" / "profiling"
+        for f in profiling_dir.iterdir():
+            if f.is_file():
+                print(f.name)
+
         print(failure_msg)
         for k, v in os.environ.items():
             print(k, v)
