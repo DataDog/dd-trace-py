@@ -1,6 +1,5 @@
-import os
 from pathlib import Path
-import sys
+import subprocess  # nosec B404
 from typing import Callable
 
 from ddtrace import config
@@ -31,23 +30,15 @@ def add_tag(key: str, value: str) -> None:
 
 def start() -> bool:
     if not is_available:
-        native_dir = Path(__file__).parent.parent / "native"
-        for f in native_dir.iterdir():
-            if f.is_file():
-                print(f.name)
-
-        # also print the contents of the profiling directory
-        # ddtrace/internal/datadog/profiling
+        print(failure_msg)
+        # Let's check whether crashtracker.so is pointing to the right _native.so
+        # using ldd
         crashtracker_dir = Path(__file__).parent.parent / "datadog" / "profiling" / "crashtracker"
         for f in crashtracker_dir.iterdir():
-            if f.is_file():
-                print(f.name)
-
-        print(failure_msg)
-        for k, v in os.environ.items():
-            print(k, v)
-        print(sys.version)
-
+            if f.is_file() and f.name.endswith(".so"):
+                subprocess.run(["ldd", f.name], cwd=crashtracker_dir, check=True) # nosec: B607, B603
+                # i'd also want to know when it was created
+                print(f.stat().st_ctime)
         return False
 
     import platform
