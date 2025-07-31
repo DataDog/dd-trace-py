@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Callable
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -109,10 +110,10 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         if operation == "graph":
             agent = self._graph_spans_to_graph_instances[span]
-            agent_manifest = self._get_agent_manifest(span, agent, args, config)
+            agent_manifest = self._get_agent_manifest(agent, args, config)
             span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
 
-    def _get_agent_manifest(self, span: Span, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+    def _get_agent_manifest(self, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Gets the agent manifest for a given agent.
 
@@ -175,16 +176,18 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         tools = [{"name": tool.name, "description": tool.description} for tool in agent_tools]
 
-        agent_manifest = {
-            "model": model_name,
-            "model_provider": model_provider,
-            "model_settings": model_settings,
-            "tools": tools,
-        }
+        agent_manifest = {}
 
+        if model_name:
+            agent_manifest["model"] = model_name
+        if model_provider:
+            agent_manifest["model_provider"] = model_provider
+        if model_settings:
+            agent_manifest["model_settings"] = model_settings
+        if tools:
+            agent_manifest["tools"] = tools
         if system_prompt:
             agent_manifest["instructions"] = system_prompt
-
         if name:
             agent_manifest["name"] = name
 
@@ -254,7 +257,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         used_finished_task_ids: Set[str] = set()
         for task_id, task in next_tasks.items():
             queued_node = self._graph_nodes_for_graph_by_task_id.setdefault(graph_span, {}).setdefault(task_id, {})
-            queued_node["name"] = getattr(task, "name", "")
+            queued_node["name"] = _get_attr(task, "name", "")
 
             trigger_ids = self._link_task_to_triggers(
                 task, queued_node, graph_span, task_trigger_channels_to_finished_tasks
@@ -324,7 +327,16 @@ class LangGraphIntegration(BaseLLMIntegration):
 
 def _get_model_info(model) -> Tuple[Optional[str], Optional[str], Dict[str, Any]]:
     """Get the model name, provider, and settings from a langchain llm"""
-    model_name = getattr(model, "model_name", None)
+    if isinstance(model, str):
+        # something like "openai:gpt-4"
+        model_provider, model_name = model.split(":", maxsplit=1)
+        return model_name, model_provider, {}
+
+    if isinstance(model, Callable):
+        # this represents models that are retrieved at runtime as a function of state and config
+        return None, None, {}
+
+    model_name = _get_attr(model, "model_name", None)
     model_provider = _get_model_provider(model)
     model_settings = _get_model_settings(model)
     return model_name, model_provider, model_settings
@@ -332,7 +344,7 @@ def _get_model_info(model) -> Tuple[Optional[str], Optional[str], Dict[str, Any]
 
 def _get_model_provider(model) -> Optional[str]:
     """Get the model provider from a langchain llm"""
-    model_provider_info_fn = getattr(model, "_get_ls_params", None)
+    model_provider_info_fn = _get_attr(model, "_get_ls_params", None)
     if model_provider_info_fn is None or not callable(model_provider_info_fn):
         return None
 
@@ -342,7 +354,7 @@ def _get_model_provider(model) -> Optional[str]:
 
 def _get_model_settings(model) -> Dict[str, Any]:
     """Get the model settings from a langchain llm"""
-    invocation_params_fn = getattr(model, "_get_invocation_params", None)
+    invocation_params_fn = _get_attr(model, "_get_invocation_params", None)
     if invocation_params_fn is None or not callable(invocation_params_fn):
         return {}
 
@@ -356,20 +368,20 @@ def _get_tools_from_tool_nodes(agent) -> List[str]:
     if agent is None:
         return list(tool_names)
 
-    builder = getattr(agent, "builder", None)
+    builder = _get_attr(agent, "builder", None)
     if builder is None:
         return list(tool_names)
 
-    nodes: Optional[Dict[str, Any]] = getattr(builder, "nodes", None)
+    nodes: Optional[Dict[str, Any]] = _get_attr(builder, "nodes", None)
     if nodes is None:
         return list(tool_names)
 
     for node in nodes.values():
-        runnable = getattr(node, "runnable", None)
+        runnable = _get_attr(node, "runnable", None)
         if runnable is None:
             continue
 
-        tools_by_name: Optional[Dict[str, Any]] = getattr(runnable, "tools_by_name", None)
+        tools_by_name: Optional[Dict[str, Any]] = _get_attr(runnable, "tools_by_name", None)
         if tools_by_name is None:
             continue
 
@@ -390,7 +402,7 @@ def _get_trigger_ids_from_finished_tasks(
     consume from the `__pregel_tasks` channel. We want to pop these instances and associate them one at a time with each
     of the queued tasks.
     """
-    task_triggers_from_task = getattr(queued_tasks, "triggers", [])
+    task_triggers_from_task = _get_attr(queued_tasks, "triggers", [])
     task_triggers = task_triggers_from_task or []
 
     trigger_ids: List[str] = []
@@ -413,7 +425,7 @@ def _find_pregel_push_index(task, pregel_pushes: List[Tuple[str, str]]) -> int:
     Find the index of a specific pregel push node in the list of pregel push nodes
     """
     for i, (pregel_push_node, _) in enumerate(pregel_pushes):
-        if pregel_push_node == getattr(task, "name", ""):
+        if pregel_push_node == _get_attr(task, "name", ""):
             return i
     return -1
 
@@ -428,7 +440,7 @@ def _map_channel_writes_to_finished_tasks_ids(
     """
     channel_names_to_finished_tasks_ids: Dict[str, List[Union[str, Tuple[str, str]]]] = {}
     for finished_task_id, finished_task in finished_tasks.items():
-        writes: Iterable[Tuple[str, Any]] = getattr(finished_task, "writes", [])
+        writes: Iterable[Tuple[str, Any]] = _get_attr(finished_task, "writes", [])
         for write in writes:
             _append_finished_task_to_channel_writes_map(finished_task_id, write, channel_names_to_finished_tasks_ids)
 
@@ -449,7 +461,7 @@ def _append_finished_task_to_channel_writes_map(
     tasks_for_trigger = channel_names_to_finished_tasks_ids.setdefault(channel_write_name, [])
 
     if channel_write_name == PREGEL_TASKS:
-        pregel_task_node: Optional[str] = getattr(channel_write_arg, "node", None)
+        pregel_task_node: Optional[str] = _get_attr(channel_write_arg, "node", None)
         if pregel_task_node is None:
             return
         tasks_for_trigger.append((pregel_task_node, finished_task_id))
