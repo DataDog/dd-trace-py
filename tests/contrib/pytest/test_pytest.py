@@ -9,6 +9,8 @@ import pytest
 import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
+from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_efd
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
@@ -36,6 +38,8 @@ from tests.utils import TracerTestCase
 
 
 _USE_PLUGIN_V2 = True
+_PYTEST_SUPPORTS_ATR = _pytest_version_supports_atr()
+_PYTEST_SUPPORTS_EFD = _pytest_version_supports_efd()
 _PYTEST_SUPPORTS_ITR = _pytest_version_supports_itr()
 
 
@@ -4329,6 +4333,10 @@ class PytestTestCase(PytestTestCaseBase):
         assert "I/O operation on closed file" not in result.stderr.str()
         assert result.ret == 0
 
+    @pytest.mark.skipif(
+        not _PYTEST_SUPPORTS_ITR or not _PYTEST_SUPPORTS_EFD,
+        reason=f"pytest version {get_version()} does not support EFD or ITR coverage reporting",
+    )
     def test_itr_test_level_with_coverage_and_efd_retries(self):
         """Test that ITR test-level + coverage + EFD work together and EFD actually retries tests."""
 
@@ -4417,6 +4425,10 @@ def test_coverage_target():
             efd_span = efd_flaky_spans[0]
             assert efd_span.get_tag("test.status") == "fail"
 
+    @pytest.mark.skipif(
+        not _PYTEST_SUPPORTS_ITR or not _PYTEST_SUPPORTS_ATR,
+        reason=f"pytest version {get_version()} does not support ATR or ITR coverage reporting",
+    )
     def test_itr_test_level_with_coverage_and_atr_retries(self):
         """Test that ITR test-level + coverage + ATR work together and ATR actually retries tests."""
 
@@ -4505,6 +4517,10 @@ def test_coverage_target():
                 # Coverage data should be a dict with 'files' key
                 assert isinstance(coverage_data, dict) and "files" in coverage_data
 
+    @pytest.mark.skipif(
+        not _PYTEST_SUPPORTS_ITR,
+        reason=f"pytest version {get_version()} does not support ITR coverage reporting",
+    )
     def test_itr_test_level_with_coverage_collection_enabled(self):
         """Test that coverage collection works properly with ITR test-level mode."""
 
