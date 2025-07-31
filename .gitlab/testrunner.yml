@@ -2,7 +2,10 @@ variables:
   TESTRUNNER_IMAGE: registry.ddbuild.io/dd-trace-py:v72171907-b7ecc7e-testrunner-2025.07.29@sha256:0951475f34dad2b2eed3f30f79895676dd6fb9c1ae2563c93729942ebbb269aa
 
 .testrunner:
-  image: ${TESTRUNNER_IMAGE}
+  image:
+    name: ${TESTRUNNER_IMAGE}
+    docker:
+      user: bits
   # DEV: we have a larger pool of amd64 runners, prefer that over arm64
   tags: [ "arch:amd64" ]
   timeout: 20m
