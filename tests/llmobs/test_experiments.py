@@ -329,6 +329,38 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     "test_dataset_records",
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
+def test_dataset_modify_single_record_on_optional_field(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
+    test_dataset.update(
+        0,
+        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}),
+    )
+    test_dataset.push()
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 2
+
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert "expected_output" not in test_dataset[0]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # assert that the version is consistent with a new pull
+
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert ds[0]["expected_output"] == ""
+    assert len(ds) == 1
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+    assert ds._version == 2
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
 def test_dataset_append(llmobs, test_dataset):
     test_dataset.append(
         DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"})
