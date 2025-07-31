@@ -3402,6 +3402,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "gunicorn": latest,
+                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "pytest-randomly": latest,
             },
