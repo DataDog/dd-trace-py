@@ -1,3 +1,5 @@
+import os
+import sys
 from typing import Callable
 
 from ddtrace import config
@@ -28,7 +30,18 @@ def add_tag(key: str, value: str) -> None:
 
 def start() -> bool:
     if not is_available:
+        cwd = os.getcwd()
+        native_dir = os.path.join(cwd, "..", "/", "native")
+        print(native_dir)
+        list_dir = os.listdir(native_dir)
+        for file in list_dir:
+            print(file)
+
         print(failure_msg)
+        for k, v in os.environ.items():
+            print(k, v)
+        print(sys.version)
+
         return False
 
     import platform
