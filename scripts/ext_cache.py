@@ -1,5 +1,6 @@
 import argparse
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import typing as t
@@ -8,8 +9,6 @@ import typing as t
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 CACHE = ROOT / ".ext_cache"
-RESTORE_FILE = HERE / "restore-ext-cache.sh"
-SAVE_FILE = HERE / "save-ext-cache.sh"
 
 
 def invoke_ext_hashes():
@@ -23,10 +22,9 @@ def invoke_ext_hashes():
     return results
 
 
-def gen_restore():
+def try_restore_from_cache():
     # Generate the hashes of the extensions
     results = invoke_ext_hashes()
-    cached_files = set()
     for ext_name, ext_hash, ext_target in results:
         target = Path(ext_target)
         cache_dir = CACHE / ext_name / ext_hash
@@ -38,24 +36,18 @@ def gen_restore():
         # if the cached file exist, add it to the cached_files set
         for d in matches:
             if d.is_file():
-                cached_files.add((str(d.resolve()), str(target_dir / d.name)))
-
-    # Generate the restore script
-    RESTORE_FILE.write_text(
-        "\n".join(
-            [
-                f"    test -f {cached_file} && (cp {cached_file} {dest} && touch {dest} "
-                f"&& echo 'Restored {cached_file} -> {dest}') || true"
-                for cached_file, dest in cached_files
-            ]
-        )
-    )
+                print(f"Restoring {d.resolve()} to {target_dir.resolve()} directory")
+                shutil.copy(d.resolve(), target_dir.resolve())
+                # check that the file is indeed copied
+                if (target_dir / d.name).exists():
+                    print(f"Successfully copied {d.name} to {target_dir.resolve()} directory")
+                else:
+                    print(f"Failed to copy {d.name} to {target_dir.resolve()} directory")
 
 
-def gen_save():
+def save_to_cache():
     # Generate the hashes of extensions
     results = invoke_ext_hashes()
-    files_to_cache = set()
     for ext_name, ext_hash, ext_target in results:
         target = Path(ext_target)
         cache_dir = CACHE / ext_name / ext_hash
@@ -65,35 +57,32 @@ def gen_save():
             print(f"Warning: No target files found for {target.name} in {target_dir}", file=sys.stderr)
             continue
         # if we found the target file, add it to the files_to_cache set
-        for d in matches:
-            if d.is_file():
-                files_to_cache.add((str(d.resolve()), str(cache_dir / d.name)))
-
-    # Generate the save script
-    SAVE_FILE.write_text(
-        "\n".join(
-            [
-                f"    test -f {file_to_cache} && mkdir -p {Path(dest).parent} && (cp {file_to_cache} {dest} "
-                f"&& echo 'Saved {file_to_cache} -> {dest}' || true)"
-                for file_to_cache, dest in files_to_cache
-            ]
-        )
-    )
+        for f in matches:
+            if f.is_file():
+                # So we'd need to save f to the cache directory
+                print(f"Saving {f.resolve()} to {cache_dir.resolve()} directory")
+                cache_dir.mkdir(parents=True, exist_ok=True)
+                shutil.copy(f.resolve(), cache_dir.resolve())
+                # check that the file is indeed copied
+                if (cache_dir / f.name).exists():
+                    print(f"Successfully copied {f.name} to {cache_dir.resolve()} directory")
+                else:
+                    print(f"Failed to copy {f.name} to {cache_dir.resolve()} directory")
 
 
 def parse_args():
     args = argparse.ArgumentParser()
-    args.add_argument("--gen_restore", action="store_true")
-    args.add_argument("--gen_save", action="store_true")
+    args.add_argument("--restore", action="store_true")
+    args.add_argument("--save", action="store_true")
     return args.parse_args()
 
 
 def main():
     args = parse_args()
-    if args.gen_restore:
-        gen_restore()
-    elif args.gen_save:
-        gen_save()
+    if args.restore:
+        try_restore_from_cache()
+    elif args.save:
+        save_to_cache()
 
 
 if __name__ == "__main__":
