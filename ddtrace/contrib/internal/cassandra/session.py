@@ -21,7 +21,6 @@ from cassandra.query import SimpleStatement
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
@@ -32,6 +31,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -214,7 +214,7 @@ def _start_span_and_set_tags(
     span.set_tag_str(db.SYSTEM, "cassandra")
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
     span.set_tags(additional_tags)
     if query is not None:
         span.set_tag_str("cassandra.query", query)

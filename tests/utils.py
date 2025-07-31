@@ -25,12 +25,12 @@ import wrapt
 
 import ddtrace
 from ddtrace import config as dd_config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
 from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.packages import Distribution
@@ -66,18 +66,18 @@ FILE_PATH = Path(__file__).resolve().parent
 
 def assert_is_measured(span):
     """Assert that the span has the proper _dd.measured tag set"""
-    assert _SPAN_MEASURED_KEY in span.get_metrics()
-    assert _SPAN_MEASURED_KEY not in span.get_tags()
-    assert span.get_metric(_SPAN_MEASURED_KEY) == 1
+    assert SPAN_MEASURED_KEY in span.get_metrics()
+    assert SPAN_MEASURED_KEY not in span.get_tags()
+    assert span.get_metric(SPAN_MEASURED_KEY) == 1
 
 
 def assert_is_not_measured(span):
     """Assert that the span does not set _dd.measured"""
-    assert _SPAN_MEASURED_KEY not in span.get_tags()
-    if _SPAN_MEASURED_KEY in span.get_metrics():
-        assert span.get_metric(_SPAN_MEASURED_KEY) == 0
+    assert SPAN_MEASURED_KEY not in span.get_tags()
+    if SPAN_MEASURED_KEY in span.get_metrics():
+        assert span.get_metric(SPAN_MEASURED_KEY) == 0
     else:
-        assert _SPAN_MEASURED_KEY not in span.get_metrics()
+        assert SPAN_MEASURED_KEY not in span.get_metrics()
 
 
 def assert_span_http_status_code(span, code):

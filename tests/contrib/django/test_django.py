@@ -18,7 +18,6 @@ import pytest
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -30,6 +29,7 @@ from ddtrace.contrib.internal.django.utils import get_request_uri
 from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
@@ -1692,7 +1692,7 @@ def test_django_request_distributed(client, test_spans):
         trace_id=12345,
         parent_id=78910,
         metrics={
-            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
     assert root.get_tag("span.kind") == "server"
@@ -1826,7 +1826,7 @@ def test_inferred_spans_api_gateway_distributed_tracing(client, test_spans):
         trace_id=1,
         parent_id=2,
         metrics={
-            _SAMPLING_PRIORITY_KEY: USER_KEEP,
+            SAMPLING_PRIORITY_KEY: USER_KEEP,
         },
     )
 

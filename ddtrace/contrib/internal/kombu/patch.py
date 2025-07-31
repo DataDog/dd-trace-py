@@ -6,7 +6,6 @@ import kombu
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
 # project
@@ -16,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import kombu as kombux
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -122,7 +122,7 @@ def traced_receive(func, instance, args, kwargs):
         s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
         # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s.set_metric(SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
@@ -151,7 +151,7 @@ def traced_publish(func, instance, args, kwargs):
         s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
         # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s.set_metric(SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag_str(kombux.EXCHANGE, exchange_name)

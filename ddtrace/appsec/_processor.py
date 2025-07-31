@@ -36,9 +36,9 @@ from ddtrace.appsec._exploit_prevention.stack_traces import report_stack
 from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.appsec._utils import Binding_error
 from ddtrace.appsec._utils import DDWaf_result
-from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.constants import _RUNTIME_FAMILY
 from ddtrace.internal._unpatched import unpatched_open as open  # noqa: A004
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import RUNTIME_FAMILY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.remoteconfig import PayloadType
@@ -202,7 +202,7 @@ class AppSecSpanProcessor(SpanProcessor):
         root_span = span._local_root or span
 
         root_span.set_metric(APPSEC.ENABLED, 1.0)
-        root_span.set_tag_str(_RUNTIME_FAMILY, "python")
+        root_span.set_tag_str(RUNTIME_FAMILY, "python")
 
         def waf_callable(custom_data=None, **kwargs):
             return self._waf_action(root_span, ctx, custom_data, **kwargs)
@@ -359,8 +359,8 @@ class AppSecSpanProcessor(SpanProcessor):
 
             # Right now, we overwrite any value that could be already there. We need to reconsider when ASM/AppSec's
             # specs are updated.
-            if span.get_tag(_ORIGIN_KEY) is None:
-                span.set_tag_str(_ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
+            if span.get_tag(ORIGIN_KEY) is None:
+                span.set_tag_str(ORIGIN_KEY, APPSEC.ORIGIN_VALUE)
 
         if waf_results.keep and allowed:
             _asm_manual_keep(span)

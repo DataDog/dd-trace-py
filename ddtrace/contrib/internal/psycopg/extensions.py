@@ -6,13 +6,13 @@ import functools
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_database_operation
 
 
@@ -43,7 +43,7 @@ def get_psycopg2_extensions(psycopg_module):
                 s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
                 # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s.set_metric(SPAN_MEASURED_KEY, 1)
                 if s.context.sampling_priority is None or s.context.sampling_priority <= 0:
                     return super(TracedCursor, self).execute(query, vars)
 

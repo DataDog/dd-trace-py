@@ -19,17 +19,17 @@ from ddtrace.internal.utils.cache import cachedmethod
 
 from .._logger import get_log_injection_state
 from ..internal import gitmetadata
-from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
-from ..internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ..internal.constants import _PROPAGATION_STYLE_DEFAULT
-from ..internal.constants import _PROPAGATION_STYLE_NONE
 from ..internal.constants import DEFAULT_BUFFER_SIZE
 from ..internal.constants import DEFAULT_MAX_PAYLOAD_SIZE
 from ..internal.constants import DEFAULT_PROCESSING_INTERVAL
 from ..internal.constants import DEFAULT_REUSE_CONNECTIONS
 from ..internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
 from ..internal.constants import DEFAULT_TIMEOUT
+from ..internal.constants import PROPAGATION_BEHAVIOR_DEFAULT
+from ..internal.constants import PROPAGATION_BEHAVIOR_IGNORE
 from ..internal.constants import PROPAGATION_STYLE_ALL
+from ..internal.constants import PROPAGATION_STYLE_DEFAULT
+from ..internal.constants import PROPAGATION_STYLE_NONE
 from ..internal.logger import get_logger
 from ..internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ..internal.serverless import in_aws_lambda
@@ -241,7 +241,7 @@ def _parse_propagation_styles(styles_str):
     for style in styles_str.split(","):
         style = style.strip().lower()
         # None has no propagator so we pull it out
-        if not style or style == _PROPAGATION_STYLE_NONE:
+        if not style or style == PROPAGATION_STYLE_NONE:
             continue
         if style not in PROPAGATION_STYLE_ALL:
             log.warning("Unknown DD_TRACE_PROPAGATION_STYLE: {!r}, allowed values are %r", style, PROPAGATION_STYLE_ALL)
@@ -568,15 +568,15 @@ class Config(object):
         # DD_TRACE_PROPAGATION_STYLE_EXTRACT and DD_TRACE_PROPAGATION_STYLE_INJECT
         #  take precedence over DD_TRACE_PROPAGATION_STYLE
         # if DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore
-        # we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to [_PROPAGATION_STYLE_NONE] since no extraction will heeded
+        # we set DD_TRACE_PROPAGATION_STYLE_EXTRACT to [PROPAGATION_STYLE_NONE] since no extraction will heeded
         self._propagation_behavior_extract = _get_config(
-            ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], _PROPAGATION_BEHAVIOR_DEFAULT, self._lower
+            ["DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT"], PROPAGATION_BEHAVIOR_DEFAULT, self._lower
         )
-        if self._propagation_behavior_extract != _PROPAGATION_BEHAVIOR_IGNORE:
+        if self._propagation_behavior_extract != PROPAGATION_BEHAVIOR_IGNORE:
             self._propagation_style_extract = _parse_propagation_styles(
                 _get_config(
                     ["DD_TRACE_PROPAGATION_STYLE_EXTRACT", "DD_TRACE_PROPAGATION_STYLE"],
-                    _PROPAGATION_STYLE_DEFAULT,
+                    PROPAGATION_STYLE_DEFAULT,
                     otel_env="OTEL_PROPAGATORS",
                 )
             )
@@ -585,11 +585,11 @@ class Config(object):
                 """DD_TRACE_PROPAGATION_BEHAVIOR_EXTRACT is set to ignore,
                 setting DD_TRACE_PROPAGATION_STYLE_EXTRACT to empty list"""
             )
-            self._propagation_style_extract = [_PROPAGATION_STYLE_NONE]
+            self._propagation_style_extract = [PROPAGATION_STYLE_NONE]
         self._propagation_style_inject = _parse_propagation_styles(
             _get_config(
                 ["DD_TRACE_PROPAGATION_STYLE_INJECT", "DD_TRACE_PROPAGATION_STYLE"],
-                _PROPAGATION_STYLE_DEFAULT,
+                PROPAGATION_STYLE_DEFAULT,
                 otel_env="OTEL_PROPAGATORS",
             )
         )

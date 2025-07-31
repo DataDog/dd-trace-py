@@ -5,7 +5,6 @@ from celery import signals
 
 from ddtrace import config
 from ddtrace._trace.pin import _DD_PIN_NAME
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery.signals import trace_after_publish
@@ -17,6 +16,7 @@ from ddtrace.contrib.internal.celery.signals import trace_retry
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.trace import Pin
 
@@ -99,7 +99,7 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
                 span.resource = resource_fn(args)
             span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
             # PERF: avoid setting via Span.set_tag
-            span.set_metric(_SPAN_MEASURED_KEY, 1)
+            span.set_metric(SPAN_MEASURED_KEY, 1)
 
             return func(*args, **kwargs)
 

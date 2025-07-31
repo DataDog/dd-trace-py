@@ -52,8 +52,8 @@ def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
 def test_priority_sampling_rate_honored():
     import time
 
-    from ddtrace.constants import _SAMPLING_PRIORITY_KEY  # noqa
     from ddtrace.constants import AUTO_KEEP
+    from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY  # noqa
     from ddtrace.trace import tracer as t
     from tests.integration.test_priority_sampling import _prime_tracer_with_priority_sample_rate_from_agent
     from tests.integration.test_priority_sampling import _turn_tracer_into_dummy
@@ -82,7 +82,7 @@ def test_priority_sampling_rate_honored():
         t.flush()
     assert len(t._span_aggregator.writer.traces) == captured_span_count
     sampled_spans = [
-        s for s in t._span_aggregator.writer.spans if s.context._metrics[_SAMPLING_PRIORITY_KEY] == AUTO_KEEP
+        s for s in t._span_aggregator.writer.spans if s.context._metrics[SAMPLING_PRIORITY_KEY] == AUTO_KEEP
     ]
     sampled_ratio = len(sampled_spans) / captured_span_count
     diff_magnitude = abs(sampled_ratio - rate_from_agent)

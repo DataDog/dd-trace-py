@@ -8,15 +8,15 @@ import pytest
 from ddtrace._trace.sampler import DatadogSampler
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.sampling_rule import SamplingRule
-from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.internal.constants import DEFAULT_SAMPLING_RATE_LIMIT
+from ddtrace.internal.constants import SAMPLING_AGENT_DECISION
+from ddtrace.internal.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import SAMPLING_RULE_DECISION
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.rate_limiter import RateLimiter
 from ddtrace.internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
@@ -48,10 +48,10 @@ def assert_sampling_decision_tags(
     :param sampling_priority: expected sampling priority ``_sampling_priority_v1``
     :param trace_tag: expected sampling decision trace tag ``_dd.p.dm``. Format is ``-{SAMPLINGMECHANISM}``.
     """
-    metric_agent = span.get_metric(_SAMPLING_AGENT_DECISION)
-    metric_limit = span.get_metric(_SAMPLING_LIMIT_DECISION)
-    metric_rule = span.get_metric(_SAMPLING_RULE_DECISION)
-    metric_sampling_priority = span.get_metric(_SAMPLING_PRIORITY_KEY)
+    metric_agent = span.get_metric(SAMPLING_AGENT_DECISION)
+    metric_limit = span.get_metric(SAMPLING_LIMIT_DECISION)
+    metric_rule = span.get_metric(SAMPLING_RULE_DECISION)
+    metric_sampling_priority = span.get_metric(SAMPLING_PRIORITY_KEY)
     if agent:
         assert metric_agent == agent
     if limit:

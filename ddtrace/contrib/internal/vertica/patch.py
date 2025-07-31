@@ -4,7 +4,6 @@ from typing import Dict
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -12,6 +11,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db as dbx
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -236,7 +236,7 @@ def _install_routine(patch_routine, patch_class, patch_mod, config):
 
                 if conf.get("measured", False):
                     # PERF: avoid setting via Span.set_tag
-                    span.set_metric(_SPAN_MEASURED_KEY, 1)
+                    span.set_metric(SPAN_MEASURED_KEY, 1)
                 span.set_tags(pin.tags)
 
                 if "span_start" in conf:

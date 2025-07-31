@@ -2,10 +2,10 @@ import pytest
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.utils import DummyTracer
 from tests.utils import override_env
@@ -56,7 +56,7 @@ def test_appsec_iast_processor_ensure_span_is_manual_keep(iast_context_defaults,
         result = load_iast_report(span)
         assert result is not None
         assert len(result["vulnerabilities"]) == 1
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
 
 
 @pytest.mark.skip_iast_check_logs
@@ -82,10 +82,10 @@ def test_appsec_iast_processor_ensure_span_is_sampled(iast_context_defaults, sam
         result = load_iast_report(span)
         if sampling_rate == 0.0:
             assert result is None
-            assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+            assert span.get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
             assert span.get_metric(IAST.ENABLED) == 0.0
         else:
             assert result is not None
             assert len(result["vulnerabilities"]) == 1
-            assert span.get_metric(_SAMPLING_PRIORITY_KEY) is USER_KEEP
+            assert span.get_metric(SAMPLING_PRIORITY_KEY) is USER_KEEP
             assert span.get_metric(IAST.ENABLED) == 1.0

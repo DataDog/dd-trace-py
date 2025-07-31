@@ -16,7 +16,7 @@ from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._config import config
 from ddtrace.version import get_version
 
-from ...constants import _SPAN_MEASURED_KEY
+from ...internal.constants import SPAN_MEASURED_KEY
 from .. import agent
 from .._encoding import packb
 from ..forksafe import Lock
@@ -31,7 +31,7 @@ log = get_logger(__name__)
 
 def _is_measured(span: Span) -> bool:
     """Return whether the span is flagged to be measured or not."""
-    return span._metrics.get(_SPAN_MEASURED_KEY) == 1
+    return span._metrics.get(SPAN_MEASURED_KEY) == 1
 
 
 """

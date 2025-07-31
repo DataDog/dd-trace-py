@@ -7,7 +7,6 @@ from unittest import mock
 import pytest
 
 import ddtrace
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
@@ -22,6 +21,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
@@ -844,7 +844,7 @@ class PytestTestCase(PytestTestCaseBase):
         spans = self.pop_spans()
 
         assert len(spans) == 4
-        assert spans[0].get_metric(_SAMPLING_PRIORITY_KEY) == 1
+        assert spans[0].get_metric(SAMPLING_PRIORITY_KEY) == 1
 
     def test_pytest_exception(self):
         """Test that pytest sets exception information correctly."""

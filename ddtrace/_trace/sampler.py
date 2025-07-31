@@ -9,7 +9,7 @@ from typing import List
 from typing import Optional
 
 from ddtrace._trace.span import Span
-from ddtrace.constants import _SAMPLING_LIMIT_DECISION
+from ddtrace.internal.constants import SAMPLING_LIMIT_DECISION
 from ddtrace.settings._config import config
 
 from ..constants import ENV_KEY
@@ -189,7 +189,7 @@ class DatadogSampler:
             # uses DatadogSampler._rate_limit_always_on to override this functionality.
             if sampled:
                 sampled = self.limiter.is_allowed()
-                span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
+                span.set_metric(SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
         sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
         _set_sampling_tags(
