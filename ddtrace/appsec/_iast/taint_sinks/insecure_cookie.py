@@ -12,7 +12,6 @@ from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.sampling.vulnerability_detection import should_process_vulnerability
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -92,11 +91,19 @@ def get_version() -> Text:
     return ""
 
 
-_is_patched = False
+_IS_PATCHED = False
 
 
-@patch_once
 def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function("django.http.response", "HttpResponseBase.set_cookie", _iast_response_cookies)

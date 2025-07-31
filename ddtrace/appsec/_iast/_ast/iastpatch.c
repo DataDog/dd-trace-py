@@ -274,9 +274,8 @@ get_first_part_lower(const char* module_name, char* first_part, size_t max_len)
 
 /* --- Helper function: is_first_party ---
    Returns 1 (true) if the module is considered first-party, 0 otherwise.
-   It calls importlib.metadata.packages_distributions only once,
-   caches the resulting package names (as lowercase C strings),
-   and then compares the first component of the given module name against that list.
+   Uses the pre-populated cached_packages list to determine if a module
+   is first-party by checking if its first component is NOT in the packages list.
 */
 static int
 is_first_party(const char* module_name)
@@ -286,71 +285,9 @@ is_first_party(const char* module_name)
         return 0;
     }
 
-    // If the packages list is not cached, call packages_distributions and cache its result.
-    if (cached_packages == NULL) {
-        PyObject* metadata;
-        if (PY_VERSION_HEX < 0x030A0000) { // Python < 3.10
-            metadata = PyImport_ImportModule("importlib_metadata");
-        } else {
-            metadata = PyImport_ImportModule("importlib.metadata");
-        }
-
-        if (!metadata) {
-            return 0;
-        }
-
-        PyObject* func = PyObject_GetAttrString(metadata, "packages_distributions");
-        Py_DECREF(metadata);
-        if (!func) {
-            return 0;
-        }
-        PyObject* result = PyObject_CallObject(func, NULL);
-        Py_DECREF(func);
-        if (!result)
-            return 0;
-
-        // Convert the result to a fast sequence (e.g., list or tuple).
-        PyObject* fast = PySequence_Fast(result, "expected a sequence");
-        Py_DECREF(result);
-        if (!fast)
-            return 0;
-        Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
-        cached_packages = malloc(n * sizeof(char*));
-        if (!cached_packages) {
-            Py_DECREF(fast);
-            return 0;
-        }
-        cached_packages_count = (size_t)n;
-        for (Py_ssize_t i = 0; i < n; i++) {
-            PyObject* item = PySequence_Fast_GET_ITEM(fast, i); // Borrowed reference.
-            if (!PyUnicode_Check(item)) {
-                cached_packages[i] = NULL;
-            } else {
-                const char* s = PyUnicode_AsUTF8(item);
-                if (s) {
-                    char* dup = strdup(s);
-                    if (dup) {
-                        // Convert to lowercase.
-                        for (char* p = dup; *p; p++) {
-                            *p = tolower(*p);
-                        }
-                        cached_packages[i] = dup;
-                    } else {
-                        cached_packages[i] = NULL;
-                    }
-                } else {
-                    cached_packages[i] = NULL;
-                }
-            }
-        }
-        // Print all cached_packages for debugging
-        // printf("cached_packages (count: %zu):\n", cached_packages_count);
-        // for (size_t i = 0; i < cached_packages_count; i++) {
-        //     if (cached_packages[i]) {
-        //          printf("  [%zu]: %s\n", i, cached_packages[i]);
-        //     }
-        // }
-        Py_DECREF(fast);
+    // If no cached packages are available, assume it's not first-party
+    if (cached_packages == NULL || cached_packages_count == 0) {
+        return 0;
     }
 
     // Extract the first component from module_name (up to the first dot) and convert it to lowercase.
@@ -642,6 +579,69 @@ py_get_user_allowlist(PyObject* self, PyObject* args)
     return py_list;
 }
 
+static PyObject*
+py_set_packages_distributions(PyObject* self, PyObject* args)
+{
+    PyObject* packages_set;
+    if (!PyArg_ParseTuple(args, "O", &packages_set)) {
+        return NULL;
+    }
+
+    // Clear any existing cached packages when setting new packages
+    if (cached_packages != NULL) {
+        free_list(cached_packages, cached_packages_count);
+        cached_packages = NULL;
+        cached_packages_count = 0;
+    }
+
+    // Convert the set to a fast sequence (e.g., list or tuple).
+    PyObject* fast = PySequence_Fast(packages_set, "expected a sequence");
+    if (!fast)
+        return NULL;
+
+    Py_ssize_t n = PySequence_Fast_GET_SIZE(fast);
+    cached_packages = malloc(n * sizeof(char*));
+    if (!cached_packages) {
+        Py_DECREF(fast);
+        return NULL;
+    }
+    cached_packages_count = (size_t)n;
+
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject* item = PySequence_Fast_GET_ITEM(fast, i); // Borrowed reference.
+        if (!PyUnicode_Check(item)) {
+            cached_packages[i] = NULL;
+        } else {
+            const char* s = PyUnicode_AsUTF8(item);
+            if (s) {
+                char* dup = strdup(s);
+                if (dup) {
+                    // Convert to lowercase.
+                    for (char* p = dup; *p; p++) {
+                        *p = tolower(*p);
+                    }
+                    cached_packages[i] = dup;
+                } else {
+                    cached_packages[i] = NULL;
+                }
+            } else {
+                cached_packages[i] = NULL;
+            }
+        }
+    }
+    Py_DECREF(fast);
+
+    // Print all cached_packages for debugging
+    // printf("cached_packages (count: %zu):\n", cached_packages_count);
+    // for (size_t i = 0; i < cached_packages_count; i++) {
+    //    if (cached_packages[i]) {
+    //         printf("  [%zu]: %s\n", i, cached_packages[i]);
+    //    }
+    //}
+
+    Py_RETURN_NONE;
+}
+
 static PyMethodDef IastPatchMethods[] = {
     { "build_list_from_env",
       py_build_list_from_env,
@@ -655,6 +655,7 @@ static PyMethodDef IastPatchMethods[] = {
       py_get_user_allowlist,
       METH_NOARGS,
       "Returns the current user allowlist as a Python list." },
+    { "set_packages_distributions", py_set_packages_distributions, METH_VARARGS, "Sets the packages_distributions." },
     { NULL, NULL, 0, NULL }
 };
 

@@ -19,7 +19,6 @@ from .._metrics import _set_metric_iast_instrumented_sink
 from .._patch_modules import WrapFunctonsForIAST
 from .._span_metrics import increment_iast_span_metric
 from ._base import VulnerabilityBase
-from .utils import patch_once
 
 
 log = get_logger(__name__)
@@ -43,15 +42,23 @@ def get_version() -> Text:
     return ""
 
 
-_is_patched = False
+_IS_PATCHED = False
 
 
-@patch_once
 def patch():
     """Wrap hashing functions.
     Weak hashing algorithms are those that have been proven to be of high risk, or even completely broken,
     and thus are not fit for use.
     """
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     weak_cipher_algorithms = get_weak_cipher_algorithms()

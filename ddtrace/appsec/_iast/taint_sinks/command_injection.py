@@ -10,12 +10,12 @@ from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CMDI
 import ddtrace.contrib.internal.subprocess.patch as subprocess_patch
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 from .._logs import iast_error
 from .._logs import iast_propagation_sink_point_debug_log
 from ._base import VulnerabilityBase
-from .utils import patch_once
 
 
 log = get_logger(__name__)
@@ -26,17 +26,25 @@ def get_version() -> str:
 
 
 _IAST_CMDI = "iast_cmdi"
+_IS_PATCHED = False
 
 
-_is_patched = False
-
-
-@patch_once
 def patch():
-    subprocess_patch.patch()
-    subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
-    subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
-    _set_metric_iast_instrumented_sink(VULN_CMDI)
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
+    @ModuleWatchdog.after_module_imported("subprocess")
+    def _(module):
+        subprocess_patch.patch()
+        subprocess_patch.add_str_callback(_IAST_CMDI, _iast_report_cmdi)
+        subprocess_patch.add_lst_callback(_IAST_CMDI, _iast_report_cmdi)
+        _set_metric_iast_instrumented_sink(VULN_CMDI)
 
 
 def unpatch() -> None:
