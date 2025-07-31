@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import sys
 from typing import Callable
 
@@ -30,12 +30,10 @@ def add_tag(key: str, value: str) -> None:
 
 def start() -> bool:
     if not is_available:
-        cwd = os.getcwd()
-        native_dir = os.path.join(cwd, "..", "/", "native")
-        print(native_dir)
-        list_dir = os.listdir(native_dir)
-        for file in list_dir:
-            print(file)
+        native_dir = Path(__file__).parent.parent / "native"
+        for f in native_dir.iterdir():
+            if f.is_file():
+                print(f.name)
 
         print(failure_msg)
         for k, v in os.environ.items():
