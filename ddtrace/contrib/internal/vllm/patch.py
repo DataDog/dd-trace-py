@@ -59,7 +59,7 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
 
 @with_traced_module 
 def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
-    """Trace LLMEngine.step() - the main request processing loop where vLLM creates llm_request spans."""
+    """Trace LLMEngine.step() - synchronous llm_request processing."""
     integration = vllm._datadog_integration
     
     # Get model info from the engine instance
@@ -103,6 +103,52 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     return result
 
 
+@with_traced_module 
+async def traced_async_engine_step_async(vllm, pin, func, instance, args, kwargs):
+    """Trace _AsyncLLMEngine.step_async() - asynchronous llm_request processing."""
+    integration = vllm._datadog_integration
+    
+    # Get model info from the engine instance
+    model_config = getattr(instance, 'model_config', None)
+    model = getattr(model_config, 'model', 'unknown') if model_config else 'unknown'
+    provider = _extract_provider_from_model(model)
+    
+    span = integration.trace(
+        pin,
+        "llm_request", 
+        provider=provider,
+        model=model,
+        submit_to_llmobs=True,
+    )
+    
+    # Add engine-specific tags
+    if hasattr(instance, 'scheduler_config'):
+        span.set_tag("vllm.scheduler.policy", getattr(instance.scheduler_config, 'policy', 'unknown'))
+    
+    try:
+        result = await func(*args, **kwargs)
+        
+        # Extract information from completed requests in the result
+        if result and isinstance(result, list):
+            span.set_tag("vllm.step.completed_requests", len(result))
+            
+            # Get metrics from the first completed request if available
+            if result and hasattr(result[0], 'metrics'):
+                metrics = result[0].metrics
+                if hasattr(metrics, 'arrival_time') and hasattr(metrics, 'finished_time'):
+                    latency = metrics.finished_time - metrics.arrival_time
+                    span.set_tag("vllm.request.e2e_latency", latency)
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        raise
+    finally:
+        kwargs["instance"] = instance
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
+        span.finish()
+    
+    return result
+
+
 def patch():
     """Patch vLLM methods for tracing - focusing on core llm_request operation first."""
     try:
@@ -118,14 +164,21 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
     
-    # Focus on the critical llm_request operation - the main step() method
+    # Focus on the critical llm_request operation - patch both sync and async methods
+    
+    # 1. Patch synchronous LLMEngine.step() for direct LLMEngine usage
     try:
-        # This is the main execution loop where vLLM calls do_tracing for llm_request spans
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
     except (AttributeError, ImportError):
-        pass  # This captures the full request lifecycle like vLLM's llm_request span
+        pass  # LLMEngine.step for sync usage
     
-    # TODO: Add back other method patches once core llm_request tracing is working:
+    # 2. Patch asynchronous _AsyncLLMEngine.step_async() for AsyncLLMEngine usage  
+    try:
+        wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.step_async", traced_async_engine_step_async(vllm))
+    except (AttributeError, ImportError):
+        pass  # _AsyncLLMEngine.step_async for async usage
+    
+    # TODO: Investigate other method patches once core llm_request tracing is working:
     # - vllm.LLM.generate (sync)
     # - vllm.LLM.encode (sync) 
     # - vllm.AsyncLLMEngine.generate (async)
@@ -144,11 +197,19 @@ def unpatch():
     
     vllm._datadog_patch = False
     
-    # Unpatch the core llm_request method
+    # Unpatch both sync and async llm_request methods
+    
+    # 1. Unpatch synchronous LLMEngine.step()
     try:
-        # Import and unwrap the engine method if we patched it
         from vllm.engine.llm_engine import LLMEngine
         unwrap(LLMEngine, "step")
+    except (AttributeError, ImportError):
+        pass
+    
+    # 2. Unpatch asynchronous _AsyncLLMEngine.step_async()
+    try:
+        from vllm.engine.async_llm_engine import _AsyncLLMEngine
+        unwrap(_AsyncLLMEngine, "step_async")
     except (AttributeError, ImportError):
         pass
     
