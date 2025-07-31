@@ -78,6 +78,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
@@ -313,6 +314,9 @@ class LLMObs(Service):
                 if parent_prompt is not None:
                     meta["input"]["prompt"] = parent_prompt
 
+
+        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
+            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
             meta.update(
                 {
