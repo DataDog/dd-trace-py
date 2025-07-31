@@ -6,7 +6,7 @@ import typing as t
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
-CACHE = ROOT / ".ext_cache"
+CACHE = ROOT / ".ext_cache" / f"{sys.version_info.major}.{sys.version_info.minor}"
 RESTORE_FILE = HERE / "restore-ext-cache.sh"
 SAVE_FILE = HERE / "save-ext-cache.sh"
 
