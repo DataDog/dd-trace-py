@@ -53,8 +53,70 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
     return provider, model_name
 
 
-# Temporarily removed LLM and AsyncLLMEngine methods to focus on core llm_request tracing
-# TODO: Add back LLM.generate, LLM.encode, AsyncLLMEngine.generate, AsyncLLMEngine.encode once core works
+@with_traced_module
+async def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
+    """Trace AsyncLLMEngine.generate() - the main async request entry point."""
+    integration = vllm._datadog_integration
+    provider, model = _get_provider_and_model(instance, kwargs)
+    
+    span = integration.trace(
+        pin,
+        "llm_request",
+        provider=provider,
+        model=model,
+        submit_to_llmobs=True,
+    )
+    
+    # Add request-specific tags
+    if len(args) > 0:  # prompt is first arg
+        span.set_tag("vllm.request.prompt_length", len(str(args[0])))
+    if len(args) > 1:  # sampling_params is second arg  
+        sampling_params = args[1]
+        if hasattr(sampling_params, 'max_tokens'):
+            span.set_tag("vllm.request.max_tokens", sampling_params.max_tokens)
+        if hasattr(sampling_params, 'temperature'):
+            span.set_tag("vllm.request.temperature", sampling_params.temperature)
+    
+    try:
+        # Call the original generate method - returns async generator
+        result = func(*args, **kwargs)
+        
+        # Check if result is an async generator
+        if hasattr(result, '__aiter__'):
+            # It's an async generator - wrap it to capture final result
+            async def traced_async_generator():
+                final_result = None
+                token_count = 0
+                try:
+                    async for item in result:
+                        final_result = item
+                        token_count += 1
+                        yield item
+                except Exception as e:
+                    span.set_exc_info(*sys.exc_info())
+                    raise
+                finally:
+                    # Add completion metrics
+                    span.set_tag("vllm.response.token_count", token_count)
+                    if final_result and hasattr(final_result, 'finished'):
+                        span.set_tag("vllm.response.finished", final_result.finished)
+                    
+                    kwargs["instance"] = instance
+                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")
+                    span.finish()
+            
+            return traced_async_generator()
+        else:
+            # It's a regular coroutine
+            result = await result
+            kwargs["instance"] = instance
+            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
+            span.finish()
+            return result
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
 
 
 @with_traced_module 
@@ -101,48 +163,7 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     return result
 
 
-@with_traced_module 
-async def traced_async_engine_step_async(vllm, pin, func, instance, args, kwargs):
-    """Trace _AsyncLLMEngine.step_async() - asynchronous llm_request processing."""
-    integration = vllm._datadog_integration
-    
-    # Get model info from the engine instance
-    provider, model = _get_provider_and_model(instance, kwargs)
-    
-    span = integration.trace(
-        pin,
-        "llm_request", 
-        provider=provider,
-        model=model,
-        submit_to_llmobs=True,
-    )
-    
-    # Add engine-specific tags
-    if hasattr(instance, 'scheduler_config'):
-        span.set_tag("vllm.scheduler.policy", getattr(instance.scheduler_config, 'policy', 'unknown'))
-    
-    try:
-        result = await func(*args, **kwargs)
-        
-        # Extract information from completed requests in the result
-        if result and isinstance(result, list):
-            span.set_tag("vllm.step.completed_requests", len(result))
-            
-            # Get metrics from the first completed request if available
-            if result and hasattr(result[0], 'metrics'):
-                metrics = result[0].metrics
-                if hasattr(metrics, 'arrival_time') and hasattr(metrics, 'finished_time'):
-                    latency = metrics.finished_time - metrics.arrival_time
-                    span.set_tag("vllm.request.e2e_latency", latency)
-    except Exception:
-        span.set_exc_info(*sys.exc_info())
-        raise
-    finally:
-        kwargs["instance"] = instance
-        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
-        span.finish()
-    
-    return result
+# Removed traced_async_engine_step_async - replaced with AsyncLLMEngine.generate() patching for proper trace context
 
 
 def patch():
@@ -160,25 +181,24 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
     
-    # Focus on the critical llm_request operation - patch both sync and async methods
+    # Focus on the main request entry points to get proper trace context
     
-    # 1. Patch synchronous LLMEngine.step() for direct LLMEngine usage
+    # 1. Patch AsyncLLMEngine.generate() - the main async request entry point
+    try:
+        wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_async_llm_engine_generate(vllm))
+    except (AttributeError, ImportError):
+        pass  # AsyncLLMEngine.generate for most common usage
+    
+    # 2. Keep synchronous LLMEngine.step() for direct LLMEngine usage (less common)
     try:
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
     except (AttributeError, ImportError):
         pass  # LLMEngine.step for sync usage
     
-    # 2. Patch asynchronous _AsyncLLMEngine.step_async() for AsyncLLMEngine usage  
-    try:
-        wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.step_async", traced_async_engine_step_async(vllm))
-    except (AttributeError, ImportError):
-        pass  # _AsyncLLMEngine.step_async for async usage
-    
-    # TODO: Investigate other method patches once core llm_request tracing is working:
-    # - vllm.LLM.generate (sync)
-    # - vllm.LLM.encode (sync) 
-    # - vllm.AsyncLLMEngine.generate (async)
-    # - vllm.AsyncLLMEngine.encode (async)
+    # TODO: Consider adding other method patches for completeness:
+    # - vllm.LLM.generate (sync offline usage)
+    # - vllm.LLM.encode (sync embedding usage) 
+    # - vllm.AsyncLLMEngine.encode (async embedding usage)
 
 
 def unpatch():
@@ -195,17 +215,17 @@ def unpatch():
     
     # Unpatch both sync and async llm_request methods
     
-    # 1. Unpatch synchronous LLMEngine.step()
+    # 1. Unpatch AsyncLLMEngine.generate() - main async entry point
     try:
-        from vllm.engine.llm_engine import LLMEngine
-        unwrap(LLMEngine, "step")
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+        unwrap(AsyncLLMEngine, "generate")
     except (AttributeError, ImportError):
         pass
     
-    # 2. Unpatch asynchronous _AsyncLLMEngine.step_async()
+    # 2. Unpatch synchronous LLMEngine.step()
     try:
-        from vllm.engine.async_llm_engine import _AsyncLLMEngine
-        unwrap(_AsyncLLMEngine, "step_async")
+        from vllm.engine.llm_engine import LLMEngine
+        unwrap(LLMEngine, "step")
     except (AttributeError, ImportError):
         pass
     
