@@ -10,7 +10,6 @@ from wrapt.importer import when_imported
 from ddtrace.appsec._listeners import load_common_appsec_modules
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
@@ -357,12 +356,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.main import patch_iast
-        from ddtrace.appsec.iast import enable_iast_propagation
-
-        patch_iast()
-        enable_iast_propagation()
 
     load_common_appsec_modules()
 
