@@ -1,0 +1,121 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "what is the city Spongebob Squarepants is from?",
+      "role": "user"}], "model": "gpt-3.5-turbo", "n": 1, "stream": false, "temperature":
+      0.7}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '165'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.61.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - Linux
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.61.0
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.12.8
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-ByrR2KB20Da8hv3eLiLgklh8cWs1b\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1753844784,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Bikini Bottom\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        18,\n    \"completion_tokens\": 4,\n    \"total_tokens\": 22,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 9671a3cf1d3839f9-YYZ
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 30 Jul 2025 03:06:24 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=la1BVfgiEY86NXoeVe5B_ahm0eWMTuYMAIzWngp9CV0-1753844784-1.0.1.1-YHSSav9BgU04sWHfXVwjMCwy0FPyd18XP_PXtJzsQWfIDfPjvCZUzHuT1nZDwUijTJJFbrzOuXBKPa.6ZTfGfOiPsuVHRukgpkFW_KWcSsk;
+        path=/; expires=Wed, 30-Jul-25 03:36:24 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=Kfp87ebYGYY38QE_3ZMvMVd765CIr.zEPiaDZOJj4u8-1753844784983-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '220'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '225'
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999986'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_35d36b9ea1962dbebb038b82e83d88d8
+    status:
+      code: 200
+      message: OK
+version: 1
