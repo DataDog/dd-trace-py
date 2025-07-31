@@ -169,7 +169,7 @@ def test_concurrent_3():
         collector_access_log = []
         lock = threading.Lock()
 
-        def thread_safe_coverage_handler(test_id, coverage_collector):
+        def thread_safe_coverage_handler(item, test_id, coverage_collector):
             from ddtrace.contrib.internal.pytest._plugin_v2 import _current_coverage_collector
 
             with lock:
