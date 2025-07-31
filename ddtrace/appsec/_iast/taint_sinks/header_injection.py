@@ -69,7 +69,6 @@ from ddtrace.appsec._iast.constants import HEADER_NAME_VALUE_SEPARATOR
 from ddtrace.appsec._iast.constants import VULN_HEADER_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
 from ddtrace.appsec._iast.taint_sinks.unvalidated_redirect import _iast_report_unvalidated_redirect
-from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -95,7 +94,9 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
+_IS_PATCHED = False
+
+
 def patch():
     """
     Patch header injection detection for supported web frameworks.
@@ -121,6 +122,15 @@ def patch():
     have robust built-in protections. Django patching is maintained to ensure
     comprehensive vulnerability detection and reporting.
     """
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     # For headers["foo"] = "bar"
