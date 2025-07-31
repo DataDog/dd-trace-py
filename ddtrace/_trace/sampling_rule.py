@@ -1,4 +1,5 @@
 from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Tuple
 
@@ -19,15 +20,13 @@ class SamplingRule(object):
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
 
-    NO_RULE = object()
-
     def __init__(
         self,
         sample_rate: float,
-        service: Any = NO_RULE,
-        name: Any = NO_RULE,
-        resource: Any = NO_RULE,
-        tags: Any = NO_RULE,
+        service: Optional[str] = None,
+        name: Optional[str] = None,
+        resource: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
         provenance: str = "default",
     ) -> None:
         """
@@ -63,13 +62,10 @@ class SamplingRule(object):
         self.sample_rate = min(1.0, max(0.0, float(sample_rate)))
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
         # we can just create a GlobMatcher for 'None' and it will match properly
-        self._tag_value_matchers = (
-            {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
-        )
-        self.tags = tags
-        self.service = self._choose_matcher(service)
-        self.name = self._choose_matcher(name)
-        self.resource = self._choose_matcher(resource)
+        self.tags = {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags else {}
+        self.service = GlobMatcher(service) if service is not None else None
+        self.name = GlobMatcher(name) if name is not None else None
+        self.resource = GlobMatcher(resource) if resource else None
         self.provenance = provenance
 
     @property
@@ -81,26 +77,14 @@ class SamplingRule(object):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
-    def _pattern_matches(self, prop, pattern):
-        # If the rule is not set, then assume it matches
-        # DEV: Having no rule and being `None` are different things
-        #   e.g. ignoring `span.service` vs `span.service == None`
-        if pattern is self.NO_RULE:
-            return True
-        if isinstance(pattern, GlobMatcher):
-            return pattern.match(str(prop))
-        # Exact match on the values
-        return prop == pattern
-
     @cachedmethod()
-    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
-        # self._matches exists to maintain legacy pattern values such as regex and functions
+    def name_match(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
-        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
-            if not self._pattern_matches(prop, pattern):
+        for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
+            # perf: If a pattern is not matched we can skip the rest of the checks and return False
+            if pattern is not None and not pattern.match(str(prop)):
                 return False
-        else:
-            return True
+        return True
 
     def matches(self, span: Span) -> bool:
         """
@@ -111,10 +95,10 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        return self.tags_match(span) and self._matches((span.service, span.name, span.resource))
+        return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
     def tags_match(self, span: Span) -> bool:
-        if not self._tag_value_matchers:
+        if not self.tags:
             return True
 
         meta = span._meta or {}
@@ -122,7 +106,7 @@ class SamplingRule(object):
         if not meta and not metrics:
             return False
 
-        for tag_key, pattern in self._tag_value_matchers.items():
+        for tag_key, pattern in self.tags.items():
             value = meta.get(tag_key, metrics.get(tag_key))
             if value is None:
                 # If the tag is not present, we failed the match
@@ -160,39 +144,20 @@ class SamplingRule(object):
 
         return ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def _no_rule_or_self(self, val):
-        if val is self.NO_RULE:
-            return "NO_RULE"
-        elif val is None:
-            return "None"
-        elif type(val) == GlobMatcher:
-            return val.pattern
-        else:
-            return val
-
-    def _choose_matcher(self, prop):
-        if prop is SamplingRule.NO_RULE:
-            return SamplingRule.NO_RULE
-        elif prop is None:
-            # Name and Resource will never be None, but service can be, since we str()
-            #  whatever we pass into the GlobMatcher, we can just use its matching
-            return GlobMatcher("None")
-        return GlobMatcher(prop)
-
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
-            self.__class__.__name__,
-            self.sample_rate,
-            self._no_rule_or_self(self.service),
-            self._no_rule_or_self(self.name),
-            self._no_rule_or_self(self.resource),
-            self._no_rule_or_self(self.tags),
-            self.provenance,
+        return (
+            f"SamplingRule(sample_rate={self.sample_rate}, service={self.service}, "
+            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance})"
         )
-
-    __str__ = __repr__
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
             return False
-        return str(self) == str(other)
+        return (
+            self.sample_rate == other.sample_rate
+            and self.service == other.service
+            and self.name == other.name
+            and self.resource == other.resource
+            and self.tags == other.tags
+            and self.provenance == other.provenance
+        )

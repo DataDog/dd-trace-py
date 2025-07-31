@@ -32,6 +32,7 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libenchant-2-dev \
       libffi-dev \
       liblzma-dev \
       libmariadb-dev \
