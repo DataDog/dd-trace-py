@@ -665,7 +665,7 @@ class CMakeExtension(Extension):
         return (
             [
                 _
-                for _ in Path(self.source_dir).rglob("**")
+                for _ in Path(self.source_dir).glob("**/*")
                 if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
             ]
             if self.source_dir
