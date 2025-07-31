@@ -223,14 +223,7 @@ class ExtensionHashes(build_ext):
                 hash_digest = sources_hash.hexdigest()
 
                 entries: t.List[t.Tuple[str, str, str]] = []
-
-                if isinstance(ext, RustExtension):
-                    entries.extend(
-                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
-                        for module in ext.target.values()
-                    )
-                else:
-                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+                entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
 
                 # Include any dependencies that might have been built alongside
                 # the extension.
