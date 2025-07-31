@@ -165,8 +165,9 @@ class VulnerabilityBase:
         )
 
     @classmethod
-    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> None:
+    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> bool:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
+        result = False
         if should_process_vulnerability(cls.vulnerability_type):
             file_name = line_number = function_name = class_name = None
 
@@ -174,7 +175,7 @@ class VulnerabilityBase:
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
                     rollback_quota(cls.vulnerability_type)
-                    return
+                    return result
             # Evidence is a string in weak cipher, weak hash and weak randomness
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
@@ -183,6 +184,7 @@ class VulnerabilityBase:
             # we need to restore the quota
             if not result:
                 rollback_quota(cls.vulnerability_type)
+        return result
 
     @classmethod
     def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: Set[OriginType] = set()) -> bool:
