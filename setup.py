@@ -636,6 +636,7 @@ class CMakeExtension(Extension):
         self,
         name,
         source_dir=Path.cwd(),
+        extra_source_dirs=[],
         cmake_args=[],
         build_args=[],
         install_args=[],
@@ -645,6 +646,7 @@ class CMakeExtension(Extension):
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
+        self.extra_source_dirs = extra_source_dirs  # extra source dirs to include when computing extension hash
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
@@ -662,15 +664,20 @@ class CMakeExtension(Extension):
         # Collect all the source files within the source directory. We exclude
         # Python sources and anything that does not have a suffix (most likely
         # a binary file), or that has the same name as the extension binary.
-        return (
-            [
-                _
-                for _ in Path(self.source_dir).glob("**/*")
-                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
-            ]
-            if self.source_dir
-            else []
-        )
+        def is_valid_source(src: Path) -> bool:
+            return (
+                src.is_file()
+                and src.name != full_path.name
+                and src.suffix
+                and src.suffix not in {".py", ".pyc", ".pyi"}
+            )
+
+        return [
+            src
+            for source_dir in chain([self.source_dir], self.extra_source_dirs)
+            for src in Path(source_dir).glob("**/*")
+            if is_valid_source(src)
+        ]
 
 
 def check_rust_toolchain():
@@ -801,6 +808,10 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
                 optional=False,
             )
         )
@@ -809,6 +820,10 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.crashtracker._crashtracker",
                 source_dir=CRASHTRACKER_DIR,
+                extra_source_dirs=[
+                    CRASHTRACKER_DIR / ".." / "cmake",
+                    CRASHTRACKER_DIR / ".." / "dd_wrapper",
+                ],
                 optional=False,
                 dependencies=[
                     CRASHTRACKER_DIR / "crashtracker_exe",
@@ -821,6 +836,10 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                 source_dir=STACK_V2_DIR,
+                extra_source_dirs=[
+                    STACK_V2_DIR / ".." / "cmake",
+                    STACK_V2_DIR / ".." / "dd_wrapper",
+                ],
                 optional=False,
             ),
         )
