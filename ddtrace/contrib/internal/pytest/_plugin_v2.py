@@ -209,7 +209,19 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
         return
 
     should_collect_coverage = InternalTestSession.should_collect_coverage()
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+
+    # Check if test was marked to skip at collection time
+    marked_to_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+
+    # Also check if test was skipped during execution by examining reports
+    reports_dict = reports_by_item.get(item, {})
+    test_was_skipped_during_execution = False
+    for report in reports_dict.values():
+        if hasattr(report, "skipped") and report.skipped:
+            test_was_skipped_during_execution = True
+            break
+
+    item_will_skip = marked_to_skip or test_was_skipped_during_execution
     coverage_will_be_collected = should_collect_coverage and not item_will_skip
 
     if not coverage_will_be_collected:
@@ -532,7 +544,11 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # This ensures that coverage data is available when the span is finished
     # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
-        _handle_collected_coverage(item, test_id, coverage_collector)
+        # Only collect coverage if the test should have coverage collected
+        # This prevents coverage collection for tests that were marked to skip or were skipped via ITR
+        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+        if not item_will_skip:
+            _handle_collected_coverage(item, test_id, coverage_collector)
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
@@ -574,17 +590,15 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
         _current_coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
+    yield
+
     try:
-        yield
+        _pytest_runtest_protocol_post_yield(item, nextitem, _current_coverage_collector)
+    except Exception:  # noqa: E722
+        log.debug("encountered error during post-test", exc_info=True)
     finally:
         # Always clean up the coverage collector after the test, even if there's an exception
-        coverage_collector = _current_coverage_collector
         _current_coverage_collector = None
-
-        try:
-            _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
-        except Exception:  # noqa: E722
-            log.debug("encountered error during post-test", exc_info=True)
 
 
 @pytest.hookimpl(specname="pytest_runtest_protocol")
@@ -622,7 +636,11 @@ def _pytest_run_one_test(item, nextitem):
     setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
-        _handle_collected_coverage(item, test_id, _current_coverage_collector)
+        # Only collect coverage if the test should have coverage collected
+        # This prevents coverage collection for tests that were marked to skip or were skipped via ITR
+        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+        if not item_will_skip and _current_coverage_collector is not None:
+            _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
