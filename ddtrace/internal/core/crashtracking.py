@@ -36,7 +36,7 @@ def start() -> bool:
         crashtracker_dir = Path(__file__).parent.parent / "datadog" / "profiling" / "crashtracker"
         for f in crashtracker_dir.iterdir():
             if f.is_file() and f.name.endswith(".so"):
-                subprocess.run(["ldd", f.name], cwd=crashtracker_dir, check=True) # nosec: B607, B603
+                subprocess.run(["ldd", f.name], cwd=crashtracker_dir, check=True)  # nosec: B607, B603
                 # i'd also want to know when it was created
                 print(f.stat().st_ctime)
         return False
