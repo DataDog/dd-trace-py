@@ -1,5 +1,5 @@
 """This Flask application is imported on tests.appsec.appsec_utils.gunicorn_server"""
-
+import ddtrace.auto  # noqa: F401  # isort: skip
 import copy
 import os
 import re
@@ -8,11 +8,12 @@ import subprocess  # nosec
 
 from flask import Flask
 from flask import Response
+from flask import jsonify
 from flask import request
+import urllib3
 from wrapt import FunctionWrapper
 
-
-import ddtrace.auto  # noqa: F401  # isort: skip
+import ddtrace
 from ddtrace import tracer
 from ddtrace.appsec._iast import ddtrace_iast_flask_patch
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
@@ -96,6 +97,9 @@ from tests.appsec.iast_packages.packages.pkg_zipp import pkg_zipp
 import tests.appsec.integrations.flask_tests.module_with_import_errors as module_with_import_errors
 
 
+# Patch urllib3 since they are not patched automatically
+ddtrace.patch_all(urllib3=True)  # type: ignore
+
 app = Flask(__name__)
 app.register_blueprint(pkg_aiohttp)
 app.register_blueprint(pkg_aiosignal)
@@ -175,6 +179,15 @@ app.register_blueprint(pkg_yarl)
 app.register_blueprint(pkg_zipp)
 
 
+def _weak_hash_vulnerability():
+    import _md5
+
+    m = _md5.md5()
+    m.update(b"Nobody inspects")
+    m.update(b" the spammish repetition")
+    m.digest()
+
+
 @app.route("/")
 def index():
     return "OK_index", 200
@@ -209,6 +222,14 @@ def view_cmdi_secure():
     subp = subprocess.Popen(args=["ls", "-la", shlex.quote(filename)])
     subp.wait()
     return Response("OK")
+
+
+@app.route("/iast-unvalidated_redirect-header", methods=["GET"])
+def view_iast_unvalidated_redirect_insecure_header():
+    location = request.args.get("location")
+    response = Response("OK")
+    response.headers["Location"] = location
+    return response
 
 
 @app.route("/iast-header-injection-vulnerability", methods=["POST"])
@@ -250,12 +271,7 @@ def iast_stacktrace_vulnerability():
 
 @app.route("/iast-weak-hash-vulnerability", methods=["GET"])
 def iast_weak_hash_vulnerability():
-    import _md5
-
-    m = _md5.md5()
-    m.update(b"Nobody inspects")
-    m.update(b" the spammish repetition")
-    m.digest()
+    _weak_hash_vulnerability()
     from ddtrace.internal import telemetry
 
     list_metrics_logs = list(telemetry.telemetry_writer._logs)
@@ -922,6 +938,25 @@ def iast_ast_patching_non_re_search():
 def test_flask_common_modules_patch_read():
     copy_open = copy.deepcopy(open)
     return Response(f"OK: {isinstance(copy_open, FunctionWrapper)}")
+
+
+@app.route("/returnheaders", methods=["GET"])
+def return_headers(*args, **kwargs):
+    headers = {}
+    for key, value in request.headers.items():
+        headers[key] = value
+    return jsonify(headers)
+
+
+@app.route("/vulnerablerequestdownstream", methods=["GET"])
+def vulnerable_request_downstream():
+    _weak_hash_vulnerability()
+    # Propagate the received headers to the downstream service
+    http_poolmanager = urllib3.PoolManager(num_pools=1)
+    # Sending a GET request and getting back response as HTTPResponse object.
+    response = http_poolmanager.request("GET", "http://localhost:8050/returnheaders")
+    http_poolmanager.clear()
+    return Response(response.data)
 
 
 if __name__ == "__main__":
