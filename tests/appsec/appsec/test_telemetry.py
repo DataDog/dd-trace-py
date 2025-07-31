@@ -286,6 +286,7 @@ def test_appsec_enabled_metric(
     environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
+    telemetry_writer._flush_configuration_queue()
     with override_env(environment), override_global_config(dict(_asm_enabled=appsec_enabled)):
         tracer.configure(appsec_enabled=appsec_enabled)
         AppSecSpanProcessor()
