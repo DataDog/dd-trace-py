@@ -54,7 +54,7 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
 
 
 @with_traced_module
-async def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
+def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
     """Trace AsyncLLMEngine.generate() - the main async request entry point."""
     integration = vllm._datadog_integration
     provider, model = _get_provider_and_model(instance, kwargs)
@@ -81,38 +81,30 @@ async def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwar
         # Call the original generate method - returns async generator
         result = func(*args, **kwargs)
         
-        # Check if result is an async generator
-        if hasattr(result, '__aiter__'):
-            # It's an async generator - wrap it to capture final result
-            async def traced_async_generator():
-                final_result = None
-                token_count = 0
-                try:
-                    async for item in result:
-                        final_result = item
-                        token_count += 1
-                        yield item
-                except Exception as e:
-                    span.set_exc_info(*sys.exc_info())
-                    raise
-                finally:
-                    # Add completion metrics
-                    span.set_tag("vllm.response.token_count", token_count)
-                    if final_result and hasattr(final_result, 'finished'):
-                        span.set_tag("vllm.response.finished", final_result.finished)
-                    
-                    kwargs["instance"] = instance
-                    integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")
-                    span.finish()
-            
-            return traced_async_generator()
-        else:
-            # It's a regular coroutine
-            result = await result
-            kwargs["instance"] = instance
-            integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=result, operation="llm")
-            span.finish()
-            return result
+        # AsyncLLMEngine.generate() always returns an async generator
+        # Wrap it to capture final result and add tracing
+        async def traced_async_generator():
+            final_result = None
+            token_count = 0
+            try:
+                async for item in result:
+                    final_result = item
+                    token_count += 1
+                    yield item
+            except Exception as e:
+                span.set_exc_info(*sys.exc_info())
+                raise
+            finally:
+                # Add completion metrics
+                span.set_tag("vllm.response.token_count", token_count)
+                if final_result and hasattr(final_result, 'finished'):
+                    span.set_tag("vllm.response.finished", final_result.finished)
+                
+                kwargs["instance"] = instance
+                integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")
+                span.finish()
+        
+        return traced_async_generator()
     except Exception:
         span.set_exc_info(*sys.exc_info())
         span.finish()
