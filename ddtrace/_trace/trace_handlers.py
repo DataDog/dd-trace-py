@@ -1,10 +1,12 @@
 import functools
 import sys
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from urllib import parse
 
 import wrapt
@@ -144,10 +146,29 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     return span
 
 
+def _finish_span(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+):
+    """
+    Finish the span in the context.
+    If no span is present, do nothing.
+    """
+    span = ctx.span
+    if not span:
+        return
+
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_type and exc_value and exc_traceback:
+        span.set_exc_info(exc_type, exc_value, exc_traceback)
+    span.finish()
+
+
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -447,7 +468,8 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -962,6 +984,9 @@ def listen():
         "azure.servicebus.patched_producer",
     ):
         core.on(f"context.started.{context_name}", _start_span)
+
+    for name in ("django.template.render",):
+        core.on(f"context.ended.{name}", _finish_span)
 
 
 listen()
