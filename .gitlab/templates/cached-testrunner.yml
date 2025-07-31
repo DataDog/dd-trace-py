@@ -3,7 +3,7 @@
   variables:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
     SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
+    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv${{PYTHON_VERSION}}'
   before_script: |
     ulimit -c unlimited
     pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
@@ -18,11 +18,13 @@
     fi
     python scripts/gen_ext_cache_scripts.py
     deactivate
+    $SHELL scripts/restore-ext-cache.sh
   after_script: |
     set -e -o pipefail
     source $EXT_CACHE_VENV/bin/activate
     python scripts/gen_ext_cache_scripts.py
     deactivate
+    $SHELL scripts/save-ext-cache.sh
   cache:
     # Share pip/sccache between jobs of the same Python version
     - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
