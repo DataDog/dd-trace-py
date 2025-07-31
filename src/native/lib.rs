@@ -1,7 +1,5 @@
 #[cfg(feature = "profiling")]
 pub use datadog_profiling_ffi::*;
-#[cfg(feature = "profiling")]
-mod crashtracker;
 mod ddsketch;
 mod library_config;
 use pyo3::prelude::*;
@@ -18,9 +16,5 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyTracerMetadata>()?;
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
-    #[cfg(feature = "profiling")]
-    {
-        m.add_wrapped(wrap_pyfunction!(crashtracker::crashtracker_receiver))?;
-    }
     Ok(())
 }
