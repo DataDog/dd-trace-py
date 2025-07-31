@@ -1,0 +1,34 @@
+[[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "SELECT * FROM non_existent_table",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 1,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688a5fb800000000",
+      "component": "duckdb",
+      "db.name": "memory",
+      "db.system": "duckdb",
+      "error.message": "Catalog Error: Table with name non_existent_table does not exist!\nDid you mean \"sqlite_temp_master\"?\n\nLINE 1: SELECT * FROM non_existent_table\n                      ^",
+      "error.type": "duckdb.duckdb.CatalogException",
+      "language": "python",
+      "runtime-id": "ece652173dad4112bb91cb93a5a0b285",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3980
+    },
+    "duration": 4020584,
+    "start": 1753898936961260428
+  }]]
