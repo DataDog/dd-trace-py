@@ -5,7 +5,6 @@ from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
 from .._patch_modules import WrapFunctonsForIAST
-from ..taint_sinks.utils import patch_once
 
 
 log = get_logger(__name__)
@@ -15,10 +14,18 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
-def patch():
-    iast_funcs = WrapFunctonsForIAST()
+_IS_PATCHED = False
 
+
+def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    iast_funcs = WrapFunctonsForIAST()
     iast_funcs.wrap_function("json", "loads", wrapped_loads)
     if asm_config._iast_lazy_taint:
         iast_funcs.wrap_function("json.encoder", "JSONEncoder.default", patched_json_encoder_default)
