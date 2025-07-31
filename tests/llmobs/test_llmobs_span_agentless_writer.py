@@ -64,9 +64,9 @@ def test_truncating_oversized_events(mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200724),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200464),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200445),
         ]
     )
 
