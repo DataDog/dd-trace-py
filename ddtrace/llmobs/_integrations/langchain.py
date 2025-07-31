@@ -15,6 +15,7 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -33,6 +34,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -764,3 +766,49 @@ class LangChainIntegration(BaseLLMIntegration):
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
+
+    # on prompt template invoke, store the template on the result so its available to consuming .invoke()
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        template = None
+        variables = None
+        if hasattr(instance, "template"):
+            template = instance.template
+        if isinstance(args[0], dict):
+            variables = args[0]
+
+        if not template or not variables:
+            return
+
+        prompt = {
+            "variables": variables,
+            "template": template,
+            "id": "my_unnamed_prompt",
+            "version": "0.0.0",
+            "rag_context_variables": [],
+            "rag_query_variables": [],
+        }
+
+        try:
+            object.__setattr__(result, "_dd", {"prompt_template": prompt})
+        except (AttributeError, TypeError):
+            # If we can't set the attribute, try to store it in the instance or use a different approach
+            # For now, we'll just log a warning and continue
+            log.warning("Could not attach prompt metadata to result object")
+
+    # on llm invoke, take any template from the input prompt value and make it available to llm.generate()
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
+        prompt = args[0]
+        template = getattr(prompt, "_dd", None)
+        if template:
+            object.__setattr__(instance, "_dd", template)
+
+    # on llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span
+    def llmobs_set_prompt_tag(self, instance, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
+        prompt_value_meta = getattr(instance, "_dd", None)
+        if prompt_value_meta is not None and "prompt_template" in prompt_value_meta:
+            prompt = prompt_value_meta["prompt_template"]
+            try:
+                prompt = validate_prompt(prompt)
+                span._set_ctx_item(INPUT_PROMPT, prompt)
+            except Exception as e:
+                log.warning("Failed to validate prompt", e)
