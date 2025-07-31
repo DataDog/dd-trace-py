@@ -672,7 +672,7 @@ class CMakeExtension(Extension):
         return [
             src
             for source_dir in chain([self.source_dir], self.extra_source_dirs)
-            for src in Path(source_dir).rglob("**")
+            for src in Path(source_dir).glob("**/*")
             if is_valid_source(src)
         ]
 
