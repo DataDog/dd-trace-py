@@ -39,7 +39,7 @@ def test_duckdb_table_operations():
 
 
 @pytest.mark.subprocess(ddtrace_run=True) 
-@pytest.mark.snapshot(wait_for_num_traces=1)
+@pytest.mark.snapshot(wait_for_num_traces=1, ignores=["meta.error.stack"])
 def test_duckdb_error_handling():
     import duckdb
     from ddtrace import patch
