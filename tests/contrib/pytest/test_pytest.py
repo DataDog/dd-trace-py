@@ -4345,25 +4345,34 @@ class PytestTestCase(PytestTestCaseBase):
             test_efd_with_coverage="""
 import os
 
+fail_marker = 0
+
+def setup():
+    global fail_marker
+    fail_marker = 0
+
+def teardown():
+    global fail_marker
+    fail_marker = 0
+
 def test_always_pass():
     '''Test that always passes'''
     assert True
 
 def test_efd_flaky():
     '''Test that should be retried by EFD - fails first time, passes on retry'''
-    fail_marker = '/tmp/efd_test_marker_itr'
-    if os.path.exists(fail_marker):
-        os.remove(fail_marker)
-        assert True
-    else:
-        with open(fail_marker, 'w') as f:
-            f.write('fail')
+    global fail_marker
+    if fail_marker == 0:
+        fail_marker += 1
         assert False, "Failing first time for EFD retry"
+    else:
+        assert True
 
 def test_coverage_target():
     '''Test to ensure we collect coverage'''
     x = 1 + 1
     assert x == 2
+
 """
         )
 
@@ -4436,6 +4445,11 @@ def test_coverage_target():
         self.testdir.makepyfile(
             test_atr_with_coverage="""
 import os
+fail_marker = 0
+
+def setup():
+    global fail_marker
+    fail_marker = 0
 
 def test_always_pass():
     '''Test that always passes'''
@@ -4443,19 +4457,21 @@ def test_always_pass():
 
 def test_atr_retry():
     '''Test that should be retried by ATR - fails first time, passes on retry'''
-    fail_marker = '/tmp/atr_test_marker_itr'
-    if os.path.exists(fail_marker):
-        os.remove(fail_marker)
-        assert True
-    else:
-        with open(fail_marker, 'w') as f:
-            f.write('fail')
+    global fail_marker
+    if fail_marker == 0:
+        fail_marker += 1
         assert False, "Failing first time for ATR retry"
+    else:
+        assert True
 
 def test_coverage_target():
     '''Test to ensure we collect coverage'''
     y = 2 * 3
     assert y == 6
+
+def teardown():
+    global fail_marker
+    fail_marker = 0
 """
         )
 
