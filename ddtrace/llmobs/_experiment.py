@@ -141,6 +141,8 @@ class Dataset:
         self._updated_record_ids = []
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
+        if "input_data" not in record and "expected_output" not in record and "metadata" not in record:
+            raise ValueError("invalid update, at least one of input_data, expected_output, or metadata must be updated")
         record_id = self._records[index]["record_id"]
         self._updated_record_ids.append(record_id)
         self._records[index] = {**record, "record_id": record_id}

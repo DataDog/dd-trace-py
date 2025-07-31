@@ -611,7 +611,9 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+    def create_dataset(cls, name: str, description: str, records: Union[List[DatasetRecord], None] = None) -> Dataset:
+        if records is None:
+            records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
@@ -625,11 +627,15 @@ class LLMObs(Service):
         csv_path: str,
         dataset_name: str,
         input_data_columns: List[str],
-        expected_output_columns: List[str],
-        metadata_columns: List[str] = [],
+        expected_output_columns: Union[List[str], None] = None,
+        metadata_columns: Union[List[str], None] = None,
         csv_delimiter: str = ",",
         description="",
     ) -> Dataset:
+        if expected_output_columns is None:
+            expected_output_columns = []
+        if metadata_columns is None:
+            metadata_columns = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later

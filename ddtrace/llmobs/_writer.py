@@ -297,6 +297,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
+    TIMEOUT = 5.0
 
     def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
@@ -308,7 +309,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(self._intake)
+        conn = get_connection(url=self._intake, timeout=self.TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
@@ -353,6 +354,48 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
+    @staticmethod
+    def _get_record_optional_fields(record: Union[DatasetRecord, DatasetRecordRaw]) -> Tuple[JSONType, Dict[str, Any]]:
+        expected_output = None
+        if "expected_output" in record:
+            expected_output = record["expected_output"]
+            # TODO[gh] this is temporary until BE supports a more well defined update schema
+            # for now, if a user wants to "erase" the value of expected_output, they are expected to
+            # set expected_output to None, and we serialize that as empty string to indicate this to BE
+            if expected_output is None:
+                expected_output = ""
+
+        metadata = None
+        if "metadata" in record:
+            metadata = record["metadata"]
+            if metadata is None:
+                metadata = {}
+
+        return expected_output, metadata
+
+    @staticmethod
+    def _get_insert_record_json(record: DatasetRecordRaw) -> JSONType:
+        expected_output, metadata = LLMObsExperimentsClient._get_record_optional_fields(record)
+        rj: JSONType = {
+            "input": cast(Dict[str, JSONType], record["input_data"]),
+            "expected_output": expected_output,
+            "metadata": metadata,
+        }
+
+        return rj
+
+    @staticmethod
+    def _get_update_record_json(record: DatasetRecord) -> JSONType:
+        expected_output, metadata = LLMObsExperimentsClient._get_record_optional_fields(record)
+        rj: JSONType = {
+            "input": cast(Dict[str, JSONType], record.get("input_data")),
+            "expected_output": expected_output,
+            "metadata": metadata,
+            "id": record["record_id"],
+        }
+
+        return rj
+
     def dataset_batch_update(
         self,
         dataset_id: str,
@@ -360,23 +403,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         update_records: List[DatasetRecord],
         delete_record_ids: List[str],
     ) -> Tuple[int, List[str]]:
-        irs: JSONType = [
-            {
-                "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
-                "metadata": r.get("metadata", {}),
-            }
-            for r in insert_records
-        ]
-        urs: JSONType = [
-            {
-                "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
-                "metadata": r.get("metadata", {}),
-                "id": r["record_id"],
-            }
-            for r in update_records
-        ]
+        irs: JSONType = [self._get_insert_record_json(r) for r in insert_records]
+        urs: JSONType = [self._get_update_record_json(r) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
@@ -428,7 +456,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 {
                     "record_id": record["id"],
                     "input_data": attrs["input"],
-                    "expected_output": attrs["expected_output"],
+                    "expected_output": attrs.get("expected_output"),
                     "metadata": attrs.get("metadata", {}),
                 }
             )
