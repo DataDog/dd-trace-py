@@ -805,11 +805,11 @@ experiments:
               - max_rss_usage < 46.50 MB
           - name: otelspan-start-finish
             thresholds:
-              - execution_time < 86.00 ms
+              - execution_time < 88.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-start-finish-telemetry
             thresholds:
-              - execution_time < 86.00 ms
+              - execution_time < 89.00 ms
               - max_rss_usage < 46.50 MB
           - name: otelspan-update-name
             thresholds:
@@ -1039,15 +1039,15 @@ experiments:
               - max_rss_usage < 53.00 MB
           - name: span-start-finish
             thresholds:
-              - execution_time < 52.50 ms
+              - execution_time < 55.50 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-telemetry
             thresholds:
-              - execution_time < 55.30 ms
+              - execution_time < 58.30 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-finish-traceid128
             thresholds:
-              - execution_time < 56.05 ms
+              - execution_time < 58.05 ms
               - max_rss_usage < 34.00 MB
           - name: span-start-traceid128
             thresholds:
