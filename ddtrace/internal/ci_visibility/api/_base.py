@@ -245,6 +245,9 @@ class TestVisibilityItemBase(abc.ABC):
         if parent_span:
             self._tracer.context_provider.activate(parent_span)
 
+        if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            ddtrace.tracer.context_provider.activate(None)
+
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
 
