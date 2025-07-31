@@ -1703,7 +1703,7 @@ class PytestTestCase(PytestTestCaseBase):
         first_test_span = spans[0]
 
         # Find the specific test span we want to check
-        test_cov_spans = [span for span in spans if span.get_tag("test.name") == "test_cov"]
+        test_cov_spans = _get_spans_from_list(spans, "test", "test_cov")
         assert len(test_cov_spans) > 0, "Could not find test_cov span"
         first_test_span = test_cov_spans[0]
 

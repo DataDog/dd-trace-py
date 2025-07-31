@@ -203,7 +203,19 @@ def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     return coverage_collector
 
 
-def _handle_collected_coverage(test_id, coverage_collector) -> None:
+def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
+    if not coverage_collector:
+        log.debug("No coverage collector available for test %s", test_id)
+        return
+
+    should_collect_coverage = InternalTestSession.should_collect_coverage()
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+    coverage_will_be_collected = should_collect_coverage and not item_will_skip
+
+    if not coverage_will_be_collected:
+        log.debug("No coverage will be collected for test %s", test_id)
+        return
+
     # TODO: clean up internal coverage API usage
     test_covered_lines = coverage_collector.get_covered_lines()
     coverage_collector.__exit__()
@@ -520,7 +532,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # This ensures that coverage data is available when the span is finished
     # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
-        _handle_collected_coverage(test_id, coverage_collector)
+        _handle_collected_coverage(item, test_id, coverage_collector)
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
@@ -610,12 +622,7 @@ def _pytest_run_one_test(item, nextitem):
     setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
-        should_collect_coverage = InternalTestSession.should_collect_coverage()
-        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-        coverage_will_be_collected = should_collect_coverage and not item_will_skip
-
-        if coverage_will_be_collected and _current_coverage_collector is not None:
-            _handle_collected_coverage(test_id, _current_coverage_collector)
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
