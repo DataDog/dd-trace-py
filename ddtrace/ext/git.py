@@ -135,7 +135,6 @@ def _git_subprocess_cmd_with_details(*cmd, cwd=None, std_in=None):
     git_cmd.extend(cmd)
 
     log.debug("Executing git command: %s", git_cmd)
-    print("Executing git command: %s" % " ".join(git_cmd))
 
     with StopWatch() as stopwatch:
         process = subprocess.Popen(
@@ -169,10 +168,8 @@ def _set_safe_directory():
         _git_subprocess_cmd("config --global --add safe.directory *")
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-        print("Git executable not found, cannot extract git metadata.")
     except ValueError:
         log.error("Error setting safe directory")
-        print("Error setting safe directory")
 
 
 def _extract_clone_defaultremotename_with_details(cwd):
@@ -393,12 +390,10 @@ def extract_git_metadata(cwd=None):
         tags[COMMIT_SHA] = extract_commit_sha(cwd=cwd)
     except GitNotFoundError:
         log.error("Git executable not found, cannot extract git metadata.")
-        print("Git executable not found, cannot extract git metadata.")
     except ValueError as e:
         debug_mode = log.isEnabledFor(logging.DEBUG)
         stderr = str(e)
         log.error("Error extracting git metadata: %s", stderr, exc_info=debug_mode)
-        print("Error extracting git metadata: %s" % stderr)
 
     return tags
 

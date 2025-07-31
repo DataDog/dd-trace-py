@@ -105,7 +105,6 @@ def tags(env=None, cwd=None):
             break
 
     git_info = git.extract_git_metadata(cwd=cwd)
-    print("GIT_INFO:", git_info)
 
     # Whenever the HEAD commit SHA is present in the tags that come from the CI provider, we assume that
     # the CI provider added a commit on top of the user's HEAD commit (e.g., GitHub Actions add a merge
