@@ -1019,6 +1019,16 @@ venv = Venv(
             ],
         ),
         Venv(
+            name="duckdb",
+            command="pytest {cmdargs} tests/contrib/duckdb",
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={"duckdb": latest, "pytest": latest},
+                ),
+            ],
+        ),
+        Venv(
             name="elasticsearch",
             command="pytest {cmdargs} tests/contrib/elasticsearch/test_elasticsearch.py",
             pkgs={

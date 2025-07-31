@@ -181,6 +181,13 @@ Dramatiq
 .. automodule:: ddtrace.contrib.internal.dramatiq
 
 
+.. _duckdb:
+
+DuckDB
+^^^^^^
+.. automodule:: ddtrace.contrib.internal.duckdb
+
+
 .. _elasticsearch:
 
 Elasticsearch

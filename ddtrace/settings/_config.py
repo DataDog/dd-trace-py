@@ -135,6 +135,7 @@ INTEGRATION_CONFIGS = frozenset(
         "aiomysql",
         "pyramid",
         "dbapi2",
+        "duckdb",
         "vertexai",
         "cherrypy",
         "flask_cache",
