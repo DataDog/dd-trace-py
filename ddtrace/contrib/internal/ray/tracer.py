@@ -1,5 +1,6 @@
-from ddtrace import config
 import ddtrace.auto  # noqa: F401
+
+from ddtrace import config
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
