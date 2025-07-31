@@ -507,17 +507,56 @@ def _pytest_runtest_protocol_pre_yield(item) -> t.Optional[ModuleCodeCollector.C
     return None
 
 
+def _should_collect_coverage_for_item(item):
+    """Determine if coverage should be collected for the given test item.
+
+    Args:
+        item: The pytest test item
+
+    Returns:
+        bool: True if coverage will be collected for this item, False otherwise
+    """
+    should_collect_coverage = InternalTestSession.should_collect_coverage()
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(_get_test_id_from_item(item))
+    return should_collect_coverage and not item_will_skip
+
+
+def _log_test_reports(item, reports):
+    """Log test reports using pytest hooks.
+
+    Args:
+        item: The pytest test item
+        reports: List of test reports or dict of reports
+    """
+    if isinstance(reports, dict):
+        reports = reports.values()
+
+    for report in reports:
+        item.ihook.pytest_runtest_logreport(report=report)
+
+
+def _has_setup_or_teardown_failure(reports_dict):
+    """Check if any reports indicate setup or teardown failure.
+
+    Args:
+        reports_dict: Dictionary of reports keyed by phase
+
+    Returns:
+        bool: True if setup or teardown failed, False otherwise
+    """
+    for report in reports_dict.values():
+        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
+            return True
+    return False
+
+
 def _handle_retry_logic(item, test_id, reports_dict, test_outcome):
     """Handle retry logic for EFD, ATR, and Attempt to Fix features."""
     is_quarantined = InternalTest.is_quarantined_test(test_id)
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
 
     # Check if setup or teardown failed
-    setup_or_teardown_failed = False
-    for report in reports_dict.values():
-        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
-            setup_or_teardown_failed = True
-            break
+    setup_or_teardown_failed = _has_setup_or_teardown_failure(reports_dict)
 
     retry_handler = None
 
@@ -543,8 +582,7 @@ def _handle_retry_logic(item, test_id, reports_dict, test_outcome):
         return True  # Retry handler was called
     else:
         # If no retry handler, we log the reports ourselves.
-        for report in reports_dict.values():
-            item.ihook.pytest_runtest_logreport(report=report)
+        _log_test_reports(item, reports_dict)
         return False  # No retry handler was called
 
 
@@ -576,11 +614,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # This is the case when ITR test-level skipping + coverage collection + retry features are all enabled
     if test_was_finished_here and coverage_collector is not None:
         # Check if retry logic was deferred to this function due to coverage collection
-        should_collect_coverage = InternalTestSession.should_collect_coverage()
-        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-        coverage_was_expected = should_collect_coverage and not item_will_skip
-
-        if coverage_was_expected:
+        if _should_collect_coverage_for_item(item):
             reports_dict = reports_by_item.get(item)
             if reports_dict:
                 test_outcome = _process_reports_dict(item, reports_dict)
@@ -658,9 +692,7 @@ def _pytest_run_one_test(item, nextitem):
 
     # Check if coverage collection is expected before determining whether to finish the test
     # and handle retry logic
-    should_collect_coverage = InternalTestSession.should_collect_coverage()
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-    coverage_will_be_collected = should_collect_coverage and not item_will_skip
+    coverage_will_be_collected = _should_collect_coverage_for_item(item)
 
     # Finish the test if it hasn't been finished yet
     # This needs to happen before retry logic so that retry mechanisms can check the test status
@@ -672,10 +704,9 @@ def _pytest_run_one_test(item, nextitem):
         if not coverage_will_be_collected:
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
-    for report in reports:
-        if report.failed and report.when in (TestPhase.SETUP, TestPhase.TEARDOWN):
-            setup_or_teardown_failed = True
+    setup_or_teardown_failed = _has_setup_or_teardown_failure(reports_dict)
 
+    for report in reports:
         if report.when == TestPhase.CALL or "failed" in report.outcome:
             if is_quarantined or is_disabled:
                 # Ensure test doesn't count as failed for pytest's exit status logic
@@ -711,13 +742,11 @@ def _pytest_run_one_test(item, nextitem):
             )
         else:
             # If no retry handler, we log the reports ourselves.
-            for report in reports:
-                item.ihook.pytest_runtest_logreport(report=report)
+            _log_test_reports(item, reports)
     else:
         # Coverage collection is expected, so retry logic will be handled later
         # But we still need to log the reports here
-        for report in reports:
-            item.ihook.pytest_runtest_logreport(report=report)
+        _log_test_reports(item, reports)
 
     item.ihook.pytest_runtest_logfinish(nodeid=item.nodeid, location=item.location)
 
