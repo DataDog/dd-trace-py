@@ -26,6 +26,9 @@ def install_dedup_headers():
 
 def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = None):
     env = os.environ.copy()
+    for k, v in env.items():
+        print(f"{k}: {v}")
+    print(sys.version)
     abs_dir = crate_dir.absolute()
     env["CARGO_TARGET_DIR"] = str(abs_dir / "target")
 
