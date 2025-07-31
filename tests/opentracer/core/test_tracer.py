@@ -14,7 +14,7 @@ from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import ConfigException
+from ddtrace.settings.exceptions import ConfigException
 
 
 class TestTracerConfig(object):
