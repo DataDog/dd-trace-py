@@ -84,12 +84,12 @@ class JobSpec:
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
             )
             lines.append("  cache:")
-            lines.append("    key: v0-pip-${PIP_CACHE_KEY}-cache")
+            lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
         else:
             lines.append("  cache:")
-            lines.append("    key: v0-${CI_JOB_NAME}-pip-cache")
+            lines.append("    key: v1-${CI_JOB_NAME}-pip-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -212,7 +212,7 @@ def gen_build_docs() -> None:
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v1-build_docs-pip-cache", file=f)
+            print("    key: v2-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
@@ -296,7 +296,7 @@ prechecks:
         f.write(
             """
   cache:
-    key: v1-precheck-pip-cache
+    key: v2-precheck-pip-cache
     paths:
       - .cache
 """
