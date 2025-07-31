@@ -41,24 +41,15 @@ except ImportError:
         "https://ddtrace.readthedocs.io/en/stable/installation_quickstart.html"
     )
 
-# Import build_libnative dynamically since setup.py is executed as a script
-import importlib.util
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
 
-# Load build_libnative module from the same directory as setup.py
-build_libnative_path = Path(__file__).parent / "build_libnative.py"
-spec = importlib.util.spec_from_file_location("build_libnative", build_libnative_path)
-if spec is None or spec.loader is None:
-    raise ImportError(f"Could not load build_libnative from {build_libnative_path}")
-build_libnative = importlib.util.module_from_spec(spec)
-sys.modules["build_libnative"] = build_libnative
-spec.loader.exec_module(build_libnative)
+# workaround for ModuleNotFound.
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
 
-# Now we can use the functions
-build_crate = build_libnative.build_crate
-clean_crate = build_libnative.clean_crate
+from build_libnative import build_crate
+from build_libnative import clean_crate
 
 
 HERE = Path(__file__).resolve().parent
