@@ -212,7 +212,9 @@ class ExtensionHashes(build_ext):
                     sources = [
                         _
                         for _ in source_path.glob("**/*")
-                        if _.is_file() and _.relative_to(source_path).parts[0] != "target"
+                        if _.is_file()
+                        and _.relative_to(source_path).parts[0]
+                        != f"target{sys.version_info.major}.{sys.version_info.minor}"
                     ]
                 else:
                     sources = [Path(_) for _ in ext.sources]
@@ -426,7 +428,7 @@ class CustomBuildExt(build_ext):
         is_release = True
         build_crate(NATIVE_CRATE, is_release, native_features)
 
-        target_dir = NATIVE_CRATE / "target"
+        target_dir = NATIVE_CRATE / f"target{sys.version_info.major}.{sys.version_info.minor}"
         if sys.platform == "win32" and not is_64_bit_python():
             target_dir = target_dir / "i686-pc-windows-msvc"
         if is_release:

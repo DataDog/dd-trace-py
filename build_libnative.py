@@ -27,7 +27,8 @@ def install_dedup_headers():
 def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = None):
     env = os.environ.copy()
     abs_dir = crate_dir.absolute()
-    env["CARGO_TARGET_DIR"] = str(abs_dir / "target")
+    target_dir = abs_dir / f"target{sys.version_info.major}.{sys.version_info.minor}"
+    env["CARGO_TARGET_DIR"] = str(target_dir)
 
     build_cmd = ["cargo", "build"]
 
@@ -61,14 +62,14 @@ def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = 
 
         subprocess.run(
             ["dedup_headers", "common.h", "crashtracker.h", "profiling.h"],
-            cwd=str(abs_dir / "target" / "include" / "datadog"),
+            cwd=str(target_dir / "include" / "datadog"),
             check=True,
             env=dedup_env,
         )
 
 
 def clean_crate(crate_dir: Path):
-    target_dir = crate_dir.absolute() / "target"
+    target_dir = crate_dir.absolute() / f"target{sys.version_info.major}.{sys.version_info.minor}"
     if target_dir.exists():
         subprocess.run(
             ["cargo", "clean"],
