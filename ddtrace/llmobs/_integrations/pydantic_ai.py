@@ -190,16 +190,16 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         formatted_tools = []
         for tool_name, tool_instance in tools.items():
-            tool_dict = {}
+            tool_dict: Dict[str, Any] = {}
             tool_dict["name"] = tool_name
             if hasattr(tool_instance, "description"):
                 tool_dict["description"] = tool_instance.description
             function_schema = getattr(tool_instance, "function_schema", {})
             json_schema = getattr(function_schema, "json_schema", {})
             required_params = {param: True for param in json_schema.get("required", [])}
-            parameters = {}
+            parameters: Dict[str, Dict[str, Any]] = {}
             for param, schema in json_schema.get("properties", {}).items():
-                param_dict = {}
+                param_dict: Dict[str, Any] = {}
                 if "type" in schema:
                     param_dict["type"] = schema["type"]
                 if param in required_params:
