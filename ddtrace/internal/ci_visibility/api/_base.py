@@ -18,11 +18,11 @@ from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
-from ddtrace.ext.test_visibility.api import TestSourceFileInfo
-from ddtrace.ext.test_visibility.api import TestStatus
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
+from ddtrace.ext.test_visibility.status import TestSourceFileInfo
+from ddtrace.ext.test_visibility.status import TestStatus
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
@@ -234,6 +234,10 @@ class TestVisibilityItemBase(abc.ABC):
 
         self._add_all_tags_to_span()
         self._span.finish(finish_time=override_finish_time)
+
+        parent_span = self.get_parent_span()
+        if parent_span:
+            self._tracer.context_provider.activate(parent_span)
 
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
@@ -549,6 +553,7 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
     ) -> None:
         super().__init__(name, session_settings, operation_name, initial_tags)
         self._children: Dict[CIDT, CITEMT] = {}
+        self._distributed_children = False
 
     def get_status(self) -> Union[TestStatus, SPECIAL_STATUS]:
         """Recursively computes status based on all children's status
@@ -616,18 +621,19 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
             # Respect override status no matter what
             self.set_status(override_status)
 
+        if force:
+            # Finish all children regardless of their status
+            for child in self._children.values():
+                if not child.is_finished():
+                    child.finish(force=force)
+            self.set_status(self.get_raw_status())
+
         item_status = self.get_status()
 
-        if item_status == SPECIAL_STATUS.UNFINISHED:
-            if force:
-                # Finish all children regardless of their status
-                for child in self._children.values():
-                    if not child.is_finished():
-                        child.finish(force=force)
-                self.set_status(self.get_raw_status())
-            else:
-                return
-        elif not isinstance(item_status, SPECIAL_STATUS):
+        if item_status == SPECIAL_STATUS.UNFINISHED and not force:
+            return
+
+        if not isinstance(item_status, SPECIAL_STATUS):
             self.set_status(item_status)
 
         super().finish(force=force, override_status=override_status, override_finish_time=override_finish_time)
@@ -659,5 +665,8 @@ class TestVisibilityParentItem(TestVisibilityItemBase, Generic[CIDT, CITEMT]):
         self.set_tag(test.ITR_TEST_SKIPPING_TESTS_SKIPPED, self._itr_skipped_count > 0)
 
         # Only parent items set skipped counts because tests would always be 1 or 0
-        if self._children:
+        if self._children or self._distributed_children:
             self.set_tag(test.ITR_TEST_SKIPPING_COUNT, self._itr_skipped_count)
+
+    def set_distributed_children(self) -> None:
+        self._distributed_children = True

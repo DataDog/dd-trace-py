@@ -4,6 +4,7 @@ import itertools
 import os
 import sys
 import time
+import traceback
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
@@ -38,7 +39,7 @@ from .data import get_application
 from .data import get_host_info
 from .data import get_python_config_vars
 from .data import update_imported_dependencies
-from .logging import DDTelemetryLogHandler
+from .logging import DDTelemetryErrorHandler
 from .metrics_namespaces import MetricNamespace
 from .metrics_namespaces import MetricTagType
 from .metrics_namespaces import MetricType
@@ -97,10 +98,11 @@ class _TelemetryClient:
                 resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
-                    "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
+                    "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event: %s. Response: %s",
                     len(rb_json),
                     sw.elapsed(),
                     self.url,
+                    request["request_type"],
                     resp.status,
                 )
             else:
@@ -143,8 +145,10 @@ class TelemetryWriter(PeriodicService):
     # Counter representing the number of events sent by the writer. Here we are relying on the atomicity
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
-    _sequence = itertools.count(1)
+    _sequence_payloads = itertools.count(1)
+    _sequence_configurations = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
+    CWD = os.getcwd()
 
     def __init__(self, is_periodic=True, agentless=None):
         # type: (bool, Optional[bool]) -> None
@@ -165,7 +169,7 @@ class TelemetryWriter(PeriodicService):
         self._logs = set()  # type: Set[Dict[str, Any]]
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
-        self._configuration_queue = {}  # type: Dict[str, Dict]
+        self._configuration_queue = []  # type: List[Dict]
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
@@ -204,8 +208,8 @@ class TelemetryWriter(PeriodicService):
             # Force app started for unit tests
             if config.FORCE_START:
                 self._app_started()
-            if config.LOG_COLLECTION_ENABLED:
-                get_logger("ddtrace").addHandler(DDTelemetryLogHandler(self))
+            # Send logged error to telemetry
+            get_logger("ddtrace").addHandler(DDTelemetryErrorHandler(self))
 
     def enable(self):
         # type: () -> bool
@@ -263,7 +267,7 @@ class TelemetryWriter(PeriodicService):
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
                 "api_version": "v2",
-                "seq_id": next(self._sequence),
+                "seq_id": next(self._sequence_payloads),
                 "debug": self._debug,
                 "application": get_application(config.SERVICE, config.VERSION, config.ENV),
                 "host": get_host_info(),
@@ -385,8 +389,8 @@ class TelemetryWriter(PeriodicService):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
-            configurations = list(self._configuration_queue.values())
-            self._configuration_queue = {}
+            configurations = self._configuration_queue
+            self._configuration_queue = []
         return configurations
 
     def _app_client_configuration_changed_event(self, configurations):
@@ -414,6 +418,23 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def _add_endpoints_event(self):
+        """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
+        import ddtrace.settings.asm as asm_config_module
+
+        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+            return
+
+        if not asm_config_module.endpoint_collection.endpoints:
+            return
+
+        with self._service_lock:
+            payload = asm_config_module.endpoint_collection.flush(
+                asm_config_module.config._api_security_endpoint_collection_limit
+            )
+
+        self.add_event(payload, "app-endpoints")
 
     def _app_product_change(self):
         # type: () -> None
@@ -444,10 +465,6 @@ class TelemetryWriter(PeriodicService):
         if self.started:
             self._send_product_change_updates = True
 
-    def remove_configuration(self, configuration_name):
-        with self._service_lock:
-            del self._configuration_queue[configuration_name]
-
     def add_configuration(self, configuration_name, configuration_value, origin="unknown", config_id=None):
         # type: (str, Any, str, Optional[str]) -> None
         """Creates and queues the name, origin, value of a configuration"""
@@ -468,17 +485,21 @@ class TelemetryWriter(PeriodicService):
             config["config_id"] = config_id
 
         with self._service_lock:
-            self._configuration_queue[configuration_name] = config
+            config["seq_id"] = next(self._sequence_configurations)
+            self._configuration_queue.append(config)
 
     def add_configurations(self, configuration_list):
         """Creates and queues a list of configurations"""
         with self._service_lock:
-            for name, value, _origin in configuration_list:
-                self._configuration_queue[name] = {
-                    "name": name,
-                    "origin": _origin,
-                    "value": value,
-                }
+            for name, value, origin in configuration_list:
+                self._configuration_queue.append(
+                    {
+                        "name": name,
+                        "origin": origin,
+                        "value": value,
+                        "seq_id": next(self._sequence_configurations),
+                    }
+                )
 
     def add_log(self, level, message, stack_trace="", tags=None):
         """
@@ -502,6 +523,43 @@ class TelemetryWriter(PeriodicService):
                 data["stack_trace"] = stack_trace
             # Logs are hashed using the message, level, tags, and stack_trace. This should prevent duplicatation.
             self._logs.add(data)
+
+    def add_integration_error_log(self, msg: str, exc: BaseException) -> None:
+        if config.LOG_COLLECTION_ENABLED:
+            stack_trace = self._format_stack_trace(exc)
+            self.add_log(
+                TELEMETRY_LOG_LEVEL.ERROR,
+                msg,
+                stack_trace=stack_trace if stack_trace is not None else "",
+            )
+
+    def _format_stack_trace(self, exc: BaseException) -> Optional[str]:
+        exc_type, exc_value, exc_traceback = type(exc), exc, exc.__traceback__
+        if exc_traceback:
+            tb = traceback.extract_tb(exc_traceback)
+            formatted_tb = ["Traceback (most recent call last):"]
+            for filename, lineno, funcname, srcline in tb:
+                if self._should_redact(filename):
+                    formatted_tb.append("  <REDACTED>")
+                    formatted_tb.append("    <REDACTED>")
+                else:
+                    relative_filename = self._format_file_path(filename)
+                    formatted_line = f'  File "{relative_filename}", line {lineno}, in {funcname}\n    {srcline}'
+                    formatted_tb.append(formatted_line)
+            if exc_type:
+                formatted_tb.append(f"{exc_type.__module__}.{exc_type.__name__}: {exc_value}")
+            return "\n".join(formatted_tb)
+
+        return None
+
+    def _should_redact(self, filename: str) -> bool:
+        return "ddtrace" not in filename
+
+    def _format_file_path(self, filename: str) -> str:
+        try:
+            return os.path.relpath(filename, start=self.CWD)
+        except ValueError:
+            return filename
 
     def add_gauge_metric(self, namespace: TELEMETRY_NAMESPACE, name: str, value: float, tags: MetricTagType = None):
         """
@@ -583,10 +641,17 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
+    def _dispatch(self):
+        # moved core here to avoid circular import
+        from ddtrace.internal import core
+
+        core.dispatch("telemetry.periodic")
+
     def periodic(self, force_flush=False, shutting_down=False):
         # ensure app_started is called at least once in case traces weren't flushed
         self._app_started()
         self._app_product_change()
+        self._dispatch()
 
         namespace_metrics = self._namespace.flush(float(self.interval))
         if namespace_metrics:
@@ -613,6 +678,7 @@ class TelemetryWriter(PeriodicService):
             self._app_client_configuration_changed_event(configurations)
 
         self._app_dependencies_loaded_event()
+        self._add_endpoints_event()
 
         if shutting_down:
             self._app_closing_event()
@@ -636,7 +702,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace.flush()
         self._logs = set()
         self._imported_dependencies = {}
-        self._configuration_queue = {}
+        self._configuration_queue = []
 
     def _flush_events_queue(self):
         # type: () -> List[Dict]
@@ -662,7 +728,8 @@ class TelemetryWriter(PeriodicService):
         self.enable()
 
     def _restart_sequence(self):
-        self._sequence = itertools.count(1)
+        self._sequence_payloads = itertools.count(1)
+        self._sequence_configurations = itertools.count(1)
 
     def _stop_service(self, join=True, *args, **kwargs):
         # type: (...) -> None

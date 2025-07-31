@@ -7,17 +7,19 @@ from typing import Optional
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_llmobs_metrics_tags
-from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
@@ -43,9 +45,10 @@ class VertexAIIntegration(BaseLLMIntegration):
     ) -> None:
         instance = kwargs.get("instance", None)
         history = kwargs.get("history", [])
-        metadata = llmobs_get_metadata_google(kwargs, instance)
+        metrics = kwargs.get("metrics", {})
+        metadata = llmobs_get_metadata_gemini_vertexai(kwargs, instance)
 
-        system_instruction = get_system_instructions_from_google_model(instance)
+        system_instruction = get_system_instructions_gemini_vertexai(instance)
         input_contents = None
         try:
             input_contents = get_argument_value(args, kwargs, 0, "content")
@@ -56,6 +59,7 @@ class VertexAIIntegration(BaseLLMIntegration):
         output_messages = [{"content": ""}]
         if response is not None:
             output_messages = self._extract_output_message(response)
+            metrics = self._extract_metrics_from_response(response)
 
         span._set_ctx_items(
             {
@@ -65,9 +69,40 @@ class VertexAIIntegration(BaseLLMIntegration):
                 METADATA: metadata,
                 INPUT_MESSAGES: input_messages,
                 OUTPUT_MESSAGES: output_messages,
-                METRICS: get_llmobs_metrics_tags("vertexai", span),
+                METRICS: metrics,
             }
         )
+
+    def _extract_metrics_from_response(self, response):
+        """Extract metrics from the response."""
+        if isinstance(response, list):
+            for chunk in response:
+                token_counts = _get_attr(chunk, "usage_metadata", None)
+                if not token_counts:
+                    continue
+                input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+                output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+                total_tokens = _get_attr(token_counts, "total_token_count", 0)
+        else:
+            generations_dict = response.to_dict()
+
+            token_counts = generations_dict.get("usage_metadata", None)
+            if not token_counts:
+                return
+
+            input_tokens = _get_attr(token_counts, "prompt_token_count", 0)
+            output_tokens = _get_attr(token_counts, "candidates_token_count", 0)
+            total_tokens = _get_attr(token_counts, "total_token_count", 0)
+
+        metrics = {}
+        if input_tokens is not None:
+            metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens is not None:
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if total_tokens is not None:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = total_tokens
+
+        return metrics
 
     def _extract_input_message(self, contents, history, system_instruction=None):
         from vertexai.generative_models._generative_models import Part
@@ -82,7 +117,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append({"content": contents})
             return messages
         if isinstance(contents, Part):
-            message = extract_message_from_part_google(contents)
+            message = extract_message_from_part_gemini_vertexai(contents)
             messages.append(message)
             return messages
         if not isinstance(contents, list):
@@ -93,7 +128,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append({"content": content})
                 continue
             if isinstance(content, Part):
-                message = extract_message_from_part_google(content)
+                message = extract_message_from_part_gemini_vertexai(content)
                 messages.append(message)
                 continue
             messages.extend(self._extract_messages_from_content(content))
@@ -135,6 +170,6 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
             return messages
         for part in parts:
-            message = extract_message_from_part_google(part, role)
+            message = extract_message_from_part_gemini_vertexai(part, role)
             messages.append(message)
         return messages

@@ -84,29 +84,11 @@ def get_latest_commit_message() -> str:
     return ""
 
 
-GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN")
+GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", os.environ.get("GH_TOKEN"))
 if not GITHUB_TOKEN:
     try:
-        GITHUB_TOKEN = (
-            check_output(
-                [
-                    "aws",
-                    "ssm",
-                    "get-parameter",
-                    "--region",
-                    "us-east-1",
-                    "--name",
-                    f'ci.{os.environ["CI_PROJECT_NAME"]}.gh_token',
-                    "--with-decryption",
-                    "--query",
-                    "Parameter.Value",
-                    "--output=text",
-                ]
-            )
-            .decode("utf-8")
-            .strip()
-        )
-        LOGGER.info("GitHub token retrieved from SSM")
+        GITHUB_TOKEN = check_output(["gh", "auth", "token"], text=True).strip()
+        LOGGER.info("GitHub token retrieved from gh auth token")
     except Exception:
         LOGGER.warning("No GitHub token available. Changes may not be detected accurately.", exc_info=True)
 else:
@@ -169,7 +151,7 @@ def needs_testrun(suite: str, pr_number: int, sha: t.Optional[str] = None) -> bo
     ...     needs_testrun("debugger", 6485)
     ...     needs_testrun("debugger", 6388)
     ...     needs_testrun("foobar", 6412)
-    ...     needs_testrun("profile", 11690)
+    ...     needs_testrun("profiling::profile", 11690)
     True
     True
     True

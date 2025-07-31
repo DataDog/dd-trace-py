@@ -11,9 +11,17 @@ class DjangoSimple(bm.Scenario):
     span_code_origin_enabled: bool
     exception_replay_enabled: bool
     path: str
+    django_instrument_middleware: bool
+    django_instrument_caches: bool
+    django_instrument_databases: bool
+    django_instrument_templates: bool
 
     def run(self):
         os.environ["DJANGO_SETTINGS_MODULE"] = "app"
+        os.environ["DD_DJANGO_INSTRUMENT_MIDDLEWARE"] = "1" if self.django_instrument_middleware else "0"
+        os.environ["DD_DJANGO_INSTRUMENT_CACHES"] = "1" if self.django_instrument_caches else "0"
+        os.environ["DD_DJANGO_INSTRUMENT_DATABASES"] = "1" if self.django_instrument_databases else "0"
+        os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"] = "1" if self.django_instrument_templates else "0"
 
         if self.profiler_enabled:
             os.environ.update(

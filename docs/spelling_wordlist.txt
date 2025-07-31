@@ -71,6 +71,7 @@ CPU
 CPython
 CUPTI
 Cython
+contrib
 datadog
 datadoghq
 dataset
@@ -85,6 +86,7 @@ DES
 deserializing
 django
 docstring
+docstrings
 doctest
 dogpile
 dogpile.cache
@@ -114,6 +116,7 @@ flamegraph
 fnmatch
 formatter
 freezegun
+genai
 generativeai
 gevent
 Gitlab
@@ -294,6 +297,7 @@ TensorBoard
 testagent
 TestCase
 testrunner
+timeseries
 Timeseries
 timestamp
 tokenizer
@@ -336,3 +340,4 @@ wsgi
 xfail
 yaaredis
 openai-agents
+validators

@@ -14,7 +14,7 @@ from ddtrace.opentracer import Tracer
 from ddtrace.opentracer import set_global_tracer
 from ddtrace.opentracer.span_context import SpanContext
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.settings import ConfigException
+from ddtrace.settings.exceptions import ConfigException
 
 
 class TestTracerConfig(object):
@@ -122,7 +122,7 @@ class TestTracer(object):
     def test_start_span_custom_start_time(self, ot_tracer):
         """Start a span with a custom start time."""
         t = 100
-        with mock.patch("ddtrace._trace.span.time_ns") as time:
+        with mock.patch("ddtrace._trace.span.Time.time_ns") as time:
             time.return_value = 102 * 1e9
             with ot_tracer.start_span("myop", start_time=t) as span:
                 pass

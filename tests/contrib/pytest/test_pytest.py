@@ -9,7 +9,6 @@ import pytest
 import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -31,7 +30,9 @@ from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
 from tests.contrib.patch import emit_integration_and_version_to_test_agent
 from tests.utils import TracerTestCase
-from tests.utils import override_env
+
+
+_USE_PLUGIN_V2 = True
 
 
 def _get_spans_from_list(
@@ -203,6 +204,41 @@ class PytestTestCase(PytestTestCaseBase):
     def test_ini(self):
         """Test ini config."""
         self.testdir.makefile(".ini", pytest="[pytest]\nddtrace=1\n")
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_ini(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name)
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
+    def test_pytest_addopts_env_var(self):
+        """Test enabling ddtrace via the PYTEST_ADDOPTS environment variable."""
+        py_file = self.testdir.makepyfile(
+            """
+            import pytest
+
+            def test_trace(ddspan):
+                assert ddspan is not None
+        """
+        )
+        file_name = os.path.basename(py_file.strpath)
+        rec = self.inline_run(file_name, extra_env={"PYTEST_ADDOPTS": "--ddtrace"})
+        rec.assertoutcome(passed=1)
+        spans = self.pop_spans()
+
+        assert len(spans) == 4
+
+    def test_pytest_addopts_ini(self):
+        """Test enabling ddtrace via the `addopts` option in the ini file."""
+        self.testdir.makefile(".ini", pytest="[pytest]\naddopts = --ddtrace\n")
         py_file = self.testdir.makepyfile(
             """
             import pytest
@@ -397,7 +433,6 @@ class PytestTestCase(PytestTestCaseBase):
             "metadata": {},
         }
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_skip(self):
         """Test skip case."""
         py_file = self.testdir.makepyfile(
@@ -740,7 +775,9 @@ class PytestTestCase(PytestTestCaseBase):
         # Check if spans tagged with dd_origin after encoding and decoding as the tagging occurs at encode time
         encoder = self.tracer.encoder
         encoder.put(spans)
-        trace, _ = encoder.encode()
+        encoded_results = encoder.encode()
+        assert encoded_results, "Expected encoded traces but got empty list"
+        [(trace, _)] = encoded_results
         (decoded_trace,) = self.tracer.encoder._decode(trace)
         assert len(decoded_trace) == 7
         for span in decoded_trace:
@@ -748,7 +785,9 @@ class PytestTestCase(PytestTestCaseBase):
 
         ci_agentless_encoder = CIVisibilityEncoderV01(0, 0)
         ci_agentless_encoder.put(spans)
-        event_payload, _ = ci_agentless_encoder.encode()
+        encoded_results = ci_agentless_encoder.encode()
+        assert encoded_results, "Expected encoded traces but got empty list"
+        [(event_payload, _)] = encoded_results
         decoded_event_payload = self.tracer.encoder._decode(event_payload)
         assert len(decoded_event_payload[b"events"]) == 7
         for event in decoded_event_payload[b"events"]:
@@ -1601,7 +1640,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert len(test_suite_spans) == 1
         assert test_suite_spans[0].get_tag("test.suite") == "test_cov.py"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test(self):
         self.testdir.makepyfile(
             ret_false="""
@@ -1630,8 +1668,17 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1643,32 +1690,33 @@ class PytestTestCase(PytestTestCaseBase):
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
-        assert COVERAGE_TAG_NAME in first_test_span.get_tags()
-        first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "lib_fn.py"
-        assert files[1]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
 
-        second_test_span = spans[1]
-        assert second_test_span.get_tag("type") == "test"
-        assert second_test_span.get_tag("test.name") == "test_second"
-        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "ret_false.py"
-        assert files[1]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
+        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
+        # assert COVERAGE_TAG_NAME in first_test_span.get_tags()
+        # first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
+        # files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 2
+        # assert files[0]["filename"] == "lib_fn.py"
+        # assert files[1]["filename"] == "test_cov.py"
+        # assert len(files[0]["segments"]) == 1
+        # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
+        # assert len(files[1]["segments"]) == 1
+        # assert files[1]["segments"][0] == [4, 0, 5, 0, -1]
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
+        # second_test_span = spans[1]
+        # assert second_test_span.get_tag("type") == "test"
+        # assert second_test_span.get_tag("test.name") == "test_second"
+        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 2
+        # assert files[0]["filename"] == "ret_false.py"
+        # assert files[1]["filename"] == "test_cov.py"
+        # assert len(files[0]["segments"]) == 1
+        # assert files[0]["segments"][0] == [1, 0, 2, 0, -1]
+        # assert len(files[1]["segments"]) == 1
+        # assert files[1]["segments"][0] == [8, 0, 9, 0, -1]
+
     def test_pytest_will_report_coverage_by_test_with_itr_skipped(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1708,8 +1756,17 @@ class PytestTestCase(PytestTestCaseBase):
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, True, False, True),
         ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
             side_effect=_fetch_test_to_skip_side_effect(_itr_data),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace", os.path.basename(py_cov_file.strpath))
         spans = self.pop_spans()
@@ -1729,18 +1786,19 @@ class PytestTestCase(PytestTestCaseBase):
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
-        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
+        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
+        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 2
+        # assert files[0]["filename"] == "test_cov.py"
+        # assert files[1]["filename"] == "test_ret_false.py"
+        # assert len(files[0]["segments"]) == 1
+        # assert files[0]["segments"][0] == [8, 0, 9, 0, -1]
+        # assert len(files[1]["segments"]) == 1
+        # assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
     def test_pytest_will_report_coverage_by_test_with_pytest_mark_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1789,6 +1847,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
@@ -1809,32 +1873,33 @@ class PytestTestCase(PytestTestCaseBase):
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("test.name") == "test_second"
-        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        second_test_files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(second_test_files) == 2
-        assert second_test_files[0]["filename"] == "test_cov.py"
-        assert len(second_test_files[0]["segments"]) == 1
-        assert second_test_files[0]["segments"][0] == [9, 0, 10, 0, -1]
-        assert second_test_files[1]["filename"] == "test_ret_false.py"
-        assert len(second_test_files[1]["segments"]) == 1
-        assert second_test_files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
-        third_test_span = spans[2]
-        assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
-        assert COVERAGE_TAG_NAME in third_test_span.get_tags()
-        third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
-        third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
-        assert len(third_test_files) == 2
-        assert third_test_files[0]["filename"] == "test_cov.py"
-        assert len(third_test_files[0]["segments"]) == 1
-        assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
+        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
+        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        # second_test_files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(second_test_files) == 2
+        # assert second_test_files[0]["filename"] == "test_cov.py"
+        # assert len(second_test_files[0]["segments"]) == 1
+        # assert second_test_files[0]["segments"][0] == [9, 0, 10, 0, -1]
+        # assert second_test_files[1]["filename"] == "test_ret_false.py"
+        # assert len(second_test_files[1]["segments"]) == 1
+        # assert second_test_files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+        # third_test_span = spans[2]
+        # assert third_test_span.get_tag("test.name") == "test_skipif_mark_false"
+        # assert COVERAGE_TAG_NAME in third_test_span.get_tags()
+        # third_tag_data = json.loads(third_test_span.get_tag(COVERAGE_TAG_NAME))
+        # third_test_files = sorted(third_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(third_test_files) == 2
+        # assert third_test_files[0]["filename"] == "test_cov.py"
+        # assert len(third_test_files[0]["segments"]) == 1
+        # assert third_test_files[0]["segments"][0] == [19, 0, 20, 0, -1]
 
         fourth_test_span = spans[3]
         assert fourth_test_span.get_tag("test.name") == "test_skipif_mark_true"
         assert COVERAGE_TAG_NAME not in fourth_test_span.get_tags()
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_will_report_coverage_by_test_with_pytest_skip(self):
         self.testdir.makepyfile(
             test_ret_false="""
@@ -1865,6 +1930,12 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.should_collect_coverage",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(True, False, False, True),
         ):
@@ -1882,27 +1953,31 @@ class PytestTestCase(PytestTestCaseBase):
         first_test_span = spans[0]
         assert first_test_span.get_tag("test.name") == "test_cov"
         assert first_test_span.get_tag("type") == "test"
-        assert COVERAGE_TAG_NAME in first_test_span.get_tags()
-        first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 1
-        assert files[0]["filename"] == "test_cov.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
+
+        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
+        # assert COVERAGE_TAG_NAME in first_test_span.get_tags()
+        # first_tag_data = json.loads(first_test_span.get_tag(COVERAGE_TAG_NAME))
+        # files = sorted(first_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 1
+        # assert files[0]["filename"] == "test_cov.py"
+        # assert len(files[0]["segments"]) == 1
+        # assert files[0]["segments"][0] == [4, 0, 5, 0, -1]
 
         second_test_span = spans[1]
         assert second_test_span.get_tag("type") == "test"
         assert second_test_span.get_tag("test.name") == "test_second"
-        assert COVERAGE_TAG_NAME in second_test_span.get_tags()
-        second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
-        files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
-        assert len(files) == 2
-        assert files[0]["filename"] == "test_cov.py"
-        assert files[1]["filename"] == "test_ret_false.py"
-        assert len(files[0]["segments"]) == 1
-        assert files[0]["segments"][0] == [10, 0, 11, 0, -1]
-        assert len(files[1]["segments"]) == 1
-        assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
+
+        # FIXME(@gnufede): coverage tag for individual tests not implemented yet
+        # assert COVERAGE_TAG_NAME in second_test_span.get_tags()
+        # second_tag_data = json.loads(second_test_span.get_tag(COVERAGE_TAG_NAME))
+        # files = sorted(second_tag_data["files"], key=lambda x: x["filename"])
+        # assert len(files) == 2
+        # assert files[0]["filename"] == "test_cov.py"
+        # assert files[1]["filename"] == "test_ret_false.py"
+        # assert len(files[0]["segments"]) == 1
+        # assert files[0]["segments"][0] == [10, 0, 11, 0, -1]
+        # assert len(files[1]["segments"]) == 1
+        # assert files[1]["segments"][0] == [1, 0, 2, 0, -1]
 
     def test_pytest_will_report_git_metadata(self):
         py_file = self.testdir.makepyfile(
@@ -2005,7 +2080,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2064,7 +2139,6 @@ class PytestTestCase(PytestTestCaseBase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") is None
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_tests_by_path(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2099,11 +2173,17 @@ class PytestTestCase(PytestTestCaseBase):
         )
 
         with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
-            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
-        ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip",
+            side_effect=_fetch_test_to_skip_side_effect(_itr_data),
         ):
             self.inline_run("--ddtrace")
 
@@ -2152,7 +2232,6 @@ class PytestTestCase(PytestTestCaseBase):
             assert skipped_test_span.get_tag("test.skipped_by_itr") == "true"
             assert skipped_test_span.get_tag("itr_correlation_id") == "pytestitrcorrelationid"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_none_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2179,8 +2258,14 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace")
 
@@ -2206,7 +2291,6 @@ class PytestTestCase(PytestTestCaseBase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2233,8 +2317,16 @@ class PytestTestCase(PytestTestCaseBase):
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
-        ), mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder._is_item_itr_skippable", return_value=True
         ):
             self.inline_run("--ddtrace")
 
@@ -2289,7 +2381,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert True"""
             )
         self.testdir.chdir()
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2297,8 +2389,6 @@ class PytestTestCase(PytestTestCaseBase):
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_item_itr_skippable", return_value=True
         ), mock.patch(
@@ -2364,7 +2454,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert True"""
             )
         self.testdir.chdir()
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ), mock.patch(
@@ -2372,8 +2462,6 @@ class PytestTestCase(PytestTestCaseBase):
             return_value=True,
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=False
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -2402,7 +2490,6 @@ class PytestTestCase(PytestTestCaseBase):
         skipped_spans = [x for x in spans if x.get_tag("test.status") == "skip"]
         assert len(skipped_spans) == 0
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_skip_all_tests_but_test_skipping_not_enabled(self):
         """
         Test that running pytest on two nested packages with 1 test each. It should generate
@@ -2426,9 +2513,7 @@ class PytestTestCase(PytestTestCaseBase):
                 assert True"""
             )
         self.testdir.chdir()
-        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"), mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._should_skip_path", return_value=True
-        ):
+        with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
             self.inline_run("--ddtrace")
 
         spans = self.pop_spans()
@@ -2483,7 +2568,7 @@ class PytestTestCase(PytestTestCaseBase):
             )
         )
 
-        with override_env(dict(_DD_CIVISIBILITY_ITR_SUITE_MODE="True")), mock.patch(
+        with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
         ), mock.patch(
@@ -2576,7 +2661,6 @@ class PytestTestCase(PytestTestCaseBase):
         passed_test_spans = [x for x in spans if x.get_tag("type") == "test" and x.get_tag("test.status") == "pass"]
         assert len(passed_test_spans) == 2
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_tests_forced_run_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -2648,6 +2732,12 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace")
 
@@ -2787,8 +2877,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -2854,7 +2942,6 @@ class PytestTestCase(PytestTestCaseBase):
         )[0]
         assert test_inner_wasnot_going_to_skip_skipif_span.get_tag("test.itr.unskippable") == "true"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_none_skipped_in_test_level(self):
         """When no tests are skipped, the test.itr.tests_skipping.tests_skipped tag should be false"""
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
@@ -2925,6 +3012,12 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace")
 
@@ -2955,7 +3048,6 @@ class PytestTestCase(PytestTestCaseBase):
         assert inner_module_span.get_tag("_dd.ci.itr.tests_skipped") == "false"
         assert inner_module_span.get_tag("test.itr.forced_run") == "true"
 
-    @pytest.mark.skipif(_USE_PLUGIN_V2, reason="Pytest plugin v2 does not do test-level skipping")
     def test_pytest_unskippable_suite_not_skipped_in_test_level(self):
         package_outer_dir = self.testdir.mkpydir("test_outer_package")
         os.chdir(str(package_outer_dir))
@@ -3028,6 +3120,12 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
+            return_value=True,
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.ddconfig",
+            _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             self.inline_run("--ddtrace")
 
@@ -3167,8 +3265,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -3306,8 +3402,6 @@ class PytestTestCase(PytestTestCaseBase):
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.is_itr_enabled",
             return_value=True,
-        ), override_env(
-            {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.ddconfig",
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.SUITE),
@@ -4145,3 +4239,218 @@ class PytestTestCase(PytestTestCaseBase):
 
         result = self.subprocess_run("--ddtrace", file_name)
         assert result.ret == 0
+
+    def test_pytest_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run("--ddtrace", file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
+    def test_pytest_no_ddtrace_logger_unaffected_by_log_capture(self):
+        py_file = self.testdir.makepyfile(
+            """
+            import os
+            import sys
+            import logging.config
+
+            def test_log_capture():
+                config = {
+                    "version": 1,
+                    "disable_existing_loggers": False,
+                    "formatters": {
+                        "simple": {
+                            "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+                            "datefmt": "%Y-%m-%d %H:%M:%S"
+                        }
+                    },
+                    "handlers": {
+                        "stdout": {
+                            "class": "logging.StreamHandler",
+                            "level": "DEBUG",
+                            "formatter": "simple",
+                            "stream": "ext://sys.stdout"
+                        }
+                    },
+                    "loggers": {
+                        "root": {
+                            "level": "DEBUG",
+                            "handlers": [
+                                "stdout"
+                            ]
+                        }
+                    }
+                }
+                logging.config.dictConfig(config)
+
+            """
+        )
+        file_name = os.path.basename(py_file.strpath)
+
+        result = self.subprocess_run(file_name)
+        assert "I/O operation on closed file" not in result.stderr.str()
+        assert result.ret == 0
+
+
+def test_pytest_coverage_data_format_handling_none_value():
+    """Test that coverage data format issues are handled correctly with proper logging for None value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    # Test case 1: coverage data is None
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: None},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        mock_log.debug.assert_called_with("Unable to retrieve coverage data for the session span")
+        mock_set_covered_lines_pct.assert_not_called()
+
+
+def test_pytest_coverage_data_format_handling_invalid_type():
+    """Test that coverage data format issues are handled correctly with proper logging for invalid value."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    # Test case 2: coverage data is not a float (e.g., string)
+    invalid_value = "not_a_float"
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data",
+        {PCT_COVERED_KEY: invalid_value},
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        mock_log.warning.assert_called_with(
+            "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+            "builtins",
+            "str",
+            invalid_value,
+        )
+        mock_set_covered_lines_pct.assert_not_called()
+
+
+@pytest.mark.parametrize("valid_value", [75, 86.01])
+def test_pytest_coverage_data_format_handling_valid_values(valid_value):
+    """Test that coverage data format issues are handled correctly with proper logging."""
+    from ddtrace.contrib.internal.coverage.constants import PCT_COVERED_KEY
+    from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+
+    # Create a mock session object
+    mock_session = mock.MagicMock()
+    mock_session.exitstatus = 0
+
+    ci_visibility_instance = mock.MagicMock(spec=CIVisibility)
+
+    with mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._coverage_data", {PCT_COVERED_KEY: valid_value}
+    ), mock.patch(
+        "ddtrace.ext.test_visibility.api.require_ci_visibility_service",
+        return_value=ci_visibility_instance,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.is_test_visibility_enabled",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_patched",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2._is_coverage_invoked_by_coverage_run",
+        return_value=True,
+    ), mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.run_coverage_report"
+    ), mock.patch(
+        "ddtrace.internal.test_visibility.api.InternalTestSession.set_covered_lines_pct"
+    ) as mock_set_covered_lines_pct, mock.patch(
+        "ddtrace.contrib.internal.pytest._plugin_v2.log"
+    ) as mock_log:
+        _pytest_sessionfinish(mock_session, 0)
+
+        # No warning or debug should be called for valid case
+        mock_log.warning.assert_not_called()
+        mock_log.debug.assert_not_called()
+        mock_set_covered_lines_pct.assert_called_once_with(valid_value)

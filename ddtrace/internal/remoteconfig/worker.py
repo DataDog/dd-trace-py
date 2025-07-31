@@ -35,7 +35,6 @@ class RemoteConfigPoller(periodic.PeriodicService):
         self._parent_id = os.getpid()
         self._products_to_restart_on_fork = set()
         self._capabilities_map: Dict[enum.IntFlag, str] = dict()
-        log.debug("RemoteConfigWorker created with polling interval %d", ddconfig._remote_config_poll_interval)
 
     def _agent_check(self) -> None:
         try:

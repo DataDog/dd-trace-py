@@ -16,9 +16,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
 from ..._constants import IAST
+from ..._constants import IAST_SPAN_TAGS
 from .._iast_env import _get_iast_env
 from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
+from .._span_metrics import increment_iast_span_metric
 from .._stacktrace import get_info_frame
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
@@ -163,8 +165,9 @@ class VulnerabilityBase:
         )
 
     @classmethod
-    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> None:
+    def report(cls, evidence_value: TEXT_TYPES = "", dialect: Optional[str] = None) -> bool:
         """Build a IastSpanReporter instance to report it in the `AppSecIastSpanProcessor` as a string JSON"""
+        result = False
         if should_process_vulnerability(cls.vulnerability_type):
             file_name = line_number = function_name = class_name = None
 
@@ -172,7 +175,7 @@ class VulnerabilityBase:
                 file_name, line_number, function_name, class_name = cls._compute_file_line()
                 if file_name is None:
                     rollback_quota(cls.vulnerability_type)
-                    return
+                    return result
             # Evidence is a string in weak cipher, weak hash and weak randomness
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
@@ -181,6 +184,7 @@ class VulnerabilityBase:
             # we need to restore the quota
             if not result:
                 rollback_quota(cls.vulnerability_type)
+        return result
 
     @classmethod
     def is_tainted_pyobject(cls, string_to_check: TEXT_TYPES, origins_to_exclude: Set[OriginType] = set()) -> bool:
@@ -222,4 +226,6 @@ class VulnerabilityBase:
                 return not all(_range.source.origin in origins_to_exclude for _range in ranges)
             else:
                 return True
+        else:
+            increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY, cls.vulnerability_type)
         return False

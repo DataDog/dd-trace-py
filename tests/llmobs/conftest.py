@@ -99,7 +99,11 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
+    return {
+        "_dd_api_key": os.environ.get("DD_API_KEY", "<not-a-real-api_key>"),
+        "_llmobs_ml_app": "unnamed-ml-app",
+        "service": "tests.llmobs",
+    }
 
 
 @pytest.fixture
@@ -172,8 +176,9 @@ def tracer():
 @pytest.fixture
 def llmobs_env():
     return {
-        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+        "DD_LLMOBS_PROJECT_NAME": "test-project",
     }
 
 
@@ -245,7 +250,7 @@ def llmobs_backend(_llmobs_backend):
 
 @pytest.fixture
 def llmobs_enable_opts():
-    yield {}
+    yield {"project_name": "test-project"}
 
 
 @pytest.fixture
@@ -269,7 +274,9 @@ def llmobs(
         llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
+        llmobs_service._instance._dne_client._intake = "http://localhost:9126/vcr/datadog"
         yield llmobs_service
+    tracer.shutdown()
     llmobs_service.disable()
 
 

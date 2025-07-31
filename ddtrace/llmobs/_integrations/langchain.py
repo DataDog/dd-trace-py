@@ -25,11 +25,13 @@ from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
+from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -57,6 +59,20 @@ ROLE_MAPPING = {
 }
 
 SUPPORTED_OPERATIONS = ["llm", "chat", "chain", "embedding", "retrieval", "tool"]
+LANGCHAIN_BASE_URL_FIELDS = [
+    "api_base",
+    "api_host",
+    "anthropic_api_url",
+    "base_url",
+    "endpoint",
+    "endpoint_url",
+    "cerebras_api_base",
+    "groq_api_base",
+    "inference_server_url",
+    "openai_api_base",
+    "upstage_api_base",
+    "xai_api_base",
+]
 
 
 def _extract_instance(instance):
@@ -147,7 +163,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_metadata(span, model_provider)
 
         is_workflow = False
 
@@ -166,14 +181,18 @@ class LangChainIntegration(BaseLLMIntegration):
             elif operation == "chat" and model_provider.startswith(ANTHROPIC_PROVIDER_NAME):
                 llmobs_integration = "anthropic"
 
-            is_workflow = LLMObs._integration_is_enabled(llmobs_integration)
+            is_workflow = (
+                LLMObs._integration_is_enabled(llmobs_integration) or span._get_ctx_item(PROXY_REQUEST) is True
+            )
 
         if operation == "llm":
             self._llmobs_set_tags_from_llm(span, args, kwargs, response, is_workflow=is_workflow)
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chat":
             # langchain-openai will call a beta client "response_format" is passed in the kwargs, which we do not trace
             is_workflow = is_workflow and not (llmobs_integration == "openai" and ("response_format" in kwargs))
             self._llmobs_set_tags_from_chat_model(span, args, kwargs, response, is_workflow=is_workflow)
+            update_proxy_workflow_input_output_value(span, "workflow" if is_workflow else "llm")
         elif operation == "chain":
             self._llmobs_set_meta_tags_from_chain(span, args, kwargs, outputs=response)
         elif operation == "embedding":
@@ -334,7 +353,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """
         Deletes the references of steps in a chain from the instance id to span mapping.
 
-        The relevant instances will be recorded again if they are re-used in another chain when
+        The relevant instances will be recorded again if they are reused in another chain when
         the other chain is invoked.
 
         We attempt to remove the current instance as well if it has no parent or its parent instance is not a chain.
@@ -345,26 +364,37 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
-        if not model_provider:
+    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
+        identifying_params = kwargs.pop("_dd.identifying_params", None)
+        if not identifying_params:
             return
+        metadata = self._llmobs_extract_parameters(identifying_params)
+        for val in identifying_params.values():
+            if metadata:
+                break
+            if not isinstance(val, dict):
+                continue
+            metadata = self._llmobs_extract_parameters(val)
 
-        metadata = {}
-        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
-            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
-        )  # huggingface
-        max_tokens = (
-            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
-        )
+        if metadata:
+            span._set_ctx_item(METADATA, metadata)
 
+    def _llmobs_extract_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        max_tokens = None
+        temperature = None
+        if "temperature" in parameters:
+            temperature = parameters["temperature"]
+        for max_token_key in ["max_tokens", "maxTokens", "max_completion_tokens"]:
+            if max_token_key in parameters:
+                max_tokens = parameters[max_token_key]
+                break
         if temperature is not None and temperature != "None":
             metadata["temperature"] = float(temperature)
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
-        if metadata:
-            span._set_ctx_item(METADATA, metadata)
+
+        return metadata
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
@@ -390,6 +420,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_tag_key: input_messages,
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
             span._set_ctx_item(output_tag_key, [{"content": ""}])
@@ -424,6 +456,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
+
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
@@ -464,7 +499,7 @@ class LangChainIntegration(BaseLLMIntegration):
             tokens_set_top_level = total_tokens > 0
 
         tokens_per_choice_run_id: Dict[str, Dict[str, int]] = defaultdict(lambda: defaultdict(int))
-        for message_set in chat_completions.generations:
+        for message_set in getattr(chat_completions, "generations", []):
             for chat_completion in message_set:
                 chat_completion_msg = chat_completion.message
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
@@ -479,6 +514,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 # do not append to the count, just set it once
                 if not is_workflow and not tokens_set_top_level:
                     tokens, run_id = self.check_token_usage_ai_message(chat_completion_msg)
+                    if run_id is None:
+                        continue
                     input_tokens, output_tokens, total_tokens = tokens
                     tokens_per_choice_run_id[run_id]["input_tokens"] = input_tokens
                     tokens_per_choice_run_id[run_id]["output_tokens"] = output_tokens
@@ -668,25 +705,20 @@ class LangChainIntegration(BaseLLMIntegration):
             }
         )
 
-    def _set_base_span_tags(  # type: ignore[override]
+    def _set_base_span_tags(
         self,
         span: Span,
         interface_type: str = "",
         provider: Optional[str] = None,
         model: Optional[str] = None,
         api_key: Optional[str] = None,
+        **kwargs,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
         if provider is not None:
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
-            else:
-                span.set_tag_str(API_KEY, api_key)
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
@@ -705,7 +737,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
         return input_tokens, output_tokens, total_tokens
 
-    def check_token_usage_ai_message(self, ai_message):
+    def check_token_usage_ai_message(self, ai_message) -> Tuple[Tuple[int, int, int], Optional[str]]:
         """Checks for token usage on an AI message object"""
         # depending on the provider + langchain-core version, the usage metadata can be in different places
         # either chat_completion_msg.usage_metadata or chat_completion_msg.response_metadata.{token}_usage
@@ -714,10 +746,10 @@ class LangChainIntegration(BaseLLMIntegration):
         run_id = getattr(ai_message, "id", None) or getattr(ai_message, "run_id", "")
         run_id_base = "-".join(run_id.split("-")[:-1]) if run_id else ""
 
-        response_metadata = getattr(ai_message, "response_metadata", {}) or {}
-        usage = usage or response_metadata.get("usage", {}) or response_metadata.get("token_usage", {})
+        response_metadata = getattr(ai_message, "response_metadata", {})
+        usage = usage or response_metadata.get("usage") or response_metadata.get("token_usage")
         if usage is None or not isinstance(usage, dict):  # in case it is explicitly set to None
-            return 0, 0, 0
+            return (0, 0, 0), run_id_base
 
         # could either be "{prompt,completion}_tokens" or "{input,output}_tokens"
         input_tokens = usage.get("input_tokens", 0) or usage.get("prompt_tokens", 0)
@@ -725,3 +757,10 @@ class LangChainIntegration(BaseLLMIntegration):
         total_tokens = usage.get("total_tokens", input_tokens + output_tokens)
 
         return (input_tokens, output_tokens, total_tokens), run_id_base
+
+    def _get_base_url(self, **kwargs: Dict[str, Any]) -> Optional[str]:
+        instance = kwargs.get("instance")
+        base_url = None
+        for field in LANGCHAIN_BASE_URL_FIELDS:
+            base_url = getattr(instance, field, None) or base_url
+        return str(base_url) if base_url else None

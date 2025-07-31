@@ -66,7 +66,7 @@ contacting support.
 +--------------------------------------------------+---------------+----------------+
 | :ref:`avro`                                      | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
-| :ref:`azure_functions`                           | >= 1.20.0     | Yes            |
+| :ref:`azure_functions`                           | >= 1.10.1     | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`botocore`                                  | \*            | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -143,6 +143,8 @@ contacting support.
 | :ref:`loguru`                                    | >= 0.4.0      | No             |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mako`                                      | >= 1.0        | Yes            |
++--------------------------------------------------+---------------+----------------+
+| :ref:`mcp`                                       | >= 1.10.0     | Yes            |
 +--------------------------------------------------+---------------+----------------+
 | :ref:`mariadb`                                   | >= 1.0.0      | Yes            |
 +--------------------------------------------------+---------------+----------------+
@@ -250,12 +252,12 @@ contacting support.
 Instrumentation Telemetry
 -------------------------
 
-Datadog may gather environmental and diagnostic information about instrumentation libraries; this includes information
+dd-trace-py gathers environmental and diagnostic information at runtime. This includes information
 about the host running an application, operating system, programming language and runtime, APM integrations used,
-and application dependencies. Additionally, Datadog may collect information such as diagnostic logs, crash dumps
+and application dependencies. It also gathers information such as diagnostic logs, crash dumps
 with obfuscated stack traces, and various system performance metrics.
 
-To disable set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
+To disable this collection, set ``DD_INSTRUMENTATION_TELEMETRY_ENABLED=false`` environment variable.
 
 See our official `datadog documentation <https://docs.datadoghq.com/tracing/configure_data_security#telemetry-collection>`_ for more details.
 

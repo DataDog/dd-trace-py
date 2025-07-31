@@ -1,11 +1,12 @@
 import functools
 import sys
-from typing import TYPE_CHECKING
+from types import TracebackType
 from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from urllib import parse
 
 import wrapt
@@ -13,6 +14,7 @@ import wrapt
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
+from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
@@ -23,6 +25,7 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -31,13 +34,14 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
 from ddtrace.internal.constants import FLASK_URL_RULE
 from ddtrace.internal.constants import FLASK_VIEW_ARGS
+from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
+from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
+from ddtrace.internal.constants import MESSAGING_OPERATION
+from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
-
-
-if TYPE_CHECKING:
-    from ddtrace._trace.span import Span
 
 
 log = get_logger(__name__)
@@ -142,10 +146,29 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     return span
 
 
+def _finish_span(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+):
+    """
+    Finish the span in the context.
+    If no span is present, do nothing.
+    """
+    span = ctx.span
+    if not span:
+        return
+
+    exc_type, exc_value, exc_traceback = exc_info
+    if exc_type and exc_value and exc_traceback:
+        span.set_exc_info(exc_type, exc_value, exc_traceback)
+    span.finish()
+
+
 def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -445,7 +468,8 @@ def _on_request_span_modifier(
     # RequestContext` and possibly a url rule
     span.resource = " ".join((request.method, request.path))
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -655,15 +679,13 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
     integration = ctx["bedrock_integration"]
+    integration._tag_proxy_request(ctx)
+
     span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
     span.set_tag_str("bedrock.request.model", ctx["model_name"])
-    for k, v in request_params.items():
-        if k == "prompt":
-            if integration.is_pc_sampled_span(span):
-                v = integration.trunc(str(v))
-        span.set_tag_str("bedrock.request.{}".format(k), str(v))
-        if k == "n":
-            ctx.set_item("num_generations", str(v))
+
+    if "n" in request_params:
+        ctx.set_item("num_generations", str(request_params["n"]))
 
 
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
@@ -674,16 +696,6 @@ def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     if "embed" not in model_name:
         integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
-
-
-def _on_botocore_patched_bedrock_api_call_success(ctx, reqid, latency, input_token_count, output_token_count):
-    span = ctx.span
-    span.set_tag_str("bedrock.response.id", reqid)
-    span.set_tag_str("bedrock.response.duration", latency)
-    if input_token_count:
-        span.set_metric("bedrock.response.usage.prompt_tokens", int(input_token_count))
-    if output_token_count:
-        span.set_metric("bedrock.response.usage.completion_tokens", int(output_token_count))
 
 
 def _propagate_context(ctx, headers):
@@ -727,38 +739,13 @@ def _on_botocore_bedrock_process_response_converse(
 def _on_botocore_bedrock_process_response(
     ctx: core.ExecutionContext,
     formatted_response: Dict[str, Any],
-    metadata: Dict[str, Any],
-    body: Dict[str, List[Dict]],
-    should_set_choice_ids: bool,
 ) -> None:
-    text = formatted_response["text"]
-    span = ctx.span
-    model_name = ctx["model_name"]
-    if should_set_choice_ids:
-        for i in range(len(text)):
-            span.set_tag_str("bedrock.response.choices.{}.id".format(i), str(body["generations"][i]["id"]))
-    integration = ctx["bedrock_integration"]
-    if metadata is not None:
-        for k, v in metadata.items():
-            if k in ["usage.completion_tokens", "usage.prompt_tokens"] and v:
-                span.set_metric("bedrock.response.{}".format(k), int(v))
-            else:
-                span.set_tag_str("bedrock.{}".format(k), str(v))
-    if "embed" in model_name:
-        span.set_metric("bedrock.response.embedding_length", len(formatted_response["text"][0]))
-        span.finish()
-        return
-    for i in range(len(formatted_response["text"])):
-        if integration.is_pc_sampled_span(span):
-            span.set_tag_str(
-                "bedrock.response.choices.{}.text".format(i),
-                integration.trunc(str(formatted_response["text"][i])),
-            )
-        span.set_tag_str(
-            "bedrock.response.choices.{}.finish_reason".format(i), str(formatted_response["finish_reason"][i])
-        )
-    integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
-    span.finish()
+    with ctx.span as span:
+        model_name = ctx["model_name"]
+        integration = ctx["bedrock_integration"]
+        if "embed" in model_name:
+            return
+        integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
 
 
 def _on_botocore_sqs_recvmessage_post(
@@ -831,7 +818,7 @@ def _set_azure_function_tags(span, azure_functions_config, function_name, trigge
 
 
 def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     parsed_url = parse.urlparse(req.url)
     path = parsed_url.path
     span.resource = f"{req.method} {path}"
@@ -847,7 +834,7 @@ def _on_azure_functions_request_span_modifier(ctx, azure_functions_config, req):
 
 
 def _on_azure_functions_start_response(ctx, azure_functions_config, res, function_name, trigger):
-    span = ctx.get_item("req_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, SpanKind.SERVER)
     trace_utils.set_http_meta(
         span,
@@ -858,8 +845,31 @@ def _on_azure_functions_start_response(ctx, azure_functions_config, res, functio
 
 
 def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, function_name, trigger, span_kind):
-    span = ctx.get_item("trigger_span")
+    span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+
+
+def _on_azure_functions_service_bus_trigger_span_modifier(
+    ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
+):
+    span = ctx.span
+    _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_OPERATION, "receive")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+
+    if message_id is not None:
+        span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
+
+
+def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, entity_name, fully_qualified_namespace):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, azure_servicebus_config.integration_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_OPERATION, "send")
+    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+    span.set_tag_str(NETWORK_DESTINATION_NAME, fully_qualified_namespace)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
 def listen():
@@ -904,7 +914,6 @@ def listen():
     core.on("botocore.client_context.update_messages", _on_botocore_update_messages)
     core.on("botocore.patched_bedrock_api_call.started", _on_botocore_patched_bedrock_api_call_started)
     core.on("botocore.patched_bedrock_api_call.exception", _on_botocore_patched_bedrock_api_call_exception)
-    core.on("botocore.patched_bedrock_api_call.success", _on_botocore_patched_bedrock_api_call_success)
     core.on("botocore.bedrock.process_response", _on_botocore_bedrock_process_response)
     core.on("botocore.bedrock.process_response_converse", _on_botocore_bedrock_process_response_converse)
     core.on("botocore.sqs.ReceiveMessage.post", _on_botocore_sqs_recvmessage_post)
@@ -916,6 +925,8 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
+    core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -970,8 +981,12 @@ def listen():
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
+        "azure.servicebus.patched_producer",
     ):
-        core.on(f"context.started.start_span.{context_name}", _start_span)
+        core.on(f"context.started.{context_name}", _start_span)
+
+    for name in ("django.template.render",):
+        core.on(f"context.ended.{name}", _finish_span)
 
 
 listen()

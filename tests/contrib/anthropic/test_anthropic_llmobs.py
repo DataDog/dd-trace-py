@@ -1,10 +1,15 @@
 from pathlib import Path
 
+import mock
+from mock import patch
 import pytest
 
+from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
+from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -26,9 +31,80 @@ Francisco, CA is 73°F."
 
 
 @pytest.mark.parametrize(
-    "ddtrace_global_config", [dict(_llmobs_enabled=True, _llmobs_sample_rate=1.0, _llmobs_ml_app="<ml-app-name>")]
+    "ddtrace_global_config",
+    [
+        dict(
+            _llmobs_enabled=True,
+            _llmobs_sample_rate=1.0,
+            _llmobs_ml_app="<ml-app-name>",
+            _llmobs_instrumented_proxy_urls="http://localhost:4000",
+        )
+    ],
 )
 class TestLLMObsAnthropic:
+    @patch("anthropic._base_client.SyncAPIClient.post")
+    def test_completion_proxy(
+        self,
+        mock_anthropic_messages_post,
+        anthropic,
+        ddtrace_global_config,
+        mock_llmobs_writer,
+        mock_tracer,
+        request_vcr,
+    ):
+        llm = anthropic.Anthropic(base_url="http://localhost:4000")
+        mock_anthropic_messages_post.return_value = MOCK_MESSAGES_CREATE_REQUEST
+        messages = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": "Hello, I am looking for information about some books!"},
+                    {"type": "text", "text": "What is the best selling book?"},
+                ],
+            }
+        ]
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            system="Respond only in all caps.",
+            temperature=0.8,
+            messages=messages,
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_non_llm_span_event(
+                span,
+                "workflow",
+                input_value=safe_json(
+                    [
+                        {"content": "Respond only in all caps.", "role": "system"},
+                        {"content": "Hello, I am looking for information about some books!", "role": "user"},
+                        {"content": "What is the best selling book?", "role": "user"},
+                    ],
+                    ensure_ascii=False,
+                ),
+                output_value=safe_json(
+                    [{"content": 'THE BEST-SELLING BOOK OF ALL TIME IS "DON', "role": "assistant"}], ensure_ascii=False
+                ),
+                metadata={"temperature": 0.8, "max_tokens": 15.0},
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+            )
+        )
+
+        # span created from request with non-proxy URL should result in an LLM span
+        llm = anthropic.Anthropic(base_url="http://localhost:8000")
+        llm.messages.create(
+            model="claude-3-opus-20240229",
+            max_tokens=15,
+            system="Respond only in all caps.",
+            temperature=0.8,
+            messages=messages,
+        )
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        assert mock_llmobs_writer.enqueue.call_args_list[1].args[0]["meta"]["span.kind"] == "llm"
+
     def test_completion(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
         """Ensure llmobs records are emitted for completion endpoints when configured.
 
@@ -118,7 +194,13 @@ class TestLLMObsAnthropic:
                 ],
                 output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
-                token_metrics={"input_tokens": 43, "output_tokens": 15, "total_tokens": 58},
+                token_metrics={
+                    "input_tokens": 43,
+                    "output_tokens": 15,
+                    "total_tokens": 58,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
@@ -741,4 +823,200 @@ class TestLLMObsAnthropic:
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
+        )
+
+    def test_completion_prompt_caching(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+    ):
+        llm = anthropic.Anthropic()
+        """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+        inference_args = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 100,
+            "system": large_system_prompt,
+            "temperature": 0.1,
+            "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+        }
+        with request_vcr.use_cassette("anthropic_completion_cache_write.yaml"):
+            llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        with request_vcr.use_cassette("anthropic_completion_cache_read.yaml"):
+            llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What are the key principles for designing scalable systems?",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 2073,
+                            "output_tokens": 100,
+                            "total_tokens": 2173,
+                            "cache_write_input_tokens": 2055,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What is a system",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 2066,
+                            "output_tokens": 100,
+                            "total_tokens": 2166,
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 2055,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+            ]
+        )
+
+    def test_completion_stream_prompt_caching(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+    ):
+        """Test that prompt caching metrics are properly captured for streamed completions."""
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Software engineering best practices guide: " + "goodbye " * 1024,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+        inference_args = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 100,
+            "system": large_system_prompt,
+            "temperature": 0.1,
+            "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+            "stream": True,
+        }
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_write.yaml"):
+            stream1 = llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+            for _ in stream1:
+                pass
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_read.yaml"):
+            stream2 = llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
+            for _ in stream2:
+                pass
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What are the key principles for designing scalable systems?",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 1049,
+                            "output_tokens": 100,
+                            "total_tokens": 1149,
+                            "cache_write_input_tokens": 1031,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What is a system",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 1042,
+                            "output_tokens": 100,
+                            "total_tokens": 1142,
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 1031,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+            ]
         )
