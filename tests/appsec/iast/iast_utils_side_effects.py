@@ -301,7 +301,8 @@ class MagicMethodsException:
     def __deepcopy__(self, memo):
         raise Exception("side effect")
 
-    def __subclasshook__(self, subclass):
+    @classmethod
+    def __subclasshook__(cls, subclass):
         raise Exception("side effect")
 
     def __instancecheck__(self, instance):
@@ -310,6 +311,7 @@ class MagicMethodsException:
     def __subclasscheck__(self, subclass):
         raise Exception("side effect")
 
+    @classmethod
     def __prepare__(cls, name, bases):
         raise Exception("side effect")
 
@@ -319,7 +321,8 @@ class MagicMethodsException:
     def __subclass_prepare__(self, cls):
         raise Exception("side effect")
 
-    def __init_subclass__(self, *args, **kwargs):
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
         raise Exception("side effect")
 
     def __length_hint__(self):
