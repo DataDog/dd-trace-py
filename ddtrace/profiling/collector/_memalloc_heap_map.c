@@ -82,6 +82,11 @@ typedef struct memalloc_heap_map_t
     HeapSamples map;
 } memalloc_heap_map_t;
 
+typedef struct memalloc_heap_map_iter_t
+{
+    HeapSamples_CIter iter;
+} memalloc_heap_map_iter_t;
+
 memalloc_heap_map_t*
 memalloc_heap_map_new()
 {
@@ -177,4 +182,35 @@ memalloc_heap_map_delete(memalloc_heap_map_t* m)
     }
     HeapSamples_destroy(&m->map);
     free(m);
+}
+
+memalloc_heap_map_iter_t*
+memalloc_heap_map_iter_new(memalloc_heap_map_t* m)
+{
+    memalloc_heap_map_iter_t* it = malloc(sizeof(memalloc_heap_map_iter_t));
+    if (it) {
+        it->iter = HeapSamples_citer(&m->map);
+    }
+    return it;
+}
+
+bool
+memalloc_heap_map_iter_next(memalloc_heap_map_iter_t* it, void** key, traceback_t** tb)
+{
+    const HeapSamples_Entry* e = HeapSamples_CIter_get(&it->iter);
+    if (!e) {
+        return false;
+    }
+    *key = e->key;
+    *tb = e->val;
+    HeapSamples_CIter_next(&it->iter);
+    return true;
+}
+
+void
+memalloc_heap_map_iter_delete(memalloc_heap_map_iter_t* it)
+{
+    if (it) {
+        free(it);
+    }
 }
