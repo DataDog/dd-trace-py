@@ -27,7 +27,6 @@ from ddtrace.internal.ci_visibility.encoder import CIVisibilityEncoderV01
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.api_client._util import _make_fqdn_test_ids
 from tests.ci_visibility.util import _ci_override_env
-from tests.ci_visibility.util import _fetch_known_tests_side_effect
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.ci_visibility.util import _patch_dummy_writer
@@ -4406,11 +4405,11 @@ def test_coverage_target():
             # Should have at least 3 test spans (original tests, possibly more due to retries)
             assert len(test_spans) >= 3
 
-            # The main success is that ITR test-level + coverage + retry features don't crash
-
-            test_cov_spans = [span for span in spans if span.get_tag("test.name") == "test_cov"]
-            coverage_data = [_get_span_coverage_data(span) for span in test_cov_spans]
-            # assert coverage_data != []
+            for span in test_spans:
+                coverage_data = span.get_struct_tag("test.coverage")
+                assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"
+                # Coverage data should be a dict with 'files' key
+                assert isinstance(coverage_data, dict) and "files" in coverage_data
 
             # Check that EFD retry happened for the flaky test
             efd_flaky_spans = [s for s in test_spans if "efd_flaky" in s.get_tag("test.name")]
@@ -4466,7 +4465,7 @@ def test_coverage_target():
             _get_default_civisibility_ddconfig(ITR_SKIPPING_LEVEL.TEST),
         ):
             # Run with ITR test-level mode enabled
-            rec = self.inline_run(
+            self.inline_run(
                 "--ddtrace",
                 extra_env={
                     "_DD_CIVISIBILITY_ITR_SUITE_MODE": "0",  # Enable test-level ITR
@@ -4563,7 +4562,6 @@ def test_simple():
             # Should have at least 2 test spans (original tests)
             assert len(test_spans) >= 2
 
-            # FIXME: All test spans should have coverage data when coverage is enabled
             for span in test_spans:
                 coverage_data = span.get_struct_tag("test.coverage")
                 assert coverage_data is not None, f"Test {span.get_tag('test.name')} missing coverage data"

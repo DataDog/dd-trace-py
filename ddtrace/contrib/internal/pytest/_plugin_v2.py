@@ -39,10 +39,6 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
-
-# Module-level variable to store the current test's coverage collector
-# This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
-_current_coverage_collector = None
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
@@ -106,6 +102,10 @@ DISABLED_BY_TEST_MANAGEMENT_REASON = "Flaky test is disabled by Datadog"
 INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 
 skip_pytest_runtest_protocol = False
+
+# Module-level variable to store the current test's coverage collector
+# This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
+_current_coverage_collector = None
 
 
 class XdistHooks:
@@ -551,7 +551,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
 def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
     global _current_coverage_collector
-    
+
     if not is_test_visibility_enabled():
         yield
         return
@@ -568,7 +568,7 @@ def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
         # Always clean up the coverage collector after the test, even if there's an exception
         coverage_collector = _current_coverage_collector
         _current_coverage_collector = None
-        
+
         try:
             _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
         except Exception:  # noqa: E722
@@ -609,13 +609,7 @@ def _pytest_run_one_test(item, nextitem):
     is_attempt_to_fix = InternalTest.is_attempt_to_fix(test_id)
     setup_or_teardown_failed = False
 
-    # Finish the test if it hasn't been finished yet
-    # This needs to happen before retry logic so that retry mechanisms can check the test status
-    # However, we need to be careful not to finish the test if coverage collection is still in progress
-    # The coverage collection in _pytest_runtest_protocol_post_yield will handle finishing the test
     if not InternalTest.is_finished(test_id):
-        # Only finish the test here if coverage collection is not expected
-        # If coverage collection is happening, let _pytest_runtest_protocol_post_yield handle the finishing
         should_collect_coverage = InternalTestSession.should_collect_coverage()
         item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
         coverage_will_be_collected = should_collect_coverage and not item_will_skip
