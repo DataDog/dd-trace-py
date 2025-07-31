@@ -696,7 +696,7 @@ def test_partial_flush_log():
             mock.call(
                 "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
                 "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
-                "(partial flushing enabled: %s)",
+                "(partial flush triggered: %s)",
                 2,
                 3,
                 0,

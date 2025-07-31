@@ -264,7 +264,7 @@ class SpanAggregator(SpanProcessor):
     SPAN_FINISH_DEBUG_MESSAGE = (
         "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
         "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
-        "(partial flushing enabled: %s)"
+        "(partial flush triggered: %s)"
     )
 
     SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
