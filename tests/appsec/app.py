@@ -248,14 +248,6 @@ def iast_header_injection_vulnerability_secure():
     return resp
 
 
-@app.route("/iast-unvalidated_redirect-header", methods=["GET"])
-def view_iast_unvalidated_redirect_insecure_header():
-    location = request.args.get("location")
-    response = Response("OK")
-    response.headers["Location"] = location
-    return response
-
-
 @app.route("/iast-code-injection", methods=["GET"])
 def iast_code_injection_vulnerability():
     filename = request.args.get("filename")
