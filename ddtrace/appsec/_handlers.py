@@ -397,15 +397,18 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
 
 
 def _on_telemetry_periodic():
-    telemetry.telemetry_writer.add_configurations(
-        [
-            (
-                APPSEC.ENV,
-                asm_config._asm_enabled,
-                asm_config.asm_enabled_origin,
-            )
-        ]
-    )
+    try:
+        telemetry.telemetry_writer.add_configurations(
+            [
+                (
+                    APPSEC.ENV,
+                    int(asm_config._asm_enabled),
+                    asm_config.asm_enabled_origin,
+                )
+            ]
+        )
+    except Exception:
+        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
 def listen():
