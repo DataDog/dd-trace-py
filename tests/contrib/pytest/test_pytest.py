@@ -4347,14 +4347,6 @@ import os
 
 fail_marker = 0
 
-def setup():
-    global fail_marker
-    fail_marker = 0
-
-def teardown():
-    global fail_marker
-    fail_marker = 0
-
 def test_always_pass():
     '''Test that always passes'''
     assert True
@@ -4447,10 +4439,6 @@ def test_coverage_target():
 import os
 fail_marker = 0
 
-def setup():
-    global fail_marker
-    fail_marker = 0
-
 def test_always_pass():
     '''Test that always passes'''
     assert True
@@ -4468,10 +4456,6 @@ def test_coverage_target():
     '''Test to ensure we collect coverage'''
     y = 2 * 3
     assert y == 6
-
-def teardown():
-    global fail_marker
-    fail_marker = 0
 """
         )
 
