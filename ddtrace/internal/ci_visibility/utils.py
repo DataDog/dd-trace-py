@@ -112,11 +112,10 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
         log.debug("CIVisibility not taking over ddtrace logger because level is set to: %s", level)
         return
 
-    root_logger = logging.getLogger()
+    ddtrace_logger = logging.getLogger("ddtrace")
 
     if remove_ddtrace_stream_handlers:
         log.debug("CIVisibility removing DDTrace logger handler")
-        ddtrace_logger = logging.getLogger("ddtrace")
         for handler in list(ddtrace_logger.handlers):
             ddtrace_logger.removeHandler(handler)
     else:
@@ -132,12 +131,14 @@ def take_over_logger_stream_handler(remove_ddtrace_stream_handlers=True):
 
     try:
         ci_visibility_handler.setLevel(level.upper())
+        ddtrace_logger.setLevel(level.upper())
     except ValueError:
         log.warning("Invalid log level: %s", level)
         return
 
-    root_logger.addHandler(ci_visibility_handler)
-    root_logger.setLevel(min(root_logger.level, ci_visibility_handler.level))
+    ddtrace_logger.addHandler(ci_visibility_handler)
+    ddtrace_logger.setLevel(min(ddtrace_logger.level, ci_visibility_handler.level))
+    ddtrace_logger.propagate = False
 
     log.debug("logger setup complete")
 

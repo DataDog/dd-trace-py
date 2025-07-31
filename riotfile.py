@@ -335,6 +335,7 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -395,6 +396,8 @@ venv = Venv(
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
+                "xmltodict": latest,
+                "django": latest,
             },
         ),
         Venv(
@@ -471,6 +474,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -2628,7 +2632,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2890,13 +2894,8 @@ venv = Venv(
             pys=select_pys(min_version="3.10"),
             pkgs={
                 "pytest-asyncio": latest,
+                "mcp": ["~=1.10.0", latest],
             },
-            venvs=[
-                Venv(
-                    pys=select_pys(min_version="3.10"),
-                    pkgs={"mcp": ["~=1.10.0", latest]},
-                ),
-            ],
         ),
         Venv(
             name="litellm",
@@ -2980,6 +2979,18 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", latest],
                 "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
+            name="ray",
+            command="pytest {cmdargs} tests/contrib/ray",
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "ray": ["~=2.48.0", latest],
             },
         ),
         Venv(
@@ -3139,6 +3150,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
+                "pandas": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -3390,6 +3402,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "gunicorn": latest,
+                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "pytest-randomly": latest,
             },
