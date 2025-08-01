@@ -15,10 +15,11 @@
       "runtime-id": "b1814973eda441179e41c88da1faef55"
     },
     "metrics": {
+      "_dd.rule_psr": 0.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
-      "_sampling_priority_v1": 2,
-      "process_id": 32165
+      "_sampling_priority_v1": -1,
+      "process_id": 38491
     },
     "duration": 317000,
     "start": 1754078572765547000
@@ -38,11 +39,9 @@
          "language": "python"
        },
        "metrics": {
-         "_dd.limit_psr": 1.0,
          "_dd.py.partial_flush": 5,
-         "_dd.rule_psr": 1.0,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 2
+         "_sampling_priority_v1": -1
        },
        "duration": 57000,
        "start": 1754078572765572000
@@ -112,7 +111,7 @@
        "metrics": {
          "_dd.py.partial_flush": 5,
          "_dd.tracer_kr": 1.0,
-         "_sampling_priority_v1": 2
+         "_sampling_priority_v1": -1
        },
        "duration": 32000,
        "start": 1754078572765801000
