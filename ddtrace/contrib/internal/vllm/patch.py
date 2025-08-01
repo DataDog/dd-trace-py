@@ -30,6 +30,16 @@ config._add("vllm", {})
 def _extract_model_name(instance: Any) -> str:
     """Extract model name from vLLM instance."""
     # Try to get model name from various attributes
+    
+    # For high-level LLM instances (vllm.LLM)
+    if hasattr(instance, "llm_engine"):
+        engine = instance.llm_engine
+        if hasattr(engine, "model_config") and hasattr(engine.model_config, "model"):
+            return engine.model_config.model
+        elif hasattr(engine, "engine_config") and hasattr(engine.engine_config, "model_config"):
+            return engine.engine_config.model_config.model
+    
+    # For engine instances directly
     if hasattr(instance, "model_config") and hasattr(instance.model_config, "model"):
         return instance.model_config.model
     elif hasattr(instance, "engine_config") and hasattr(instance.engine_config, "model_config"):
@@ -189,42 +199,245 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     return result
 
 
+@with_traced_module
+def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
+    """Trace LLM.generate() - the main offline inference API with rich input/output."""
+    integration = vllm._datadog_integration
+    provider, model = _get_provider_and_model(instance, kwargs)
+    
+    span = integration.trace(
+        pin,
+        "llm_request",
+        provider=provider,
+        model=model,
+        submit_to_llmobs=True,
+    )
+
+    # Set span tags matching vLLM semantics  
+    span.set_tag_str("vllm.request.model", model)
+    if provider:
+        span.set_tag_str("vllm.request.provider", provider)
+    
+    # Extract prompts and sampling params from high-level API
+    prompts = args[0] if len(args) > 0 else kwargs.get('prompts')
+    sampling_params = args[1] if len(args) > 1 else kwargs.get('sampling_params')
+    
+    # Add request-specific tags
+    if prompts is not None:
+        if isinstance(prompts, (list, tuple)):
+            span.set_tag("vllm.request.num_prompts", len(prompts))
+            if len(prompts) > 0:
+                span.set_tag("vllm.request.first_prompt_length", len(str(prompts[0])))
+        else:
+            span.set_tag("vllm.request.prompt_length", len(str(prompts)))
+    
+    if sampling_params is not None:
+        if hasattr(sampling_params, 'temperature') and sampling_params.temperature is not None:
+            span.set_tag("vllm.request.temperature", sampling_params.temperature)
+        if hasattr(sampling_params, 'max_tokens') and sampling_params.max_tokens is not None:
+            span.set_tag("vllm.request.max_tokens", sampling_params.max_tokens)
+        if hasattr(sampling_params, 'top_p') and sampling_params.top_p is not None:
+            span.set_tag("vllm.request.top_p", sampling_params.top_p)
+
+    # Add model configuration from instance
+    if hasattr(instance, 'llm_engine') and hasattr(instance.llm_engine, 'model_config'):
+        model_config = instance.llm_engine.model_config
+        if hasattr(model_config, 'max_model_len'):
+            span.set_tag("vllm.model.max_model_len", model_config.max_model_len)
+        if hasattr(model_config, 'dtype'):
+            span.set_tag("vllm.model.dtype", str(model_config.dtype))
+
+    try:
+        # Call the original generate method - returns list[RequestOutput]
+        outputs = func(*args, **kwargs)
+        
+        # Extract rich output data from RequestOutput objects
+        if outputs:
+            total_prompt_tokens = 0
+            total_completion_tokens = 0
+            total_requests = len(outputs)
+            finished_count = 0
+            
+            for output in outputs:
+                if hasattr(output, 'prompt_token_ids') and output.prompt_token_ids:
+                    total_prompt_tokens += len(output.prompt_token_ids)
+                
+                if hasattr(output, 'outputs') and output.outputs:
+                    for completion in output.outputs:
+                        if hasattr(completion, 'token_ids') and completion.token_ids:
+                            total_completion_tokens += len(completion.token_ids)
+                        if hasattr(completion, 'finished') and completion.finished():
+                            finished_count += 1
+            
+            # Set usage metrics
+            if total_prompt_tokens > 0:
+                span.set_tag("vllm.usage.prompt_tokens", total_prompt_tokens)
+            if total_completion_tokens > 0:
+                span.set_tag("vllm.usage.completion_tokens", total_completion_tokens)
+            if total_prompt_tokens > 0 or total_completion_tokens > 0:
+                span.set_tag("vllm.usage.total_tokens", total_prompt_tokens + total_completion_tokens)
+            
+            span.set_tag("vllm.response.num_outputs", total_requests)
+            span.set_tag("vllm.response.finished_count", finished_count)
+        
+        # Set LLMObs tags with rich data
+        kwargs["instance"] = instance
+        kwargs["prompts"] = prompts  # Add original prompts for LLMObs
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=outputs, operation="llm")
+        span.finish()
+        return outputs
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
+
+@with_traced_module
+def traced_llm_chat(vllm, pin, func, instance, args, kwargs):
+    """Trace LLM.chat() - chat completions with message structure."""
+    integration = vllm._datadog_integration
+    provider, model = _get_provider_and_model(instance, kwargs)
+    
+    span = integration.trace(
+        pin,
+        "llm_request",
+        provider=provider,
+        model=model,
+        submit_to_llmobs=True,
+    )
+
+    # Set span tags
+    span.set_tag_str("vllm.request.model", model)
+    if provider:
+        span.set_tag_str("vllm.request.provider", provider)
+    span.set_tag("vllm.request.type", "chat")
+    
+    # Extract messages from chat API
+    messages = args[0] if len(args) > 0 else kwargs.get('messages')
+    if messages is not None:
+        if isinstance(messages, list) and len(messages) > 0:
+            if isinstance(messages[0], list):  # list of conversations
+                span.set_tag("vllm.request.num_conversations", len(messages))
+                span.set_tag("vllm.request.num_messages", len(messages[0]))
+            else:  # single conversation
+                span.set_tag("vllm.request.num_messages", len(messages))
+
+    try:
+        outputs = func(*args, **kwargs)
+        
+        # Add chat-specific response metrics
+        if outputs:
+            span.set_tag("vllm.response.num_outputs", len(outputs))
+        
+        kwargs["instance"] = instance
+        kwargs["messages"] = messages  # Add original messages for LLMObs
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=outputs, operation="llm")
+        span.finish()
+        return outputs
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
+
+@with_traced_module  
+def traced_llm_encode(vllm, pin, func, instance, args, kwargs):
+    """Trace LLM.encode() - embeddings with pooling."""
+    integration = vllm._datadog_integration
+    provider, model = _get_provider_and_model(instance, kwargs)
+    
+    span = integration.trace(
+        pin,
+        "embedding_request", 
+        provider=provider,
+        model=model,
+        submit_to_llmobs=True,
+    )
+
+    # Set span tags
+    span.set_tag_str("vllm.request.model", model)
+    if provider:
+        span.set_tag_str("vllm.request.provider", provider)
+    span.set_tag("vllm.request.type", "embedding")
+    
+    # Extract prompts for embedding
+    prompts = args[0] if len(args) > 0 else kwargs.get('prompts')
+    if prompts is not None:
+        if isinstance(prompts, (list, tuple)):
+            span.set_tag("vllm.request.num_prompts", len(prompts))
+        else:
+            span.set_tag("vllm.request.num_prompts", 1)
+
+    try:
+        outputs = func(*args, **kwargs)
+        
+        if outputs:
+            span.set_tag("vllm.response.num_embeddings", len(outputs))
+            # Try to extract embedding dimensions from first output
+            if hasattr(outputs[0], 'outputs') and outputs[0].outputs:
+                if hasattr(outputs[0].outputs, 'embedding') and outputs[0].outputs.embedding:
+                    span.set_tag("vllm.response.embedding_dim", len(outputs[0].outputs.embedding))
+        
+        kwargs["instance"] = instance
+        kwargs["prompts"] = prompts  # Add original prompts for LLMObs
+        integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=outputs, operation="embedding")
+        span.finish()
+        return outputs
+    except Exception:
+        span.set_exc_info(*sys.exc_info())
+        span.finish()
+        raise
+
+
 # Removed traced_async_engine_step_async - replaced with AsyncLLMEngine.generate() patching for proper trace context
 
 
 def patch():
-    """Patch vLLM methods for tracing - focusing on core llm_request operation first."""
+    """Patch vLLM methods for tracing - focusing on high-level APIs for rich input/output."""
     try:
         import vllm
     except ImportError:
         return
-    
+
     if getattr(vllm, "_datadog_patch", False):
         return
-    
+
     vllm._datadog_patch = True
     Pin().onto(vllm)
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
+
+    # Patch high-level APIs for rich input/output data
     
-    # Focus on the main request entry points to get proper trace context
+    # 1. vLLM.LLM.generate() - offline inference with rich prompts and RequestOutput
+    try:
+        wrap("vllm.entrypoints.llm", "LLM.generate", traced_llm_generate(vllm))
+    except (AttributeError, ImportError):
+        pass
     
-    # 1. Patch AsyncLLMEngine.generate() - the main async request entry point
+    # 2. vLLM.LLM.chat() - chat completions with message structure  
+    try:
+        wrap("vllm.entrypoints.llm", "LLM.chat", traced_llm_chat(vllm))
+    except (AttributeError, ImportError):
+        pass
+    
+    # 3. vLLM.LLM.encode() - embeddings
+    try:
+        wrap("vllm.entrypoints.llm", "LLM.encode", traced_llm_encode(vllm))
+    except (AttributeError, ImportError):
+        pass
+
+    # 4. AsyncLLMEngine.generate() - for server/async usage (keep for trace context)
     try:
         wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_async_llm_engine_generate(vllm))
     except (AttributeError, ImportError):
-        pass  # AsyncLLMEngine.generate for most common usage
-    
-    # 2. Keep synchronous LLMEngine.step() for direct LLMEngine usage (less common)
+        pass
+
+    # 5. Keep LLMEngine.step() for low-level direct usage  
     try:
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
     except (AttributeError, ImportError):
-        pass  # LLMEngine.step for sync usage
-    
-    # TODO: Consider adding other method patches for completeness:
-    # - vllm.LLM.generate (sync offline usage)
-    # - vllm.LLM.encode (sync embedding usage) 
-    # - vllm.AsyncLLMEngine.encode (async embedding usage)
+        pass
 
 
 def unpatch():
