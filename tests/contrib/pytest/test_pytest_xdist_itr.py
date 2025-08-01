@@ -1027,6 +1027,7 @@ def test_func2():
                 "--ddtrace",
                 "-n",
                 "auto",
+                "--ignore=.gitconfig.lock",
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
@@ -1071,8 +1072,7 @@ def test_func2():
                 "--ddtrace",
                 "-n",
                 "logical",
-                "--ignore-glob=*.lock",       # Ignore lock files that cause collection issues
-                "--ignore-glob=.gitconfig*", # Ignore git config files that cause collection issues
+                "--ignore=.gitconfig.lock",
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
