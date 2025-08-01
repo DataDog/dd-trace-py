@@ -2,7 +2,6 @@ import bottle
 import webtest
 
 import ddtrace
-from ddtrace.internal import compat
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
@@ -42,7 +41,7 @@ class TraceBottleTest(TracerTestCase):
         # make a request
         resp = self.app.get("/hi/dougie")
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert resp.body.decode("utf-8", errors="ignore") == "hi dougie"
         # validate it's traced
         spans = self.pop_spans()
         assert len(spans) == 1
