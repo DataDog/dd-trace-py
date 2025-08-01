@@ -204,7 +204,10 @@ class TestVisibilityItemBase(abc.ABC):
         log.debug("Started span %s for item %s", self._span, self)
 
         if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            ddtrace.tracer.context_provider.activate(Context(trace_id=self._span.trace_id, span_id=self._span.span_id))
+            self._main_tracer_context = ddtrace.tracer._activate_context(
+                Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
+            )
+            self._main_tracer_context.__enter__()
 
     @_require_span
     def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
@@ -246,7 +249,8 @@ class TestVisibilityItemBase(abc.ABC):
             self._tracer.context_provider.activate(parent_span)
 
         if not isinstance(self, TestVisibilityParentItem) and asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            ddtrace.tracer.context_provider.activate(None)
+            if hasattr(self, "_main_tracer_context"):
+                self._main_tracer_context.__exit__(None, None, None)
 
     def _set_default_tags(self) -> None:
         """Applies the tags that should be on every span regardless of the item type
