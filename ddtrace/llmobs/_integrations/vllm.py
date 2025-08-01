@@ -45,6 +45,43 @@ class VLLMIntegration(BaseLLMIntegration):
         if not self.llmobs_enabled:
             return
 
+        # For vLLM engine.step() tracing, the response is a RequestOutput object
+        # and we extract everything from it, not from args/kwargs
+        if operation == "vllm_request" and response is not None:
+            self._set_llmobs_tags_from_request_output(span, response, kwargs.get("engine_instance"))
+        else:
+            # Fallback to original high-level API extraction
+            self._set_llmobs_tags_from_high_level_api(span, args, kwargs, response, operation)
+
+    def _set_llmobs_tags_from_request_output(self, span: Span, request_output: Any, engine_instance: Any) -> None:
+        """Set LLMObs tags from vLLM RequestOutput object (for engine.step() tracing)."""
+        # Extract model name and provider from span tags
+        model_name = span.get_tag("vllm.request.model") or ""
+        model_provider = span.get_tag("vllm.request.provider") or "vllm"
+
+        # Extract input/output data for LLMObs
+        input_messages = self._extract_input_messages_from_request_output(request_output)
+        output_messages = self._extract_output_messages_from_request_output(request_output)
+        output_value = self._extract_output_value_from_request_output(request_output)
+        metadata = self._extract_metadata_from_request_output(request_output, engine_instance)
+        metrics = self._extract_metrics_from_request_output(request_output)
+
+        # Set LLMObs context items
+        span._set_ctx_items({
+            SPAN_KIND: "llm",
+            MODEL_NAME: model_name,
+            MODEL_PROVIDER: model_provider,
+            INPUT_MESSAGES: input_messages,
+            OUTPUT_MESSAGES: output_messages,
+            OUTPUT_VALUE: output_value,
+            METADATA: metadata,
+            METRICS: metrics,
+        })
+
+    def _set_llmobs_tags_from_high_level_api(
+        self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any], operation: str
+    ) -> None:
+        """Set LLMObs tags for high-level vLLM API operations (original implementation)."""
         # Set span kind based on operation
         span_kind = "llm" if operation == "llm" else "embedding"
         
@@ -380,4 +417,82 @@ class VLLMIntegration(BaseLLMIntegration):
         elif hasattr(data, "prompt"):
             return data.prompt
         else:
-            return str(data) 
+            return str(data)
+
+    # RequestOutput extraction methods for engine.step() tracing
+    def _extract_input_messages_from_request_output(self, request_output) -> List[Dict[str, Any]]:
+        """Extract input messages from vLLM RequestOutput object."""
+        if hasattr(request_output, "prompt") and request_output.prompt:
+            return [{"content": str(request_output.prompt), "role": "user"}]
+        return [{"content": "", "role": "user"}]
+
+    def _extract_output_messages_from_request_output(self, request_output) -> List[Dict[str, Any]]:
+        """Extract output messages from vLLM RequestOutput object."""
+        if hasattr(request_output, "outputs") and request_output.outputs:
+            # For single output, return the text
+            if len(request_output.outputs) == 1:
+                output_text = _get_attr(request_output.outputs[0], "text", "")
+                return [{"content": output_text, "role": "assistant"}]
+            else:
+                # For multiple outputs, summarize
+                total_text = " ".join(_get_attr(output, "text", "") for output in request_output.outputs)
+                return [{"content": f"[{len(request_output.outputs)} outputs] {total_text[:100]}...", "role": "assistant"}]
+        return [{"content": "", "role": "assistant"}]
+
+    def _extract_output_value_from_request_output(self, request_output) -> str:
+        """Extract output value from vLLM RequestOutput object."""
+        if hasattr(request_output, "outputs") and request_output.outputs:
+            if len(request_output.outputs) == 1:
+                return _get_attr(request_output.outputs[0], "text", "")
+            else:
+                # Multiple outputs - return first one or summary
+                texts = [_get_attr(output, "text", "") for output in request_output.outputs]
+                return f"[{len(texts)} outputs]: {texts[0] if texts else ''}"
+        return ""
+
+    def _extract_metadata_from_request_output(self, request_output, engine_instance) -> Dict[str, Any]:
+        """Extract metadata from vLLM RequestOutput and engine instance."""
+        metadata = {}
+        
+        # Add model configuration
+        if engine_instance and hasattr(engine_instance, "model_config"):
+            model_config = engine_instance.model_config
+            if hasattr(model_config, "dtype"):
+                metadata["dtype"] = str(model_config.dtype)
+            if hasattr(model_config, "max_model_len"):
+                metadata["max_model_len"] = model_config.max_model_len
+        
+        # Add sampling parameters if available from the request
+        if hasattr(request_output, "outputs") and request_output.outputs:
+            output = request_output.outputs[0]
+            if hasattr(output, "finish_reason"):
+                metadata["finish_reason"] = output.finish_reason
+        
+        return {k: v for k, v in metadata.items() if v}
+
+    def _extract_metrics_from_request_output(self, request_output) -> Dict[str, Any]:
+        """Extract token metrics from vLLM RequestOutput object."""
+        metrics = {}
+        
+        # Extract token counts
+        input_tokens = 0
+        output_tokens = 0
+        
+        # Input tokens from prompt
+        if hasattr(request_output, "prompt_token_ids") and request_output.prompt_token_ids:
+            input_tokens = len(request_output.prompt_token_ids)
+        
+        # Output tokens from completions
+        if hasattr(request_output, "outputs") and request_output.outputs:
+            for output in request_output.outputs:
+                if hasattr(output, "token_ids") and output.token_ids:
+                    output_tokens += len(output.token_ids)
+        
+        if input_tokens > 0:
+            metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+        if output_tokens > 0:
+            metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+        if input_tokens > 0 or output_tokens > 0:
+            metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        
+        return metrics 
