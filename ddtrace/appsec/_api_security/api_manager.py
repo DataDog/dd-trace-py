@@ -6,6 +6,7 @@ import time
 from typing import Optional
 
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
+from ddtrace.appsec._asm_request_context import get_service_entry_span
 from ddtrace.appsec._constants import API_SECURITY
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._trace_utils import _asm_manual_keep
@@ -133,7 +134,7 @@ class APIManager(Service):
     def _schema_callback(self, env):
         if env.span is None or not asm_config._api_security_feature_active:
             return
-        root = env.span._local_root or env.span
+        root = get_service_entry_span(env.span)
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
         if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return
