@@ -275,7 +275,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
-        if (self->_no_wait_at_start) self->_request->set();
+        if (self->_no_wait_at_start)
+            self->_request->set();
 
         while (!self->_stopping) {
             {
