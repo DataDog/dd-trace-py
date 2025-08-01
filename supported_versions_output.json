@@ -376,7 +376,7 @@
         "dependency": "langchain",
         "integration": "langchain",
         "minimum_tracer_supported": "0.1.20",
-        "max_tracer_supported": "0.3.18",
+        "max_tracer_supported": "0.3.27",
         "auto-instrumented": true
     },
     {
@@ -432,9 +432,9 @@
     {
         "dependency": "mcp",
         "integration": "mcp",
-        "minimum_tracer_supported": "1.10.0",
+        "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.11.0",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "molten",
