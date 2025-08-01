@@ -3,6 +3,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Text
 from typing import Union
 
 from ddtrace.internal.utils.http import Response
@@ -40,7 +41,7 @@ class Prompt(TypedDict):
 
 class ToolCall(TypedDict):
     tool_name: str
-    tool_args: Dict[str, Any]
+    tool_args: Dict[Union[Text, bytes], Any]
     output: NotRequired[str]
 
 
@@ -86,7 +87,7 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def add_tool(self, tool_name: str, tool_args: Dict[str, Any], output: str = "") -> "AIGuardWorkflow":
+    def add_tool(self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: str = "") -> "AIGuardWorkflow":
         """Add a tool execution to the history of the workflow"""
         current = ToolCall(tool_name=tool_name, tool_args=tool_args)
         if output is not None:
@@ -94,10 +95,12 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str, Any] = {}) -> bool:
+    def evaluate_tool(
+        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], tags: Dict[Union[Text, bytes], Any] = {}
+    ) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Dict[str, Any] = {}) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Dict[Union[Text, bytes], Any] = {}) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -135,9 +138,9 @@ class AIGuardClient:
     def evaluate_tool(
         self,
         tool_name: str,
-        tool_args: Dict[str, Any],
+        tool_args: Dict[Union[Text, bytes], Any],
         history: List[Evaluation] = [],
-        tags: Dict[str, Any] = {},
+        tags: Dict[Union[Text, bytes], Any] = {},
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
@@ -159,7 +162,7 @@ class AIGuardClient:
         return self._evaluate(ToolCall(tool_name=tool_name, tool_args=tool_args), history, tags)
 
     def evaluate_prompt(
-        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[str, Any] = {}
+        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[Union[Text, bytes], Any] = {}
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
@@ -179,7 +182,7 @@ class AIGuardClient:
         tags["ai_guard.target"] = "prompt"
         return self._evaluate(Prompt(role=role, content=content), history, tags)
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str, Any]) -> bool:
+    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace("ai_guard") as span:
             span.set_tags(tags)
