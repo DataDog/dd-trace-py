@@ -27,15 +27,13 @@ from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 ######
 # Skip these tests if xdist is not available
-pytest.importorskip("pytest_xdist", reason="ITR + xdist tests require pytest-xdist to be installed")
+pytest.importorskip("xdist", reason="ITR + xdist tests require pytest-xdist to be installed")
 ######
 
 
-_USE_PLUGIN_V2 = True
-
 pytestmark = pytest.mark.skipif(
-    not (_USE_PLUGIN_V2 and _pytest_version_supports_itr()),
-    reason="ITR requires v2 of the plugin and pytest >=7.0",
+    not _pytest_version_supports_itr(),
+    reason="ITR requires pytest >=7.0",
 )
 
 _TEST_PASS_CONTENT = """
