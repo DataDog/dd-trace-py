@@ -557,10 +557,12 @@ def test_rate_limit_without_sampling_rules_warning():
     },
 )
 def test_partial_flush_with_sampling_rules():
-    # Reproduction for sampling bug for partial flush.
+    """
+    Detects a bug where the local root span is not used to make sampling decisions when a trace is partially flushed.
+    """
     from ddtrace import tracer
 
-    with tracer.trace("root_span"):
+    with tracer.trace("root_span") as root_span:
         with tracer.trace("child_span1") as child_span1:
             for _ in range(4):
                 with tracer.trace("span"):
@@ -573,6 +575,11 @@ def test_partial_flush_with_sampling_rules():
 
     assert child_span1.get_metric("_dd.py.partial_flush") == 5
     assert child_span2.get_metric("_dd.py.partial_flush") == 5
+
+    tracer.flush()
+
+    for span in (root_span, child_span1, child_span2):
+        assert span.context.sampling_priority == -1, span.__repr__()
 
 
 def test_datadog_sampler_init():
