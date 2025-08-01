@@ -193,25 +193,25 @@ def _handle_test_management(item, test_id):
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
-def _coverage_collector_enter(coverage_collector):
+def _coverage_collector_enter(coverage_collector) -> None:
     """
     Wraps coverage collector __enter__ call for testing purposes
     """
     coverage_collector.__enter__()
 
 
-def _coverage_collector_exit(coverage_collector):
+def _coverage_collector_exit(coverage_collector) -> None:
     """
     Wraps coverage collector __exit__ call for testing purposes
     """
     coverage_collector.__exit__()
 
 
-def _coverage_collector_get_covered_lines(coverage_collector):
+def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
     """
     Wraps coverage collector get_covered_lines call for testing purposes
     """
-    coverage_collector.get_covered_lines()
+    return coverage_collector.get_covered_lines()
 
 
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:

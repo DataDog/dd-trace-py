@@ -129,7 +129,6 @@ def test_conditional_skip():
         def count_coverage_enter_calls(*args, **kwargs):
             nonlocal coverage_enter_call_count
             coverage_enter_call_count += 1
-            return {}  # Return empty coverage data
 
         def count_coverage_lines_calls(*args, **kwargs):
             nonlocal coverage_lines_call_count
@@ -139,7 +138,6 @@ def test_conditional_skip():
         def count_coverage_exit_calls(*args, **kwargs):
             nonlocal coverage_exit_call_count
             coverage_exit_call_count += 1
-            return {}  # Return empty coverage data
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
