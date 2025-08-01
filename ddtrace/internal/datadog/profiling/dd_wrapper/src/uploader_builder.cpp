@@ -78,7 +78,6 @@ Datadog::UploaderBuilder::set_tag(std::string_view _key, std::string_view _val)
 {
 
     if (!_key.empty() && !_val.empty()) {
-        const std::lock_guard<std::mutex> lock(tag_mutex);
         user_tags[std::string(_key)] = std::string(_val);
     }
 }
@@ -193,11 +192,4 @@ Datadog::UploaderBuilder::build()
     return std::variant<Datadog::Uploader, std::string>{ std::in_place_type<Datadog::Uploader>,
                                                          output_filename,
                                                          *ddog_exporter };
-}
-
-void
-Datadog::UploaderBuilder::postfork_child()
-{
-    // NB placement-new to re-init and leak the mutex because doing anything else is UB
-    new (&tag_mutex) std::mutex();
 }
