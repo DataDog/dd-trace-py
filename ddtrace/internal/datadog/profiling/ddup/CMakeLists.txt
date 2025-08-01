@@ -72,7 +72,7 @@ endif()
 target_include_directories(
     ${EXTENSION_NAME}
     PRIVATE ../dd_wrapper/include
-            ../../../../../src/native/target${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}/include/
+            ../../../../../src/native/target/include/
             ${Datadog_INCLUDE_DIRS} ${Python3_INCLUDE_DIRS})
 
 target_link_libraries(${EXTENSION_NAME} PRIVATE dd_wrapper)
