@@ -37,6 +37,10 @@ typedef struct
     PyMemAllocatorDomain domain;
     /* Thread ID */
     unsigned long thread_id;
+    /* True if this sample has been reported previously */
+    bool reported;
+    /* Count of allocations this sample represents (for scaling) */
+    size_t count;
     /* List of frames, top frame first */
     frame_t frames[1];
 } traceback_t;
@@ -56,7 +60,7 @@ void
 traceback_free(traceback_t* tb);
 
 traceback_t*
-memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain);
+memalloc_get_traceback(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorDomain domain, size_t weighted_size);
 
 PyObject*
 traceback_to_tuple(traceback_t* tb);
