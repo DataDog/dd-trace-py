@@ -96,27 +96,15 @@ async def traced_async_llm_engine_step_async(vllm, pin, func, instance, args, kw
 
 def _process_request_outputs(vllm, pin, request_outputs, instance):
     """Process request outputs and create spans for finished requests."""
-    log.debug("[VLLM DEBUG] _process_request_outputs called, request_outputs type: %s", type(request_outputs))
-    
     if request_outputs:
-        log.debug("[VLLM DEBUG] request_outputs has %d items", len(request_outputs))
         integration = vllm._datadog_integration
         model_name = _extract_model_name(instance)
         log.debug("[VLLM DEBUG] Processing %d request outputs, model: %s", len(request_outputs), model_name)
         
-        for i, request_output in enumerate(request_outputs):
-            log.debug("[VLLM DEBUG] Processing request_output %d: type=%s, finished=%s, id=%s", 
-                     i, type(request_output), getattr(request_output, 'finished', 'NO_FINISHED_ATTR'), 
-                     getattr(request_output, 'request_id', 'NO_ID_ATTR'))
-            
-            if hasattr(request_output, 'finished') and request_output.finished:
+        for request_output in request_outputs:
+            if request_output.finished:
                 log.debug("[VLLM DEBUG] Creating span for finished request: %s", request_output.request_id)
                 _create_span_for_finished_request(integration, pin, request_output, model_name, instance)
-            else:
-                log.debug("[VLLM DEBUG] Request not finished or no finished attribute: %s", 
-                         getattr(request_output, 'request_id', 'unknown'))
-    else:
-        log.debug("[VLLM DEBUG] request_outputs is empty or None: %s", request_outputs)
 
 
 def _create_span_for_finished_request(integration, pin, request_output, model_name: str, engine_instance: Any):
@@ -138,6 +126,14 @@ def _create_span_for_finished_request(integration, pin, request_output, model_na
         return
     
     try:
+        # Set custom start time from request metrics (like vLLM native tracing)
+        if hasattr(request_output, "metrics") and request_output.metrics:
+            if hasattr(request_output.metrics, "arrival_time") and request_output.metrics.arrival_time:
+                # Convert arrival_time to nanoseconds (following kafka/inferred_proxy pattern)
+                arrival_time_ns = int(request_output.metrics.arrival_time * 1e9)
+                span.start_ns = arrival_time_ns
+                log.debug("[VLLM DEBUG] Set custom start time from arrival_time: %s", arrival_time_ns)
+        
         # Set basic span attributes
         span.set_tag_str("vllm.request.model", model_name)
         span.set_tag_str("vllm.request.id", request_output.request_id)
