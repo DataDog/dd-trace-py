@@ -548,6 +548,33 @@ def test_rate_limit_without_sampling_rules_warning():
     assert config._trace_rate_limit == 2
 
 
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_PARTIAL_FLUSH_ENABLED": "true",
+        "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0, "name":"root_span"}, {"sample_rate":1, "name":"child_span1"}]',
+    },
+)
+def test_partial_flush_with_sampling_rules():
+    # Reproduction for sampling bug for partial flush.
+    from ddtrace import tracer
+
+    with tracer.trace("root_span"):
+        with tracer.trace("child_span1") as child_span1:
+            for _ in range(4):
+                with tracer.trace("span"):
+                    pass
+
+        with tracer.trace("child_span2") as child_span2:
+            for _ in range(4):
+                with tracer.trace("span"):
+                    pass
+
+    assert child_span1.get_metric("_dd.py.partial_flush") == 5
+    assert child_span2.get_metric("_dd.py.partial_flush") == 5
+
+
 def test_datadog_sampler_init():
     sampler = DatadogSampler()
     assert sampler.rules == [], "DatadogSampler initialized with no arguments should hold no rules"
