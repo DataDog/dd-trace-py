@@ -1,6 +1,7 @@
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Union
 from unittest.mock import Mock
 from unittest.mock import patch
 
@@ -14,6 +15,9 @@ from ddtrace.appsec.ai_guard import ToolCall
 from tests.utils import DummyTracer
 
 
+Evaluation = Union[Prompt, ToolCall]
+
+
 def _mock_evaluate_response(action: str, reason: str = "") -> Mock:
     mock_response = Mock()
     mock_response.status = 200
@@ -22,7 +26,7 @@ def _mock_evaluate_response(action: str, reason: str = "") -> Mock:
 
 
 def _assert_mock_execute_request_call(
-    mock_execute_request, ai_guard_client: AIGuardClient, history: List[Prompt | ToolCall], current: Prompt | ToolCall
+    mock_execute_request, ai_guard_client: AIGuardClient, history: List[Evaluation], current: Evaluation
 ):
     expected_payload = {
         "data": {
