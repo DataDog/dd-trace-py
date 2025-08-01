@@ -254,7 +254,7 @@ def test_heap_profiler_sampling_accuracy(sample_interval):
     # pass for an arbitrary seed.
     old = os.environ.get("_DD_MEMALLOC_DEBUG_RNG_SEED")
     os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = "42"
-    _memalloc.start(32, 1000, sample_interval)
+    _memalloc.start(32, sample_interval)
     # Put the env var back in the state we found it
     if old is not None:
         os.environ["_DD_MEMALLOC_DEBUG_RNG_SEED"] = old
@@ -679,7 +679,7 @@ def test_memory_collector_allocation_during_shutdown():
 
     from ddtrace.profiling.collector import _memalloc
 
-    _memalloc.start(32, 1000, 512)
+    _memalloc.start(32, 512)
 
     shutdown_event = threading.Event()
     allocation_thread = None
