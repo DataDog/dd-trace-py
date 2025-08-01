@@ -131,7 +131,12 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 
 # target output name should combine the system name and the processor this won't necessarily match the cpython way 1-1,
 # but as long as it encodes the major moving parts, it's fine
-set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
+
+if(DEFINED EXTENSION_SUFFIX)
+    set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX}")
+else()
+    set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
+endif()
 
 set_target_properties(dd_wrapper PROPERTIES OUTPUT_NAME "${DD_WRAPPER_TARGET_NAME}")
 if(APPLE)
