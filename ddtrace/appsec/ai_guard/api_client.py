@@ -94,10 +94,10 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str | bytes, Any] = {}) -> bool:
+    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str, Any] = {}) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Dict[str | bytes, Any] = {}) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Dict[str, Any] = {}) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -137,7 +137,7 @@ class AIGuardClient:
         tool_name: str,
         tool_args: Dict[str, Any],
         history: List[Evaluation] = [],
-        tags: Dict[str | bytes, Any] = {},
+        tags: Dict[str, Any] = {},
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
@@ -159,7 +159,7 @@ class AIGuardClient:
         return self._evaluate(ToolCall(tool_name=tool_name, tool_args=tool_args), history, tags)
 
     def evaluate_prompt(
-        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[str | bytes, Any] = {}
+        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[str, Any] = {}
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
@@ -179,7 +179,7 @@ class AIGuardClient:
         tags["ai_guard.target"] = "prompt"
         return self._evaluate(Prompt(role=role, content=content), history, tags)
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str | bytes, Any]) -> bool:
+    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str, Any]) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace("ai_guard") as span:
             span.set_tags(tags)
