@@ -3602,3 +3602,114 @@ def test_baggage_span_tags_wildcard():
     assert context._meta.get("baggage.color") == "blue"
     assert context._meta.get("baggage.serverNode") == "DF 28"
     assert "baggage.session.id" not in context._meta
+
+
+def test_inject_non_active_span_parameter_deprecated(caplog):
+    """Test that the non_active_span parameter triggers a deprecation warning."""
+    headers = {}
+    with ddtracer.start_span("non_active_span") as span:
+        assert span.context.sampling_priority is None  # No sampling decision yet
+        with pytest.warns() as warnings_list:
+            HTTPPropagator.inject(context=None, headers=headers, non_active_span=span)
+        assert span.context.sampling_priority is not None  # Sampling should be triggered
+    assert headers.get("x-datadog-sampling-priority") == str(
+        span.context.sampling_priority
+    )  # Headers should include priority
+
+    # Should capture exactly one deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_and_span_same_trace_deprecated(caplog):
+    """Test injecting Context + non_active_span from the same trace (parent-child)."""
+    headers = {}
+    with ddtracer.trace("parent") as parent:
+        with ddtracer.start_span("child", child_of=parent) as non_active_child:
+            assert non_active_child.context.sampling_priority is None  # No sampling yet
+            assert ddtracer.current_span() is not non_active_child  # Child is not active
+            with caplog.at_level(logging.DEBUG), pytest.warns() as warnings_list:
+                HTTPPropagator.inject(parent.context, headers, non_active_child)
+            # Sampling decision should be set on root span even when child is used for propagation
+            assert parent.context.sampling_priority is not None
+            assert non_active_child.context.sampling_priority is not None
+
+    assert any("sampled before propagating trace" in record.message for record in caplog.records), caplog.records
+    assert headers.get("x-datadog-sampling-priority") == str(
+        parent.context.sampling_priority
+    )  # Root span priority used
+    assert headers.get("x-datadog-parent-id") == str(
+        non_active_child.span_id
+    )  # Child span info propagated (non_active_span takes precedence)
+
+    # Should capture deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_and_span_different_trace_deprecated(caplog):
+    """Test injecting Context + non_active_span from completely different traces."""
+    headers = {}
+    with ddtracer.start_span("span1", child_of=None) as span1:
+        pass
+
+    with ddtracer.start_span("span2", child_of=None) as span2:
+        pass
+
+    with caplog.at_level(logging.DEBUG), pytest.warns() as warnings_list:
+        HTTPPropagator.inject(span1.context, headers, span2)
+
+    assert headers.get("x-datadog-parent-id") == str(span2.span_id)  # non_active_span takes precedence
+
+    # Should capture deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_without_sampling_priority_active_trace(caplog):
+    """Test injecting a Context without sampling priority when there's an active trace."""
+    headers = {}
+    with ddtracer.trace("test_span") as span:
+        context = span.context
+        assert context.sampling_priority is None  # No sampling decision yet
+        with caplog.at_level(logging.DEBUG):
+            HTTPPropagator.inject(context, headers)
+        assert span.context.sampling_priority is not None  # Sampling should be triggered automatically
+
+    assert any("sampled before propagating trace" in record.message for record in caplog.records), caplog.records
+    assert headers.get("x-datadog-sampling-priority") == str(
+        span.context.sampling_priority
+    )  # Headers include computed priority
+
+
+def test_inject_context_without_sampling_priority_inactive_trace(caplog):
+    """Test injecting a Context without sampling priority when there's no active trace."""
+    headers = {}
+    ddtracer.current_span() is None  # Ensure no active span
+    with caplog.at_level(logging.DEBUG):
+        HTTPPropagator.inject(Context(trace_id=12345, span_id=67890, sampling_priority=None), headers)
+
+    # Should log warning about inability to make sampling decision
+    assert any(
+        "Sampling decision not available. Downstream spans will not inherit a sampling priority:" in record.message
+        for record in caplog.records
+    ), caplog.records
+    assert headers.get("x-datadog-sampling-priority") is None  # No sampling priority in headers
+
+
+def test_inject_span_without_sampling_priority(caplog):
+    """Test injecting a Span without sampling priority in a nested trace context."""
+    headers = {}
+    with ddtracer.trace("parent") as parent:
+        with ddtracer.trace("child") as child:
+            assert child.context.sampling_priority is None  # No sampling decision yet
+            with caplog.at_level(logging.DEBUG):
+                HTTPPropagator.inject(child, headers)
+            # Sampling decision should propagate to root span
+            assert parent.context.sampling_priority is not None
+            assert child.context.sampling_priority is not None
+
+    assert any("sampled before propagating trace" in record.message for record in caplog.records), caplog.records
+    assert headers.get("x-datadog-sampling-priority") == str(
+        parent.context.sampling_priority
+    )  # Root span priority used
