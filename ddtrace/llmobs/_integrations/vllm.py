@@ -5,11 +5,13 @@ from typing import Optional
 
 from ddtrace._trace.span import Span
 from ddtrace.internal.utils import get_argument_value
+from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
+from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -52,6 +54,7 @@ class VLLMIntegration(BaseLLMIntegration):
 
         # Extract input from various sources
         input_data = self._extract_input(args, kwargs, operation)
+        input_messages = self._extract_input_messages(args, kwargs, operation)
 
         # Extract metadata
         metadata = self._extract_metadata(kwargs, operation)
@@ -61,16 +64,20 @@ class VLLMIntegration(BaseLLMIntegration):
 
         # Set output if available and no error
         output_data = ""
+        output_messages = [{"content": ""}]
         if response is not None and not span.error:
             output_data = self._extract_output(response, operation)
+            output_messages = self._extract_output_messages(response, operation)
 
-        # Set all LLMObs context items
+        # Set all LLMObs context items following Anthropic pattern
         span._set_ctx_items({
             SPAN_KIND: span_kind,
             MODEL_NAME: model_name,
             MODEL_PROVIDER: model_provider,
             INPUT_VALUE: input_data,
             OUTPUT_VALUE: output_data,
+            INPUT_MESSAGES: input_messages,
+            OUTPUT_MESSAGES: output_messages,
             METADATA: metadata,
             METRICS: metrics,
         })
@@ -146,20 +153,20 @@ class VLLMIntegration(BaseLLMIntegration):
         metrics = {}
         
         if operation == "llm" and response is not None:
-            # Extract token counts from response
-            if hasattr(response, "__iter__") and not isinstance(response, str):
-                # Multiple outputs - sum up token counts
+            # Handle list of RequestOutput objects (from high-level API)
+            if isinstance(response, list):
                 input_tokens = 0
                 output_tokens = 0
                 
-                for item in response:
-                    if hasattr(item, "prompt_token_ids"):
-                        input_tokens += len(item.prompt_token_ids)
+                for output in response:
+                    # Extract from RequestOutput objects
+                    if hasattr(output, "prompt_token_ids") and output.prompt_token_ids:
+                        input_tokens += len(output.prompt_token_ids)
                     
-                    if hasattr(item, "outputs") and item.outputs:
-                        for output in item.outputs:
-                            if hasattr(output, "token_ids"):
-                                output_tokens += len(output.token_ids)
+                    if hasattr(output, "outputs") and output.outputs:
+                        for completion in output.outputs:
+                            if hasattr(completion, "token_ids") and completion.token_ids:
+                                output_tokens += len(completion.token_ids)
                 
                 if input_tokens > 0:
                     metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
@@ -168,15 +175,37 @@ class VLLMIntegration(BaseLLMIntegration):
                 if input_tokens > 0 or output_tokens > 0:
                     metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
                     
+            # Handle single RequestOutput object
             elif hasattr(response, "prompt_token_ids"):
-                # Single response
-                input_tokens = len(response.prompt_token_ids)
+                input_tokens = len(response.prompt_token_ids) if response.prompt_token_ids else 0
                 output_tokens = 0
                 
                 if hasattr(response, "outputs") and response.outputs:
                     for output in response.outputs:
-                        if hasattr(output, "token_ids"):
+                        if hasattr(output, "token_ids") and output.token_ids:
                             output_tokens += len(output.token_ids)
+                
+                if input_tokens > 0:
+                    metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+                if output_tokens > 0:
+                    metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+                if input_tokens > 0 or output_tokens > 0:
+                    metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+            
+            # Handle single response object from async generator
+            elif hasattr(response, "__iter__") and not isinstance(response, str):
+                # This handles the async generator case
+                input_tokens = 0
+                output_tokens = 0
+                
+                for item in response:
+                    if hasattr(item, "prompt_token_ids") and item.prompt_token_ids:
+                        input_tokens += len(item.prompt_token_ids)
+                    
+                    if hasattr(item, "outputs") and item.outputs:
+                        for output in item.outputs:
+                            if hasattr(output, "token_ids") and output.token_ids:
+                                output_tokens += len(output.token_ids)
                 
                 if input_tokens > 0:
                     metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
@@ -186,6 +215,120 @@ class VLLMIntegration(BaseLLMIntegration):
                     metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
         
         return metrics
+
+    def _extract_input_messages(self, args: List[Any], kwargs: Dict[str, Any], operation: str) -> List[Dict[str, Any]]:
+        """Extract input messages in LLMObs format from vLLM arguments."""
+        # Check if we have messages from chat API
+        messages = kwargs.get("messages")
+        if messages is not None:
+            return self._format_chat_messages(messages)
+        
+        # Check if we have prompts from kwargs (high-level API)
+        prompts = kwargs.get("prompts")
+        if prompts is not None:
+            return self._format_prompts_as_messages(prompts)
+        
+        # Fallback to extracting from args
+        if operation == "llm":
+            prompts = get_argument_value(args, kwargs, 0, "prompts", optional=True)
+            if prompts:
+                return self._format_prompts_as_messages(prompts)
+        elif operation == "embedding":
+            inputs = get_argument_value(args, kwargs, 0, "prompts", optional=True)
+            if inputs:
+                return self._format_prompts_as_messages(inputs)
+        
+        # Final fallback to first argument
+        if args:
+            return self._format_prompts_as_messages(args[0])
+        
+        return [{"content": "", "role": "user"}]
+
+    def _format_chat_messages(self, messages: Any) -> List[Dict[str, Any]]:
+        """Format chat messages from vLLM chat API."""
+        if not isinstance(messages, list):
+            return [{"content": str(messages), "role": "user"}]
+        
+        formatted_messages = []
+        for msg in messages:
+            if isinstance(msg, dict):
+                formatted_messages.append({
+                    "content": str(msg.get("content", "")),
+                    "role": msg.get("role", "user")
+                })
+            else:
+                formatted_messages.append({"content": str(msg), "role": "user"})
+        
+        return formatted_messages
+
+    def _format_prompts_as_messages(self, prompts: Any) -> List[Dict[str, Any]]:
+        """Format prompts as messages for LLMObs."""
+        if isinstance(prompts, str):
+            return [{"content": prompts, "role": "user"}]
+        elif isinstance(prompts, list):
+            if len(prompts) == 1:
+                return [{"content": str(prompts[0]), "role": "user"}]
+            else:
+                # Multiple prompts - format as single message with summary
+                return [{"content": f"[{len(prompts)} prompts]", "role": "user"}]
+        elif isinstance(prompts, dict):
+            # Handle complex prompt structures like TextPrompt, TokensPrompt
+            if "prompt" in prompts:
+                return [{"content": str(prompts["prompt"]), "role": "user"}]
+            elif "prompt_token_ids" in prompts:
+                return [{"content": f"[token_ids: {len(prompts['prompt_token_ids'])} tokens]", "role": "user"}]
+        
+        return [{"content": str(prompts), "role": "user"}]
+
+    def _extract_output_messages(self, response: Any, operation: str) -> List[Dict[str, Any]]:
+        """Extract output messages in LLMObs format from vLLM response."""
+        if operation == "llm":
+            return self._extract_llm_output_messages(response)
+        elif operation == "embedding":
+            return self._extract_embedding_output_messages(response)
+        
+        return [{"content": str(response), "role": "assistant"}]
+
+    def _extract_llm_output_messages(self, response: Any) -> List[Dict[str, Any]]:
+        """Extract output messages from vLLM generation response."""
+        if not response:
+            return [{"content": "", "role": "assistant"}]
+        
+        # Handle list of RequestOutput objects (from LLM.generate)
+        if isinstance(response, list):
+            if len(response) == 1:
+                # Single response
+                output = response[0]
+                if hasattr(output, "outputs") and output.outputs:
+                    content = _get_attr(output.outputs[0], "text", "")
+                    return [{"content": content, "role": "assistant"}]
+            else:
+                # Multiple responses - summarize
+                total_outputs = sum(len(output.outputs) if hasattr(output, "outputs") and output.outputs else 0 
+                                  for output in response)
+                return [{"content": f"[{len(response)} responses, {total_outputs} completions]", "role": "assistant"}]
+        
+        # Handle single RequestOutput object
+        elif hasattr(response, "outputs") and response.outputs:
+            content = _get_attr(response.outputs[0], "text", "")
+            return [{"content": content, "role": "assistant"}]
+        
+        return [{"content": str(response), "role": "assistant"}]
+
+    def _extract_embedding_output_messages(self, response: Any) -> List[Dict[str, Any]]:
+        """Extract output messages from vLLM embedding response."""
+        if not response:
+            return [{"content": "", "role": "assistant"}]
+        
+        if isinstance(response, list):
+            embedding_count = len(response)
+            if embedding_count == 1 and hasattr(response[0], "outputs"):
+                if hasattr(response[0].outputs, "embedding") and response[0].outputs.embedding:
+                    dim = len(response[0].outputs.embedding)
+                    return [{"content": f"[embedding dim={dim}]", "role": "assistant"}]
+            return [{"content": f"[{embedding_count} embeddings]", "role": "assistant"}]
+        
+        return [{"content": "[embedding]", "role": "assistant"}]
 
     def _extract_output(self, response: Any, operation: str) -> str:
         """Extract output data from vLLM response."""
