@@ -1012,29 +1012,30 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
-    def _resolve_root_span_and_context(
-        trace_info: Union[Context, Span], span: Optional[Span] = None
+    def _get_sampling_span_and_injection_context(
+        trace_info: Union[Context, Span], non_active_span: Optional[Span] = None
     ) -> Tuple[Optional[Span], Context]:
-        """
-        Resolve the local root span (span used to sample a trace) and the span context to use to inject headers.
-        Note: The span parameter currently takes precedence over the trace_info however this parameter is deprecated
-        and will be removed in a future version.
-        """
-        if span is not None:
-            root_span = span._local_root
-            span_context = span.context
-        elif isinstance(trace_info, Span):
-            root_span = trace_info._local_root
-            span_context = trace_info.context
-        else:
-            span_context = trace_info
-            current_root_span = core.tracer and core.tracer.current_root_span()
-            if current_root_span is not None and current_root_span.trace_id == trace_info.trace_id:
-                root_span = current_root_span
-            else:
-                root_span = None
+        """Get the span for sampling decisions and context for header injection.
 
-        return root_span, span_context
+        The non_active_span parameter takes precedence but is deprecated in HttpPropagator.inject.
+        """
+        trace_info_is_span = isinstance(trace_info, Span)
+        # Extract context for header injection (non_active_span takes precedence)
+        injection_context = trace_info.context if trace_info_is_span else trace_info
+
+        # Find root span for sampling decisions
+        if non_active_span is not None:
+            # Deprecated: non_active_span takes precedence
+            sampling_span = non_active_span._local_root
+        elif trace_info_is_span:
+            # Use span's root for sampling
+            sampling_span = trace_info._local_root
+        else:
+            # Try to find current root span with matching trace_id
+            current_root = core.tracer and core.tracer.current_root_span()
+            sampling_span = current_root if (current_root and current_root.trace_id == trace_info.trace_id) else None
+
+        return sampling_span, injection_context
 
     @staticmethod
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
@@ -1142,6 +1143,7 @@ class HTTPPropagator(object):
         :param Span non_active_span: deprecated, use the context parameter instead.
         """
         if non_active_span is not None:
+            # non_active_span is only used to make a sampling decision, not to inject headers.
             deprecate(
                 "The non_active_span parameter is deprecated",
                 message="Use the context parameter instead.",
@@ -1154,7 +1156,9 @@ class HTTPPropagator(object):
         del context
         # Determine the span_context to use use to inject headers and the span to sample (if any).
         # Due of lazy sampling, we need to make a sampling decision before injecting headers.
-        span_to_sample, span_context = HTTPPropagator._resolve_root_span_and_context(trace_info, non_active_span)
+        span_to_sample, span_context = HTTPPropagator._get_sampling_span_and_injection_context(
+            trace_info, non_active_span
+        )
 
         core.dispatch("http.span_inject", (span_context, headers))
         if not config._propagation_style_inject:

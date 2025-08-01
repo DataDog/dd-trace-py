@@ -3610,11 +3610,9 @@ def test_inject_non_active_span_parameter_deprecated(caplog):
     with ddtracer.start_span("non_active_span") as span:
         assert span.context.sampling_priority is None  # No sampling decision yet
         with pytest.warns() as warnings_list:
-            HTTPPropagator.inject(context=None, headers=headers, non_active_span=span)
+            HTTPPropagator.inject(context=Context(), headers=headers, non_active_span=span)
         assert span.context.sampling_priority is not None  # Sampling should be triggered
-    assert headers.get("x-datadog-sampling-priority") == str(
-        span.context.sampling_priority
-    )  # Headers should include priority
+    assert not headers, f"No headers should be injected, Context is empty: {headers}"
 
     # Should capture exactly one deprecation warning
     assert len(warnings_list) == 1
@@ -3635,12 +3633,10 @@ def test_inject_context_and_span_same_trace_deprecated(caplog):
             assert non_active_child.context.sampling_priority is not None
 
     assert any("sampled before propagating trace" in record.message for record in caplog.records), caplog.records
-    assert headers.get("x-datadog-sampling-priority") == str(
-        parent.context.sampling_priority
-    )  # Root span priority used
-    assert headers.get("x-datadog-parent-id") == str(
-        non_active_child.span_id
-    )  # Child span info propagated (non_active_span takes precedence)
+    assert headers.get("x-datadog-sampling-priority") == str(parent.context.sampling_priority)
+    # Parent span info propagated (context takes precedence over non_active_span)
+    # Non_active_span is only used to make a sampling decision, not to inject headers.
+    assert headers.get("x-datadog-parent-id") == str(parent.span_id)
 
     # Should capture deprecation warning
     assert len(warnings_list) == 1
@@ -3659,7 +3655,9 @@ def test_inject_context_and_span_different_trace_deprecated(caplog):
     with caplog.at_level(logging.DEBUG), pytest.warns() as warnings_list:
         HTTPPropagator.inject(context=span1.context, headers=headers, non_active_span=span2)
 
-    assert headers.get("x-datadog-parent-id") == str(span2.span_id)  # non_active_span takes precedence
+    # Span1 span info propagated (context takes precedence over Span2)
+    # non_active_span parameter is only used to make a sampling decision, not to inject headers.
+    assert headers.get("x-datadog-parent-id") == str(span1.span_id)
 
     # Should capture deprecation warning
     assert len(warnings_list) == 1
