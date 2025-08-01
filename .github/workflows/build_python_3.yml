@@ -107,7 +107,7 @@ jobs:
 
       - name: Build wheels
         if: always() && matrix.os != 'ubuntu-24.04-arm'
-        uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
+        uses: pypa/cibuildwheel@9e4e50bd76b3190f55304387e333f6234823ea9b # v3.1.2
         with:
           only: ${{ matrix.only }}
         env:
