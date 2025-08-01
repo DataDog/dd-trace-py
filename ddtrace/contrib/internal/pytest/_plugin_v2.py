@@ -193,12 +193,33 @@ def _handle_test_management(item, test_id):
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
+def _coverage_collector_enter(coverage_collector):
+    """
+    Wraps coverage collector __enter__ call for testing purposes
+    """
+    coverage_collector.__enter__()
+
+
+def _coverage_collector_exit(coverage_collector):
+    """
+    Wraps coverage collector __exit__ call for testing purposes
+    """
+    coverage_collector.__exit__()
+
+
+def _coverage_collector_get_covered_lines(coverage_collector):
+    """
+    Wraps coverage collector get_covered_lines call for testing purposes
+    """
+    coverage_collector.get_covered_lines()
+
+
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     coverage_collector = ModuleCodeCollector.CollectInContext()
     # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
-    coverage_collector.__enter__()
+    _coverage_collector_enter(coverage_collector)
 
     return coverage_collector
 
@@ -209,28 +230,25 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
         return
 
     should_collect_coverage = InternalTestSession.should_collect_coverage()
-
-    # Check if test was marked to skip at collection time
-    marked_to_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-
-    # Also check if test was skipped during execution by examining reports
-    reports_dict = reports_by_item.get(item, {})
-    test_was_skipped_during_execution = False
-    for report in reports_dict.values():
-        if hasattr(report, "skipped") and report.skipped:
-            test_was_skipped_during_execution = True
-            break
-
-    item_will_skip = marked_to_skip or test_was_skipped_during_execution
-    coverage_will_be_collected = should_collect_coverage and not item_will_skip
-
-    if not coverage_will_be_collected:
-        log.debug("No coverage will be collected for test %s", test_id)
+    if not should_collect_coverage:
         return
 
+    # Check if test was marked to skip at collection time
+    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
+    if item_will_skip:
+        ci_visibility_service = require_ci_visibility_service()
+        is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+        if not is_suite_skipping_mode:
+            # Clean up coverage collector for skipped tests
+            _coverage_collector_exit(coverage_collector)
+        return
+
+    # Note: Tests that call pytest.skip() during execution still go through coverage collection
+    # This is intentional behavior as mentioned in the test case
+
     # TODO: clean up internal coverage API usage
-    test_covered_lines = coverage_collector.get_covered_lines()
-    coverage_collector.__exit__()
+    test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
+    _coverage_collector_exit(coverage_collector)
 
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
@@ -544,11 +562,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     # This ensures that coverage data is available when the span is finished
     # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
-        # Only collect coverage if the test should have coverage collected
-        # This prevents coverage collection for tests that were marked to skip or were skipped via ITR
-        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-        if not item_will_skip:
-            _handle_collected_coverage(item, test_id, coverage_collector)
+        _handle_collected_coverage(item, test_id, coverage_collector)
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
@@ -636,11 +650,7 @@ def _pytest_run_one_test(item, nextitem):
     setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
-        # Only collect coverage if the test should have coverage collected
-        # This prevents coverage collection for tests that were marked to skip or were skipped via ITR
-        item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-        if not item_will_skip and _current_coverage_collector is not None:
-            _handle_collected_coverage(item, test_id, _current_coverage_collector)
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:

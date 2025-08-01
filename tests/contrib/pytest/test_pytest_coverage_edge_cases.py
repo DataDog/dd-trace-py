@@ -122,18 +122,40 @@ def test_conditional_skip():
 """
         )
 
-        coverage_call_count = 0
+        coverage_lines_call_count = 0
+        coverage_exit_call_count = 0
+        coverage_enter_call_count = 0
 
-        def count_coverage_calls(*args, **kwargs):
-            nonlocal coverage_call_count
-            coverage_call_count += 1
+        def count_coverage_enter_calls(*args, **kwargs):
+            nonlocal coverage_enter_call_count
+            coverage_enter_call_count += 1
+            return {}  # Return empty coverage data
+
+        def count_coverage_lines_calls(*args, **kwargs):
+            nonlocal coverage_lines_call_count
+            coverage_lines_call_count += 1
+            return {}  # Return empty coverage data
+
+        def count_coverage_exit_calls(*args, **kwargs):
+            nonlocal coverage_exit_call_count
+            coverage_exit_call_count += 1
+            return {}  # Return empty coverage data
 
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(coverage_enabled=True),
         ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
-            side_effect=count_coverage_calls,
+            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_enter",
+            side_effect=count_coverage_enter_calls,
+        ), mock.patch(
+            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_exit",
+            side_effect=count_coverage_exit_calls,
+        ), mock.patch(
+            # "ddtrace.internal.coverage.code.ModuleCodeCollector.CollectInContext.get_covered_lines",
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
+            side_effect=count_coverage_lines_calls,
         ):
             rec = self.inline_run("--ddtrace")
 
@@ -141,8 +163,10 @@ def test_conditional_skip():
             rec.assertoutcome(passed=1, skipped=2)
 
             # Coverage should be collected for tests that run (including conditionally skipped ones)
-            # Note: pytest.skip() calls still go through the coverage collection path
-            assert coverage_call_count == 2, f"Expected coverage for 2 tests, got {coverage_call_count}"
+            # Tests with @pytest.mark.skip should not collect coverage
+            assert coverage_enter_call_count == 2, f"Expected 2 coverage enter calls, got {coverage_lines_call_count}"
+            assert coverage_lines_call_count == 2, f"Expected 2 coverage line calls, got {coverage_lines_call_count}"
+            assert coverage_exit_call_count == 2, f"Expected 2 coverage exit calls, got {coverage_exit_call_count}"
 
             # Module variable should be cleaned up
             assert _current_coverage_collector is None
