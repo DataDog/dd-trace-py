@@ -119,13 +119,13 @@ class Span(object):
         "_meta",
         "_meta_struct",
         "error",
+        "context",
         "_metrics",
         "_store",
         "span_type",
         "start_ns",
         "duration_ns",
         # Internal attributes
-        "_context",
         "_parent_context",
         "_local_root_value",
         "_parent",
@@ -210,7 +210,11 @@ class Span(object):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
-        self._context = context.copy(self.trace_id, self.span_id) if context else None
+        self.context: Context = (
+            context.copy(self.trace_id, self.span_id)
+            if context
+            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+        )
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
@@ -224,15 +228,11 @@ class Span(object):
         self._store: Optional[Dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
-        context = self._context
-        if context is None:
-            return
-
-        with context:
-            for tag in context._meta:
-                self._meta.setdefault(tag, context._meta[tag])
-            for metric in context._metrics:
-                self._metrics.setdefault(metric, context._metrics[metric])
+        with self.context:
+            for tag in self.context._meta:
+                self._meta.setdefault(tag, self.context._meta[tag])
+            for metric in self.context._metrics:
+                self._metrics.setdefault(metric, self.context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -702,13 +702,6 @@ class Span(object):
         return False
 
     @property
-    def context(self) -> Context:
-        """Return the trace context for this span."""
-        if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        return self._context
-
-    @property
     def _local_root(self) -> "Span":
         if self._local_root_value is None:
             return self
@@ -859,7 +852,7 @@ class Span(object):
             f"metrics={self._metrics}, "
             f"links={self._links}, "
             f"events={self._events}, "
-            f"context={self._context})"
+            f"context={self.context})"
         )
 
     def __str__(self) -> str:
