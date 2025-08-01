@@ -56,10 +56,9 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     """
     Trace LLMEngine.step() - the core request processing method.
     
-    This is called by all vLLM usage patterns:
+    This is called by:
     - High-level LLM.generate() 
     - Direct LLMEngine usage
-    - AsyncLLMEngine background loops
     - Ray Data batch processing
     
     We create spans for finished requests, similar to vLLM's native tracing.
@@ -70,6 +69,33 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     request_outputs = func(*args, **kwargs)
     
     # Process any finished requests and create spans for them
+    _process_request_outputs(vllm, pin, request_outputs, instance)
+    
+    return request_outputs
+
+
+@with_traced_module 
+async def traced_async_llm_engine_step_async(vllm, pin, func, instance, args, kwargs):
+    """
+    Trace _AsyncLLMEngine.step_async() - the async request processing method.
+    
+    This is called by AsyncLLMEngine background loops for server usage.
+    
+    We create spans for finished requests, similar to vLLM's native tracing.
+    """
+    log.debug("[VLLM DEBUG] traced_async_llm_engine_step_async called with instance: %s", type(instance))
+    
+    # Call the original step_async function first
+    request_outputs = await func(*args, **kwargs)
+    
+    # Process any finished requests and create spans for them
+    _process_request_outputs(vllm, pin, request_outputs, instance)
+    
+    return request_outputs
+
+
+def _process_request_outputs(vllm, pin, request_outputs, instance):
+    """Process request outputs and create spans for finished requests."""
     if request_outputs:
         integration = vllm._datadog_integration
         model_name = _extract_model_name(instance)
@@ -79,8 +105,6 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
             if request_output.finished:
                 log.debug("[VLLM DEBUG] Creating span for finished request: %s", request_output.request_id)
                 _create_span_for_finished_request(integration, pin, request_output, model_name, instance)
-    
-    return request_outputs
 
 
 def _create_span_for_finished_request(integration, pin, request_output, model_name: str, engine_instance: Any):
@@ -168,12 +192,19 @@ def patch():
     vllm._datadog_integration = integration
     log.debug("[VLLM DEBUG] Set up vLLM integration")
 
-    # Patch LLMEngine.step() - the core method called by all usage patterns
+    # Patch LLMEngine.step() - for direct engine usage and high-level LLM class
     try:
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
         log.debug("[VLLM DEBUG] Successfully patched LLMEngine.step")
     except (AttributeError, ImportError) as e:
         log.debug("[VLLM DEBUG] Failed to patch LLMEngine.step: %s", e)
+
+    # Patch _AsyncLLMEngine.step_async() - for AsyncLLMEngine server usage  
+    try:
+        wrap("vllm.engine.async_llm_engine", "_AsyncLLMEngine.step_async", traced_async_llm_engine_step_async(vllm))
+        log.debug("[VLLM DEBUG] Successfully patched _AsyncLLMEngine.step_async")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch _AsyncLLMEngine.step_async: %s", e)
     
     log.debug("[VLLM DEBUG] Finished vLLM patch() function")
 
@@ -189,4 +220,5 @@ def unpatch():
         return
 
     unwrap(vllm.engine.llm_engine.LLMEngine, "step")
+    unwrap(vllm.engine.async_llm_engine._AsyncLLMEngine, "step_async")
     vllm._datadog_patch = False
