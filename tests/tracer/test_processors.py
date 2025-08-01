@@ -25,6 +25,7 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
@@ -138,7 +139,8 @@ def test_aggregator_reset_default_args():
     assert len(aggr._span_metrics["spans_created"]) == 0
 
 
-def test_aggregator_reset_with_args():
+@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
+def test_aggregator_reset_with_args(writer_class):
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
     user processors/filters and trace api version (when ASM is enabled)
@@ -153,7 +155,7 @@ def test_aggregator_reset_with_args():
         user_processors=[user_proc],
     )
 
-    aggr.writer = AgentWriter("", api_version="v0.5")
+    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
