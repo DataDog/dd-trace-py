@@ -1,4 +1,4 @@
-find_package(Python3 REQUIRED COMPONENTS Development)
+find_package(Python3)
 
 if(DEFINED NATIVE_EXTENSION_LOCATION)
     set(SOURCE_LIB_DIR ${NATIVE_EXTENSION_LOCATION})
