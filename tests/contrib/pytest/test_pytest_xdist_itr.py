@@ -604,6 +604,9 @@ def test_suite2_func1():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using loadscope mode
             result = self.inline_run(
@@ -649,6 +652,9 @@ def test_func3():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using worksteal mode
             result = self.inline_run(
@@ -693,6 +699,9 @@ def test_file2_func1():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using loadfile mode
             result = self.inline_run(
@@ -729,6 +738,9 @@ def test_func():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run without xdist
             result = self.inline_run(
@@ -763,6 +775,9 @@ def test_func():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist disabled (-n 0)
             result = self.inline_run(
@@ -814,6 +829,9 @@ def test_group2_func1():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using loadgroup mode
             result = self.inline_run(
@@ -862,6 +880,9 @@ def test_func4():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using load mode (default)
             result = self.inline_run(
@@ -904,6 +925,9 @@ def test_func2():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using each mode
             result = self.inline_run(
@@ -949,6 +973,9 @@ def test_func3():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist but no --dist parameter (defaults to load mode)
             result = self.inline_run(
@@ -991,6 +1018,9 @@ def test_func2():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using -n auto
             result = self.inline_run(
@@ -1032,6 +1062,9 @@ def test_func2():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using -n logical
             result = self.inline_run(
@@ -1081,6 +1114,9 @@ class TestScope2:
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using loadscope with maxprocesses
             result = self.inline_run(
@@ -1127,6 +1163,9 @@ def test_func3():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using multiple workers (simplified from --tx option)
             result = self.inline_run(
@@ -1183,6 +1222,9 @@ class TestComplexClass2:
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using complex options combination
             result = self.inline_run(
@@ -1228,6 +1270,9 @@ def test_func2():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using worksteal mode (removed rsync-dir for test compatibility)
             result = self.inline_run(
@@ -1270,6 +1315,9 @@ def test_func2():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using load mode (normally test-level) but explicitly set suite mode
             result = self.inline_run(
@@ -1298,6 +1346,58 @@ def test_func2():
     def test_explicit_env_var_overrides_xdist_test_mode(self):
         """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
         # Create test files for different scopes
+        itr_skipping_sitecustomize = """
+# sitecustomize.py - Simplified ITR setup for xdist
+from unittest import mock
+
+# Import required modules
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId, TestId
+
+
+# Create ITR settings and data
+itr_settings = TestVisibilityAPISettings(
+    coverage_enabled=False, skipping_enabled=True, require_git=False, itr_enabled=True,
+    flaky_test_retries_enabled=False, known_tests_enabled=False,
+    early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
+)
+
+# Create skippable tests for test-level skipping
+skippable_tests = {
+    TestId(TestSuiteId(TestModuleId(""), "test_scope1.py"), "TestScope1::test_scope1_method1"),
+    TestId(TestSuiteId(TestModuleId(""), "test_scope2.py"), "TestScope2::test_scope2_method1")
+}
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
+
+# Set ITR data when CIVisibility is enabled
+import ddtrace.internal.ci_visibility.recorder
+CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
+original_enable = CIVisibility.enable
+
+def patched_enable(cls, *args, **kwargs):
+    result = original_enable(*args, **kwargs)
+    if cls._instance:
+        cls._instance._itr_data = itr_data
+    return result
+
+# Mock API calls to return our settings
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+    return_value=itr_settings
+).start()
+
+mock.patch(
+     "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=itr_settings
+).start()
+
+CIVisibility.enable = classmethod(patched_enable)
+
+"""
+        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
         self.testdir.makepyfile(
             test_scope1="""
 import pytest
@@ -1321,6 +1421,9 @@ class TestScope2:
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run with xdist using loadscope mode (normally suite-level) but explicitly set test mode
             result = self.inline_run(
@@ -1359,6 +1462,9 @@ def test_func():
         with mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
         ):
             # Run without xdist but with explicit test-level setting
             result = self.inline_run(
