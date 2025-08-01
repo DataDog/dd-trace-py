@@ -60,6 +60,55 @@ add_ddup_config(dd_wrapper)
 
 target_include_directories(dd_wrapper PRIVATE include ${Datadog_INCLUDE_DIRS})
 
+# Verify that _native library is compiled for the correct Python version
+get_target_property(_native_location _native IMPORTED_LOCATION)
+if(_native_location)
+    # Extract the Python version from the filename (format: cpython-313, cpython-312, etc.)
+    string(REGEX MATCH "cpython-(3[0-9][0-9]|3[0-9])" _native_version_match "${_native_location}")
+    if(_native_version_match)
+        set(_native_version_string ${CMAKE_MATCH_1})
+
+        # Convert version string to major.minor format
+        if(_native_version_string MATCHES "^3([0-9])$")
+            # Single digit minor version (e.g., 39 -> 3.9)
+            set(_native_major "3")
+            set(_native_minor ${CMAKE_MATCH_1})
+        elseif(_native_version_string MATCHES "^3([0-9][0-9])$")
+            # Double digit minor version (e.g., 313 -> 3.13)
+            set(_native_major "3")
+            set(_native_minor ${CMAKE_MATCH_1})
+        else()
+            message(FATAL_ERROR "Unexpected Python version format: ${_native_version_string}")
+        endif()
+
+        if(NOT (_native_major EQUAL Python3_VERSION_MAJOR AND _native_minor EQUAL Python3_VERSION_MINOR))
+            message(
+                FATAL_ERROR
+                    "Python version mismatch! Current Python: ${Python3_VERSION_MAJOR}.${Python3_VERSION_MINOR}, "
+                    "_native library compiled for: ${_native_major}.${_native_minor} (${_native_version_string}). "
+                    "Library location: ${_native_location}")
+        endif()
+
+        # Also check if the actual library file exists and has the expected name
+        get_filename_component(_native_filename "${_native_location}" NAME)
+        if(_native_filename MATCHES ".*${_native_version_string}.*")
+            message(
+                STATUS
+                    "Verified _native library Python version: ${_native_major}.${_native_minor} (${_native_version_string}, filename: ${_native_filename})"
+            )
+        else()
+            message(
+                FATAL_ERROR
+                    "Library filename '${_native_filename}' doesn't contain expected Python version string ${_native_version_string}"
+            )
+        endif()
+    else()
+        message(FATAL_ERROR "Could not extract Python version from _native library path: ${_native_location}")
+    endif()
+else()
+    message(FATAL_ERROR "Could not get _native library location for version verification")
+endif()
+
 target_link_libraries(dd_wrapper PRIVATE _native Threads::Threads)
 
 # Figure out the suffix.  Try to approximate the cpython way of doing things.
