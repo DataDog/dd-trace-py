@@ -11,7 +11,7 @@ from typing import Optional
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
 def create_validator(
@@ -31,21 +31,11 @@ def create_validator(
             if i not in parameter_positions:
                 i += 1
                 continue
-        if isinstance(arg, str):
-            ranges = get_tainted_ranges(arg)
-            if ranges:
-                for _range in ranges:
-                    for vuln_type in vulnerability_types:
-                        _range.add_secure_mark(vuln_type)
+        add_secure_mark(arg, vulnerability_types)
         i += 1
 
     for arg in kwargs.values():
-        if isinstance(arg, str):
-            ranges = get_tainted_ranges(arg)
-            if ranges:
-                for _range in ranges:
-                    for vuln_type in vulnerability_types:
-                        _range.add_secure_mark(vuln_type)
+        add_secure_mark(arg, vulnerability_types)
 
     return result
 
