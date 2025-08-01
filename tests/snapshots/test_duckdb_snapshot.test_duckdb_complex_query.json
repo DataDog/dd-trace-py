@@ -1,0 +1,64 @@
+[[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "\n        CREATE TABLE departments (id INTEGER, name VARCHAR);\n        INSERT INTO departments VALUES \n            (1, 'Engineering'), (2, 'Sales'), (3, 'Marketing');\n        \n        CREATE TABLE employees (id INTEGER, name VARCHAR, dept_id INTEGER, salary INTEGER);\n        INSERT INTO employees VALUES \n            (1, 'Alice', 1, 80000), (2, 'Bob', 1, 75000), \n            (3, 'Carol', 2, 70000), (4, 'Dave', 2, 65000);\n    ",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688cd65300000000",
+      "component": "duckdb",
+      "db.name": "memory",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "db000cc97b524d1c8a15b66197e11641",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3432
+    },
+    "duration": 2478375,
+    "start": 1754060371032571596
+  }],
+[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "\n        SELECT d.name, COUNT(e.id) as employee_count, AVG(e.salary) as avg_salary\n        FROM departments d\n        LEFT JOIN employees e ON d.id = e.dept_id\n        GROUP BY d.name\n        ORDER BY avg_salary DESC\n    ",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688cd65300000000",
+      "component": "duckdb",
+      "db.name": "memory",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "db000cc97b524d1c8a15b66197e11641",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3432
+    },
+    "duration": 2949208,
+    "start": 1754060371035253388
+  }]]

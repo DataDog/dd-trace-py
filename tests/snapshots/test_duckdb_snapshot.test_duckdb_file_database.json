@@ -1,0 +1,96 @@
+[[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "CREATE TABLE file_test (id INTEGER, data VARCHAR)",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688cf8fd00000000",
+      "component": "duckdb",
+      "db.name": "/tmp/tmp7yjvy3mu.duckdb",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "6502ead5fc7c4f11804695f5d4b862ad",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3982
+    },
+    "duration": 1617834,
+    "start": 1754069245485772763
+  }],
+[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "INSERT INTO file_test VALUES (1, 'test_data')",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688cf8fd00000000",
+      "component": "duckdb",
+      "db.name": "/tmp/tmp7yjvy3mu.duckdb",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "6502ead5fc7c4f11804695f5d4b862ad",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3982
+    },
+    "duration": 1106333,
+    "start": 1754069245487582597
+  }],
+[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "SELECT * FROM file_test",
+    "trace_id": 2,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688cf8fd00000000",
+      "component": "duckdb",
+      "db.name": "/tmp/tmp7yjvy3mu.duckdb",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "6502ead5fc7c4f11804695f5d4b862ad",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 3982
+    },
+    "duration": 269208,
+    "start": 1754069245488744472
+  }]]
