@@ -1122,43 +1122,39 @@ class HTTPPropagator(object):
             from ddtrace.propagation.http import HTTPPropagator
 
             def parent_call():
-                with tracer.trace('parent_span') as span:
+                with tracer.start_span('parent_span') as span:
                     headers = {}
-                    HTTPPropagator.inject(span.context, headers)
+                    # Preferred: Pass span object to context argument
+                    HTTPPropagator.inject(span, headers)
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
                 with tracer.start_span('child_span2') as span:
                     headers = {}
-                    # Inject headers using the span object instead of the span context
-                    # since the span is NOT active.
-                    HTTPPropagator.inject(span, headers)
+                    # Alternative: Pass context, but ensure sampling_priority is set
+                    tracer.sample(span)
+                    HTTPPropagator.inject(span.context, headers)
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
-        :param Union[Span, Context] context: A reference to the span or span context to use to inject headers. In most
-            cases, the span context should be used. However, if the span is not active, the span object should be used
-            to inject headers. This ensures that a sampling decision is made before injecting headers.
+        :param Union[Span, Context] context: Pass a Span object (preferred) or Context object.
+            Span objects automatically trigger sampling decisions. Context objects should have
+            sampling_priority set to avoid inconsistent downstream sampling.
         :param dict headers: HTTP headers to extend with tracing attributes.
-        :param Span non_active_span: deprecated, use the context parameter instead.
+        :param Span non_active_span: **DEPRECATED** - Pass Span objects to the context parameter instead.
         """
         if non_active_span is not None:
-            # non_active_span is only used to make a sampling decision, not to inject headers.
+            # non_active_span is only used for sampling decisions, not to inject headers.
             deprecate(
                 "The non_active_span parameter is deprecated",
                 message="Use the context parameter instead.",
                 category=DDTraceDeprecationWarning,
                 removal_version="4.0.0",
             )
-        # Rename context to trace_info to improve readability. We can not rename the context parameter because
-        # we need to maintain the same signature for the function for backwards compatibility.
-        trace_info = context
-        del context
-        # Determine the span_context to use use to inject headers and the span to sample (if any).
-        # Due of lazy sampling, we need to make a sampling decision before injecting headers.
-        span_to_sample, span_context = HTTPPropagator._get_sampling_span_and_injection_context(
-            trace_info, non_active_span
-        )
+        # Cannot rename context parameter due to backwards compatibility
+        # Get span context for injection and span for sampling (if available)
+        # Due to lazy sampling, make sampling decision before injecting headers
+        span_to_sample, span_context = HTTPPropagator._get_sampling_span_and_injection_context(context, non_active_span)
 
         core.dispatch("http.span_inject", (span_context, headers))
         if not config._propagation_style_inject:
@@ -1172,7 +1168,7 @@ class HTTPPropagator(object):
             log.debug(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
                 "args=(context=%s, ..., non_active_span=%s) detected local root span=%s detected span context=%s",
-                trace_info,
+                context,
                 non_active_span,
                 span_to_sample,
                 span_context,
