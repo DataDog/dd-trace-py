@@ -52,8 +52,3 @@ AUTO_REJECT = 0
 AUTO_KEEP = 1
 # Use this to explicitly inform the backend that a trace should be kept and stored.
 USER_KEEP = 2
-
-AI_GUARD_ENABLED = "DD_AI_GUARD_ENABLED"
-AI_GUARD_ENDPOINT = "DD_AI_GUARD_ENDPOINT"
-AI_GUARD_API_KEY = "DD_API_KEY"
-AI_GUARD_APPLICATION_KEY = "DD_APP_KEY"

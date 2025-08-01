@@ -16,6 +16,7 @@ except ImportError:
     from typing_extensions import TypedDict
 from typing_extensions import NotRequired
 
+from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import telemetry
@@ -250,8 +251,8 @@ class AIGuardClient:
 def new_ai_guard_client(
     endpoint: str = ai_guard_config.endpoint,
     timeout: float = 30,
-    api_key: str = ai_guard_config.api_key,
-    app_key: str = ai_guard_config.app_key,
+    api_key: str = config._dd_api_key,
+    app_key: str = ai_guard_config._dd_app_key,
     tracer: Tracer = ddtracer,
 ) -> AIGuardClient:
     if not endpoint:
