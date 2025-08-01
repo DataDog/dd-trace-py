@@ -7,6 +7,7 @@ resolver = "2"
 [profile.release]
 lto = true
 strip = "debuginfo"
+# we keep it to s as in libdatadog
 opt-level = 's'
 codegen-units = 1
 
