@@ -122,9 +122,8 @@ def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR
     if explicit_suite_mode is not None:
         result = ITR_SKIPPING_LEVEL.SUITE if asbool(explicit_suite_mode) else ITR_SKIPPING_LEVEL.TEST
         log.warning(
-            "Using explicit ITR skipping level from _DD_CIVISIBILITY_ITR_SUITE_MODE=%s -> %s (overriding xdist detection)",
+            "Explicit ITR skipping level from _DD_CIVISIBILITY_ITR_SUITE_MODE=%s",
             explicit_suite_mode,
-            result.name,
         )
         return result
 

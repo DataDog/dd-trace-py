@@ -9,9 +9,9 @@ import pytest
 
 from ddtrace import config as dd_config
 from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
-from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext import test
@@ -1305,7 +1305,7 @@ import pytest
 class TestScope1:
     def test_scope1_method1(self):
         assert True
-    
+
     def test_scope1_method2(self):
         assert True
             """,
