@@ -41,6 +41,92 @@ except ModuleNotFoundError:
 
 logger = get_logger(__name__)
 
+
+def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tuple[List[ToolCall], List[ToolResult]]:
+    """
+    Handles multiple formats:
+    - Legacy function_call format
+    - Modern tool_calls format with nested function objects
+    - Tool results from tool/tool_result role messages
+    - Streamed response format with direct field access
+
+    """
+    tool_calls = []
+    tool_results = []
+
+    role = _get_attr(message, "role", "")
+    if role in ("tool", "tool_result"):
+        try:
+            tool_result = ToolResult(
+                tool_id=_get_attr(message, "id", "")
+                or _get_attr(message, "tool_id", "")
+                or _get_attr(message, "tool_call_id", ""),
+                result=_get_attr(message, "content", ""),
+                name=_get_attr(message, "name", ""),
+                type=_get_attr(message, "type", "tool_result"),
+            )
+            tool_results.append(tool_result)
+        except Exception as e:
+            logger.debug("Error extracting tool result: %s", e)
+
+    # handle legacy function_call format
+    function_call = _get_attr(message, "function_call", None)
+    if function_call:
+        try:
+            arguments_str = _get_attr(function_call, "arguments", "{}")
+            try:
+                arguments = json.loads(arguments_str) if arguments_str else {}
+            except (json.JSONDecodeError, TypeError):
+                arguments = {"raw_arguments": str(arguments_str)}
+
+            tool_call = ToolCall(
+                name=_get_attr(function_call, "name", ""),
+                arguments=arguments,
+                tool_id="",  # Legacy format doesn't have tool_id
+                type="function",
+            )
+            tool_calls.append(tool_call)
+        except Exception as e:
+            logger.debug("Error extracting legacy function call: %s", e)
+
+    # handle modern tool_calls format
+    tool_calls_list = _get_attr(message, "tool_calls", []) or []
+    for tool_call_obj in tool_calls_list:
+        try:
+            function_obj = _get_attr(tool_call_obj, "function", None)
+            if function_obj:
+                tool_name = _get_attr(function_obj, "name", "")
+                arguments_str = _get_attr(function_obj, "arguments", "{}")
+                tool_id = _get_attr(tool_call_obj, "id", "")
+                tool_type = _get_attr(tool_call_obj, "type", "function")
+            else:  # streamed format
+                tool_name = _get_attr(tool_call_obj, "name", "")
+                arguments_str = _get_attr(tool_call_obj, "arguments", "{}")
+                tool_id = (
+                    _get_attr(tool_call_obj, "id", "")
+                    or _get_attr(tool_call_obj, "tool_id", "")
+                    or _get_attr(tool_call_obj, "tool_call_id", "")
+                )
+                tool_type = _get_attr(tool_call_obj, "type", "function")
+
+            try:
+                arguments = json.loads(arguments_str) if arguments_str else {}
+            except (json.JSONDecodeError, TypeError):
+                arguments = {"raw_arguments": str(arguments_str)}
+
+            tool_call = ToolCall(
+                name=tool_name,
+                arguments=arguments,
+                tool_id=tool_id,
+                type=tool_type,
+            )
+            tool_calls.append(tool_call)
+        except Exception as e:
+            logger.debug("Error extracting tool call: %s", e)
+
+    return tool_calls, tool_results
+
+
 COMMON_METADATA_KEYS = (
     "stream",
     "temperature",
@@ -60,7 +146,6 @@ OPENAI_METADATA_RESPONSE_KEYS = (
     "store",
     "text",
     "tool_choice",
-    "tools",
     "top_logprobs",
     "truncation",
 )
@@ -324,27 +409,15 @@ def openai_set_meta_tags_from_chat(
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
             processed_message["tool_id"] = tool_call_id
-        tool_calls = _get_attr(m, "tool_calls", [])
-        if tool_calls:
-            processed_message["tool_calls"] = []
-            for tool_call in tool_calls:
-                tool_call_info = ToolCall(
-                    tool_id=_get_attr(tool_call, "id", ""),
-                    arguments=_get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
-                    name=_get_attr(_get_attr(tool_call, "function", {}), "name", ""),
-                    type=_get_attr(tool_call, "type", "function"),
-                )
-                processed_message["tool_calls"].append(tool_call_info)
-        # seems like the fields in a tool_result for chat api are not very strictly defined
-        if m["role"] == "tool" or m["role"] == "tool_result":
-            tool_result_info = ToolResult(
-                tool_id=_get_attr(m, "tool_id", "") or _get_attr(m, "tool_call_id", ""),
-                result=_get_attr(m, "content", ""),
-                name=_get_attr(m, "name", ""),
-                type=_get_attr(m, "type", "tool_result"),
-            )
-            processed_message["tool_results"] = [tool_result_info]
-            processed_message["content"] = "" # set content to empty string to avoid duplicate content
+
+        extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
+
+        if extracted_tool_calls:
+            processed_message["tool_calls"] = extracted_tool_calls
+
+        if extracted_tool_results:
+            processed_message["tool_results"] = extracted_tool_results
+            processed_message["content"] = ""  # set content to empty string to avoid duplicate content
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -359,62 +432,43 @@ def openai_set_meta_tags_from_chat(
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
             message = {"content": streamed_message.get("content", ""), "role": role}
-            tool_calls = streamed_message.get("tool_calls", [])
-            if tool_calls:
-                message["tool_calls"] = [
-                    {
-                        "name": tool_call.get("name", ""),
-                        "arguments": json.loads(tool_call.get("arguments", "")),
-                        "tool_id": tool_call.get("tool_id", ""),
-                        "type": tool_call.get("type", ""),
-                    }
-                    for tool_call in tool_calls
-                ]
+
+            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(streamed_message)
+            if extracted_tool_calls:
+                message["tool_calls"] = extracted_tool_calls
+
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
         return
     choices = _get_attr(messages, "choices", [])
     output_messages = []
     for idx, choice in enumerate(choices):
-        tool_calls_info = []
         choice_message = _get_attr(choice, "message", {})
         role = _get_attr(choice_message, "role", "")
         content = _get_attr(choice_message, "content", "") or ""
-        function_call = _get_attr(choice_message, "function_call", None)
-        if function_call:
-            function_name = _get_attr(function_call, "name", "")
-            arguments = json.loads(_get_attr(function_call, "arguments", ""))
-            function_call_info = {"name": function_name, "arguments": arguments}
-            output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
-            continue
-        tool_calls = _get_attr(choice_message, "tool_calls", []) or []
-        for tool_call in tool_calls:
-            tool_args = getattr(tool_call.function, "arguments", "")
-            tool_name = getattr(tool_call.function, "name", "")
-            tool_id = getattr(tool_call, "id", "")
-            tool_call_info = {
-                "name": tool_name,
-                "arguments": json.loads(tool_args),
-                "tool_id": tool_id,
-                "type": "function",
-            }
-            tool_calls_info.append(tool_call_info)
-            core.dispatch(
-                DISPATCH_ON_LLM_TOOL_CHOICE,
-                (
-                    tool_id,
-                    tool_name,
-                    tool_args,
-                    {
-                        "trace_id": format_trace_id(span.trace_id),
-                        "span_id": str(span.span_id),
-                    },
-                ),
-            )
-        if tool_calls_info:
-            output_messages.append({"content": content, "role": role, "tool_calls": tool_calls_info})
-            continue
-        output_messages.append({"content": content, "role": role})
+
+        extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(choice_message)
+
+        for tool_call in extracted_tool_calls:
+            if tool_call.get("tool_id"):
+                core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_call["tool_id"],
+                        tool_call["name"],
+                        json.dumps(tool_call["arguments"]),
+                        {
+                            "trace_id": format_trace_id(span.trace_id),
+                            "span_id": str(span.span_id),
+                        },
+                    ),
+                )
+
+        message = {"content": content, "role": role}
+        if extracted_tool_calls:
+            message["tool_calls"] = extracted_tool_calls
+
+        output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
@@ -564,7 +618,6 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
             message.update(
                 {
                     "tool_calls": [tool_call_info],
-                    "role": _get_attr(item, "role", "assistant"),
                 }
             )
         else:
