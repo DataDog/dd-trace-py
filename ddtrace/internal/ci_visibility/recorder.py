@@ -650,7 +650,11 @@ class CIVisibility(Service):
             self.tracer.configure(trace_processors=tracer_filters)
 
         if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            ddtrace.tracer.configure(trace_processors=[CIVisibilitySpanForwarder(self.tracer)])
+            tracer_filters = ddtrace.tracer._span_aggregator.user_processors
+            # Remove any previous forwarder before adding a new one.
+            tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
+            tracer_filters += [CIVisibilitySpanForwarder(self.tracer)]
+            ddtrace.tracer.configure(trace_processors=tracer_filters)
 
         def _task_fetch_tests_to_skip():
             if self.test_skipping_enabled():
@@ -715,6 +719,11 @@ class CIVisibility(Service):
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
+
+        if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            tracer_filters = ddtrace.tracer._span_aggregator.user_processors
+            tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
+            ddtrace.tracer.configure(trace_processors=tracer_filters)
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
