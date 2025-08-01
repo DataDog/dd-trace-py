@@ -5,15 +5,15 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-import requests
+from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.http import get_connection
 
 
 try:
-    from typing import NotRequired
     from typing import TypedDict
 except ImportError:
-    from typing_extensions import NotRequired
     from typing_extensions import TypedDict
+from typing_extensions import NotRequired
 
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
@@ -44,7 +44,7 @@ class ToolCall(TypedDict):
     output: NotRequired[str]
 
 
-Evaluation = Union[Prompt, ToolCall, Dict[str, Any]]
+Evaluation = Union[Prompt, ToolCall]
 
 
 class AIGuardClientError(Exception):
@@ -94,10 +94,10 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str, Any] = {}) -> bool:
+    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str | bytes, Any] = {}) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Dict[str, Any] = {}) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Dict[str | bytes, Any] = {}) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -133,7 +133,11 @@ class AIGuardClient:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "instrumented.requests", 1, tags)
 
     def evaluate_tool(
-        self, tool_name: str, tool_args: Dict[str, Any], history: List[Evaluation] = None, tags: Dict[str, Any] = {}
+        self,
+        tool_name: str,
+        tool_args: Dict[str, Any],
+        history: List[Evaluation] = [],
+        tags: Dict[str | bytes, Any] = {},
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
@@ -150,13 +154,12 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
-        tags = tags or {}
         tags["ai_guard.target"] = "tool"
         tags["ai_guard.tool_name"] = tool_name
         return self._evaluate(ToolCall(tool_name=tool_name, tool_args=tool_args), history, tags)
 
     def evaluate_prompt(
-        self, role: str, content: str, history: List[Evaluation] = None, tags: Dict[str, Any] = {}
+        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[str | bytes, Any] = {}
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
@@ -173,39 +176,22 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
-        tags = tags or {}
         tags["ai_guard.target"] = "prompt"
         return self._evaluate(Prompt(role=role, content=content), history, tags)
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str, Any]) -> bool:
+    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[str | bytes, Any]) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace("ai_guard") as span:
+            span.set_tags(tags)
             try:
-                span.set_tags(tags)
-
                 payload = {"data": {"attributes": {"history": history, "current": current}}}
-
                 try:
-                    response = requests.post(
-                        f"{self._endpoint.rstrip('/')}/evaluate",
-                        json=payload,
-                        headers=self._headers,
-                        timeout=self._timeout,
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-
-                except requests.exceptions.InvalidJSONError as e:
-                    raise AIGuardClientError("AI Guard service returned malformed JSON response") from e
-
-                except requests.exceptions.RequestException as e:
-                    message = "AI Guard service returned an unexpected error"
-
-                    if e.response is not None and e.response.status_code == 403:
-                        message += ", check your DD_API_KEY and DD_APP_KEY keys"
-
-                    raise AIGuardClientError(message) from e
-
+                    response = self._execute_request(f"{self._endpoint.rstrip('/')}/evaluate", payload)
+                    if response.status != 200:
+                        raise AIGuardClientError(f"AI Guard service call failed, status {response.status}")
+                    result = response.get_json()
+                except AIGuardClientError:
+                    raise
                 except Exception as e:
                     raise AIGuardClientError("Unexpected error calling AI Guard service") from e
 
@@ -246,6 +232,16 @@ class AIGuardClient:
                 self._add_request_to_telemetry((("error", "true"),))
                 logger.debug("AI Guard evaluation failed for event: %s", current, exc_info=True)
                 raise
+
+    def _execute_request(self, url: str, payload: Any) -> Response:
+        try:
+            conn = get_connection(url, self._timeout)
+            json_body = json.dumps(payload, ensure_ascii=True, skipkeys=True, default=str)
+            conn.request("POST", url, json_body, self._headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
 
 
 def new_ai_guard_client(
