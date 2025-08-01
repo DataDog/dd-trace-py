@@ -1,6 +1,8 @@
 import pytest
 
-from ddtrace.appsec.ai_guard import AIGuardClient, new_ai_guard_client
+from ddtrace.appsec.ai_guard import AIGuardClient
+from ddtrace.appsec.ai_guard import new_ai_guard_client
+
 
 @pytest.fixture
 def ai_guard_client(tracer) -> AIGuardClient:
@@ -9,5 +11,5 @@ def ai_guard_client(tracer) -> AIGuardClient:
         endpoint="https://api.example.com/ai-guard",
         api_key="test-api-key",
         app_key="test-application-key",
-        tracer=tracer
+        tracer=tracer,
     )

@@ -1,22 +1,29 @@
 """AI Guard client for security evaluation of agentic AI workflows."""
 import json
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Union
 
 import requests
-from typing import Dict, List, Any, Union
+
 
 try:
-    from typing import TypedDict, NotRequired
+    from typing import NotRequired
+    from typing import TypedDict
 except ImportError:
-    from typing_extensions import TypedDict, NotRequired
-
-import ddtrace.internal.logger as ddlogger
-from ddtrace._trace.tracer import Tracer
+    from typing_extensions import NotRequired
+    from typing_extensions import TypedDict
 
 from ddtrace import tracer as ddtracer
+from ddtrace._trace.tracer import Tracer
 from ddtrace.internal import telemetry
+import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
 from ddtrace.settings.asm import ai_guard_config
+
+
 logger = ddlogger.get_logger(__name__)
 
 ALLOW = "ALLOW"
@@ -24,25 +31,31 @@ DENY = "DENY"
 ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 
+
 class Prompt(TypedDict):
     role: str
     content: str
     output: NotRequired[str]
+
 
 class ToolCall(TypedDict):
     tool_name: str
     tool_args: Dict[str, Any]
     output: NotRequired[str]
 
+
 Evaluation = Union[Prompt, ToolCall, Dict[str, Any]]
+
 
 class AIGuardClientError(Exception):
     """Exception for AI Guard client errors."""
+
     pass
 
 
 class AIGuardAbortError(Exception):
     """Exception to abort current execution due to security policy."""
+
     pass
 
 
@@ -53,19 +66,19 @@ class AIGuardWorkflow:
         self._client = client
         self._history: List[Evaluation] = []
 
-    def add_system_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_system_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
         """Add a system prompt to the history of the workflow"""
         return self.add_prompt("system", content, output)
 
-    def add_user_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_user_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
         """Add a user prompt to the history of the workflow"""
         return self.add_prompt("user", content, output)
 
-    def add_assistant_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_assistant_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
         """Add an assistant prompt to the history of the workflow"""
         return self.add_prompt("assistant", content, output)
 
-    def add_prompt(self, role: str, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_prompt(self, role: str, content: str, output: str = "") -> "AIGuardWorkflow":
         """Add a prompt to the history of the workflow"""
         current = Prompt(role=role, content=content)
         if output is not None:
@@ -73,7 +86,7 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def add_tool(self, tool_name: str, tool_args: Dict[str, Any], output: str = None) -> "AIGuardWorkflow":
+    def add_tool(self, tool_name: str, tool_args: Dict[str, Any], output: str = "") -> "AIGuardWorkflow":
         """Add a tool execution to the history of the workflow"""
         current = ToolCall(tool_name=tool_name, tool_args=tool_args)
         if output is not None:
@@ -81,11 +94,12 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str, Any] = None) -> bool:
+    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], tags: Dict[str, Any] = {}) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Dict[str, Any] = None) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Dict[str, Any] = {}) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
+
 
 class AIGuardClient:
     """HTTP client for communicating with AI Guard security service."""
@@ -118,7 +132,9 @@ class AIGuardClient:
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
         telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "instrumented.requests", 1, tags)
 
-    def evaluate_tool(self, tool_name: str, tool_args: Dict[str, Any], history: List[Evaluation] = None, tags: Dict[str, Any] = None) -> bool:
+    def evaluate_tool(
+        self, tool_name: str, tool_args: Dict[str, Any], history: List[Evaluation] = None, tags: Dict[str, Any] = {}
+    ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
         Args:
@@ -139,7 +155,9 @@ class AIGuardClient:
         tags["ai_guard.tool_name"] = tool_name
         return self._evaluate(ToolCall(tool_name=tool_name, tool_args=tool_args), history, tags)
 
-    def evaluate_prompt(self, role: str, content: str, history: List[Evaluation] = None, tags: Dict[str, Any] = None) -> bool:
+    def evaluate_prompt(
+        self, role: str, content: str, history: List[Evaluation] = None, tags: Dict[str, Any] = {}
+    ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
         Args:
@@ -165,21 +183,14 @@ class AIGuardClient:
             try:
                 span.set_tags(tags)
 
-                payload = {
-                    "data": {
-                        "attributes": {
-                            "history": history,
-                            "current": current
-                        }
-                    }
-                }
+                payload = {"data": {"attributes": {"history": history, "current": current}}}
 
                 try:
                     response = requests.post(
                         f"{self._endpoint.rstrip('/')}/evaluate",
                         json=payload,
                         headers=self._headers,
-                        timeout=self._timeout
+                        timeout=self._timeout,
                     )
                     response.raise_for_status()
                     result = response.json()
@@ -208,13 +219,19 @@ class AIGuardClient:
 
                 if action not in ACTIONS:
                     raise AIGuardClientError(
-                        f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}")
+                        f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}"
+                    )
 
                 span.set_tag("ai_guard.action", action)
                 if reason:
                     span.set_tag("ai_guard.reason", reason)
 
-                self._add_request_to_telemetry((("action", action), ("error", "false"),))
+                self._add_request_to_telemetry(
+                    (
+                        ("action", action),
+                        ("error", "false"),
+                    )
+                )
                 if action == ALLOW:
                     return True
                 elif action == DENY:
@@ -231,11 +248,13 @@ class AIGuardClient:
                 raise
 
 
-def new_ai_guard_client(endpoint: str = ai_guard_config.endpoint,
-                        timeout: float = 30,
-                        api_key: str = ai_guard_config.api_key,
-                        app_key: str = ai_guard_config.app_key,
-                        tracer: Tracer = ddtracer) -> AIGuardClient:
+def new_ai_guard_client(
+    endpoint: str = ai_guard_config.endpoint,
+    timeout: float = 30,
+    api_key: str = ai_guard_config.api_key,
+    app_key: str = ai_guard_config.app_key,
+    tracer: Tracer = ddtracer,
+) -> AIGuardClient:
     if not endpoint:
         raise ValueError("AI Guard endpoint URL is required: provide DD_AI_GUARD_ENDPOINT")
 
