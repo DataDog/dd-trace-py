@@ -616,7 +616,7 @@ class LLMObs(Service):
         csv_path: str,
         dataset_name: str,
         input_data_columns: List[str],
-        expected_output_columns: List[str],
+        expected_output_columns: List[str] = [],
         metadata_columns: List[str] = [],
         csv_delimiter: str = ",",
         description="",
