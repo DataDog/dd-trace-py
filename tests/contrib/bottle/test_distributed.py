@@ -4,7 +4,6 @@ import webtest
 import ddtrace
 from ddtrace.constants import USER_KEEP
 from ddtrace.contrib.bottle import TracePlugin
-from ddtrace.internal import compat
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_span_http_status_code
@@ -55,7 +54,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert resp.body.decode("utf-8", errors="ignore") == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -84,7 +83,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert resp.body.decode("utf-8", errors="ignore") == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
@@ -113,7 +112,7 @@ class TraceBottleDistributedTest(TracerTestCase):
         headers = {"x-datadog-trace-id": "123", "x-datadog-parent-id": "456"}
         resp = self.app.get("/hi/dougie", headers=headers)
         assert resp.status_int == 200
-        assert compat.to_unicode(resp.body) == "hi dougie"
+        assert resp.body.decode("utf-8", errors="ignore") == "hi dougie"
 
         # validate it's traced
         spans = self.pop_spans()
