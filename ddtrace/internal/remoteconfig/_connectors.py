@@ -8,7 +8,6 @@ from typing import Sequence
 from uuid import UUID
 
 from ddtrace.internal.compat import get_mp_context
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import Payload
 
@@ -69,7 +68,7 @@ class PublisherSubscriberConnector:
         return result
 
     def read(self) -> SharedDataType:
-        config_raw = to_unicode(self.data.value)
+        config_raw = self.data.value.decode("utf-8", errors="ignore")
         config = json.loads(config_raw) if config_raw else None
         if config is not None:
             shared_data_counter = config["shared_data_counter"]

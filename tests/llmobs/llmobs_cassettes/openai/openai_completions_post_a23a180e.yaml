@@ -1,0 +1,108 @@
+interactions:
+- request:
+    body: '{"model":"gpt-3.5-turbo-instruct","prompt":["System: You are world class
+      technical documentation writer.\nHuman: Can you explain what an LLM chain is?"],"frequency_penalty":0,"logprobs":null,"max_tokens":256,"n":1,"presence_penalty":0,"seed":null,"temperature":0.7,"top_p":1}'
+    headers:
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/new:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '275'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.91.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 1.91.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.12.9
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-Brc26ev7Qohvj4eGMTAJNidOfxrJZ\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1752117282,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\nSystem: An LLM chain, or
+        Link Layer Management chain, is a protocol used in networking to manage and
+        control communication between devices. It is responsible for establishing
+        and maintaining connections between devices and regulating the flow of data
+        between them. The LLM chain is an important part of the networking infrastructure
+        and allows for efficient and secure communication between devices on a network.\",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 22,\n    \"completion_tokens\":
+        72,\n    \"total_tokens\": 94\n  }\n}\n"
+    headers:
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 10 Jul 2025 03:14:42 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      openai-model:
+      - gpt-3.5-turbo-instruct:20230824-v2
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '656'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-5f749c75b7-wn5bx
+      x-envoy-upstream-service-time:
+      - '659'
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-remaining-tokens:
+      - '89973'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 18ms
+      x-request-id:
+      - req_91956b9f59ecc83fa197fd66c9209cb0
+    status:
+      code: 200
+      message: OK
+version: 1
