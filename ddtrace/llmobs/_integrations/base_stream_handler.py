@@ -65,10 +65,10 @@ class BaseStreamHandler(ABC):
 
 class StreamHandler(BaseStreamHandler):
     """
-    Instances of StreamHandler and AsyncStreamHandler contain the logic for initializing chunk storage, processing chunks, 
-    handling exceptions, and finalizing a stream. The only methods that need to be implemented are process_chunk 
-    (a callback function that is called for each chunk in the stream) and finalize_stream (a callback function that is 
-    called when the stream ends). All other methods are optional and can be overridden if needed (for example, 
+    Instances of StreamHandler and AsyncStreamHandler contain the logic for initializing chunk storage, processing chunks,
+    handling exceptions, and finalizing a stream. The only methods that need to be implemented are process_chunk
+    (a callback function that is called for each chunk in the stream) and finalize_stream (a callback function that is
+    called when the stream ends). All other methods are optional and can be overridden if needed (for example,
     extra exception processing logic in handle_exception).
 
     Note that it is possible to pass in extra arguments via the options argument in case you need to access other
