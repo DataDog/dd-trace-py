@@ -76,7 +76,7 @@ def track_signup(
 def track_user(
     login: str,
     user_id: t.Any = None,
-    session_id=t.Optional[str],
+    session_id: t.Optional[str] = None,
     metadata: t.Optional[t.Dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
