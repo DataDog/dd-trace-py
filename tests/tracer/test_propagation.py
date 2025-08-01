@@ -3629,7 +3629,7 @@ def test_inject_context_and_span_same_trace_deprecated(caplog):
             assert non_active_child.context.sampling_priority is None  # No sampling yet
             assert ddtracer.current_span() is not non_active_child  # Child is not active
             with caplog.at_level(logging.DEBUG), pytest.warns() as warnings_list:
-                HTTPPropagator.inject(parent.context, headers, non_active_child)
+                HTTPPropagator.inject(context=parent.context, headers=headers, non_active_span=non_active_child)
             # Sampling decision should be set on root span even when child is used for propagation
             assert parent.context.sampling_priority is not None
             assert non_active_child.context.sampling_priority is not None
@@ -3657,7 +3657,7 @@ def test_inject_context_and_span_different_trace_deprecated(caplog):
         pass
 
     with caplog.at_level(logging.DEBUG), pytest.warns() as warnings_list:
-        HTTPPropagator.inject(span1.context, headers, span2)
+        HTTPPropagator.inject(context=span1.context, headers=headers, non_active_span=span2)
 
     assert headers.get("x-datadog-parent-id") == str(span2.span_id)  # non_active_span takes precedence
 
