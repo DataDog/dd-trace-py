@@ -10,16 +10,11 @@ opt-level = 3
 
 [dependencies]
 pyo3 = { version = "0.24.0", features = ["extension-module", "abi3-py38"] }
-datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "e81d920" }
-datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "e81d920" }
-data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "e81d920" }
-tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "e81d920" }
-ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "e81d920" }
-# datadog-ddsketch = {path = "../../../libdatadog/ddsketch"}
-# datadog-library-config = {path="../../../libdatadog/datadog-library-config"}
-# data-pipeline = {path = "../../../libdatadog/data-pipeline"}
-# tinybytes = {path = "../../../libdatadog/tinybytes"}
-# ddcommon = {path = "../../../libdatadog/ddcommon"}
+datadog-ddsketch = { git = "https://github.com/DataDog/libdatadog", rev = "26bc8b5" }
+datadog-library-config = { git = "https://github.com/DataDog/libdatadog", rev = "26bc8b5" }
+data-pipeline = { git = "https://github.com/DataDog/libdatadog", rev = "26bc8b5" }
+tinybytes = { git = "https://github.com/DataDog/libdatadog", rev = "26bc8b5" }
+ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "26bc8b5" }
 
 
 [build-dependencies]
