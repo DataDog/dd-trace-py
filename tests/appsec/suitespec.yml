@@ -261,4 +261,3 @@ suites:
       - tests/appsec/ai_guard/*
     retry: 2
     runner: riot
-    timeout: 30m
