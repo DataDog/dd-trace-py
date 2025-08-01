@@ -21,6 +21,7 @@ import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from tests.utils import override_global_config
 
 
 def wait_for_backend():
@@ -85,6 +86,18 @@ def test_dataset_create_delete(llmobs):
     assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_url_diff_site(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="us3.datadoghq.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://us3.datadoghq.com/llm/datasets/{dataset._id}"
+
+
+def test_dataset_url_diff_site_eu(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="datadoghq.eu")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://app.datadoghq.eu/llm/datasets/{dataset._id}"
 
 
 def test_dataset_as_dataframe(llmobs, test_dataset_one_record):

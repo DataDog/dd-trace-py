@@ -19,8 +19,13 @@ class TestLangGraphPatch(PatchTestCase.Base):
 
     def assert_module_patched(self, langgraph):
         from langgraph.pregel import Pregel
-        from langgraph.pregel.loop import PregelLoop
-        from langgraph.utils.runnable import RunnableSeq
+
+        if LANGGRAPH_VERSION < (0, 6, 0):
+            from langgraph.pregel.loop import PregelLoop
+            from langgraph.utils.runnable import RunnableSeq
+        else:
+            from langgraph._internal._runnable import RunnableSeq
+            from langgraph.pregel._loop import PregelLoop
 
         self.assert_wrapped(RunnableSeq.invoke)
         self.assert_wrapped(RunnableSeq.ainvoke)
@@ -30,12 +35,20 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_wrapped(PregelLoop.tick)
 
         if LANGGRAPH_VERSION >= (0, 3, 29):
-            self.assert_wrapped(langgraph.utils.runnable._consume_aiter)
+            if LANGGRAPH_VERSION < (0, 6, 0):
+                self.assert_wrapped(langgraph.utils.runnable._consume_aiter)
+            else:
+                self.assert_wrapped(langgraph._internal._runnable._consume_aiter)
 
     def assert_not_module_patched(self, langgraph):
         from langgraph.pregel import Pregel
-        from langgraph.pregel.loop import PregelLoop
-        from langgraph.utils.runnable import RunnableSeq
+
+        if LANGGRAPH_VERSION < (0, 6, 0):
+            from langgraph.pregel.loop import PregelLoop
+            from langgraph.utils.runnable import RunnableSeq
+        else:
+            from langgraph._internal._runnable import RunnableSeq
+            from langgraph.pregel._loop import PregelLoop
 
         self.assert_not_wrapped(RunnableSeq.invoke)
         self.assert_not_wrapped(RunnableSeq.ainvoke)
@@ -44,12 +57,20 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_wrapped(Pregel.astream)
         self.assert_not_wrapped(PregelLoop.tick)
         if LANGGRAPH_VERSION >= (0, 3, 29):
-            self.assert_not_wrapped(langgraph.utils.runnable._consume_aiter)
+            if LANGGRAPH_VERSION < (0, 6, 0):
+                self.assert_not_wrapped(langgraph.utils.runnable._consume_aiter)
+            else:
+                self.assert_not_wrapped(langgraph._internal._runnable._consume_aiter)
 
     def assert_not_module_double_patched(self, langgraph):
         from langgraph.pregel import Pregel
-        from langgraph.pregel.loop import PregelLoop
-        from langgraph.utils.runnable import RunnableSeq
+
+        if LANGGRAPH_VERSION < (0, 6, 0):
+            from langgraph.pregel.loop import PregelLoop
+            from langgraph.utils.runnable import RunnableSeq
+        else:
+            from langgraph._internal._runnable import RunnableSeq
+            from langgraph.pregel._loop import PregelLoop
 
         self.assert_not_double_wrapped(RunnableSeq.invoke)
         self.assert_not_double_wrapped(RunnableSeq.ainvoke)
@@ -58,7 +79,10 @@ class TestLangGraphPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(Pregel.astream)
         self.assert_not_double_wrapped(PregelLoop.tick)
         if LANGGRAPH_VERSION >= (0, 3, 29):
-            self.assert_not_double_wrapped(langgraph.utils.runnable._consume_aiter)
+            if LANGGRAPH_VERSION < (0, 6, 0):
+                self.assert_not_double_wrapped(langgraph.utils.runnable._consume_aiter)
+            else:
+                self.assert_not_double_wrapped(langgraph._internal._runnable._consume_aiter)
 
     def test_ddtrace_run_patch_on_import(self):
         # Overriding the base test case due to langgraph's code structure not allowing

@@ -10,7 +10,7 @@ from typing import List
 from typing import Sequence
 
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 
 
 def create_sanitizer(
@@ -20,12 +20,7 @@ def create_sanitizer(
     # Apply the sanitizer function
     result = wrapped(*args, **kwargs)
 
-    # If result is a string, mark it as secure
-    for vuln_type in vulnerability_types:
-        ranges = get_tainted_ranges(result)
-        if ranges:
-            for _range in ranges:
-                _range.add_secure_mark(vuln_type)
+    add_secure_mark(result, vulnerability_types)
 
     return result
 

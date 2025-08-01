@@ -964,7 +964,7 @@ def test_fastapi_header_injection(fastapi_application, client, tracer, test_span
             dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
         ):
             _aux_appsec_prepare_tracer(tracer)
-            patch_iast({"header_injection": True})
+            patch_iast()
             resp = client.get(
                 "/header_injection/",
                 headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
@@ -1002,7 +1002,7 @@ def test_fastapi_header_injection_inline_response(fastapi_application, client, t
             dict(_iast_enabled=True, _iast_deduplication_enabled=False, _iast_request_sampling=100.0)
         ):
             _aux_appsec_prepare_tracer(tracer)
-            patch_iast({"header_injection": True})
+            patch_iast()
             resp = client.get(
                 "/header_injection_inline_response/",
                 headers={"test": "test_injection_header\r\nInjected-Header: 1234"},
@@ -1058,7 +1058,7 @@ def test_fastapi_xss(fastapi_application, client, tracer, test_spans):
         return HTMLResponse(html)
 
     with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
-        patch_iast({"xss": True})
+        patch_iast()
         _aux_appsec_prepare_tracer(tracer)
         resp = client.get(
             "/index.html?iast_queryparam=test1234",
@@ -1085,7 +1085,7 @@ def test_fastapi_unvalidated_redirect(fastapi_application, client, tracer, test_
         return RedirectResponse(url=query_params)
 
     with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
-        patch_iast({"unvalidated_redirect": True})
+        patch_iast()
         _aux_appsec_prepare_tracer(tracer)
         client.get(
             "/index.html?url=http://localhost:8080/malicious",
@@ -1116,7 +1116,7 @@ def test_fastapi_unvalidated_redirect_headers(fastapi_application, client, trace
         return response
 
     with override_global_config(dict(_iast_enabled=True, _iast_request_sampling=100.0)):
-        patch_iast({"unvalidated_redirect": True})
+        patch_iast()
         _aux_appsec_prepare_tracer(tracer)
         client.get(
             "/index.html?url=http://localhost:8080/malicious",

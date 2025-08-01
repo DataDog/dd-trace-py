@@ -1,6 +1,7 @@
 import os
 from time import sleep
 from unittest import mock
+from unittest.mock import ANY
 
 import pytest
 
@@ -273,7 +274,7 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
 @pytest.mark.parametrize(
     "environment,appsec_enabled,rc_enabled,expected_result,expected_origin",
     (
-        ({}, False, False, 0, ""),
+        ({}, False, False, 0, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
         ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
@@ -285,6 +286,11 @@ def test_appsec_enabled_metric(
     environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
+    # Restore defaults.
+    tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
+    telemetry_writer._flush_configuration_queue()
+
+    # Start the test
     with override_env(environment), override_global_config(dict(_asm_enabled=appsec_enabled)):
         tracer.configure(appsec_enabled=appsec_enabled)
         AppSecSpanProcessor()
@@ -293,15 +299,10 @@ def test_appsec_enabled_metric(
 
         telemetry_writer._dispatch()
 
-        metrics_result = telemetry_writer._namespace.flush(0.1)
-        list_telemetry_metrics = metrics_result.get(TELEMETRY_TYPE_GENERATE_METRICS, {}).get(
-            TELEMETRY_NAMESPACE.APPSEC.value, {}
-        )
-        metrics = [m for m in list_telemetry_metrics if m["metric"] == "enabled"]
-        assert len(metrics) == expected_result, metrics
-        if expected_result > 0:
-            assert len(metrics[0]["tags"]) == 1
-            assert f"origin:{expected_origin}" in metrics[0]["tags"]
+        metrics_result = telemetry_writer._flush_configuration_queue()
+        assert metrics_result == [
+            {"name": "DD_APPSEC_ENABLED", "origin": expected_origin, "seq_id": ANY, "value": expected_result}
+        ]
 
         # Restore defaults
         tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)

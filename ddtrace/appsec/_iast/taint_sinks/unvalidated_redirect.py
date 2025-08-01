@@ -10,8 +10,8 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_UNVALIDATED_REDIRECT
+from ddtrace.appsec._iast.secure_marks.base import add_secure_mark
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.settings.asm import config as asm_config
@@ -32,8 +32,19 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
+_IS_PATCHED = False
+
+
 def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function("django.shortcuts", "redirect", _unvalidated_redirect_for_django)
@@ -82,7 +93,9 @@ def _iast_report_unvalidated_redirect(headers):
             )
 
             if UnvalidatedRedirect.has_quota() and is_tainted:
-                UnvalidatedRedirect.report(evidence_value=headers)
+                result = UnvalidatedRedirect.report(evidence_value=headers)
+                if result:
+                    add_secure_mark(headers, [VulnerabilityType.UNVALIDATED_REDIRECT])
 
             # Reports Span Metrics
             increment_iast_span_metric(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK, UnvalidatedRedirect.vulnerability_type)

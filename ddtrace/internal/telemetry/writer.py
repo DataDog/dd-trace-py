@@ -488,7 +488,7 @@ class TelemetryWriter(PeriodicService):
             config["seq_id"] = next(self._sequence_configurations)
             self._configuration_queue.append(config)
 
-    def add_configurations(self, configuration_list):
+    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]):
         """Creates and queues a list of configurations"""
         with self._service_lock:
             for name, value, origin in configuration_list:

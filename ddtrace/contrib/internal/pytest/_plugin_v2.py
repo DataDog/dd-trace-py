@@ -103,6 +103,10 @@ INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 
 skip_pytest_runtest_protocol = False
 
+# Module-level variable to store the current test's coverage collector
+# This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
+_current_coverage_collector = None
+
 
 class XdistHooks:
     @pytest.hookimpl
@@ -189,20 +193,49 @@ def _handle_test_management(item, test_id):
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
+def _coverage_collector_enter(coverage_collector) -> None:
+    """
+    Wraps coverage collector __enter__ call for testing purposes
+    """
+    coverage_collector.__enter__()
+
+
+def _coverage_collector_exit(coverage_collector) -> None:
+    """
+    Wraps coverage collector __exit__ call for testing purposes
+    """
+    coverage_collector.__exit__()
+
+
+def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
+    """
+    Wraps coverage collector get_covered_lines call for testing purposes
+    """
+    return coverage_collector.get_covered_lines()
+
+
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     coverage_collector = ModuleCodeCollector.CollectInContext()
     # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
-    coverage_collector.__enter__()
+    _coverage_collector_enter(coverage_collector)
 
     return coverage_collector
 
 
-def _handle_collected_coverage(test_id, coverage_collector) -> None:
+def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
+    if not coverage_collector:
+        log.debug("No coverage collector available for test %s", test_id)
+        return
+
+    should_collect_coverage = InternalTestSession.should_collect_coverage()
+    if not should_collect_coverage:
+        return
+
     # TODO: clean up internal coverage API usage
-    test_covered_lines = coverage_collector.get_covered_lines()
-    coverage_collector.__exit__()
+    test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
+    _coverage_collector_exit(coverage_collector)
 
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
@@ -216,7 +249,17 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
 
-    InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    if not coverage_data:
+        log.debug("No coverage data found for test %s", test_id)
+        return
+
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+
+    if is_suite_skipping_mode:
+        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    else:
+        InternalTest.add_coverage_data(test_id, coverage_data)
 
 
 def _handle_coverage_dependencies(suite_id) -> None:
@@ -502,6 +545,12 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    # IMPORTANT: Collect coverage data BEFORE finishing the test
+    # This ensures that coverage data is available when the span is finished
+    # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
+    if coverage_collector is not None and not InternalTest.is_finished(test_id):
+        _handle_collected_coverage(item, test_id, coverage_collector)
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
@@ -511,9 +560,6 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
-
-    if coverage_collector is not None:
-        _handle_collected_coverage(test_id, coverage_collector)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
@@ -533,22 +579,27 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
 def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
+    global _current_coverage_collector
+
     if not is_test_visibility_enabled():
         yield
         return
 
     try:
-        coverage_collector = _pytest_runtest_protocol_pre_yield(item)
+        _current_coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
-        coverage_collector = None
+        _current_coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
 
     try:
-        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+        _pytest_runtest_protocol_post_yield(item, nextitem, _current_coverage_collector)
     except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
+    finally:
+        # Always clean up the coverage collector after the test, even if there's an exception
+        _current_coverage_collector = None
 
 
 @pytest.hookimpl(specname="pytest_runtest_protocol")
@@ -586,6 +637,7 @@ def _pytest_run_one_test(item, nextitem):
     setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:

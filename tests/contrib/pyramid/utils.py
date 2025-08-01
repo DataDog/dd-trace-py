@@ -7,7 +7,6 @@ import webtest
 from ddtrace import config
 from ddtrace.contrib.internal.pyramid.patch import insert_tween_if_needed
 from ddtrace.ext import http
-from ddtrace.internal import compat
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
@@ -171,7 +170,7 @@ class PyramidTestCase(PyramidBase):
 
     def test_json(self):
         res = self.app.get("/json", status=200)
-        parsed = json.loads(compat.to_unicode(res.body))
+        parsed = json.loads(res.body.decode("utf-8", errors="ignore"))
         assert parsed == {"a": 1}
 
         spans = self.pop_spans()

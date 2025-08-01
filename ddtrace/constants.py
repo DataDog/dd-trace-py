@@ -26,6 +26,8 @@ SPAN_KIND = "span.kind"
 _SPAN_MEASURED_KEY = "_dd.measured"
 _KEEP_SPANS_RATE_KEY = "_dd.tracer_kr"
 _MULTIPLE_IP_HEADERS = "_dd.multiple-ip-headers"
+_DJM_ENABLED_KEY = "_dd.djm.enabled"
+_FILTER_KEPT_KEY = "_dd.filter.kept"
 
 APPSEC_ENV = "DD_APPSEC_ENABLED"
 _CONFIG_ENDPOINT_ENV = "_DD_CONFIG_ENDPOINT"
