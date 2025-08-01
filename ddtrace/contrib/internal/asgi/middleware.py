@@ -5,14 +5,12 @@ import sys
 from typing import Any
 from typing import Mapping
 from typing import Optional
+from typing import Union
 from urllib import parse
 
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.constants import _SAMPLING_DECISION_MAKER_INHERITED
-from ddtrace.constants import _SAMPLING_DECISION_MAKER_RESOURCE
-from ddtrace.constants import _SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.constants import SPAN_LINK_KIND
 from ddtrace.contrib import trace_utils
@@ -26,6 +24,9 @@ from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
+from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -73,7 +74,7 @@ def get_version() -> str:
     return ""
 
 
-def bytes_to_str(str_or_bytes) -> str:
+def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
     return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
@@ -145,9 +146,9 @@ def _set_sampling_inherited(span: Span, global_root_span: Span):
     """
     Set sampling inheritance metrics and tags on a span from its parent.
     """
-    span.set_metric(_SAMPLING_DECISION_MAKER_INHERITED, 1)
-    span.set_tag_str(_SAMPLING_DECISION_MAKER_SERVICE, global_root_span.service)
-    span.set_tag_str(_SAMPLING_DECISION_MAKER_RESOURCE, global_root_span.resource)
+    span.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
+    span.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, global_root_span.service)
+    span.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, global_root_span.resource)
 
 
 def _copy_baggage_and_sampling(websocket_span: Span, span: Span):
@@ -156,21 +157,18 @@ def _copy_baggage_and_sampling(websocket_span: Span, span: Span):
     Propagates distributed tracing context from the HTTP handshake
     span to websocket message spans.
     """
-    if span.context:
-        for key, value in span.context._baggage.items():
-            websocket_span.context.set_baggage_item(key, value)
-            websocket_span.set_tag_str(f"baggage.{key}", value)
+    for key, value in span.context._baggage.items():
+        websocket_span.context.set_baggage_item(key, value)
+        websocket_span.set_tag_str(f"baggage.{key}", value)
 
-        if span.context.sampling_priority is not None:
-            websocket_span.context.sampling_priority = span.context.sampling_priority
+    if span.context.sampling_priority is not None:
+        websocket_span.context.sampling_priority = span.context.sampling_priority
 
-        if span.context._meta.get(_ORIGIN_KEY):
-            websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
+    if span.context._meta.get(_ORIGIN_KEY):
+        websocket_span.set_tag_str(_ORIGIN_KEY, span.context._meta[_ORIGIN_KEY])
 
-        if span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            websocket_span.set_tag_str(
-                SAMPLING_DECISION_TRACE_TAG_KEY, span.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-            )
+    if span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        websocket_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, span.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY])
 
 
 def _set_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
@@ -342,7 +340,6 @@ class TraceMiddleware:
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
             span.set_tags(tags)
-            global_root_span = span._local_root or span
 
             @wraps(receive)
             async def wrapped_receive():
@@ -389,10 +386,10 @@ class TraceMiddleware:
                         message = await receive()
 
                         if scope["type"] == "websocket" and message["type"] == "websocket.receive":
-                            self._handle_websocket_receive_message(scope, message, recv_span, span, global_root_span)
+                            self._handle_websocket_receive_message(scope, message, recv_span, span)
 
                         elif message["type"] == "websocket.disconnect":
-                            self._handle_websocket_disconnect_message(scope, message, span, global_root_span)
+                            self._handle_websocket_disconnect_message(scope, message, span)
 
                         return message
                     except Exception:
@@ -595,14 +592,6 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
         ) as ctx, ctx.span as close_span:
-            # with self.tracer.start_span(
-            #     name="websocket.close",
-            #     service=span.service,
-            #     resource=f"websocket {scope.get('path', '')}",
-            #     span_type=SpanTypes.WEBSOCKET,
-            #     child_of=parent_span,
-            #     activate=True,
-            # ) as close_span:
             close_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             close_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -662,7 +651,7 @@ class TraceMiddleware:
             core.dispatch("asgi.start_response", ("asgi",))
 
     def _handle_websocket_receive_message(
-        self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, span: Span, global_root_span: Span
+        self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, span: Span
     ):
         # Finish the previous receive span before creating a new one
         previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -685,15 +674,13 @@ class TraceMiddleware:
         )
 
         if self.integration_config.asgi_websocket_messages_inherit_sampling:
-            _set_sampling_inherited(recv_span, global_root_span)
+            _set_sampling_inherited(recv_span, span._local_root)
 
         _copy_baggage_and_sampling(recv_span, span)
 
         scope["datadog"]["current_receive_span"] = recv_span
 
-    def _handle_websocket_disconnect_message(
-        self, scope: Mapping[str, Any], message: Mapping[str, Any], span: Span, global_root_span: Span
-    ):
+    def _handle_websocket_disconnect_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], span: Span):
         # Clean any existing receive span before handling peer disconnect
         previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
         if previous_receive_span:
@@ -726,7 +713,7 @@ class TraceMiddleware:
             )
 
             if self.integration_config.asgi_websocket_messages_inherit_sampling:
-                _set_sampling_inherited(disconnect_span, global_root_span)
+                _set_sampling_inherited(disconnect_span, span._local_root)
 
             _copy_baggage_and_sampling(disconnect_span, span)
 

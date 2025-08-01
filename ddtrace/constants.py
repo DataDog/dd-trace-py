@@ -11,9 +11,6 @@ _SINGLE_SPAN_SAMPLING_MECHANISM = "_dd.span_sampling.mechanism"
 _SINGLE_SPAN_SAMPLING_RATE = "_dd.span_sampling.rule_rate"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC = "_dd.span_sampling.max_per_second"
 _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT = -1
-_SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
-_SAMPLING_DECISION_MAKER_SERVICE = "_dd.dm.service"
-_SAMPLING_DECISION_MAKER_RESOURCE = "_dd.dm.resource"
 _APM_ENABLED_METRIC_KEY = "_dd.apm.enabled"
 
 _ORIGIN_KEY = "_dd.origin"
