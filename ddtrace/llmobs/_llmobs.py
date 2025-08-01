@@ -585,6 +585,15 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+
+            llmobs_info = {
+                "llmobs_enabled": cls.enabled,
+                "llmobs_ml_app": config._llmobs_ml_app or "",
+                "integrations_enabled": integrations_enabled or True,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled or False,
+            }
+            log.debug("LLMObs configurations: %s", llmobs_info)
+
         finally:
             telemetry.record_llmobs_enabled(
                 error,
