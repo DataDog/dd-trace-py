@@ -233,19 +233,6 @@ def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not should_collect_coverage:
         return
 
-    # Check if test was marked to skip at collection time
-    item_will_skip = _pytest_marked_to_skip(item) or InternalTest.was_itr_skipped(test_id)
-    if item_will_skip:
-        ci_visibility_service = require_ci_visibility_service()
-        is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
-        if not is_suite_skipping_mode:
-            # Clean up coverage collector for skipped tests
-            _coverage_collector_exit(coverage_collector)
-        return
-
-    # Note: Tests that call pytest.skip() during execution still go through coverage collection
-    # This is intentional behavior as mentioned in the test case
-
     # TODO: clean up internal coverage API usage
     test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
     _coverage_collector_exit(coverage_collector)
