@@ -343,7 +343,6 @@ class SpanAggregator(SpanProcessor):
             trace = self._traces[span.trace_id]
             num_buffered = len(trace.spans)
             trace.num_finished += 1
-
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
             is_trace_complete = trace.num_finished >= len(trace.spans)
             if not is_trace_complete and not should_partial_flush:
@@ -355,22 +354,17 @@ class SpanAggregator(SpanProcessor):
                     return
                 trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
                 trace.num_finished = 0
-                log.debug(
-                    "Partial flush: %d finished, %d unfinished spans for trace %d",
-                    len(finished),
-                    len(trace.spans),
-                    span.trace_id,
-                )
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]
                 log.debug("Complete trace: processing remaining %d spans for trace %d", len(finished), span.trace_id)
 
-        if should_partial_flush and finished:
+        num_finished = len(finished)
+        if should_partial_flush:
             # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
             # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
             # not have a partial flush metric. This trace was processed in its entirety.
-            finished[0].set_metric("_dd.py.partial_flush", len(finished))
+            finished[0].set_metric("_dd.py.partial_flush", num_finished)
 
         # perf: Process spans outside of the span aggregator lock
         spans = finished
@@ -380,9 +374,7 @@ class SpanAggregator(SpanProcessor):
             [self.sampling_processor, self.tags_processor, self.service_name_processor],
         ):
             try:
-                initial_count = len(spans)
-                spans = tp.process_trace(spans) or []
-                if len(spans) != initial_count:
+                spans = tp.process_trace(spans)
                 if not spans:
                     return
             except Exception:
@@ -396,8 +388,8 @@ class SpanAggregator(SpanProcessor):
                 self.SPAN_FINISH_DEBUG_MESSAGE,
                 len(spans),
                 num_buffered,
-                len(finished) - len(spans),
-                num_buffered - len(finished),
+                num_finished - len(spans),
+                num_buffered - num_finished,
                 span.trace_id,
                 spans[0].name,
                 should_partial_flush,
