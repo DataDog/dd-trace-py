@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace import config as dd_config
 from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
-from ddtrace.contrib.internal.pytest._plugin_v2 import _detect_xdist_parallelization_mode
+from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure
@@ -614,7 +614,6 @@ def test_suite2_func1():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Start with test-level
                 },
             )
 
@@ -660,7 +659,6 @@ def test_func3():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -705,7 +703,6 @@ def test_file2_func1():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Start with test-level
                 },
             )
 
@@ -790,8 +787,8 @@ def test_func():
         # The ITR skipping type should be suite as set by env var
         assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
 
-    def test_xdist_loadgroup_enables_suite_level_itr(self):
-        """Test that --dist=loadgroup automatically enables suite-level ITR skipping."""
+    def test_xdist_loadgroup_enables_test_level_itr(self):
+        """Test that --dist=loadgroup automatically enables test-level ITR skipping."""
         # Create test files with groups
         self.testdir.makepyfile(
             test_group1="""
@@ -801,14 +798,14 @@ import pytest
 def test_group1_func1():
     assert True
 
-@pytest.mark.group("group1")
+@pytest.mark.group("group2")
 def test_group1_func2():
     assert True
             """,
             test_group2="""
 import pytest
 
-@pytest.mark.group("group2")
+@pytest.mark.group("group1")
 def test_group2_func1():
     assert True
             """,
@@ -827,7 +824,6 @@ def test_group2_func1():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Start with test-level
                 },
             )
 
@@ -840,7 +836,7 @@ def test_group2_func1():
         session_span = session_spans[0]
 
         # The ITR skipping type should be suite due to loadgroup detection
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
 
     def test_xdist_load_enables_test_level_itr(self):
         """Test that --dist=load (default) automatically enables test-level ITR skipping."""
@@ -876,7 +872,6 @@ def test_func4():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -919,7 +914,6 @@ def test_func2():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -965,7 +959,6 @@ def test_func3():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -1007,7 +1000,6 @@ def test_func2():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -1049,7 +1041,6 @@ def test_func2():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -1101,7 +1092,6 @@ class TestScope2:
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Start with test-level
                 },
             )
 
@@ -1147,7 +1137,6 @@ def test_func3():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -1207,7 +1196,6 @@ class TestComplexClass2:
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Start with test-level
                 },
             )
 
@@ -1250,7 +1238,6 @@ def test_func2():
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Start with suite-level
                 },
             )
 
@@ -1265,11 +1252,140 @@ def test_func2():
         # The ITR skipping type should be test due to worksteal detection
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
 
+    def test_explicit_env_var_overrides_xdist_suite_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ):
+            # Run with xdist using load mode (normally test-level) but explicitly set suite mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=load",  # Test-level mode
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Explicit override to suite-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var overrode xdist detection (should be suite, not test)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to explicit env var override
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_explicit_env_var_overrides_xdist_test_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
+        # Create test files for different scopes
+        self.testdir.makepyfile(
+            test_scope1="""
+import pytest
+
+class TestScope1:
+    def test_scope1_method1(self):
+        assert True
+    
+    def test_scope1_method2(self):
+        assert True
+            """,
+            test_scope2="""
+import pytest
+
+class TestScope2:
+    def test_scope2_method1(self):
+        assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ):
+            # Run with xdist using loadscope mode (normally suite-level) but explicitly set test mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadscope",  # Suite-level mode
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Explicit override to test-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var overrode xdist detection (should be test, not suite)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to explicit env var override
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_explicit_env_var_overrides_no_xdist(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE works without xdist."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+def test_func():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ):
+            # Run without xdist but with explicit test-level setting
+            result = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Explicit test-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var is honored
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to explicit env var
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
 
 class TestXdistModeDetection:
     """Unit tests for xdist parallelization mode detection and ITR alignment."""
 
-    def test_detect_xdist_parallelization_mode_no_xdist(self):
+    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_1(self):
         """Test mode detection when xdist plugin is not available."""
         # Mock config without xdist plugin
         mock_config = mock.MagicMock()
@@ -1277,59 +1393,84 @@ class TestXdistModeDetection:
 
         # Test with default env var (True -> SUITE)
         with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _detect_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
             assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_0(self):
+        """Test mode detection when xdist plugin is not available."""
+        # Mock config without xdist plugin
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = False
 
         # Test with env var set to False -> TEST
         with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
-            result = _detect_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
             assert result == ITR_SKIPPING_LEVEL.TEST
+
+    def test_detect_xdist_parallelization_mode_no_xdist_no_env_var_suite_mode(self):
+        """Test mode detection when xdist plugin is not available."""
+        # Mock config without xdist plugin
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = False
+
+        # Test without env var - should check xdist plugin
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
 
         mock_config.pluginmanager.hasplugin.assert_called_with("xdist")
 
-    def test_detect_xdist_parallelization_mode_xdist_not_used(self):
+    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_1(self):
         """Test mode detection when xdist is installed but not being used."""
+        # Test with default env var (True -> SUITE)
+        #
         # Mock config with xdist plugin but not being used
         mock_config = mock.MagicMock()
         mock_config.pluginmanager.hasplugin.return_value = True
         mock_config.option.dist = "no"
         mock_config.option.numprocesses = None
 
-        # Test with default env var (True -> SUITE)
         with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _detect_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
             assert result == ITR_SKIPPING_LEVEL.SUITE
 
+    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_0(self):
+        """Test mode detection when xdist is installed but not being used."""
         # Test with env var set to False -> TEST
+        #
+        # Mock config with xdist plugin but not being used
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"
+        mock_config.option.numprocesses = None
+
         with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
-            result = _detect_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
             assert result == ITR_SKIPPING_LEVEL.TEST
 
-    def test_detect_xdist_parallelization_mode_suite_level_modes(self):
+    @pytest.mark.parametrize("suite_level_mode", ["loadscope", "loadfile"])
+    def test_detect_xdist_parallelization_mode_suite_level_modes(self, suite_level_mode):
         """Test mode detection for suite-level parallelization modes."""
-        suite_level_modes = ["loadscope", "loadfile", "loadgroup"]
 
-        for mode in suite_level_modes:
-            mock_config = mock.MagicMock()
-            mock_config.pluginmanager.hasplugin.return_value = True
-            mock_config.option.dist = mode
-            mock_config.option.numprocesses = 2
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = suite_level_mode
+        mock_config.option.numprocesses = 2
 
-            result = _detect_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.SUITE, f"Mode {mode} should return SUITE level"
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+        assert result == ITR_SKIPPING_LEVEL.SUITE, f"Mode {suite_level_mode} should return SUITE level"
 
-    def test_detect_xdist_parallelization_mode_test_level_modes(self):
+    @pytest.mark.parametrize("test_level_mode", ["load", "worksteal", "each", "loadgroup"])
+    def test_detect_xdist_parallelization_mode_test_level_modes(self, test_level_mode):
         """Test mode detection for test-level parallelization modes."""
-        test_level_modes = ["load", "worksteal", "each"]
 
-        for mode in test_level_modes:
-            mock_config = mock.MagicMock()
-            mock_config.pluginmanager.hasplugin.return_value = True
-            mock_config.option.dist = mode
-            mock_config.option.numprocesses = 2
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = test_level_mode
+        mock_config.option.numprocesses = 2
 
-            result = _detect_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.TEST, f"Mode {mode} should return TEST level"
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+        assert result == ITR_SKIPPING_LEVEL.TEST, f"Mode {test_level_mode} should return TEST level"
 
     def test_detect_xdist_parallelization_mode_zero_workers(self):
         """Test mode detection when xdist is configured with zero workers."""
@@ -1340,7 +1481,7 @@ class TestXdistModeDetection:
 
         # Should fall back to env var setting
         with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _detect_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
             assert result == ITR_SKIPPING_LEVEL.SUITE
 
     def test_pytest_configure_updates_itr_level_for_xdist(self):
@@ -1372,8 +1513,6 @@ class TestXdistModeDetection:
             # Verify ITR level was updated to SUITE
             assert dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
 
-            # The service update is tested via the warning logs output
-
     def test_pytest_configure_no_update_when_levels_match(self):
         """Test that pytest_configure doesn't update when ITR level already matches xdist mode."""
 
@@ -1404,3 +1543,77 @@ class TestXdistModeDetection:
 
             # Service should not have been called since no update was needed
             mock_service.assert_not_called()
+
+    def test_explicit_env_var_overrides_xdist_detection_suite_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
+        # Mock config with xdist in test-level mode
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test with explicit suite mode set
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should return SUITE due to explicit env var, not TEST from xdist detection
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_explicit_env_var_overrides_xdist_detection_test_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
+        # Mock config with xdist in suite-level mode
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test with explicit test mode set
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should return TEST due to explicit env var, not SUITE from xdist detection
+            assert result == ITR_SKIPPING_LEVEL.TEST
+
+    @pytest.mark.parametrize("truthy_value", ["1", "true", "TRUE", "True"])
+    def test_explicit_env_var_overrides_with_truthy_values(self, truthy_value):
+        """Test that explicit env var works with different string values."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test different truthy values (only "1" and "true" are recognized by asbool)
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": truthy_value}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE, f"Value '{truthy_value}' should result in SUITE"
+
+    @pytest.mark.parametrize("falsy_value", ["0", "false", "FALSE", "False"])
+    def test_explicit_env_var_overrides_with_falsy_values(self, falsy_value):
+        """Test that explicit env var works with different string values."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test different falsy values
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": falsy_value}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.TEST, f"Value '{falsy_value}' should result in TEST"
+
+    def test_no_explicit_env_var_uses_xdist_detection(self):
+        """Test that when env var is not set (None), automatic xdist detection is used."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+
+        # Ensure env var is not set
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should use xdist detection (loadscope -> SUITE)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+        # Test with test-level xdist mode
+        mock_config.option.dist = "load"  # Test-level mode
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should use xdist detection (load -> TEST)
+            assert result == ITR_SKIPPING_LEVEL.TEST

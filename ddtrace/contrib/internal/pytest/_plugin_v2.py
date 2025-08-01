@@ -104,36 +104,47 @@ INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 skip_pytest_runtest_protocol = False
 
 
-def _detect_xdist_parallelization_mode(config: pytest_Config) -> ITR_SKIPPING_LEVEL:
+def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR_SKIPPING_LEVEL:
     """
     Detect pytest-xdist parallelization mode and return the appropriate ITR skipping level.
+
+    Priority order:
+    1. If _DD_CIVISIBILITY_ITR_SUITE_MODE is explicitly set -> honor it regardless of xdist
+    2. If xdist is used -> automatic detection based on distribution mode
+    3. Fallback -> default to suite mode
 
     Returns:
         ITR_SKIPPING_LEVEL.SUITE for suite-level parallelization modes (loadscope, loadfile, loadgroup)
         ITR_SKIPPING_LEVEL.TEST for test-level parallelization modes (default, worksteal)
     """
-    if not config.pluginmanager.hasplugin("xdist"):
-        # If xdist is not enabled, use the configured default
-        return (
-            ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
-            else ITR_SKIPPING_LEVEL.TEST
+    # Priority 1: Check if env var is explicitly set (not using default)
+    explicit_suite_mode = os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE")
+    if explicit_suite_mode is not None:
+        result = ITR_SKIPPING_LEVEL.SUITE if asbool(explicit_suite_mode) else ITR_SKIPPING_LEVEL.TEST
+        log.warning(
+            "Using explicit ITR skipping level from _DD_CIVISIBILITY_ITR_SUITE_MODE=%s -> %s (overriding xdist detection)",
+            explicit_suite_mode,
+            result.name,
         )
+        return result
+
+    # Priority 2: Automatic xdist detection
+    if not config.pluginmanager.hasplugin("xdist"):
+        # xdist not available, use default
+        log.warning("xdist not available, using default ITR suite-level skipping")
+        return ITR_SKIPPING_LEVEL.SUITE
 
     # Check if xdist is actually being used (n > 0 or auto)
     dist_mode = getattr(config.option, "dist", "no")
     num_workers = getattr(config.option, "numprocesses", None)
 
-    # If xdist is installed but not being used, use configured default
+    # If xdist is installed but not being used, use default
     if dist_mode == "no" or num_workers in (0, None):
-        return (
-            ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
-            else ITR_SKIPPING_LEVEL.TEST
-        )
+        log.warning("xdist available but not used, using default ITR suite-level skipping")
+        return ITR_SKIPPING_LEVEL.SUITE
 
     # xdist is being used, detect the parallelization mode
-    if dist_mode in ("loadscope", "loadfile", "loadgroup"):
+    if dist_mode in ("loadscope", "loadfile"):
         # Suite-level parallelization modes - keep tests together by suite/file/group
         log.warning("Detected xdist suite-level parallelization mode (%s), using ITR suite-level skipping", dist_mode)
         return ITR_SKIPPING_LEVEL.SUITE
@@ -373,7 +384,7 @@ def pytest_configure(config: pytest_Config) -> None:
 
                 # Detect xdist parallelization mode and align ITR skipping strategy
                 # This should be done before any other plugin configuration
-                detected_itr_level = _detect_xdist_parallelization_mode(config)
+                detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config)
                 current_itr_level = dd_config.test_visibility.itr_skipping_level
 
                 if detected_itr_level != current_itr_level:
