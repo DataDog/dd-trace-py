@@ -7,9 +7,13 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.trace import Pin
+
+
+log = get_logger(__name__)
 
 
 def get_version() -> str:
@@ -30,22 +34,37 @@ config._add("vllm", {})
 def _extract_model_name(instance: Any) -> str:
     """Extract model name from vLLM instance."""
     # Try to get model name from various attributes
+    log.debug("[VLLM DEBUG] _extract_model_name called with instance: %s", type(instance))
+    log.debug("[VLLM DEBUG] instance attributes: %s", [attr for attr in dir(instance) if not attr.startswith('_')][:10])
     
     # For high-level LLM instances (vllm.LLM)
     if hasattr(instance, "llm_engine"):
+        log.debug("[VLLM DEBUG] Found llm_engine attribute")
         engine = instance.llm_engine
         if hasattr(engine, "model_config") and hasattr(engine.model_config, "model"):
-            return engine.model_config.model
+            model = engine.model_config.model
+            log.debug("[VLLM DEBUG] Extracted model from llm_engine.model_config.model: %s", model)
+            return model
         elif hasattr(engine, "engine_config") and hasattr(engine.engine_config, "model_config"):
-            return engine.engine_config.model_config.model
+            model = engine.engine_config.model_config.model
+            log.debug("[VLLM DEBUG] Extracted model from llm_engine.engine_config.model_config.model: %s", model)
+            return model
     
     # For engine instances directly
     if hasattr(instance, "model_config") and hasattr(instance.model_config, "model"):
-        return instance.model_config.model
+        model = instance.model_config.model
+        log.debug("[VLLM DEBUG] Extracted model from model_config.model: %s", model)
+        return model
     elif hasattr(instance, "engine_config") and hasattr(instance.engine_config, "model_config"):
-        return instance.engine_config.model_config.model
+        model = instance.engine_config.model_config.model
+        log.debug("[VLLM DEBUG] Extracted model from engine_config.model_config.model: %s", model)
+        return model
     elif hasattr(instance, "model"):
-        return instance.model
+        model = instance.model
+        log.debug("[VLLM DEBUG] Extracted model from model attribute: %s", model)
+        return model
+    
+    log.debug("[VLLM DEBUG] No model found, returning 'unknown'")
     return "unknown"
 
 
@@ -67,8 +86,11 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
 @with_traced_module
 def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
     """Trace AsyncLLMEngine.generate() - the main async request entry point."""
+    log.debug("[VLLM DEBUG] traced_async_llm_engine_generate called with instance: %s", type(instance))
     integration = vllm._datadog_integration
     provider, model = _get_provider_and_model(instance, kwargs)
+    log.debug("[VLLM DEBUG] async extracted model: %s, provider: %s", model, provider)
+    log.debug("[VLLM DEBUG] async args: %d, kwargs keys: %s", len(args), list(kwargs.keys()))
     
     span = integration.trace(
         pin,
@@ -158,10 +180,12 @@ def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
 @with_traced_module 
 def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
     """Trace LLMEngine.step() - synchronous llm_request processing."""
+    log.debug("[VLLM DEBUG] traced_llm_engine_step called with instance: %s", type(instance))
     integration = vllm._datadog_integration
     
     # Get model info from the engine instance
     provider, model = _get_provider_and_model(instance, kwargs)
+    log.debug("[VLLM DEBUG] step extracted model: %s, provider: %s", model, provider)
     
     span = integration.trace(
         pin,
@@ -202,8 +226,10 @@ def traced_llm_engine_step(vllm, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_llm_generate(vllm, pin, func, instance, args, kwargs):
     """Trace LLM.generate() - the main offline inference API with rich input/output."""
+    log.debug("[VLLM DEBUG] traced_llm_generate called with instance: %s", type(instance))
     integration = vllm._datadog_integration
     provider, model = _get_provider_and_model(instance, kwargs)
+    log.debug("[VLLM DEBUG] extracted model: %s, provider: %s", model, provider)
     
     span = integration.trace(
         pin,
@@ -394,50 +420,62 @@ def traced_llm_encode(vllm, pin, func, instance, args, kwargs):
 
 def patch():
     """Patch vLLM methods for tracing - focusing on high-level APIs for rich input/output."""
+    log.debug("[VLLM DEBUG] Starting vLLM patch() function")
     try:
         import vllm
+        log.debug("[VLLM DEBUG] Successfully imported vllm")
     except ImportError:
+        log.debug("[VLLM DEBUG] Failed to import vllm")
         return
 
     if getattr(vllm, "_datadog_patch", False):
+        log.debug("[VLLM DEBUG] vllm already patched, skipping")
         return
 
     vllm._datadog_patch = True
     Pin().onto(vllm)
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
+    log.debug("[VLLM DEBUG] Set up vLLM integration")
 
     # Patch high-level APIs for rich input/output data
     
     # 1. vLLM.LLM.generate() - offline inference with rich prompts and RequestOutput
     try:
         wrap("vllm.entrypoints.llm", "LLM.generate", traced_llm_generate(vllm))
-    except (AttributeError, ImportError):
-        pass
+        log.debug("[VLLM DEBUG] Successfully patched LLM.generate")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch LLM.generate: %s", e)
     
     # 2. vLLM.LLM.chat() - chat completions with message structure  
     try:
         wrap("vllm.entrypoints.llm", "LLM.chat", traced_llm_chat(vllm))
-    except (AttributeError, ImportError):
-        pass
+        log.debug("[VLLM DEBUG] Successfully patched LLM.chat")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch LLM.chat: %s", e)
     
     # 3. vLLM.LLM.encode() - embeddings
     try:
         wrap("vllm.entrypoints.llm", "LLM.encode", traced_llm_encode(vllm))
-    except (AttributeError, ImportError):
-        pass
+        log.debug("[VLLM DEBUG] Successfully patched LLM.encode")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch LLM.encode: %s", e)
 
     # 4. AsyncLLMEngine.generate() - for server/async usage (keep for trace context)
     try:
         wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_async_llm_engine_generate(vllm))
-    except (AttributeError, ImportError):
-        pass
+        log.debug("[VLLM DEBUG] Successfully patched AsyncLLMEngine.generate")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch AsyncLLMEngine.generate: %s", e)
 
     # 5. Keep LLMEngine.step() for low-level direct usage  
     try:
         wrap("vllm.engine.llm_engine", "LLMEngine.step", traced_llm_engine_step(vllm))
-    except (AttributeError, ImportError):
-        pass
+        log.debug("[VLLM DEBUG] Successfully patched LLMEngine.step")
+    except (AttributeError, ImportError) as e:
+        log.debug("[VLLM DEBUG] Failed to patch LLMEngine.step: %s", e)
+    
+    log.debug("[VLLM DEBUG] Finished vLLM patch() function")
 
 
 def unpatch():
