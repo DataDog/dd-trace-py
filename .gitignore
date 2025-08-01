@@ -99,7 +99,6 @@ _readthedocs/
 
 # PyBuilder
 target/
-target*/
 
 # IPython Notebook
 .ipynb_checkpoints
@@ -193,5 +192,3 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # .env file
 .env
 .envrc
-
-core.*
