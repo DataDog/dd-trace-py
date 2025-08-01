@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: Ensure local root span is used to make sampling decisions when a trace is partially flushed.
