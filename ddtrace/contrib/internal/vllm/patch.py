@@ -1,12 +1,13 @@
 import sys
 from typing import Any
 
-from ddtrace import config
+from ddtrace import config, tracer
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 
 
@@ -73,14 +74,43 @@ def _create_span_for_finished_seq_group(integration, pin, seq_group, model_name:
     
     provider = "vllm"
     
-    # Create the span with LLM Observability integration
-    span = integration.trace(
-        pin,
-        "vllm.request",  # Use vllm.request to match vLLM's native span name
-        provider=provider,
-        model=model_name,
-        submit_to_llmobs=True,
-    )
+    # Extract parent trace context from trace headers (CRITICAL for linking!)
+    parent_context = None
+    if hasattr(seq_group, 'trace_headers') and seq_group.trace_headers:
+        try:
+            parent_context = HTTPPropagator.extract(seq_group.trace_headers)
+            if parent_context:
+                log.debug("[VLLM DEBUG] Extracted parent context: trace_id=%s, span_id=%s", 
+                         parent_context.trace_id, parent_context.span_id)
+            else:
+                log.debug("[VLLM DEBUG] No parent context found in trace headers")
+        except Exception as e:
+            log.debug("[VLLM DEBUG] Failed to extract parent context: %s", e)
+    
+    # Create span with proper parent context
+    if parent_context:
+        # Create span directly with tracer, passing parent context for proper linking
+        log.debug("[VLLM DEBUG] Creating span with parent context (linked trace)")
+        span = tracer.start_span(
+            "vllm.request",
+            child_of=parent_context,
+            service=pin.service,
+            span_type="llm",
+            activate=False
+        )
+        # Set provider and model tags
+        span.set_tag_str("vllm.request.provider", provider)
+        span.set_tag_str("vllm.request.model", model_name)
+    else:
+        # Fallback to integration.trace() if no parent context
+        log.debug("[VLLM DEBUG] Creating span without parent context (standalone)")
+        span = integration.trace(
+            pin,
+            "vllm.request",  # Use vllm.request to match vLLM's native span name
+            provider=provider,
+            model=model_name,
+            submit_to_llmobs=True,
+        )
     
     if span is None:
         return
@@ -147,6 +177,7 @@ def _create_span_for_finished_seq_group(integration, pin, seq_group, model_name:
                 synthetic_outputs.append(output_obj)
             synthetic_request_output.outputs = synthetic_outputs
         
+        # Set LLMObs tags regardless of how span was created
         integration.llmobs_set_tags(
             span, 
             args=[], 
