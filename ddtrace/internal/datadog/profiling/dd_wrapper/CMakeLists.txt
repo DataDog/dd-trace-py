@@ -96,6 +96,7 @@ if(APPLE)
                 $<TARGET_FILE:dd_wrapper>
         COMMENT "Fixing library dependency to use @rpath")
 else()
+    # To make sure that dd_wrapper finds _native.so
     set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
 endif()
 
