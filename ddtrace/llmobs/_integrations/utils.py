@@ -335,7 +335,16 @@ def openai_set_meta_tags_from_chat(
                     type=_get_attr(tool_call, "type", "function"),
                 )
                 processed_message["tool_calls"].append(tool_call_info)
-        # TODO(max): handle tool results
+        # seems like the fields in a tool_result for chat api are not very strictly defined
+        if m["role"] == "tool" or m["role"] == "tool_result":
+            tool_result_info = ToolResult(
+                tool_id=_get_attr(m, "tool_id", "") or _get_attr(m, "tool_call_id", ""),
+                result=_get_attr(m, "content", ""),
+                name=_get_attr(m, "name", ""),
+                type=_get_attr(m, "type", "tool_result"),
+            )
+            processed_message["tool_results"] = [tool_result_info]
+            processed_message["content"] = "" # set content to empty string to avoid duplicate content
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
