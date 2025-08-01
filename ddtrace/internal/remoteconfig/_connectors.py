@@ -2,6 +2,7 @@ from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
+import sys
 import time
 from typing import List
 from typing import Sequence
@@ -78,7 +79,9 @@ class PublisherSubscriberConnector:
                 self.shared_data_counter = 0
             if shared_data_counter != self.shared_data_counter:
                 self.shared_data_counter = shared_data_counter
-                return [Payload(**value) for value in config["payload_list"]]
+                res = [Payload(**value) for value in config["payload_list"]]
+                print(f"[PID {os.getpid()}] Reading value {res}", file=sys.stderr, flush=True)
+                return res
         return []
 
     def write(self, payload_list: Sequence[Payload]) -> None:
@@ -91,6 +94,7 @@ class PublisherSubscriberConnector:
             data_len = len(data)
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
+            print(f"[PID {os.getpid()}] Writing value", file=sys.stderr, flush=True)
             self.data.value = data
             log.debug("[%s][P: %s] write message of length %s", os.getpid(), os.getppid(), data_len)
             self.checksum = last_checksum

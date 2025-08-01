@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -36,6 +37,7 @@ class AppSecRC(PubSub):
     __shared_data__ = PublisherSubscriberConnector()
 
     def __init__(self, callback):
+        print(f"[PID {os.getpid()}] AppSecRC initialized", file=sys.stderr, flush=True)
         self._publisher = self.__publisher_class__(
             self.__shared_data__, preprocess_func=_preprocess_results_appsec_1click_activation
         )
@@ -101,6 +103,7 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
     log.debug(debug_info)
 
     local_tracer = test_tracer or tracer
+    print(f"[PID {os.getpid()}] AppSecRC callback triggered tracer {id(local_tracer)}", file=sys.stderr, flush=True)
 
     for_the_waf_updates: List[tuple[str, str, PayloadType]] = []
     for_the_waf_removals: List[tuple[str, str]] = []
@@ -110,8 +113,20 @@ def _appsec_callback(payload_list: Sequence[Payload], test_tracer: Optional[Trac
             for_the_tracer.append(payload)
         elif payload.content is None:
             for_the_waf_removals.append((payload.metadata.product_name, payload.path))
+            print(
+                f"[PID {os.getpid()}] Remove {payload.metadata.product_name}"
+                f" {payload.path} {payload.metadata.tuf_version}",
+                file=sys.stderr,
+                flush=True,
+            )
         else:
             for_the_waf_updates.append((payload.metadata.product_name, payload.path, payload.content))
+            print(
+                f"[PID {os.getpid()}] Append {payload.metadata.product_name}"
+                f" {payload.path} {payload.metadata.tuf_version}",
+                file=sys.stderr,
+                flush=True,
+            )
     _process_asm_features(for_the_tracer, local_tracer)
     if (for_the_waf_removals or for_the_waf_updates) and local_tracer._appsec_processor is not None:
         local_tracer._appsec_processor._update_rules(for_the_waf_removals, for_the_waf_updates)

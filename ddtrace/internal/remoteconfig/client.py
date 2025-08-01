@@ -5,6 +5,7 @@ import hashlib
 import json
 import os
 import re
+import sys
 from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
@@ -169,6 +170,10 @@ class SignedTargets:
 class TargetFile:
     path: str
     raw: str
+
+
+def __repr__(self):
+    return f"TargetFile(path={self.path}, raw_length={len(self.raw) if self.raw else -1})"
 
 
 @dataclasses.dataclass
@@ -532,6 +537,7 @@ class RemoteConfigClient:
     def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
             payload = AgentPayload(**data)
+            print(f"[PID {os.getpid()}] Reading value {payload.target_files!r}", file=sys.stderr, flush=True)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"

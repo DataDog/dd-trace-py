@@ -32,3 +32,9 @@ class Payload:
     def __post_init__(self):
         if isinstance(self.metadata, dict):
             self.metadata = ConfigMetadata(**self.metadata)
+
+    def __repr__(self):
+        return (
+            f"Payload(metadata={self.metadata}, path={self.path},"
+            f" content_length={len(self.content) if self.content else -1})"
+        )
