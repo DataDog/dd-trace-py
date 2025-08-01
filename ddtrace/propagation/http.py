@@ -1012,18 +1012,22 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
-    def _get_sampling_span_and_injection_context(
+    def _get_sampled_injection_context(
         trace_info: Union[Context, Span], non_active_span: Optional[Span] = None
-    ) -> Tuple[Optional[Span], Context]:
-        """Get the span for sampling decisions and context for header injection.
+    ) -> Context:
+        """Handle sampling decision and return context for header injection.
 
-        The non_active_span parameter takes precedence but is deprecated in HttpPropagator.inject.
+        If sampling_priority is already set, returns immediately. Otherwise, finds the
+        appropriate span and triggers sampling before returning the injection context.
         """
         trace_info_is_span = isinstance(trace_info, Span)
         # Extract context for header injection (non_active_span takes precedence)
         injection_context = trace_info.context if trace_info_is_span else trace_info
 
         # Find root span for sampling decisions
+        if injection_context.sampling_priority is not None:
+            return injection_context
+
         if non_active_span is not None:
             # Deprecated: non_active_span takes precedence
             sampling_span = non_active_span._local_root
@@ -1035,7 +1039,12 @@ class HTTPPropagator(object):
             current_root = core.tracer and core.tracer.current_root_span()
             sampling_span = current_root if (current_root and current_root.trace_id == trace_info.trace_id) else None
 
-        return sampling_span, injection_context
+        # Sample the local root span before injecting headers.
+        if sampling_span:
+            core.tracer.sample(sampling_span)
+            log.debug("%s sampled before propagating trace: span_context=%s", sampling_span, injection_context)
+
+        return injection_context
 
     @staticmethod
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
@@ -1152,27 +1161,21 @@ class HTTPPropagator(object):
                 removal_version="4.0.0",
             )
         # Cannot rename context parameter due to backwards compatibility
-        # Get span context for injection and span for sampling (if available)
-        # Due to lazy sampling, make sampling decision before injecting headers
-        span_to_sample, span_context = HTTPPropagator._get_sampling_span_and_injection_context(context, non_active_span)
-
-        core.dispatch("http.span_inject", (span_context, headers))
-        if not config._propagation_style_inject:
-            return
-        # Sample the local root span before injecting headers.
-        if span_to_sample and core.tracer and span_to_sample.context.sampling_priority is None:
-            core.tracer.sample(span_to_sample)
-            log.debug("%s sampled before propagating trace: span_context=%s", span_to_sample, span_context)
+        # Handle sampling and get context for header injection
+        span_context = HTTPPropagator._get_sampled_injection_context(context, non_active_span)
         # Log a warning if we cannot determine a sampling decision before injecting headers.
         if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
             log.debug(
                 "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
-                "args=(context=%s, ..., non_active_span=%s) detected local root span=%s detected span context=%s",
+                "args=(context=%s, ..., non_active_span=%s) detected span context=%s",
                 context,
                 non_active_span,
-                span_to_sample,
                 span_context,
             )
+
+        core.dispatch("http.span_inject", (span_context, headers))
+        if not config._propagation_style_inject:
+            return
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
