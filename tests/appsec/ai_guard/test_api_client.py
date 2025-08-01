@@ -9,9 +9,8 @@ import pytest
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import AIGuardClientError
-from ddtrace.appsec.ai_guard.api_client import Evaluation
-from ddtrace.appsec.ai_guard.api_client import Prompt
-from ddtrace.appsec.ai_guard.api_client import ToolCall
+from ddtrace.appsec.ai_guard import Prompt
+from ddtrace.appsec.ai_guard import ToolCall
 from tests.utils import DummyTracer
 
 
@@ -23,7 +22,7 @@ def _mock_evaluate_response(action: str, reason: str = "") -> Mock:
 
 
 def _assert_mock_execute_request_call(
-    mock_execute_request, ai_guard_client: AIGuardClient, history: List[Evaluation], current: Evaluation
+    mock_execute_request, ai_guard_client: AIGuardClient, history: List[Prompt | ToolCall], current: Prompt | ToolCall
 ):
     expected_payload = {
         "data": {
@@ -48,7 +47,7 @@ def _assert_ai_guard_span(tracer: DummyTracer, tags: Dict[str, Any]) -> None:
         assert span.get_tag(key) == value
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_tool_allow(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with ALLOW response."""
     mock_execute_request.return_value = _mock_evaluate_response("ALLOW")
@@ -69,7 +68,7 @@ def test_evaluate_tool_allow(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_tool_deny(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with DENY response."""
     mock_execute_request.return_value = _mock_evaluate_response("DENY")
@@ -88,7 +87,7 @@ def test_evaluate_tool_deny(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_tool_abort(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with ABORT response."""
     mock_execute_request.return_value = _mock_evaluate_response("ABORT", "You will destroy your filesystem")
@@ -115,7 +114,7 @@ def test_evaluate_tool_abort(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_prompt_allow(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with ALLOW response."""
     mock_execute_request.return_value = _mock_evaluate_response("ALLOW")
@@ -134,7 +133,7 @@ def test_evaluate_prompt_allow(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_prompt_deny(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with DENY response."""
     mock_execute_request.return_value = _mock_evaluate_response("DENY")
@@ -153,7 +152,7 @@ def test_evaluate_prompt_deny(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_prompt_abort(mock_execute_request, ai_guard_client, tracer):
     """Test successful evaluation with ABORT response."""
     mock_execute_request.return_value = _mock_evaluate_response("ABORT", "You are trying to undercover DataDog secrets")
@@ -179,7 +178,7 @@ def test_evaluate_prompt_abort(mock_execute_request, ai_guard_client, tracer):
     )
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_http_error(mock_execute_request, ai_guard_client, tracer):
     """Test HTTP error handling."""
     mock_response = Mock()
@@ -191,7 +190,7 @@ def test_evaluate_http_error(mock_execute_request, ai_guard_client, tracer):
         workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "rm --rf /"]})
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_json(mock_execute_request, ai_guard_client, tracer):
     """Test invalid JSON response handling."""
     mock_response = Mock()
@@ -204,7 +203,7 @@ def test_evaluate_invalid_json(mock_execute_request, ai_guard_client, tracer):
         workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "rm --rf /"]})
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_malformed_response(mock_execute_request, ai_guard_client, tracer):
     """Test malformed response structure handling."""
     mock_response = Mock()
@@ -217,7 +216,7 @@ def test_evaluate_malformed_response(mock_execute_request, ai_guard_client, trac
         workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "rm --rf /"]})
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_evaluate_invalid_action(mock_execute_request, ai_guard_client, tracer):
     """Test invalid action handling."""
     mock_execute_request.return_value = _mock_evaluate_response("GO_TO_SLEEP")
@@ -227,7 +226,7 @@ def test_evaluate_invalid_action(mock_execute_request, ai_guard_client, tracer):
         workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "rm --rf /"]})
 
 
-@patch("ddtrace.appsec.ai_guard.api_client.AIGuardClient._execute_request")
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_tags_set_in_span(mock_execute_request, ai_guard_client, tracer):
     mock_execute_request.return_value = _mock_evaluate_response("ALLOW")
     tags = {"tag1": "value1", "tag2": "value2"}

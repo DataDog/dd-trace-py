@@ -2,13 +2,13 @@
 AI Guard public SDK
 """
 
-from .api_client import AIGuardAbortError
-from .api_client import AIGuardClient
-from .api_client import AIGuardClientError
-from .api_client import AIGuardWorkflow
-from .api_client import Prompt
-from .api_client import ToolCall
-from .api_client import new_ai_guard_client
+from ._api_client import AIGuardAbortError
+from ._api_client import AIGuardClient
+from ._api_client import AIGuardClientError
+from ._api_client import AIGuardWorkflow
+from ._api_client import Prompt
+from ._api_client import ToolCall
+from ._api_client import new_ai_guard_client
 
 
 __all__ = [
