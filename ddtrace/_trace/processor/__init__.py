@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 from itertools import chain
+import logging
 from threading import RLock
 from typing import Any
 from typing import DefaultDict
@@ -268,6 +269,14 @@ class SpanAggregator(SpanProcessor):
           finished in the collection and ``partial_flush_enabled`` is True.
     """
 
+    SPAN_FINISH_DEBUG_MESSAGE = (
+        "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+        "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
+        "(partial flush triggered: %s)"
+    )
+
+    SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
+
     def __init__(
         self,
         partial_flush_enabled: bool,
@@ -320,6 +329,7 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
+        log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         # Aqcuire lock to get finished and update trace.spans
@@ -331,6 +341,7 @@ class SpanAggregator(SpanProcessor):
                 return
 
             trace = self._traces[span.trace_id]
+            num_buffered = len(trace.spans)
             trace.num_finished += 1
 
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
@@ -381,6 +392,16 @@ class SpanAggregator(SpanProcessor):
             self._queue_span_count_metrics("spans_finished", "integration_name")
 
         if spans:
+            log.debug(
+                self.SPAN_FINISH_DEBUG_MESSAGE,
+                len(spans),
+                num_buffered,
+                len(finished) - len(spans),
+                num_buffered - len(finished),
+                span.trace_id,
+                spans[0].name,
+                should_partial_flush,
+            )
             self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
@@ -412,18 +433,19 @@ class SpanAggregator(SpanProcessor):
         # This ensures all remaining counts are sent before the tracer is shutdown.
         self._queue_span_count_metrics("spans_finished", "integration_name", 1)
         # Log a warning if the tracer is shutdown before spans are finished
-        unfinished_spans = [
-            f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
-            for t in self._traces.values()
-            for s in t.spans
-            if not s.finished
-        ]
-        if unfinished_spans:
-            log.warning(
-                "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
-                len(unfinished_spans),
-                ", ".join(unfinished_spans),
-            )
+        if log.isEnabledFor(logging.WARNING):
+            unfinished_spans = [
+                f"trace_id={s.trace_id} parent_id={s.parent_id} span_id={s.span_id} name={s.name} resource={s.resource} started={s.start} sampling_priority={s.context.sampling_priority}"  # noqa: E501
+                for t in self._traces.values()
+                for s in t.spans
+                if not s.finished
+            ]
+            if unfinished_spans:
+                log.warning(
+                    "Shutting down tracer with %d unfinished spans. Unfinished spans will not be sent to Datadog: %s",
+                    len(unfinished_spans),
+                    ", ".join(unfinished_spans),
+                )
 
         try:
             self._traces.clear()

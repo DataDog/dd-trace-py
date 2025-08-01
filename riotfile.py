@@ -2632,7 +2632,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2979,6 +2979,18 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", latest],
                 "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
+            name="ray",
+            command="pytest {cmdargs} tests/contrib/ray",
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "ray": ["~=2.48.0", latest],
             },
         ),
         Venv(
@@ -3390,6 +3402,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "gunicorn": latest,
+                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "pytest-randomly": latest,
             },
