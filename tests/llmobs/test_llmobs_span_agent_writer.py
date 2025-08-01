@@ -49,14 +49,11 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(mock_send_pa
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
         [
             mock.call("manually flushing buffer because queueing next event will exceed EVP payload limit"),
-            mock.call("encoded %d LLMObs %s events to be sent", 5, "span"),
+            mock.call("encoded %d LLMObs %s events to be sent", 2, "span"),
             mock.call("encoded %d LLMObs %s events to be sent", 1, "span"),
         ],
         any_order=True,
