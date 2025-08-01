@@ -4,10 +4,10 @@ import time
 from typing import Optional
 from typing import Tuple
 
-from ddtrace.internal import forksafe
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_DISTRIBUTION
 from ddtrace.internal.telemetry.constants import TELEMETRY_TYPE_GENERATE_METRICS
+from ddtrace.internal.threads import Lock
 
 
 MetricTagType = Optional[Tuple[Tuple[str, str], ...]]
@@ -25,7 +25,7 @@ cdef class MetricNamespace:
     cdef public dict _metrics_data
 
     def __cinit__(self):
-        self._metrics_data_lock = forksafe.Lock()
+        self._metrics_data_lock = Lock()
         self._metrics_data = {}
 
     def flush(self, interval: float = None):
