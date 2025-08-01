@@ -23,7 +23,7 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
-# from ddtrace.llmobs._constants import TOOL_DEFINITIONS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
@@ -578,7 +578,7 @@ def openai_get_metadata_from_response(
         return metadata
 
     # Add metadata from response
-    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text", "user"]:
+    for field in ["temperature", "max_output_tokens", "top_p", "tool_choice", "truncation", "text", "user"]:
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_data_value(value)
