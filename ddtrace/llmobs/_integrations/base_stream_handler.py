@@ -1,7 +1,7 @@
 """
-This file contains shared utilities for tracing streams in LLMobs integrations. A stream handler along with the
-stream to wrap should be passed into the make_traced_stream factory function to create a TracedStream or
-TracedAsyncStream object.
+This file contains shared utilities for tracing streams in LLMobs integrations. Integrations should
+implement a StreamHandler and / or AsyncStreamHandler subclass to be passed into the make_traced_stream
+factory function along with the stream to wrap.
 """
 from abc import ABC
 from abc import abstractmethod
@@ -92,6 +92,9 @@ class StreamHandler(BaseStreamHandler):
 
 
 class AsyncStreamHandler(BaseStreamHandler):
+    """
+    Async version of StreamHandler.
+    """
     @abstractmethod
     async def process_chunk(self, chunk, iterator=None):
         """
@@ -162,9 +165,8 @@ class TracedStream(wrapt.ObjectProxy):
         Enter the context of the stream.
 
         If the stream is wrapped by a stream manager, the stream manager will be entered and the
-        underlying stream will be wrapped in a TracedStream object. The _self_on_stream_created
-        callback function will be called on the TracedStream object if it is provided and then it
-        will be returned.
+        underlying stream will be wrapped in a TracedStream object. We retain a reference to the
+        underlying stream object to be consumed.
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
@@ -190,6 +192,10 @@ class TracedStream(wrapt.ObjectProxy):
 
 
 class TracedAsyncStream(wrapt.ObjectProxy):
+    """
+    Async version of TracedStream.
+    """
+
     def __init__(self, wrapped, handler: AsyncStreamHandler, on_stream_created=None):
         """
         Wrap an async stream object to trace the stream.
@@ -221,7 +227,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 
     async def __anext__(self):
         try:
-            chunk = await self._self_async_stream_iter.__anext__()
+            chunk = await anext(self._self_async_stream_iter)
             await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
             return chunk
         except StopAsyncIteration:
@@ -237,9 +243,8 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         Enter the context of the stream.
 
         If the stream is wrapped by a stream manager, the stream manager will be entered and the
-        underlying stream will be wrapped in a TracedAsyncStream object. The _self_on_stream_created
-        callback function will be called on the TracedAsyncStream object if it is provided and then it
-        will be returned.
+        underlying stream will be wrapped in a TracedAsyncStream object. We retain a reference to the
+        underlying stream object to be consumed.
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
