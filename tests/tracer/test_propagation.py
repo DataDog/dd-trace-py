@@ -3683,18 +3683,18 @@ def test_inject_context_without_sampling_priority_active_trace(caplog):
 
 
 def test_inject_context_without_sampling_priority_inactive_trace(caplog):
-    """Test injecting a Context without sampling priority when there's no active trace."""
+    """Test injecting a Context without sampling priority when the Context is not part of the active trace."""
     headers = {}
-    ddtracer.current_span() is None  # Ensure no active span
-    with caplog.at_level(logging.DEBUG):
-        HTTPPropagator.inject(Context(trace_id=12345, span_id=67890, sampling_priority=None), headers)
+    with ddtracer.start_span("test_span", activate=False, child_of=None) as span:
+        with caplog.at_level(logging.DEBUG):
+            HTTPPropagator.inject(span.context, headers)
 
     # Should log warning about inability to make sampling decision
     assert any(
         "Sampling decision not available. Downstream spans will not inherit a sampling priority:" in record.message
         for record in caplog.records
     ), caplog.records
-    assert headers.get("x-datadog-sampling-priority") is None  # No sampling priority in headers
+    assert "x-datadog-sampling-priority" not in headers  # No sampling priority in headers
 
 
 def test_inject_span_without_sampling_priority(caplog):
