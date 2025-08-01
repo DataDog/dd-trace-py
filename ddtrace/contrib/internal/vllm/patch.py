@@ -43,12 +43,13 @@ def _get_provider_and_model(instance: Any, kwargs: Dict[str, Any]) -> tuple[str,
     """Extract provider and model information from vLLM instance."""
     model_name = _extract_model_name(instance)
     
-    # Extract provider from model path if available
+    # Extract provider from model path only if clearly indicated
     if "/" in model_name:
         # For models like "meta-llama/Llama-2-7b-hf", provider would be "meta-llama"
         provider = model_name.split("/")[0]
     else:
-        provider = "vllm"
+        # For standalone models like "gpt2", "gpt2-medium", we don't know the provider
+        provider = ""
     
     return provider, model_name
 
@@ -66,16 +67,34 @@ def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
         model=model,
         submit_to_llmobs=True,
     )
+
+    # Set span tags matching vLLM semantics
+    span.set_tag_str("vllm.request.model", model)
+    if provider:  # Only set provider if we know it
+        span.set_tag_str("vllm.request.provider", provider)
     
-    # Add request-specific tags
+    # Add request-specific tags matching vLLM's native tracing
     if len(args) > 0:  # prompt is first arg
         span.set_tag("vllm.request.prompt_length", len(str(args[0])))
-    if len(args) > 1:  # sampling_params is second arg  
+    
+    if len(args) > 1:  # sampling_params is second arg
         sampling_params = args[1]
-        if hasattr(sampling_params, 'max_tokens'):
+        if hasattr(sampling_params, 'max_tokens') and sampling_params.max_tokens is not None:
             span.set_tag("vllm.request.max_tokens", sampling_params.max_tokens)
-        if hasattr(sampling_params, 'temperature'):
+        if hasattr(sampling_params, 'temperature') and sampling_params.temperature is not None:
             span.set_tag("vllm.request.temperature", sampling_params.temperature)
+        if hasattr(sampling_params, 'top_p') and sampling_params.top_p is not None:
+            span.set_tag("vllm.request.top_p", sampling_params.top_p)
+        if hasattr(sampling_params, 'n') and sampling_params.n is not None:
+            span.set_tag("vllm.request.n", sampling_params.n)
+    
+    # Add model configuration from instance
+    if hasattr(instance, 'model_config'):
+        model_config = instance.model_config
+        if hasattr(model_config, 'max_model_len'):
+            span.set_tag("vllm.model.max_model_len", model_config.max_model_len)
+        if hasattr(model_config, 'dtype'):
+            span.set_tag("vllm.model.dtype", str(model_config.dtype))
     
     try:
         # Call the original generate method - returns async generator
@@ -95,10 +114,25 @@ def traced_async_llm_engine_generate(vllm, pin, func, instance, args, kwargs):
                 span.set_exc_info(*sys.exc_info())
                 raise
             finally:
-                # Add completion metrics
+                # Add completion metrics matching vLLM's native tracing
                 span.set_tag("vllm.response.token_count", token_count)
-                if final_result and hasattr(final_result, 'finished'):
-                    span.set_tag("vllm.response.finished", final_result.finished)
+                
+                if final_result:
+                    if hasattr(final_result, 'finished'):
+                        span.set_tag("vllm.response.finished", final_result.finished)
+                    
+                    # Add token usage metrics
+                    if hasattr(final_result, 'prompt_token_ids'):
+                        span.set_tag("vllm.usage.prompt_tokens", len(final_result.prompt_token_ids))
+                    
+                    if hasattr(final_result, 'outputs') and final_result.outputs:
+                        total_output_tokens = sum(len(output.token_ids) if hasattr(output, 'token_ids') else 0 
+                                                for output in final_result.outputs)
+                        span.set_tag("vllm.usage.completion_tokens", total_output_tokens)
+                        
+                        # Calculate total tokens
+                        prompt_tokens = len(final_result.prompt_token_ids) if hasattr(final_result, 'prompt_token_ids') else 0
+                        span.set_tag("vllm.usage.total_tokens", prompt_tokens + total_output_tokens)
                 
                 kwargs["instance"] = instance
                 integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=final_result, operation="llm")

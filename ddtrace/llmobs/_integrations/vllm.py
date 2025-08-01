@@ -7,8 +7,14 @@ from ddtrace._trace.span import Span
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
+from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import MODEL_NAME
+from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 
@@ -20,9 +26,9 @@ class VLLMIntegration(BaseLLMIntegration):
         self, span: Span, provider: Optional[str] = None, model: Optional[str] = None, **kwargs: Dict[str, Any]
     ) -> None:
         """Set base span tags for vLLM operations."""
-        if provider is not None:
+        if provider:  # Only set if provider is not None or empty
             span.set_tag_str("vllm.request.provider", provider)
-        if model is not None:
+        if model:  # Only set if model is not None or empty
             span.set_tag_str("vllm.request.model", model)
 
     def _llmobs_set_tags(
@@ -39,20 +45,35 @@ class VLLMIntegration(BaseLLMIntegration):
 
         # Set span kind based on operation
         span_kind = "llm" if operation == "llm" else "embedding"
-        span._set_ctx_item(SPAN_KIND, span_kind)
+        
+        # Extract model name and provider from span tags
+        model_name = span.get_tag("vllm.request.model") or ""
+        model_provider = span.get_tag("vllm.request.provider") or ""
 
         # Extract input from various sources
         input_data = self._extract_input(args, kwargs, operation)
-        span._set_ctx_item(INPUT_VALUE, input_data)
 
         # Extract metadata
         metadata = self._extract_metadata(kwargs, operation)
-        span._set_ctx_item(METADATA, metadata)
+        
+        # Extract metrics (token counts, etc.)
+        metrics = self._extract_metrics(response, operation)
 
         # Set output if available and no error
+        output_data = ""
         if response is not None and not span.error:
             output_data = self._extract_output(response, operation)
-            span._set_ctx_item(OUTPUT_VALUE, output_data)
+
+        # Set all LLMObs context items
+        span._set_ctx_items({
+            SPAN_KIND: span_kind,
+            MODEL_NAME: model_name,
+            MODEL_PROVIDER: model_provider,
+            INPUT_VALUE: input_data,
+            OUTPUT_VALUE: output_data,
+            METADATA: metadata,
+            METRICS: metrics,
+        })
 
     def _extract_input(self, args: List[Any], kwargs: Dict[str, Any], operation: str) -> str:
         """Extract input data from vLLM method arguments."""
@@ -119,6 +140,52 @@ class VLLMIntegration(BaseLLMIntegration):
                 metadata["pooling_type"] = _get_attr(pooling_params, "pooling_type", "")
 
         return {k: v for k, v in metadata.items() if v}
+
+    def _extract_metrics(self, response: Any, operation: str) -> Dict[str, Any]:
+        """Extract metrics (token counts, etc.) from vLLM response."""
+        metrics = {}
+        
+        if operation == "llm" and response is not None:
+            # Extract token counts from response
+            if hasattr(response, "__iter__") and not isinstance(response, str):
+                # Multiple outputs - sum up token counts
+                input_tokens = 0
+                output_tokens = 0
+                
+                for item in response:
+                    if hasattr(item, "prompt_token_ids"):
+                        input_tokens += len(item.prompt_token_ids)
+                    
+                    if hasattr(item, "outputs") and item.outputs:
+                        for output in item.outputs:
+                            if hasattr(output, "token_ids"):
+                                output_tokens += len(output.token_ids)
+                
+                if input_tokens > 0:
+                    metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+                if output_tokens > 0:
+                    metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+                if input_tokens > 0 or output_tokens > 0:
+                    metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+                    
+            elif hasattr(response, "prompt_token_ids"):
+                # Single response
+                input_tokens = len(response.prompt_token_ids)
+                output_tokens = 0
+                
+                if hasattr(response, "outputs") and response.outputs:
+                    for output in response.outputs:
+                        if hasattr(output, "token_ids"):
+                            output_tokens += len(output.token_ids)
+                
+                if input_tokens > 0:
+                    metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
+                if output_tokens > 0:
+                    metrics[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+                if input_tokens > 0 or output_tokens > 0:
+                    metrics[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+        
+        return metrics
 
     def _extract_output(self, response: Any, operation: str) -> str:
         """Extract output data from vLLM response."""
