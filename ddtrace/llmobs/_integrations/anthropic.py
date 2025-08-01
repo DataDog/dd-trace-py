@@ -146,7 +146,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                         formatted_content = self._format_tool_result_content(content)
                         tool_result_info = ToolResult(
                             result=formatted_content,
-                            tool_id=_get_attr(block, "tool_use_id", "") or _get_attr(block, "id", ""),
+                            tool_id=_get_attr(block, "tool_use_id", ""),
                             type="tool_result",
                         )
                         input_messages.append({"content": "", "role": role, "tool_results": [tool_result_info]})
