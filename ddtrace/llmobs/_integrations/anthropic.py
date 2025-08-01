@@ -65,7 +65,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         if kwargs.get("max_tokens"):
             parameters["max_tokens"] = kwargs.get("max_tokens")
         if kwargs.get("tools"):
-            tools = self._extract_tools(kwargs.get("tools", []))
+            tools = self._extract_tools(kwargs.get("tools"))
             span._set_ctx_item(TOOL_DEFINITIONS, tools)
         messages = kwargs.get("messages")
         system_prompt = kwargs.get("system")
@@ -158,7 +158,7 @@ class AnthropicIntegration(BaseLLMIntegration):
     def _format_tool_result_content(self, content):
         if isinstance(content, str):
             return content
-        elif isinstance(content, list):
+        elif isinstance(content, Iterable):
             formatted_content = []
             for tool_result_block in content:
                 if _get_attr(tool_result_block, "text", "") != "":
@@ -230,7 +230,10 @@ class AnthropicIntegration(BaseLLMIntegration):
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
 
-    def _extract_tools(self, tools: List[Dict[str, Any]]) -> List[ToolDefinition]:
+    def _extract_tools(self, tools: Union[Iterable[Dict[str, Any]], Any]) -> List[ToolDefinition]:
+        if not tools:
+            return []
+
         tool_definitions = []
         for tool in tools:
             tool_def = ToolDefinition(
