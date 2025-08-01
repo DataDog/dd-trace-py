@@ -178,13 +178,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
         """
         tools: Dict[str, Any] = {}
         if hasattr(agent, "_function_tools"):
-            tools = getattr(agent, "_function_tools", {})
+            tools = getattr(agent, "_function_tools", {}) or {}
         elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
-            user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", [])
+            user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", []) or []
             function_toolset = getattr(agent, "_function_toolset", None)
             combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
             for toolset in combined_toolsets:
-                tools.update(getattr(toolset, "tools", {}))
+                tools.update(getattr(toolset, "tools", {}) or {})
 
         if not tools:
             return []

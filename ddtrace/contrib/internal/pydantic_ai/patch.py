@@ -66,16 +66,16 @@ async def traced_tool_manager_call(pydantic_ai, pin, func, instance, args, kwarg
     tool_name = getattr(tool_call, "tool_name", None) or "Pydantic Tool"
     tool_manager_tools = getattr(instance, "tools", {}) or {}
     tool_instance = tool_manager_tools.get(tool_name) or None
-    return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name, tool_instance)
+    return await traced_tool_run(pydantic_ai, pin, func, tool_instance, args, kwargs, tool_name)
 
 
 @with_traced_module
 async def traced_tool_call(pydantic_ai, pin, func, instance, args, kwargs):
     tool_name = getattr(instance, "name", None) or "Pydantic Tool"
-    return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name, instance)
+    return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name)
 
 
-async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name, tool_instance):
+async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name):
     integration = pydantic_ai._datadog_integration
     resp = None
     try:
@@ -87,7 +87,7 @@ async def traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_n
         span.set_exc_info(*sys.exc_info())
         raise
     finally:
-        kwargs["instance"] = tool_instance
+        kwargs["instance"] = instance
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=resp)
         span.finish()
 
