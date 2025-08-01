@@ -3654,8 +3654,6 @@ venv = Venv(
             name="ai_guard",
             command="pytest -vvv {cmdargs} tests/appsec/ai_guard/",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
                 "requests": latest,
             },
             venvs=[
