@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
@@ -139,7 +140,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         )
         if not span.error:
             # depending on the version, the output may be a ToolReturnPart or the raw response
-            output_content = getattr(response, "content", "") if hasattr(response, "content") else response
+            output_content = getattr(response, "content", "") or response
             span._set_ctx_item(OUTPUT_VALUE, output_content)
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
@@ -179,7 +180,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if hasattr(agent, "_function_tools"):
             tools = getattr(agent, "_function_tools", {})
         elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
-            user_toolsets = getattr(agent, "_user_toolsets", [])
+            user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", [])
             function_toolset = getattr(agent, "_function_toolset", None)
             combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
             for toolset in combined_toolsets:

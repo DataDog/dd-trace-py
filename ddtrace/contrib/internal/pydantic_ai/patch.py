@@ -64,7 +64,7 @@ def traced_agent_iter(pydantic_ai, pin, func, instance, args, kwargs):
 async def traced_tool_manager_call(pydantic_ai, pin, func, instance, args, kwargs):
     tool_call = get_argument_value(args, kwargs, 0, "tool_call", True)
     tool_name = getattr(tool_call, "tool_name", None) or "Pydantic Tool"
-    tool_manager_tools = getattr(instance, "tools", {})
+    tool_manager_tools = getattr(instance, "tools", {}) or {}
     tool_instance = tool_manager_tools.get(tool_name) or None
     return await traced_tool_run(pydantic_ai, pin, func, instance, args, kwargs, tool_name, tool_instance)
 
