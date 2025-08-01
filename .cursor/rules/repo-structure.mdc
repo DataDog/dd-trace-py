@@ -21,7 +21,7 @@ dd-trace-py/
 │   │   ├── context.py         # Span context propagation
 │   │   ├── provider.py        # Tracer provider abstraction
 │   │   ├── span.py           # Span object definition and lifecycle
-│   │   ├── tracer.py         # Main Tracer class and public API
+│   │   ├── tracer.py         # Main Tracer class implementation
 │   │   ├── utils.py          # Helper functions for tracing internals
 │   │   ├── _limits.py        # Span/tag size limits and validation
 │   │   └── processor/        # Trace processing pipeline
@@ -173,10 +173,3 @@ dd-trace-py/
 - **Extensive Docs**: API documentation, usage guides, and contributing guidelines
 - **Templates**: Code generation templates for new integrations
 - **CI/CD**: Comprehensive testing and deployment pipelines
-
-## Development Workflow
-1. **Setup**: Use Docker for consistent development environment
-2. **Testing**: Run tests with `riot` for multiple Python/dependency versions
-3. **Quality**: Pre-commit hooks ensure code standards
-4. **Integration**: Test with real applications using contrib integrations
-5. **Performance**: Benchmark critical paths to prevent regressions
