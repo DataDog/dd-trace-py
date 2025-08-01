@@ -1,6 +1,7 @@
 """
-This file contains shared utilities for tracing streams in LLMobs integrations. A stream handler along with the stream to wrap
-should be passed into the make_traced_stream factory function to create a TracedStream or TracedAsyncStream object.
+This file contains shared utilities for tracing streams in LLMobs integrations. A stream handler along with the 
+stream to wrap should be passed into the make_traced_stream factory function to create a TracedStream or 
+TracedAsyncStream object.
 """
 from abc import ABC
 from abc import abstractmethod
@@ -64,11 +65,11 @@ class BaseStreamHandler(ABC):
 
 class StreamHandler(BaseStreamHandler):
     """
-    Instances of StreamHandler and AsyncStreamHandler contain the logic for initializing chunk storage, processing chunks, handling exceptions,
-    and finalizing a stream. The only methods that need to be implemented are process_chunk (a callback function that is
-    called for each chunk in the stream) and finalize_stream (a callback function that is called when the stream ends).
-    All other methods are optional and can be overridden if needed (for example, extra exception processing logic in
-    handle_exception).
+    Instances of StreamHandler and AsyncStreamHandler contain the logic for initializing chunk storage, processing chunks, 
+    handling exceptions, and finalizing a stream. The only methods that need to be implemented are process_chunk 
+    (a callback function that is called for each chunk in the stream) and finalize_stream (a callback function that is 
+    called when the stream ends). All other methods are optional and can be overridden if needed (for example, 
+    extra exception processing logic in handle_exception).
 
     Note that it is possible to pass in extra arguments via the options argument in case you need to access other
     information within the stream handler that is not covered by the existing arguments.
