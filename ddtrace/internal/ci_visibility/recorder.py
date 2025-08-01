@@ -650,11 +650,7 @@ class CIVisibility(Service):
             self.tracer.configure(trace_processors=tracer_filters)
 
         if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            tracer_filters = ddtrace.tracer._span_aggregator.user_processors
-            # Remove any previous forwarder before adding a new one.
-            tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
-            tracer_filters += [CIVisibilitySpanForwarder(self.tracer)]
-            ddtrace.tracer.configure(trace_processors=tracer_filters)
+            self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
 
         def _task_fetch_tests_to_skip():
             if self.test_skipping_enabled():
@@ -721,9 +717,15 @@ class CIVisibility(Service):
             log.warning("Failed to shutdown tracer", exc_info=True)
 
         if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
-            tracer_filters = ddtrace.tracer._span_aggregator.user_processors
-            tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
-            ddtrace.tracer.configure(trace_processors=tracer_filters)
+            self._set_global_span_forwarder(None)
+
+    def _set_global_span_forwarder(self, span_forwarder: Optional[TraceFilter]) -> None:
+        log.debug("Setting CI Visibility global span forwarder: %s", span_forwarder)
+        tracer_filters = ddtrace.tracer._span_aggregator.user_processors
+        tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
+        if span_forwarder:
+            tracer_filters.append(span_forwarder)
+        ddtrace.tracer.configure(trace_processors=tracer_filters)
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
@@ -1041,6 +1043,8 @@ def on_discover_session(
 
 
 class CIVisibilitySpanForwarder(TraceFilter):
+    """Trace filter that forwards all spans from the global tracer to the CI Visibility tracer."""
+
     def __init__(self, tracer):
         self.tracer = tracer
 

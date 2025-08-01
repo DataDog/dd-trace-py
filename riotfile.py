@@ -107,7 +107,6 @@ venv = Venv(
     },
     env={
         "_DD_CIVISIBILITY_USE_CI_CONTEXT_PROVIDER": "1",
-        "_DD_CIVISIBILITY_USE_BETA_WRITER": "1",
         "DD_TESTING_RAISE": "1",
         "DD_REMOTE_CONFIGURATION_ENABLED": "false",
         "DD_INJECTION_ENABLED": "1",
