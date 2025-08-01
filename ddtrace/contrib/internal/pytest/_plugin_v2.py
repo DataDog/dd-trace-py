@@ -347,31 +347,6 @@ def pytest_configure(config: pytest_Config) -> None:
 
             skip_pytest_runtest_protocol = False
 
-            # Detect xdist parallelization mode and align ITR skipping strategy
-            # This should be done before any other plugin configuration
-            detected_itr_level = _detect_xdist_parallelization_mode(config)
-            current_itr_level = dd_config.test_visibility.itr_skipping_level
-
-            if detected_itr_level != current_itr_level:
-                log.warning(
-                    "Updating ITR skipping level from %s to %s to align with xdist parallelization mode",
-                    current_itr_level.name,
-                    detected_itr_level.name,
-                )
-                dd_config.test_visibility.itr_skipping_level = detected_itr_level
-
-                # Update the CI visibility service if it's already initialized
-                try:
-                    ci_visibility_service = require_ci_visibility_service()
-                    ci_visibility_service._suite_skipping_mode = detected_itr_level == ITR_SKIPPING_LEVEL.SUITE
-                    log.warning(
-                        "Updated CI visibility service suite skipping mode to %s",
-                        ci_visibility_service._suite_skipping_mode,
-                    )
-                except Exception:
-                    # Service might not be initialized yet, that's okay
-                    pass
-
             for plugin in INCOMPATIBLE_PLUGINS:
                 if config.pluginmanager.hasplugin(plugin):
                     log.warning(
@@ -395,6 +370,31 @@ def pytest_configure(config: pytest_Config) -> None:
                 if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
                     # Main process
                     pytest.global_worker_itr_results = 0
+
+                # Detect xdist parallelization mode and align ITR skipping strategy
+                # This should be done before any other plugin configuration
+                detected_itr_level = _detect_xdist_parallelization_mode(config)
+                current_itr_level = dd_config.test_visibility.itr_skipping_level
+
+                if detected_itr_level != current_itr_level:
+                    log.warning(
+                        "Updating ITR skipping level from %s to %s to align with xdist parallelization mode",
+                        current_itr_level.name,
+                        detected_itr_level.name,
+                    )
+                    dd_config.test_visibility.itr_skipping_level = detected_itr_level
+
+                    # Update the CI visibility service if it's already initialized
+                    try:
+                        ci_visibility_service = require_ci_visibility_service()
+                        ci_visibility_service._suite_skipping_mode = detected_itr_level == ITR_SKIPPING_LEVEL.SUITE
+                        log.warning(
+                            "Updated CI visibility service suite skipping mode to %s",
+                            ci_visibility_service._suite_skipping_mode,
+                        )
+                    except RuntimeError:
+                        # Service might not be initialized yet, that's okay
+                        pass
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests

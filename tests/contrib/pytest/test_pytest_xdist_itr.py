@@ -1261,7 +1261,7 @@ class TestXdistModeDetection:
 
     def test_pytest_configure_updates_itr_level_for_xdist(self):
         """Test that pytest_configure updates ITR level when xdist mode is detected."""
-        # Mock config with xdist in suite-level mode
+        # Forcing it to fail to make sure this suite is running in the proper venv
         assert False
         mock_config = mock.MagicMock()
         mock_config.pluginmanager.hasplugin.side_effect = lambda name: name == "xdist"
