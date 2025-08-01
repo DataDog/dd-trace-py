@@ -10,7 +10,7 @@ components:
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
   ai_guard:
-    - ddtrace/internal/appsec/ai_guard/*
+    - ddtrace/appsec/ai_guard/*
 suites:
   appsec:
     parallelism: 4
