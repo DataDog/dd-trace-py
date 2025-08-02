@@ -2,6 +2,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Tuple
 
 from ddtrace.internal.utils import get_argument_value
@@ -126,15 +127,21 @@ class PydanticAIIntegration(BaseLLMIntegration):
         if tool_call:
             tool_name = getattr(tool_call, "tool_name", "")
             tool_input = getattr(tool_call, "args", {})
+        tool_def = getattr(tool_instance, "tool_def", None)
+        tool_description = (
+            getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
+        )
         span._set_ctx_items(
             {
                 NAME: tool_name,
-                METADATA: {"description": getattr(tool_instance, "description", "")},
+                METADATA: {"description": tool_description},
                 INPUT_VALUE: tool_input,
             }
         )
         if not span.error:
-            span._set_ctx_item(OUTPUT_VALUE, getattr(response, "content", ""))
+            # depending on the version, the output may be a ToolReturnPart or the raw response
+            output_content = getattr(response, "content", "") or response
+            span._set_ctx_item(OUTPUT_VALUE, output_content)
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
@@ -154,29 +161,46 @@ class PydanticAIIntegration(BaseLLMIntegration):
             manifest["instructions"] = agent._instructions
         if hasattr(agent, "_system_prompts"):
             manifest["system_prompts"] = agent._system_prompts
-        if hasattr(agent, "_function_tools"):
-            manifest["tools"] = self._get_agent_tools(agent._function_tools)
         if kwargs.get("deps", None):
             agent_dependencies = kwargs.get("deps", None)
             manifest["dependencies"] = getattr(agent_dependencies, "__dict__", agent_dependencies)
+        manifest["tools"] = self._get_agent_tools(agent)
 
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
-    def _get_agent_tools(self, tools: Any) -> List[Dict[str, Any]]:
+    def _get_agent_tools(self, agent: Any) -> List[Dict[str, Any]]:
+        """
+        Extract tools from the agent and format them to be used in the agent manifest.
+
+        For pydantic-ai < 0.4.4, tools are stored in the agent's _function_tools attribute.
+        For pydantic-ai >= 0.4.4, tools are stored in the agent's _function_toolset (tools) and
+        _user_toolsets (user-defined toolsets) attributes.
+        """
+        tools: Dict[str, Any] = {}
+        if hasattr(agent, "_function_tools"):
+            tools = getattr(agent, "_function_tools", {}) or {}
+        elif hasattr(agent, "_user_toolsets") or hasattr(agent, "_function_toolset"):
+            user_toolsets: Sequence[Any] = getattr(agent, "_user_toolsets", []) or []
+            function_toolset = getattr(agent, "_function_toolset", None)
+            combined_toolsets = list(user_toolsets) + [function_toolset] if function_toolset else user_toolsets
+            for toolset in combined_toolsets:
+                tools.update(getattr(toolset, "tools", {}) or {})
+
         if not tools:
             return []
+
         formatted_tools = []
         for tool_name, tool_instance in tools.items():
-            tool_dict = {}
+            tool_dict: Dict[str, Any] = {}
             tool_dict["name"] = tool_name
             if hasattr(tool_instance, "description"):
                 tool_dict["description"] = tool_instance.description
             function_schema = getattr(tool_instance, "function_schema", {})
             json_schema = getattr(function_schema, "json_schema", {})
             required_params = {param: True for param in json_schema.get("required", [])}
-            parameters = {}
+            parameters: Dict[str, Dict[str, Any]] = {}
             for param, schema in json_schema.get("properties", {}).items():
-                param_dict = {}
+                param_dict: Dict[str, Any] = {}
                 if "type" in schema:
                     param_dict["type"] = schema["type"]
                 if param in required_params:
