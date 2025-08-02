@@ -23,9 +23,13 @@ from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.utils import ToolResult
 
 
 try:
@@ -322,15 +326,25 @@ def openai_set_meta_tags_from_chat(
             processed_message["tool_id"] = tool_call_id
         tool_calls = _get_attr(m, "tool_calls", [])
         if tool_calls:
-            processed_message["tool_calls"] = [
-                {
-                    "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
-                    "arguments": _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
-                    "tool_id": _get_attr(tool_call, "id", ""),
-                    "type": _get_attr(tool_call, "type", ""),
-                }
-                for tool_call in tool_calls
-            ]
+            processed_message["tool_calls"] = []
+            for tool_call in tool_calls:
+                tool_call_info = ToolCall(
+                    tool_id=_get_attr(tool_call, "id", ""),
+                    arguments=_get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
+                    name=_get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                    type=_get_attr(tool_call, "type", "function"),
+                )
+                processed_message["tool_calls"].append(tool_call_info)
+        # seems like the fields in a tool_result for chat api are not very strictly defined
+        if m["role"] == "tool" or m["role"] == "tool_result":
+            tool_result_info = ToolResult(
+                tool_id=_get_attr(m, "tool_id", "") or _get_attr(m, "tool_call_id", ""),
+                result=_get_attr(m, "content", ""),
+                name=_get_attr(m, "name", ""),
+                type=_get_attr(m, "type", "tool_result"),
+            )
+            processed_message["tool_results"] = [tool_result_info]
+            processed_message["content"] = "" # set content to empty string to avoid duplicate content
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -456,26 +470,35 @@ def openai_get_input_messages_from_response_input(
                 arguments = json.loads(item["arguments"])
             except json.JSONDecodeError:
                 arguments = {"value": str(item["arguments"])}
-            processed_item["tool_calls"] = [
+
+            tool_call_info = ToolCall(
+                tool_id=item["call_id"],
+                arguments=arguments,
+                name=item.get("name", ""),
+                type=item.get("type", "function_call"),
+            )
+            processed_item.update(
                 {
-                    "tool_id": item["call_id"],
-                    "arguments": arguments,
-                    "name": item.get("name", ""),
-                    "type": item.get("type", "function_call"),
+                    "role": "user",
+                    "tool_calls": [tool_call_info],
                 }
-            ]
+            )
         elif "call_id" in item and "output" in item:
             # Process `FunctionCallOutput` type from input messages
             output = item["output"]
 
             if not isinstance(output, str):
                 output = safe_json(output)
-
+            tool_result_info = ToolResult(
+                tool_id=item["call_id"],
+                result=output,
+                name=item.get("name", ""),
+                type=item.get("type", "function_call_output"),
+            )
             processed_item.update(
                 {
-                    "role": "tool",
-                    "content": output,
-                    "tool_id": item["call_id"],
+                    "role": "user",
+                    "tool_results": [tool_result_info],
                 }
             )
         if processed_item:
@@ -532,16 +555,16 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
                 arguments = {"value": str(arguments)}
+            tool_call_info = ToolCall(
+                tool_id=_get_attr(item, "call_id", ""),
+                arguments=arguments,
+                name=_get_attr(item, "name", ""),
+                type=_get_attr(item, "type", "function"),
+            )
             message.update(
                 {
-                    "tool_calls": [
-                        {
-                            "tool_id": _get_attr(item, "call_id", ""),
-                            "arguments": arguments,
-                            "name": _get_attr(item, "name", ""),
-                            "type": _get_attr(item, "type", "function"),
-                        }
-                    ]
+                    "tool_calls": [tool_call_info],
+                    "role": _get_attr(item, "role", "assistant"),
                 }
             )
         else:
@@ -564,7 +587,7 @@ def openai_get_metadata_from_response(
         return metadata
 
     # Add metadata from response
-    for field in ["temperature", "max_output_tokens", "top_p", "tools", "tool_choice", "truncation", "text", "user"]:
+    for field in ["temperature", "max_output_tokens", "top_p", "tool_choice", "truncation", "text", "user"]:
         value = getattr(response, field, None)
         if value is not None:
             metadata[field] = load_data_value(value)
@@ -602,6 +625,20 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+    tools = openai_get_tools_from_response(kwargs.get("tools", []))
+    span._set_ctx_item(TOOL_DEFINITIONS, tools)
+
+
+def openai_get_tools_from_response(tools: List[Any]) -> List[ToolDefinition]:
+    tool_definitions = []
+    for tool in tools:
+        tool_definition = ToolDefinition(
+            name=tool.get("name", ""),
+            description=tool.get("description", ""),
+            schema=tool.get("parameters", {}),
+        )
+        tool_definitions.append(tool_definition)
+    return tool_definitions
 
 
 def openai_construct_completion_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, str]:
@@ -1004,9 +1041,9 @@ class OaiSpanAdapter:
                         "tool_calls": [
                             {
                                 "tool_id": item.call_id,
-                                "arguments": json.loads(item.arguments)
-                                if isinstance(item.arguments, str)
-                                else item.arguments,
+                                "arguments": (
+                                    json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
+                                ),
                                 "name": getattr(item, "name", ""),
                                 "type": getattr(item, "type", "function"),
                             }
