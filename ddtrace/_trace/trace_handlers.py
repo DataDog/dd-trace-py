@@ -16,7 +16,6 @@ from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -39,6 +38,7 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
@@ -168,7 +168,7 @@ def _set_web_frameworks_tags(ctx, span, int_config):
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
 
 
 def _on_web_framework_start_request(ctx, int_config):
@@ -469,7 +469,7 @@ def _on_request_span_modifier(
     span.resource = " ".join((request.method, request.path))
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
 
     span.set_tag_str(flask_version, flask_version_str)
 
@@ -497,7 +497,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
     before_request_tags(ctx["pin"], ctx.span, request)
-    ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
+    ctx.span._metrics[SPAN_MEASURED_KEY] = 1
 
 
 def _on_web_request_final_tags(span):

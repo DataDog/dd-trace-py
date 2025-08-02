@@ -34,18 +34,18 @@ from ..internal._tagset import TagsetMaxSizeEncodeError
 from ..internal._tagset import decode_tagset_string
 from ..internal._tagset import encode_tagset_values
 from ..internal.compat import ensure_text
-from ..internal.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ..internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ..internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import BAGGAGE_TAG_PREFIX
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_BYTES
 from ..internal.constants import DD_TRACE_BAGGAGE_MAX_ITEMS
 from ..internal.constants import HIGHER_ORDER_TRACE_ID_BITS as _HIGHER_ORDER_TRACE_ID_BITS
 from ..internal.constants import LAST_DD_PARENT_ID_KEY
 from ..internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
+from ..internal.constants import PROPAGATION_BEHAVIOR_RESTART
 from ..internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ..internal.constants import PROPAGATION_STYLE_B3_SINGLE
+from ..internal.constants import PROPAGATION_STYLE_BAGGAGE
 from ..internal.constants import PROPAGATION_STYLE_DATADOG
+from ..internal.constants import PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
@@ -899,7 +899,7 @@ class _TraceContext:
                 headers[_HTTP_HEADER_TRACESTATE] = span_context._tracestate
 
         # Record telemetry for successful injection
-        _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_W3C_TRACECONTEXT)
+        _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_W3C_TRACECONTEXT)
 
 
 class _BaggageHeader:
@@ -956,7 +956,7 @@ class _BaggageHeader:
             headers[_HTTP_HEADER_BAGGAGE] = header_value
 
             # Record telemetry for successful baggage injection
-            _record_http_telemetry("context_header_style.injected", _PROPAGATION_STYLE_BAGGAGE)
+            _record_http_telemetry("context_header_style.injected", PROPAGATION_STYLE_BAGGAGE)
 
         except Exception:
             log.warning("Failed to encode and inject baggage header")
@@ -968,7 +968,7 @@ class _BaggageHeader:
             namespace=TELEMETRY_NAMESPACE.TRACERS,
             name="context_header_style.malformed",
             value=1,
-            tags=(("header_style", _PROPAGATION_STYLE_BAGGAGE),),
+            tags=(("header_style", PROPAGATION_STYLE_BAGGAGE),),
         )
         return Context(baggage={})
 
@@ -998,8 +998,8 @@ _PROP_STYLES = {
     PROPAGATION_STYLE_DATADOG: _DatadogMultiHeader,
     PROPAGATION_STYLE_B3_MULTI: _B3MultiHeader,
     PROPAGATION_STYLE_B3_SINGLE: _B3SingleHeader,
-    _PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
-    _PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
+    PROPAGATION_STYLE_W3C_TRACECONTEXT: _TraceContext,
+    PROPAGATION_STYLE_BAGGAGE: _BaggageHeader,
 }
 
 
@@ -1015,7 +1015,7 @@ class HTTPPropagator(object):
         if config._propagation_style_extract is not None:
             for prop_style in config._propagation_style_extract:
                 # baggage is handled separately
-                if prop_style == _PROPAGATION_STYLE_BAGGAGE:
+                if prop_style == PROPAGATION_STYLE_BAGGAGE:
                     continue
                 propagator = _PROP_STYLES[prop_style]
                 context = propagator._extract(normalized_headers)  # type: ignore
@@ -1034,7 +1034,7 @@ class HTTPPropagator(object):
                 context.span_id,
                 flags=1 if context.sampling_priority and context.sampling_priority > 0 else 0,
                 tracestate=(
-                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == _PROPAGATION_STYLE_W3C_TRACECONTEXT else None
+                    context._meta.get(W3C_TRACESTATE_KEY, "") if style == PROPAGATION_STYLE_W3C_TRACECONTEXT else None
                 ),
                 attributes={
                     "reason": reason,
@@ -1061,7 +1061,7 @@ class HTTPPropagator(object):
                     links.append(link)
             # if trace_id matches and the propagation style is tracecontext
             # add the tracestate to the primary context
-            elif style_w_ctx == _PROPAGATION_STYLE_W3C_TRACECONTEXT:
+            elif style_w_ctx == PROPAGATION_STYLE_W3C_TRACECONTEXT:
                 # extract and add the raw ts value to the primary_context
                 ts = _extract_header_value(_POSSIBLE_HTTP_HEADER_TRACESTATE, normalized_headers)
                 if ts:
@@ -1130,7 +1130,7 @@ class HTTPPropagator(object):
             log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
         # baggage should be injected regardless of existing span or trace id
-        if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
+        if PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
             _BaggageHeader._inject(span_context, headers)
 
         # Not a valid context to propagate
@@ -1148,7 +1148,7 @@ class HTTPPropagator(object):
             _B3MultiHeader._inject(span_context, headers)
         if PROPAGATION_STYLE_B3_SINGLE in config._propagation_style_inject:
             _B3SingleHeader._inject(span_context, headers)
-        if _PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
+        if PROPAGATION_STYLE_W3C_TRACECONTEXT in config._propagation_style_inject:
             _TraceContext._inject(span_context, headers)
 
     @staticmethod
@@ -1206,11 +1206,11 @@ class HTTPPropagator(object):
                         _attach_baggage_to_context(normalized_headers, context)
 
             # baggage headers are handled separately from the other propagation styles
-            if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
+            if PROPAGATION_STYLE_BAGGAGE in config._propagation_style_extract:
                 baggage_context = _BaggageHeader._extract(normalized_headers)
                 if baggage_context._baggage != {}:
                     # Record telemetry for successful baggage extraction
-                    _record_http_telemetry("context_header_style.extracted", _PROPAGATION_STYLE_BAGGAGE)
+                    _record_http_telemetry("context_header_style.extracted", PROPAGATION_STYLE_BAGGAGE)
                     if context:
                         context._baggage = baggage_context.get_all_baggage_items()
                     else:
@@ -1230,7 +1230,7 @@ class HTTPPropagator(object):
                                 if prefixed_key not in context._meta:
                                     context._meta[prefixed_key] = value
 
-            if config._propagation_behavior_extract == _PROPAGATION_BEHAVIOR_RESTART:
+            if config._propagation_behavior_extract == PROPAGATION_BEHAVIOR_RESTART:
                 link = HTTPPropagator._context_to_span_link(context, style, "propagation_behavior_extract")
                 context = Context(baggage=context.get_all_baggage_items(), span_links=[link] if link else [])
 

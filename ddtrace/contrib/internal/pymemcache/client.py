@@ -15,9 +15,6 @@ import wrapt
 
 # 3p
 from ddtrace import config
-
-# project
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -25,6 +22,9 @@ from ddtrace.ext import db
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
 from ddtrace.internal.constants import COMPONENT
+
+# project
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
@@ -319,7 +319,7 @@ def _trace(func, p, method_name, *args, **kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
 
         # try to set relevant tags, catch any exceptions so we don't mess
         # with the application

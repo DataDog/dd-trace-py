@@ -7,19 +7,19 @@ from typing import TypedDict
 
 from ddtrace._trace.sampling_rule import SamplingRule
 from ddtrace._trace.span import Span
-from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_RULE_DECISION
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
-from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
-from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
+from ddtrace.internal.constants import KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import MAX_UINT_64BITS
+from ddtrace.internal.constants import REJECT_PRIORITY_INDEX
+from ddtrace.internal.constants import SAMPLING_AGENT_DECISION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
 from ddtrace.internal.constants import SAMPLING_MECHANISM_TO_PRIORITIES
+from ddtrace.internal.constants import SAMPLING_RULE_DECISION
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
@@ -143,11 +143,11 @@ class SpanSamplingRule:
 
     def apply_span_sampling_tags(self, span):
         # type: (Span) -> None
-        span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
-        span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
+        span.set_metric(SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
+        span.set_metric(SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
         # Only set this tag if it's not the default -1
-        if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
-            span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
+        if self._max_per_second != SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
+            span.set_metric(SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
 
 
 def get_span_sampling_rules() -> List[SpanSamplingRule]:
@@ -164,7 +164,7 @@ def get_span_sampling_rules() -> List[SpanSamplingRule]:
             return []
 
         # If max_per_second not specified default to no limit
-        max_per_second = rule.get("max_per_second", _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
+        max_per_second = rule.get("max_per_second", SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT)
 
         try:
             if service:
@@ -234,7 +234,7 @@ def _check_unsupported_pattern(string: str) -> None:
 
 def is_single_span_sampled(span):
     # type: (Span) -> bool
-    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
+    return span.get_metric(SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
 
 
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
@@ -248,12 +248,12 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE,
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
-        span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        span.set_metric(SAMPLING_RULE_DECISION, sample_rate)
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
-        span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
+        span.set_metric(SAMPLING_AGENT_DECISION, sample_rate)
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
-    priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
+    priority_index = KEEP_PRIORITY_INDEX if sampled else REJECT_PRIORITY_INDEX
 
     span.context.sampling_priority = priorities[priority_index]
 

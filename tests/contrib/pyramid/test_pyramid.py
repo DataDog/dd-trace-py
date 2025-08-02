@@ -6,8 +6,8 @@ from tempfile import gettempdir
 import pytest
 
 from ddtrace import config
-from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
@@ -91,8 +91,8 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert span.get_tag("span.kind") == "server"
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert span.get_tag(ORIGIN_KEY) == "synthetics"
 
     def test_distributed_tracing_patterned(self):
         # ensure the Context is properly created
@@ -114,8 +114,8 @@ class TestPyramidDistributedTracingDefault(PyramidBase):
         assert span.get_tag("http.route") == "/hello/{param}"
         assert span.trace_id == 100
         assert span.parent_id == 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == 2
-        assert span.get_tag(_ORIGIN_KEY) == "synthetics"
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == 2
+        assert span.get_tag(ORIGIN_KEY) == "synthetics"
 
 
 class TestPyramidDistributedTracingDisabled(PyramidBase):
@@ -143,8 +143,8 @@ class TestPyramidDistributedTracingDisabled(PyramidBase):
         assert span.get_tag("span.kind") == "server"
         assert span.trace_id != 100
         assert span.parent_id != 42
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert span.get_tag(_ORIGIN_KEY) != "synthetics"
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert span.get_tag(ORIGIN_KEY) != "synthetics"
 
 
 class TestSchematization(PyramidBase):

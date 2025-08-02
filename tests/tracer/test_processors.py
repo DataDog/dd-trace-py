@@ -9,10 +9,6 @@ from ddtrace._trace.processor import TraceProcessor
 from ddtrace._trace.processor import TraceSamplingProcessor
 from ddtrace._trace.processor import TraceTagsProcessor
 from ddtrace._trace.sampler import SamplingRule as TraceSamplingRule
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import MANUAL_KEEP_KEY
@@ -20,6 +16,10 @@ from ddtrace.constants import USER_KEEP
 from ddtrace.constants import USER_REJECT
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
@@ -668,12 +668,12 @@ def traced_function(tracer, name="test_name", service="test_service", trace_samp
 def assert_span_sampling_decision_tags(
     span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling_priority=None
 ):
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling_priority:
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) == trace_sampling_priority
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) == trace_sampling_priority
 
 
 def switch_out_trace_sampling_processor(tracer, sampling_processor):

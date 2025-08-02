@@ -6,7 +6,6 @@ from wrapt import BoundFunctionWrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled
 from ddtrace.contrib.internal.trace_utils import ext_service
@@ -16,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.compat import ensure_binary
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
@@ -91,7 +91,7 @@ def _get_service_name(pin, request):
 def _init_span(span, request):
     # type: (Span, httpx.Request) -> None
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
 
     if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)
