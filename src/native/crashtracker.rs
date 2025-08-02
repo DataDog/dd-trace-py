@@ -277,11 +277,13 @@ pub fn crashtracker_status() -> anyhow::Result<CrashtrackerStatus> {
     CrashtrackerStatus::try_from(CRASHTRACKER_STATUS.load(Ordering::SeqCst))
 }
 
-// We expose the receiver_entry_point_stdin to use from Python script, crashtracker_exe command.
-// This is to avoid distributing both the binary and executable, which might increase the size of
-// the package. This way results in referring to the same .so file from the crashtracker_exe script
-// and Python library. Another side effect is that we no longer has to worry about platform specific
-// binary names for crashtracker_exe, since it's just a Python script.
+// We expose the receiver_entry_point_stdin to use from Python script, _dd_crashtracker_receiver
+// command. This is to avoid distributing both the _native.so library and crashtracker receiver
+// executable, which increases the size of the package.
+// https://setuptools-rust.readthedocs.io/en/latest/setuppy_tutorial.html#next-steps-and-final-remarks
+// This way results in referring to the same _native.so file from the receiver binary and
+// and Python module. Another side effect is that we no longer has to worry about platform specific
+// binary names for the receiver, since Python installs the script as a command.
 #[pyfunction(name = "crashtracker_receiver")]
 pub fn crashtracker_receiver() -> anyhow::Result<()> {
     datadog_crashtracker::receiver_entry_point_stdin()
