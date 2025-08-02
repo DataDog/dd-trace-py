@@ -29,7 +29,7 @@ def test_crashtracker_config():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://localhost:9126"})
+@pytest.mark.subprocess()
 def test_crashtracker_config_bytes():
     import os
 
@@ -210,7 +210,7 @@ def test_crashtracker_simple_sigbus():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://localhost:9126"})
+@pytest.mark.subprocess()
 def test_crashtracker_raise_sigsegv():
     import os
     import signal
@@ -443,7 +443,7 @@ def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://localhost:9126"})
+@pytest.mark.subprocess()
 def test_crashtracker_user_tags_profiling():
     # Tests tag ingestion in the backend API (which is currently out of profiling)
     import ctypes
@@ -589,7 +589,7 @@ def test_crashtracker_echild_hang():
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.subprocess(env={"DD_TRACE_AGENT_URL": "http://localhost:9126"})
+@pytest.mark.subprocess()
 def test_crashtracker_no_zombies():
     """
     If a process has been designated as the reaper for another process (either because it is the parent, it is marked
