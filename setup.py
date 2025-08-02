@@ -917,7 +917,6 @@ if not IS_PYSTON:
             )
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
