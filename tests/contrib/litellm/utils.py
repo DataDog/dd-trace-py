@@ -37,7 +37,7 @@ def get_cassette_name(stream, n, include_usage=True, tools=False, proxy=False):
     return "completion" + stream_suffix + choice_suffix + usage_suffix + tools_suffix + proxy_suffix + CASETTE_EXTENSION
 
 
-def consume_stream(resp, n, is_completion=False):
+def consume_stream_iter(resp, n, is_completion=False):
     output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
     token_metrics = {}
     role = None
@@ -49,11 +49,43 @@ def consume_stream(resp, n, is_completion=False):
     return output_messages, token_metrics
 
 
-async def async_consume_stream(resp, n, is_completion=False):
+def consume_stream_next(resp, n, is_completion=False):
+    output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
+    token_metrics = {}
+    role = None
+    while True:
+        try:
+            chunk = next(resp)
+        except StopIteration:
+            break
+        output_messages, token_metrics, role = extract_output_from_chunk(
+            chunk, output_messages, token_metrics, role, is_completion
+        )
+    output_messages = parse_tool_calls(output_messages)
+    return output_messages, token_metrics
+
+
+async def async_consume_stream_aiter(resp, n, is_completion=False):
     output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
     token_metrics = {}
     role = None
     async for chunk in resp:
+        output_messages, token_metrics, role = extract_output_from_chunk(
+            chunk, output_messages, token_metrics, role, is_completion
+        )
+    output_messages = parse_tool_calls(output_messages)
+    return output_messages, token_metrics
+
+
+async def async_consume_stream_anext(resp, n, is_completion=False):
+    output_messages = [{"content": "", "tool_calls": []} for _ in range(n)]
+    token_metrics = {}
+    role = None
+    while True:
+        try:
+            chunk = await resp.__anext__()
+        except StopAsyncIteration:
+            break
         output_messages, token_metrics, role = extract_output_from_chunk(
             chunk, output_messages, token_metrics, role, is_completion
         )

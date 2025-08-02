@@ -19,6 +19,8 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 @pytest.mark.parametrize(
@@ -245,7 +247,8 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer, consume_stream):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
             with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
                 with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
@@ -255,8 +258,7 @@ class TestLLMObsOpenaiV1:
                     expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
                     client = openai.OpenAI()
                     resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    for _ in resp:
-                        pass
+                    consume_stream(resp)
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
