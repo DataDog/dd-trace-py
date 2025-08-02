@@ -17,7 +17,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -191,7 +190,7 @@ def parse_response_body(raw_body, headers):
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
-        {to_unicode(k): to_unicode(v) for k, v in dict(headers).items()},
+        {str(k): str(v) for k, v in dict(headers).items()},
         "content-type",
     )
     if not content_type:

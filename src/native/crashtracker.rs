@@ -1,5 +1,3 @@
-#![cfg(all(unix, feature = "crashtracker"))]
-
 use anyhow;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU8, Ordering};

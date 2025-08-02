@@ -19,7 +19,7 @@ from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
 
 
-from setuptools import Extension, find_packages, setup  # isort: skip
+from setuptools import Distribution, Extension, find_packages, setup  # isort: skip
 from setuptools.command.build_ext import build_ext  # isort: skip
 from setuptools.command.build_py import build_py as BuildPyCommand  # isort: skip
 from pathlib import Path  # isort: skip
@@ -43,6 +43,13 @@ except ImportError:
 
 from urllib.error import HTTPError
 from urllib.request import urlretrieve
+
+
+# workaround for ModuleNotFound.
+sys.path.insert(0, str(Path(__file__).parent.resolve()))
+
+from build_libnative import build_crate
+from build_libnative import clean_crate
 
 
 HERE = Path(__file__).resolve().parent
@@ -75,6 +82,7 @@ LIBDDWAF_DOWNLOAD_DIR = HERE / "ddtrace" / "appsec" / "_ddwaf" / "libddwaf"
 IAST_DIR = HERE / "ddtrace" / "appsec" / "_iast" / "_taint_tracking"
 DDUP_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "ddup"
 STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_v2"
+NATIVE_CRATE = HERE / "src" / "native"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
 
@@ -175,6 +183,22 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+class PatchedDistribution(Distribution):
+    def __init__(self, attrs=None):
+        super().__init__(attrs)
+        # Tell ext_hashes about your manually-built Rust artifact
+        self.rust_extensions = [
+            RustExtension(
+                # The Python import path of your extension:
+                "ddtrace.internal.native._native",
+                # Path to your Cargo.toml so setuptools-rust can infer names
+                path=str(Path(__file__).parent / "src" / "native" / "Cargo.toml"),
+                # Use no-binding if you don't need PyO3 bindings
+                binding=Binding.NoBinding,
+            )
+        ]
+
+
 class ExtensionHashes(build_ext):
     def run(self):
         try:
@@ -198,14 +222,7 @@ class ExtensionHashes(build_ext):
                 hash_digest = sources_hash.hexdigest()
 
                 entries: t.List[t.Tuple[str, str, str]] = []
-
-                if isinstance(ext, RustExtension):
-                    entries.extend(
-                        (module, hash_digest, str(Path(module.replace(".", os.sep) + ".*-*-*").resolve()))
-                        for module in ext.target.values()
-                    )
-                else:
-                    entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
+                entries.append((ext.name, hash_digest, str(Path(self.get_ext_fullpath(ext.name)))))
 
                 # Include any dependencies that might have been built alongside
                 # the extension.
@@ -385,13 +402,87 @@ class CleanLibraries(CleanCommand):
         shutil.rmtree(LIBDDWAF_DOWNLOAD_DIR, True)
         shutil.rmtree(IAST_DIR / "*.so", True)
 
+    @staticmethod
+    def remove_rust():
+        clean_crate(NATIVE_CRATE)
+
     def run(self):
+        CleanLibraries.remove_rust()
         CleanLibraries.remove_artifacts()
         CleanCommand.run(self)
 
 
-class CMakeBuild(build_ext):
+class CustomBuildExt(build_ext):
     INCREMENTAL = os.getenv("DD_CMAKE_INCREMENTAL_BUILD", "1").lower() in ("1", "yes", "on", "true")
+
+    def run(self):
+        self.build_rust()
+        super().run()
+        for ext in self.extensions:
+            self.build_extension(ext)
+
+    def build_rust(self):
+        is_release = True
+        build_crate(NATIVE_CRATE, is_release, native_features)
+
+        target_dir = NATIVE_CRATE / "target"
+        if sys.platform == "win32" and not is_64_bit_python():
+            target_dir = target_dir / "i686-pc-windows-msvc"
+        if is_release:
+            target_dir = target_dir / "release"
+        else:
+            target_dir = target_dir / "debug"
+
+        library = None
+        link_file = None
+        if sys.platform == "win32":
+            try:
+                (library,) = target_dir.glob("_native.dll")
+            except StopIteration:
+                raise RuntimeError(f"Could not find _native.dll in {target_dir}")
+
+            try:
+                link_file = next(target_dir.glob("_native.dll.lib"))
+            except StopIteration:
+                raise RuntimeError(f"Could not find _native.dll.lib in {target_dir}")
+        elif sys.platform == "darwin":
+            library = next(target_dir.glob("lib_native.dylib"))
+        else:
+            library = next(target_dir.glob("lib_native.so"))
+
+        if not library:
+            raise RuntimeError("Not able to find native library")
+
+        self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        native_name = f"_native{self.suffix}"
+
+        # Set SONAME (needed for auditwheel)
+        if sys.platform.startswith("linux"):
+            subprocess.run(["patchelf", "--set-soname", native_name, str(library)], check=True)
+        elif sys.platform == "darwin":
+            subprocess.run(["install_name_tool", "-id", native_name, str(library)], check=True)
+
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
+        else:
+            self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
+
+        destination = self.output_dir / native_name
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(library, destination)
+
+        # Rename .lib file so it has the same base name as the dll.
+        self.windows_link_file = None
+        if link_file is not None:
+            new_link_file = (target_dir / native_name).with_suffix(".lib")
+            shutil.copy2(link_file, new_link_file)
+            self.windows_link_file = new_link_file
+
+    @staticmethod
+    def is_installed(bin_file):
+        for path in os.environ.get("PATH", "").split(os.pathsep):
+            return os.path.isfile(os.path.join(path, bin_file))
+        return False
 
     @staticmethod
     def try_strip_symbols(so_file):
@@ -464,7 +555,8 @@ class CMakeBuild(build_ext):
 
                 # We need to copy the binary where setuptools expects it
                 full_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy(ext_path, full_path)
+                if ext_path.resolve() != full_path.resolve():
+                    shutil.copy(ext_path, full_path)
 
                 return
             else:
@@ -489,7 +581,14 @@ class CMakeBuild(build_ext):
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),
             "-DEXTENSION_NAME={}".format(extension_basename),
+            "-DEXTENSION_SUFFIX={}".format(self.suffix),
+            "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
         ]
+
+        if self.windows_link_file is not None:
+            cmake_args += [
+                "-DNATIVE_IMPLIB={}".format(self.windows_link_file),
+            ]
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
@@ -586,7 +685,7 @@ class DebugMetadata:
                 ("DD_COMPILE_MODE", COMPILE_MODE),
                 ("DD_USE_SCCACHE", SCCACHE_COMPILE),
                 ("DD_FAST_BUILD", FAST_BUILD),
-                ("DD_CMAKE_INCREMENTAL_BUILD", CMakeBuild.INCREMENTAL),
+                ("DD_CMAKE_INCREMENTAL_BUILD", CustomBuildExt.INCREMENTAL),
             ]:
                 print(f"\t{n}: {v}", file=f)
             f.write("Extension build times:\n")
@@ -622,7 +721,7 @@ def debug_build_extension(fn):
 
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
-    CMakeBuild.build_extension = debug_build_extension(CMakeBuild.build_extension)
+    CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
     build_rust.build_extension = debug_build_extension(build_rust.build_extension)
     atexit.register(DebugMetadata.dump_metadata)
 
@@ -632,6 +731,7 @@ class CMakeExtension(Extension):
         self,
         name,
         source_dir=Path.cwd(),
+        extra_source_dirs=[],
         cmake_args=[],
         build_args=[],
         install_args=[],
@@ -641,6 +741,7 @@ class CMakeExtension(Extension):
     ):
         super().__init__(name, sources=[])
         self.source_dir = source_dir
+        self.extra_source_dirs = extra_source_dirs  # extra source dirs to include when computing extension hash
         self.cmake_args = cmake_args or []
         self.build_args = build_args or []
         self.install_args = install_args or []
@@ -651,22 +752,27 @@ class CMakeExtension(Extension):
     def get_sources(self, cmd: build_ext) -> t.List[Path]:
         """
         Returns the list of source files for this extension.
-        This is used by the CMakeBuild class to determine if the extension needs to be rebuilt.
+        This is used by the CustomBuildExt class to determine if the extension needs to be rebuilt.
         """
         full_path = Path(cmd.get_ext_fullpath(self.name))
 
         # Collect all the source files within the source directory. We exclude
         # Python sources and anything that does not have a suffix (most likely
         # a binary file), or that has the same name as the extension binary.
-        return (
-            [
-                _
-                for _ in Path(self.source_dir).rglob("**")
-                if _.is_file() and _.name != full_path.name and _.suffix and _.suffix not in {".py", ".pyc", ".pyi"}
-            ]
-            if self.source_dir
-            else []
-        )
+        def is_valid_source(src: Path) -> bool:
+            return (
+                src.is_file()
+                and src.name != full_path.name
+                and src.suffix
+                and src.suffix not in {".py", ".pyc", ".pyi"}
+            )
+
+        return [
+            src
+            for source_dir in chain([self.source_dir], self.extra_source_dirs)
+            for src in Path(source_dir).glob("**/*")
+            if is_valid_source(src)
+        ]
 
 
 def check_rust_toolchain():
@@ -736,6 +842,7 @@ else:
 
 
 if not IS_PYSTON:
+    native_features = []
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -793,10 +900,16 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+        native_features.append("crashtracker")
+        native_features.append("profiling")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
                 source_dir=DDUP_DIR,
+                extra_source_dirs=[
+                    DDUP_DIR / ".." / "cmake",
+                    DDUP_DIR / ".." / "dd_wrapper",
+                ],
                 optional=False,
                 dependencies=[
                     DDUP_DIR.parent / "libdd_wrapper",
@@ -809,6 +922,10 @@ if not IS_PYSTON:
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
                 source_dir=STACK_V2_DIR,
+                extra_source_dirs=[
+                    STACK_V2_DIR / ".." / "cmake",
+                    STACK_V2_DIR / ".." / "dd_wrapper",
+                ],
                 optional=False,
             ),
         )
@@ -816,6 +933,7 @@ if not IS_PYSTON:
 
 else:
     ext_modules = []
+    native_features = []
 
 interpose_sccache()
 setup(
@@ -834,7 +952,7 @@ setup(
     # enum34 is an enum backport for earlier versions of python
     # funcsigs backport required for vendored debtcollector
     cmdclass={
-        "build_ext": CMakeBuild,
+        "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
         "build_rust": build_rust,
         "clean": CleanLibraries,
@@ -903,14 +1021,5 @@ setup(
         compiler_directives={"language_level": "3"},
     )
     + get_exts_for("psutil"),
-    rust_extensions=[
-        RustExtension(
-            "ddtrace.internal.native._native",
-            path="src/native/Cargo.toml",
-            py_limited_api="auto",
-            binding=Binding.PyO3,
-            features=["crashtracker"] if (CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python()) else [],
-            debug=os.getenv("_DD_RUSTC_DEBUG") == "1",
-        ),
-    ],
+    distclass=PatchedDistribution,
 )

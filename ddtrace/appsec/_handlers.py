@@ -11,6 +11,7 @@ from ddtrace.appsec._asm_request_context import _call_waf
 from ddtrace.appsec._asm_request_context import _call_waf_first
 from ddtrace.appsec._asm_request_context import get_blocked
 from ddtrace.appsec._asm_request_context import set_body_response
+from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import SPAN_DATA_NAMES
 from ddtrace.appsec._http_utils import extract_cookies_from_headers
 from ddtrace.appsec._http_utils import normalize_headers
@@ -23,7 +24,6 @@ from ddtrace.internal import core
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import RESPONSE_HEADERS
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.settings.asm import config as asm_config
@@ -397,10 +397,18 @@ def _on_start_response_blocked(ctx, flask_config, response_headers, status):
 
 
 def _on_telemetry_periodic():
-    if asm_config._asm_enabled:
-        telemetry.telemetry_writer.add_gauge_metric(
-            TELEMETRY_NAMESPACE.APPSEC, "enabled", 2, (("origin", asm_config.asm_enabled_origin),)
+    try:
+        telemetry.telemetry_writer.add_configurations(
+            [
+                (
+                    APPSEC.ENV,
+                    int(asm_config._asm_enabled),
+                    asm_config.asm_enabled_origin,
+                )
+            ]
         )
+    except Exception:
+        log.debug("Could not set appsec_enabled telemetry config status", exc_info=True)
 
 
 def listen():
