@@ -69,7 +69,7 @@ def report_error_on_span(error: str, message: str) -> None:
     if not span:
         root_span = core.get_root_span()
     else:
-        root_span = span._local_root or span
+        root_span = get_service_entry_span(span)
     if not root_span:
         return
     root_span.set_tag_str(APPSEC.ERROR_TYPE, error)
@@ -116,6 +116,17 @@ def _get_asm_context() -> Optional[ASM_Environment]:
 
 def in_asm_context() -> bool:
     return core.get_item(_ASM_CONTEXT) is not None
+
+
+def get_service_entry_span(span: Span) -> Span:
+    """Find the service entry span of a span
+
+    We can't simply go for the span._local_root
+    because it may belong to another service.
+    """
+    while not span._is_top_level and span._parent:
+        span = span._parent
+    return span
 
 
 def is_blocked() -> bool:
@@ -194,7 +205,7 @@ def flush_waf_triggers(env: ASM_Environment) -> None:
     from ddtrace.appsec._metrics import ddwaf_version
 
     # Make sure we find a root span to attach the triggers to
-    root_span = env.span._local_root or env.span
+    root_span = get_service_entry_span(env.span)
     if env.waf_triggers:
         report_list = get_triggers(root_span)
         if report_list is not None:
@@ -240,7 +251,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
     flush_waf_triggers(env)
     for function in env.callbacks[_CONTEXT_CALL]:
         function(env)
-    root_span = env.span._local_root or env.span
+    root_span = get_service_entry_span(env.span)
     if root_span:
         if env.waf_info:
             info = env.waf_info()
@@ -255,7 +266,7 @@ def finalize_asm_env(env: ASM_Environment) -> None:
             except Exception:
                 logger.debug("asm_context::finalize_asm_env::exception", extra=log_extra, exc_info=True)
         if asm_config._rc_client_id is not None:
-            root_span._local_root.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
+            root_span.set_tag(APPSEC.RC_CLIENT_ID, asm_config._rc_client_id)
         waf_adresses = env.waf_addresses
         req_headers = waf_adresses.get(SPAN_DATA_NAMES.REQUEST_HEADERS_NO_COOKIES, {})
         if req_headers:
@@ -661,7 +672,7 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             value = value.decode()
         if key.lower() in (_COLLECTED_REQUEST_HEADERS_ASM_ENABLED if only_asm_enabled else _COLLECTED_REQUEST_HEADERS):
             # since the header value can be a list, use `set_tag()` to ensure it is converted to a string
-            (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
+            get_service_entry_span(span).set_tag(_normalize_tag_name(kind, key), value)
 
 
 def asm_listen():

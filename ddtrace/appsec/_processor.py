@@ -199,7 +199,7 @@ class AppSecSpanProcessor(SpanProcessor):
         peer_ip = _asm_request_context.get_ip()
         headers = _asm_request_context.get_headers()
         headers_case_sensitive = _asm_request_context.get_headers_case_sensitive()
-        root_span = span._local_root or span
+        root_span = _asm_request_context.get_service_entry_span(span)
 
         root_span.set_metric(APPSEC.ENABLED, 1.0)
         root_span.set_tag_str(_RUNTIME_FAMILY, "python")
@@ -293,7 +293,7 @@ class AppSecSpanProcessor(SpanProcessor):
             waf_results = Binding_error
 
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
-        root_span = span._local_root or span
+        root_span = _asm_request_context.get_service_entry_span(span)
         if waf_results.return_code < 0:
             error_tag = APPSEC.RASP_ERROR if rule_type else APPSEC.WAF_ERROR
             previous = root_span.get_tag(error_tag)

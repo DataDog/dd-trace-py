@@ -39,7 +39,7 @@ class TestApiSecurityManager:
         root_span = MagicMock(spec=Span)
         root_span._meta = {}
         env.span = MagicMock(spec=Span)
-        env.span._local_root = root_span
+        env.span._parent = root_span
         env.span.context.sampling_priority = None
         root_span.context.sampling_priority = None
         env.waf_addresses = {}
