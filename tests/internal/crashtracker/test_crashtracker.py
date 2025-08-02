@@ -9,9 +9,9 @@ import tests.internal.crashtracker.utils as utils
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
 def test_crashtracker_available():
-    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+    from ddtrace.internal.core import crashtracking
 
-    assert crashtracker.is_available
+    assert crashtracking.is_available
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
@@ -35,7 +35,8 @@ def test_crashtracker_config_bytes():
 
     import pytest
 
-    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+    from ddtrace.internal.core import crashtracking
+    from ddtrace.settings.crashtracker import config as crashtracker_config
     from tests.internal.crashtracker.utils import read_files
 
     # Delete the stdout and stderr files if they exist
@@ -46,17 +47,21 @@ def test_crashtracker_config_bytes():
             os.unlink(file)
 
     try:
-        crashtracker.set_url(b"http://localhost:1234")
-        crashtracker.set_service(b"my_favorite_service")
-        crashtracker.set_version(b"v0.0.0.0.0.0.1")
-        crashtracker.set_runtime(b"shmython")
-        crashtracker.set_runtime_version(b"v9001")
-        crashtracker.set_runtime_id(b"0")
-        crashtracker.set_library_version(b"v2.7.1.8")
-        crashtracker.set_stdout_filename(stdout)
-        crashtracker.set_stderr_filename(stderr)
-        crashtracker.set_resolve_frames_full()
-        assert crashtracker.start()
+        crashtracker_config.debug_url = "http://localhost:1234"
+        crashtracker_config.stdout_filename = stdout
+        crashtracker_config.stderr_filename = stderr
+        crashtracker_config.resolve_frames = "full"
+
+        tags = {
+            "service": b"my_favorite_service",
+            "version": b"v0.0.0.0.0.0.1",
+            "runtime": b"shmython",
+            "runtime_version": b"v9001",
+            "runtime_id": b"0",
+            "library_version": b"v2.7.1.8",
+        }
+
+        crashtracking.start(tags)
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
@@ -70,13 +75,13 @@ def test_crashtracker_config_bytes():
 def test_crashtracker_started():
     import pytest
 
-    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+    from ddtrace.internal.core import crashtracking
     from tests.internal.crashtracker.utils import CrashtrackerWrapper
 
     try:
         ct = CrashtrackerWrapper(1234, "started")
         assert ct.start()
-        assert crashtracker.is_started()  # Confirmation at the module level
+        assert crashtracking.is_started()  # Confirmation at the module level
     except Exception:
         pytest.fail("Exception when starting crashtracker")
 
@@ -420,7 +425,6 @@ def test_crashtracker_user_tags_envvar(run_python_code_in_subprocess):
 
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
-@pytest.mark.skipif(sys.version_info >= (3, 13), reason="Fails on 3.13")
 def test_crashtracker_set_tag_profiler_config(snapshot_context, run_python_code_in_subprocess):
     with utils.with_test_agent() as client:
         env = os.environ.copy()
@@ -445,7 +449,6 @@ def test_crashtracker_user_tags_profiling():
     import ctypes
     import os
 
-    import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
     import tests.internal.crashtracker.utils as utils
 
     # Define some tags
@@ -458,10 +461,7 @@ def test_crashtracker_user_tags_profiling():
     with utils.with_test_agent() as client:
         pid = os.fork()
         if pid == 0:
-            # Set the tags before starting
-            for k, v in tags.items():
-                crashtracker.set_tag(k, v)
-            ct = utils.CrashtrackerWrapper(base_name="user_tags_profiling")
+            ct = utils.CrashtrackerWrapper(base_name="user_tags_profiling", tags=tags)
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg
@@ -486,7 +486,6 @@ def test_crashtracker_user_tags_core():
     import ctypes
     import os
 
-    from ddtrace.internal.core import crashtracking
     import tests.internal.crashtracker.utils as utils
 
     # Define some tags
@@ -500,9 +499,7 @@ def test_crashtracker_user_tags_core():
         pid = os.fork()
         if pid == 0:
             # Set the tags before starting
-            for k, v in tags.items():
-                crashtracking.add_tag(k, v)
-            ct = utils.CrashtrackerWrapper(base_name="user_tags_core")
+            ct = utils.CrashtrackerWrapper(base_name="user_tags_core", tags=tags)
             assert ct.start()
             stdout_msg, stderr_msg = ct.logs()
             assert not stdout_msg

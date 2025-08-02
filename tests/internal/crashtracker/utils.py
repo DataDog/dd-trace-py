@@ -12,23 +12,30 @@ from tests.utils import TestAgentClient
 from tests.utils import TestAgentRequest
 
 
-def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None) -> bool:
+def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None, tags: dict = {}) -> bool:
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
-        import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+        from ddtrace.internal.core import crashtracking
+        from ddtrace.settings.crashtracker import config as crashtracker_config
 
-        crashtracker.set_url("http://localhost:%d" % port)
-        crashtracker.set_service("my_favorite_service")
-        crashtracker.set_version("v0.0.0.0.0.0.1")
-        crashtracker.set_runtime("shmython")
-        crashtracker.set_runtime_version("v9001")
-        crashtracker.set_runtime_id("0")
-        crashtracker.set_library_version("v2.7.1.8")
-        crashtracker.set_stdout_filename(stdout)
-        crashtracker.set_stderr_filename(stderr)
-        crashtracker.set_resolve_frames_full()
-        ret = crashtracker.start()
+        crashtracker_config.debug_url = "http://localhost:%d" % port
+        crashtracker_config.stdout_filename = stdout
+        crashtracker_config.stderr_filename = stderr
+        crashtracker_config.resolve_frames = "full"
+
+        tags.update(
+            {
+                "service": "my_favorite_service",
+                "version": "v0.0.0.0.0.0.1",
+                "runtime": "shmython",
+                "runtime_version": "v9001",
+                "runtime_id": "0",
+                "library_version": "v2.7.1.8",
+            }
+        )
+
+        ret = crashtracking.start(tags)
     except Exception as e:
         print("Failed to start crashtracker: %s" % str(e))
         ret = False
@@ -77,13 +84,14 @@ def set_cerulean_mollusk():
 class CrashtrackerWrapper:
     _seed = 0
 
-    def __init__(self, port: int = 9126, base_name=""):
+    def __init__(self, port: int = 9126, base_name="", tags={}):
         if CrashtrackerWrapper._seed == 0:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
 
         self.port = port
         self.stdout = f"stdout.{base_name}.{CrashtrackerWrapper._seed}.log"
         self.stderr = f"stderr.{base_name}.{CrashtrackerWrapper._seed}.log"
+        self.tags = tags
 
         for file in [self.stdout, self.stderr]:
             if os.path.exists(file):
@@ -98,7 +106,7 @@ class CrashtrackerWrapper:
         return [self.stdout, self.stderr]
 
     def start(self):
-        return start_crashtracker(self.port, self.stdout, self.stderr)
+        return start_crashtracker(self.port, self.stdout, self.stderr, self.tags)
 
     def logs(self):
         return read_files([self.stdout, self.stderr])
