@@ -297,6 +297,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
+    TIMEOUT = 5.0
 
     def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
@@ -308,7 +309,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(self._intake)
+        conn = get_connection(url=self._intake, timeout=self.TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
@@ -363,7 +364,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         irs: JSONType = [
             {
                 "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
+                "expected_output": r.get("expected_output", None),
                 "metadata": r.get("metadata", {}),
             }
             for r in insert_records
@@ -371,7 +372,11 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         urs: JSONType = [
             {
                 "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
+                # if we default to None, the API will treat None (null in JSON)
+                # as if the field was not in the JSON, and treat it as not being updated,
+                # despite going from expected_output having a value to no value being a
+                # valid use case
+                "expected_output": r.get("expected_output", None),
                 "metadata": r.get("metadata", {}),
                 "id": r["record_id"],
             }
@@ -424,14 +429,18 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         class_records: List[DatasetRecord] = []
         for record in records_data.get("data", []):
             attrs = record.get("attributes", {})
-            class_records.append(
-                {
-                    "record_id": record["id"],
-                    "input_data": attrs["input"],
-                    "expected_output": attrs["expected_output"],
-                    "metadata": attrs.get("metadata", {}),
-                }
-            )
+            r = {
+                "record_id": record["id"],
+                "input_data": attrs["input"],
+            }
+            expected_output = attrs.get("expected_output", None)
+            if expected_output:
+                r["expected_output"] = expected_output
+
+            metadata = attrs.get("metadata", None),
+            if metadata:
+                r["metadata"] = metadata
+            class_records.append(r)
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
     def project_create_or_get(self, name: str) -> str:
