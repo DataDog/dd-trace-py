@@ -108,6 +108,55 @@ skip_pytest_runtest_protocol = False
 _current_coverage_collector = None
 
 
+def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR_SKIPPING_LEVEL:
+    """
+    Detect pytest-xdist parallelization mode and return the appropriate ITR skipping level.
+
+    Priority order:
+    1. If _DD_CIVISIBILITY_ITR_SUITE_MODE is explicitly set -> honor it regardless of xdist
+    2. If xdist is used -> automatic detection based on distribution mode
+    3. Fallback -> default to suite mode
+
+    Returns:
+        ITR_SKIPPING_LEVEL.SUITE for suite-level parallelization modes (loadscope, loadfile, loadgroup)
+        ITR_SKIPPING_LEVEL.TEST for test-level parallelization modes (default, worksteal)
+    """
+    # Priority 1: Check if env var is explicitly set (not using default)
+    explicit_suite_mode = os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE")
+    if explicit_suite_mode is not None:
+        result = ITR_SKIPPING_LEVEL.SUITE if asbool(explicit_suite_mode) else ITR_SKIPPING_LEVEL.TEST
+        log.warning(
+            "Explicit ITR skipping level from _DD_CIVISIBILITY_ITR_SUITE_MODE=%s",
+            explicit_suite_mode,
+        )
+        return result
+
+    # Priority 2: Automatic xdist detection
+    if not config.pluginmanager.hasplugin("xdist"):
+        # xdist not available, use default
+        log.warning("xdist not available, using default ITR suite-level skipping")
+        return ITR_SKIPPING_LEVEL.SUITE
+
+    # Check if xdist is actually being used (n > 0 or auto)
+    dist_mode = getattr(config.option, "dist", "no")
+    num_workers = getattr(config.option, "numprocesses", None)
+
+    # If xdist is installed but not being used, use default
+    if dist_mode == "no" or num_workers in (0, None):
+        log.warning("xdist available but not used, using default ITR suite-level skipping")
+        return ITR_SKIPPING_LEVEL.SUITE
+
+    # xdist is being used, detect the parallelization mode
+    if dist_mode in ("loadscope", "loadfile"):
+        # Suite-level parallelization modes - keep tests together by suite/file/group
+        log.warning("Detected xdist suite-level parallelization mode (%s), using ITR suite-level skipping", dist_mode)
+        return ITR_SKIPPING_LEVEL.SUITE
+    else:
+        # Test-level parallelization modes (load, worksteal, or default)
+        log.warning("Detected xdist test-level parallelization mode (%s), using ITR test-level skipping", dist_mode)
+        return ITR_SKIPPING_LEVEL.TEST
+
+
 class XdistHooks:
     @pytest.hookimpl
     def pytest_configure_node(self, node):
@@ -374,6 +423,31 @@ def pytest_configure(config: pytest_Config) -> None:
                 if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
                     # Main process
                     pytest.global_worker_itr_results = 0
+
+                # Detect xdist parallelization mode and align ITR skipping strategy
+                # This should be done before any other plugin configuration
+                detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config)
+                current_itr_level = dd_config.test_visibility.itr_skipping_level
+
+                if detected_itr_level != current_itr_level:
+                    log.warning(
+                        "Updating ITR skipping level from %s to %s to align with xdist parallelization mode",
+                        current_itr_level.name,
+                        detected_itr_level.name,
+                    )
+                    dd_config.test_visibility.itr_skipping_level = detected_itr_level
+
+                    # Update the CI visibility service if it's already initialized
+                    try:
+                        ci_visibility_service = require_ci_visibility_service()
+                        ci_visibility_service._suite_skipping_mode = detected_itr_level == ITR_SKIPPING_LEVEL.SUITE
+                        log.warning(
+                            "Updated CI visibility service suite skipping mode to %s",
+                            ci_visibility_service._suite_skipping_mode,
+                        )
+                    except RuntimeError:
+                        # Service might not be initialized yet, that's okay
+                        pass
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests

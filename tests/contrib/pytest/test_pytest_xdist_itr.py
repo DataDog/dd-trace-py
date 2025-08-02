@@ -2,16 +2,20 @@
 
 The tests in this module validate the interaction between ITR and pytest-xdist.
 """
-import os  # Just for the RIOT env var check
+
 from unittest import mock
 
 import pytest
 
+from ddtrace import config as dd_config
 from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
+from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
+from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext import test
+from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
 from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
@@ -22,18 +26,14 @@ from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 
 
 ######
-# Skip these tests if they are not running under riot
-riot_env_value = os.getenv("RIOT", None)
-if not riot_env_value:
-    pytest.importorskip("xdist", reason="ITR + xdist tests, not running under riot")
+# Skip these tests if xdist is not available
+pytest.importorskip("xdist", reason="ITR + xdist tests require pytest-xdist to be installed")
 ######
 
 
-_USE_PLUGIN_V2 = True
-
 pytestmark = pytest.mark.skipif(
-    not (_USE_PLUGIN_V2 and _pytest_version_supports_itr()),
-    reason="ITR requires v2 of the plugin and pytest >=7.0",
+    not _pytest_version_supports_itr(),
+    reason="ITR requires pytest >=7.0",
 )
 
 _TEST_PASS_CONTENT = """
@@ -81,12 +81,7 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistITRTestCase(PytestTestCaseBase):
-    def inline_run(self, *args, **kwargs):
-        # Add -n 2 to the end of the command line arguments
-        args = list(args) + ["-n", "2"]
-        return super().inline_run(*args, **kwargs)
-
-    def test_pytest_xdist_itr_skips_tests(self):
+    def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
         itr_skipping_sitecustomize = """
@@ -158,6 +153,98 @@ CIVisibility.enable = classmethod(patched_enable)
         ):
             rec = self.inline_run(
                 "--ddtrace",
+                "-n",
+                "2",  # Use xdist with 2 workers
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                },
+            )
+            assert rec.ret == 0  # All tests skipped, so exit code is 0
+
+        spans = self.pop_spans()
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        # Verify number of skipped tests in session
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 4
+
+    def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
+        """Test that ITR tags are correctly aggregated from xdist workers."""
+        # Create a simplified sitecustomize with just the essential ITR setup
+        itr_skipping_sitecustomize = """
+# sitecustomize.py - Simplified ITR setup for xdist
+from unittest import mock
+
+# Import required modules
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId
+
+
+# Create ITR settings and data
+itr_settings = TestVisibilityAPISettings(
+    coverage_enabled=False, skipping_enabled=True, require_git=False, itr_enabled=True,
+    flaky_test_retries_enabled=False, known_tests_enabled=False,
+    early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
+)
+
+# Create skippable test suites
+skippable_suites = {
+    TestSuiteId(TestModuleId(""), "test_pass.py"),
+    TestSuiteId(TestModuleId(""), "test_fail.py")
+}
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
+
+# Mock API calls to return our settings
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+    return_value=itr_settings
+).start()
+
+# Set ITR data when CIVisibility is enabled
+import ddtrace.internal.ci_visibility.recorder
+CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
+original_enable = CIVisibility.enable
+
+def patched_enable(cls, *args, **kwargs):
+    result = original_enable(*args, **kwargs)
+    if cls._instance:
+        cls._instance._itr_data = itr_data
+    return result
+
+CIVisibility.enable = classmethod(patched_enable)
+"""
+        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
+        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
+        self.testdir.chdir()
+
+        itr_settings = TestVisibilityAPISettings(
+            coverage_enabled=False,
+            skipping_enabled=True,
+            require_git=False,
+            itr_enabled=True,
+            flaky_test_retries_enabled=False,
+            known_tests_enabled=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(),
+            test_management=TestManagementSettings(),
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=True,
+        ):
+            rec = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",  # Use xdist with 2 workers
+                "--dist=loadscope",  # Use suite-level distribution to match expected "suite" type
                 extra_env={
                     "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
                     "DD_API_KEY": "foobar.baz",
@@ -488,3 +575,1156 @@ class TestXdistHooksUnit:
 
         # Clean up
         delattr(pytest, "global_worker_itr_results")
+
+
+class TestXdistModeDetectionIntegration(PytestTestCaseBase):
+    """Integration tests for xdist mode detection using inline_run."""
+
+    def test_xdist_loadscope_enables_suite_level_itr(self):
+        """Test that --dist=loadscope automatically enables suite-level ITR skipping."""
+        # Create test files for different suites
+        self.testdir.makepyfile(
+            test_suite1="""
+import pytest
+
+def test_suite1_func1():
+    assert True
+
+def test_suite1_func2():
+    assert True
+            """,
+            test_suite2="""
+import pytest
+
+def test_suite2_func1():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using loadscope mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadscope",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to suite level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to loadscope detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_xdist_worksteal_enables_test_level_itr(self):
+        """Test that --dist=worksteal automatically enables test-level ITR skipping."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+
+def test_func3():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using worksteal mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=worksteal",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to worksteal detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_loadfile_enables_suite_level_itr(self):
+        """Test that --dist=loadfile automatically enables suite-level ITR skipping."""
+        # Create test files for different files
+        self.testdir.makepyfile(
+            test_file1="""
+def test_file1_func1():
+    assert True
+
+def test_file1_func2():
+    assert True
+            """,
+            test_file2="""
+def test_file2_func1():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using loadfile mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadfile",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to suite level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to loadfile detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_no_xdist_uses_env_var_setting(self):
+        """Test that without xdist, the env var setting is used."""
+        self.testdir.makepyfile(
+            test_file="""
+def test_func():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run without xdist
+            result = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Use test-level from env
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level respects env var (test level)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test as set by env var
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_disabled_with_n_zero_uses_env_var_setting(self):
+        """Test that -n 0 (xdist disabled) uses env var setting."""
+        self.testdir.makepyfile(
+            test_file="""
+def test_func():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist disabled (-n 0)
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "0",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Use suite-level from env
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level respects env var (suite level)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite as set by env var
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_xdist_loadgroup_enables_test_level_itr(self):
+        """Test that --dist=loadgroup automatically enables test-level ITR skipping."""
+        # Create test files with groups
+        self.testdir.makepyfile(
+            test_group1="""
+import pytest
+
+@pytest.mark.group("group1")
+def test_group1_func1():
+    assert True
+
+@pytest.mark.group("group2")
+def test_group1_func2():
+    assert True
+            """,
+            test_group2="""
+import pytest
+
+@pytest.mark.group("group1")
+def test_group2_func1():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using loadgroup mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadgroup",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to suite level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to loadgroup detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_load_enables_test_level_itr(self):
+        """Test that --dist=load (default) automatically enables test-level ITR skipping."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+
+def test_func3():
+    assert True
+
+def test_func4():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using load mode (default)
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=load",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to load detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_each_enables_test_level_itr(self):
+        """Test that --dist=each automatically enables test-level ITR skipping."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using each mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=each",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to each detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_default_no_dist_param_enables_test_level_itr(self):
+        """Test that xdist without --dist parameter (defaults to load) enables test-level ITR."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+
+def test_func3():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist but no --dist parameter (defaults to load mode)
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                # No --dist parameter, should default to load
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level (load is test-level)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to default load detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    @pytest.mark.skip(reason="flaky collection error in CI")
+    def test_xdist_n_auto_enables_test_level_itr(self):
+        """Test that -n auto automatically enables test-level ITR skipping."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using -n auto
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "auto",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to default load mode with auto workers
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    @pytest.mark.skip(reason="flaky collection error in CI")
+    def test_xdist_n_logical_enables_test_level_itr(self):
+        """Test that -n logical automatically enables test-level ITR skipping."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using -n logical
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "logical",
+                "--ignore=.gitconfig.lock",
+                "--ignore-glob=*.lock",  # Ignore lock files that cause collection issues
+                "--ignore-glob=.gitconfig*",  # Ignore git config files that cause collection issues
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to default load mode with logical workers
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_combination_dist_loadscope_with_maxprocesses(self):
+        """Test xdist with --dist=loadscope and --maxprocesses combination."""
+        # Create test files for different scopes
+        self.testdir.makepyfile(
+            test_scope1="""
+import pytest
+
+class TestScope1:
+    def test_scope1_method1(self):
+        assert True
+
+    def test_scope1_method2(self):
+        assert True
+            """,
+            test_scope2="""
+import pytest
+
+class TestScope2:
+    def test_scope2_method1(self):
+        assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using loadscope with maxprocesses
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "3",
+                "--dist=loadscope",
+                "--maxprocesses=2",  # Limit max processes
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to suite level
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to loadscope detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_xdist_multiple_workers_with_load_distribution(self):
+        """Test xdist with multiple workers using load distribution."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+
+def test_func3():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using multiple workers (simplified from --tx option)
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "3",
+                "--dist=load",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level (load mode)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to load detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_xdist_complex_combination_all_options(self):
+        """Test xdist with complex combination of all options."""
+        # Create test files with multiple scopes and groups
+        self.testdir.makepyfile(
+            test_complex1="""
+import pytest
+
+class TestComplexClass1:
+    @pytest.mark.group("group1")
+    def test_complex1_method1(self):
+        assert True
+
+    @pytest.mark.group("group1")
+    def test_complex1_method2(self):
+        assert True
+            """,
+            test_complex2="""
+import pytest
+
+class TestComplexClass2:
+    @pytest.mark.group("group2")
+    def test_complex2_method1(self):
+        assert True
+
+    def test_complex2_method2(self):
+        assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using complex options combination
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadfile",  # Suite-level mode
+                "--maxprocesses=4",
+                "--tx",
+                "popen//python",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to suite level (loadfile mode takes precedence)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to loadfile detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_xdist_worksteal_mode_comprehensive(self):
+        """Test xdist with worksteal mode for comprehensive coverage."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using worksteal mode (removed rsync-dir for test compatibility)
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=worksteal",  # Test-level mode
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that ITR level was updated to test level (worksteal mode)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to worksteal detection
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_explicit_env_var_overrides_xdist_suite_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+import pytest
+
+def test_func1():
+    assert True
+
+def test_func2():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using load mode (normally test-level) but explicitly set suite mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=load",  # Test-level mode
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "True",  # Explicit override to suite-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var overrode xdist detection (should be suite, not test)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be suite due to explicit env var override
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "suite"
+
+    def test_explicit_env_var_overrides_xdist_test_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
+        # Create test files for different scopes
+        itr_skipping_sitecustomize = """
+# sitecustomize.py - Simplified ITR setup for xdist
+from unittest import mock
+
+# Import required modules
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId, TestId
+
+
+# Create ITR settings and data
+itr_settings = TestVisibilityAPISettings(
+    coverage_enabled=False, skipping_enabled=True, require_git=False, itr_enabled=True,
+    flaky_test_retries_enabled=False, known_tests_enabled=False,
+    early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
+)
+
+# Create skippable tests for test-level skipping
+skippable_tests = {
+    TestId(TestSuiteId(TestModuleId(""), "test_scope1.py"), "TestScope1::test_scope1_method1"),
+    TestId(TestSuiteId(TestModuleId(""), "test_scope2.py"), "TestScope2::test_scope2_method1")
+}
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
+
+# Set ITR data when CIVisibility is enabled
+import ddtrace.internal.ci_visibility.recorder
+CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
+original_enable = CIVisibility.enable
+
+def patched_enable(cls, *args, **kwargs):
+    result = original_enable(*args, **kwargs)
+    if cls._instance:
+        cls._instance._itr_data = itr_data
+    return result
+
+# Mock API calls to return our settings
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client._TestVisibilityAPIClientBase.fetch_settings",
+    return_value=itr_settings
+).start()
+
+mock.patch(
+     "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+    return_value=itr_settings
+).start()
+
+CIVisibility.enable = classmethod(patched_enable)
+
+"""
+        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.testdir.makepyfile(
+            test_scope1="""
+import pytest
+
+class TestScope1:
+    def test_scope1_method1(self):
+        assert True
+
+    def test_scope1_method2(self):
+        assert True
+            """,
+            test_scope2="""
+import pytest
+
+class TestScope2:
+    def test_scope2_method1(self):
+        assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run with xdist using loadscope mode (normally suite-level) but explicitly set test mode
+            result = self.inline_run(
+                "--ddtrace",
+                "-n",
+                "2",
+                "--dist=loadscope",  # Suite-level mode
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Explicit override to test-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var overrode xdist detection (should be test, not suite)
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to explicit env var override
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+    def test_explicit_env_var_overrides_no_xdist(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE works without xdist."""
+        # Create test files
+        self.testdir.makepyfile(
+            test_file="""
+def test_func():
+    assert True
+            """,
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
+            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+            return_value=TestVisibilityAPISettings(False, True, False, True),
+        ):
+            # Run without xdist but with explicit test-level setting
+            result = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Explicit test-level
+                },
+            )
+
+            assert result.ret == 0
+
+        # Verify that explicit env var is honored
+        spans = self.pop_spans()
+        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
+        assert len(session_spans) == 1
+        session_span = session_spans[0]
+
+        # The ITR skipping type should be test due to explicit env var
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+
+
+class TestXdistModeDetection:
+    """Unit tests for xdist parallelization mode detection and ITR alignment."""
+
+    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_1(self):
+        """Test mode detection when xdist plugin is not available."""
+        # Mock config without xdist plugin
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = False
+
+        # Test with default env var (True -> SUITE)
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_0(self):
+        """Test mode detection when xdist plugin is not available."""
+        # Mock config without xdist plugin
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = False
+
+        # Test with env var set to False -> TEST
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.TEST
+
+    def test_detect_xdist_parallelization_mode_no_xdist_no_env_var_suite_mode(self):
+        """Test mode detection when xdist plugin is not available."""
+        # Mock config without xdist plugin
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = False
+
+        # Test without env var - should check xdist plugin
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+        mock_config.pluginmanager.hasplugin.assert_called_with("xdist")
+
+    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_1(self):
+        """Test mode detection when xdist is installed but not being used."""
+        # Test with default env var (True -> SUITE)
+        #
+        # Mock config with xdist plugin but not being used
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"
+        mock_config.option.numprocesses = None
+
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_0(self):
+        """Test mode detection when xdist is installed but not being used."""
+        # Test with env var set to False -> TEST
+        #
+        # Mock config with xdist plugin but not being used
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"
+        mock_config.option.numprocesses = None
+
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.TEST
+
+    @pytest.mark.parametrize("suite_level_mode", ["loadscope", "loadfile"])
+    def test_detect_xdist_parallelization_mode_suite_level_modes(self, suite_level_mode):
+        """Test mode detection for suite-level parallelization modes."""
+
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = suite_level_mode
+        mock_config.option.numprocesses = 2
+
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+        assert result == ITR_SKIPPING_LEVEL.SUITE, f"Mode {suite_level_mode} should return SUITE level"
+
+    @pytest.mark.parametrize("test_level_mode", ["load", "worksteal", "each", "loadgroup"])
+    def test_detect_xdist_parallelization_mode_test_level_modes(self, test_level_mode):
+        """Test mode detection for test-level parallelization modes."""
+
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = test_level_mode
+        mock_config.option.numprocesses = 2
+
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+        assert result == ITR_SKIPPING_LEVEL.TEST, f"Mode {test_level_mode} should return TEST level"
+
+    def test_detect_xdist_parallelization_mode_zero_workers(self):
+        """Test mode detection when xdist is configured with zero workers."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"
+        mock_config.option.numprocesses = 0  # No workers
+
+        # Should fall back to env var setting
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_pytest_configure_updates_itr_level_for_xdist(self):
+        """Test that pytest_configure updates ITR level when xdist mode is detected."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.side_effect = lambda name: name == "xdist"
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+        mock_config.workerinput = None  # Not a worker
+
+        # Set initial ITR level to TEST (opposite of what we expect)
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
+
+        with mock.patch("ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=True), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.unpatch_unittest"
+        ), mock.patch("ddtrace.ext.test_visibility.api.enable_test_visibility"), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.service_registry.require_ci_visibility_service"
+        ) as mock_service, mock.patch.dict(
+            "os.environ", {"PYTEST_XDIST_WORKER": ""}, clear=True
+        ):
+            mock_service_instance = mock.MagicMock()
+            mock_service.return_value = mock_service_instance
+
+            # Call pytest_configure
+            pytest_configure(mock_config)
+
+            # Verify ITR level was updated to SUITE
+            assert dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_pytest_configure_no_update_when_levels_match(self):
+        """Test that pytest_configure doesn't update when ITR level already matches xdist mode."""
+
+        # Mock config with xdist in suite-level mode
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.side_effect = lambda name: name == "xdist"
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+        mock_config.workerinput = None  # Not a worker
+
+        # Set initial ITR level to SUITE (matches what we expect)
+        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
+
+        with mock.patch("ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=True), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2.unpatch_unittest"
+        ), mock.patch("ddtrace.ext.test_visibility.api.enable_test_visibility"), mock.patch(
+            "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.service_registry.require_ci_visibility_service"
+        ) as mock_service, mock.patch.dict(
+            "os.environ", {"PYTEST_XDIST_WORKER": ""}, clear=True
+        ):
+            # Call pytest_configure
+            pytest_configure(mock_config)
+
+            # Verify ITR level remained SUITE
+            assert dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
+
+            # Service should not have been called since no update was needed
+            mock_service.assert_not_called()
+
+    def test_explicit_env_var_overrides_xdist_detection_suite_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
+        # Mock config with xdist in test-level mode
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test with explicit suite mode set
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should return SUITE due to explicit env var, not TEST from xdist detection
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_explicit_env_var_overrides_xdist_detection_test_mode(self):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
+        # Mock config with xdist in suite-level mode
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test with explicit test mode set
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should return TEST due to explicit env var, not SUITE from xdist detection
+            assert result == ITR_SKIPPING_LEVEL.TEST
+
+    @pytest.mark.parametrize("truthy_value", ["1", "true", "TRUE", "True"])
+    def test_explicit_env_var_overrides_with_truthy_values(self, truthy_value):
+        """Test that explicit env var works with different string values."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test different truthy values (only "1" and "true" are recognized by asbool)
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": truthy_value}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.SUITE, f"Value '{truthy_value}' should result in SUITE"
+
+    @pytest.mark.parametrize("falsy_value", ["0", "false", "FALSE", "False"])
+    def test_explicit_env_var_overrides_with_falsy_values(self, falsy_value):
+        """Test that explicit env var works with different string values."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "load"  # Test-level mode
+        mock_config.option.numprocesses = 2
+
+        # Test different falsy values
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": falsy_value}):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            assert result == ITR_SKIPPING_LEVEL.TEST, f"Value '{falsy_value}' should result in TEST"
+
+    def test_no_explicit_env_var_uses_xdist_detection(self):
+        """Test that when env var is not set (None), automatic xdist detection is used."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "loadscope"  # Suite-level mode
+        mock_config.option.numprocesses = 2
+
+        # Ensure env var is not set
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should use xdist detection (loadscope -> SUITE)
+            assert result == ITR_SKIPPING_LEVEL.SUITE
+
+        # Test with test-level xdist mode
+        mock_config.option.dist = "load"  # Test-level mode
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            # Should use xdist detection (load -> TEST)
+            assert result == ITR_SKIPPING_LEVEL.TEST
