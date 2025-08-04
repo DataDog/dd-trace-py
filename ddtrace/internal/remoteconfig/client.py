@@ -171,9 +171,8 @@ class TargetFile:
     path: str
     raw: str
 
-
-def __repr__(self):
-    return f"TargetFile(path={self.path}, raw_length={len(self.raw) if self.raw else -1})"
+    def __repr__(self):
+        return f"TargetFile(path={self.path}, raw_length={len(self.raw) if self.raw else -1})"
 
 
 @dataclasses.dataclass
