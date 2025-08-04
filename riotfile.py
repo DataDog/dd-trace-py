@@ -3650,5 +3650,17 @@ venv = Venv(
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
         ),
+        Venv(
+            name="ai_guard",
+            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+            ],
+        ),
     ],
 )
