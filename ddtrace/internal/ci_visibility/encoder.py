@@ -105,11 +105,19 @@ class CIVisibilityEncoderV01(BufferedEncoder):
         if not traces:
             return []
 
+        # Get all spans (flattened)
         new_parent_session_span_id = self._get_parent_session(traces)
-        return self._build_payloads_recursive(traces, 0, len(traces), new_parent_session_span_id)
+        all_spans = [
+            self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
+            for trace in traces
+            for span in trace
+            if (not self._is_xdist_worker) or (span.get_tag(EVENT_TYPE) != SESSION_TYPE)
+        ]
+
+        return self._build_payloads_recursive(all_spans, 0, len(all_spans), new_parent_session_span_id)
 
     def _build_payloads_recursive(
-        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
+        self, all_spans: List[Dict[str, Any]], start_idx: int, end_idx: int, new_parent_session_span_id: int
     ) -> List[Tuple[Optional[bytes], int]]:
         """
         Recursively build payloads using start/end indexes to avoid slice copying.
@@ -128,14 +136,6 @@ class CIVisibilityEncoderV01(BufferedEncoder):
 
         trace_count = end_idx - start_idx
 
-        # Convert traces to spans with filtering (using indexes)
-        all_spans_with_trace_info = self._convert_traces_to_spans_indexed(
-            traces, start_idx, end_idx, new_parent_session_span_id
-        )
-
-        # Get all spans (flattened)
-        all_spans = [span for _, trace_spans in all_spans_with_trace_info for span in trace_spans]
-
         if not all_spans:
             log.debug("No spans to encode after filtering, skipping chunk")
             return []
@@ -152,27 +152,11 @@ class CIVisibilityEncoderV01(BufferedEncoder):
             mid_idx = start_idx + (trace_count + 1) // 2
 
             # Process both halves recursively
-            left_payloads = self._build_payloads_recursive(traces, start_idx, mid_idx, new_parent_session_span_id)
-            right_payloads = self._build_payloads_recursive(traces, mid_idx, end_idx, new_parent_session_span_id)
+            left_payloads = self._build_payloads_recursive(all_spans, start_idx, mid_idx, new_parent_session_span_id)
+            right_payloads = self._build_payloads_recursive(all_spans, mid_idx, end_idx, new_parent_session_span_id)
 
             # Combine results
             return left_payloads + right_payloads
-
-    def _convert_traces_to_spans_indexed(
-        self, traces: List[List[Span]], start_idx: int, end_idx: int, new_parent_session_span_id: int
-    ) -> List[Tuple[int, List[Dict[str, Any]]]]:
-        """Convert traces to spans with xdist filtering applied, using indexes to avoid slicing."""
-        all_spans_with_trace_info = []
-        for trace_idx in range(start_idx, end_idx):
-            trace = traces[trace_idx]
-            trace_spans = [
-                self._convert_span(span, trace[0].context.dd_origin, new_parent_session_span_id)
-                for span in trace
-                if (not self._is_xdist_worker) or (span.get_tag(EVENT_TYPE) != SESSION_TYPE)
-            ]
-            all_spans_with_trace_info.append((trace_idx, trace_spans))
-
-        return all_spans_with_trace_info
 
     def _create_payload_from_spans(self, spans: List[Dict[str, Any]]) -> bytes:
         """Create a payload from the given spans."""
