@@ -677,6 +677,26 @@ class TestLLMObsOpenaiV1:
                 output_messages=[expected_output],
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                tool_definitions=[
+                    {
+                        "name": "extract_student_info",
+                        "description": "Get the student information from the body of the input text",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "name": {"type": "string", "description": "Name of the person"},
+                                "major": {"type": "string", "description": "Major subject."},
+                                "school": {"type": "string", "description": "The university name."},
+                                "grades": {"type": "integer", "description": "GPA of the student."},
+                                "clubs": {
+                                    "type": "array",
+                                    "description": "School clubs for extracurricular activities. ",
+                                    "items": {"type": "string", "description": "Name of School Club"},
+                                },
+                            },
+                        },
+                    }
+                ],
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1426,25 +1446,6 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"role": "user", "content": input_messages}],
                 output_messages=response_tool_function_expected_output,
                 metadata={
-                    "tools": [
-                        {
-                            "type": "function",
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "location": {
-                                        "type": "string",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location", "unit"],
-                            },
-                            "strict": True,
-                        }
-                    ],
                     "tool_choice": "auto",
                     "temperature": 1.0,
                     "top_p": 1.0,
@@ -1458,6 +1459,23 @@ class TestLLMObsOpenaiV1:
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
                 },
+                tool_definitions=[
+                    {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                },
+                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                            },
+                            "required": ["location", "unit"],
+                        },
+                    }
+                ],
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1493,25 +1511,6 @@ class TestLLMObsOpenaiV1:
                 metadata={
                     "temperature": 1.0,
                     "top_p": 1.0,
-                    "tools": [
-                        {
-                            "type": "function",
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "location": {
-                                        "type": "string",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location", "unit"],
-                            },
-                            "strict": True,
-                        }
-                    ],
                     "user": "ddtrace-test",
                     "stream": True,
                     "tool_choice": "auto",
@@ -1519,6 +1518,23 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
+                tool_definitions=[
+                    {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                },
+                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                            },
+                            "required": ["location", "unit"],
+                        },
+                    }
+                ],
                 token_metrics={
                     "input_tokens": 75,
                     "output_tokens": 23,
