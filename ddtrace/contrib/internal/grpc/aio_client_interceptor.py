@@ -21,7 +21,6 @@ from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc import utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -59,7 +58,7 @@ def _done_callback_unary(span, code, details):
     def func(call):
         # type: (aio.Call) -> None
         try:
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(code))
 
             # Handle server-side error in unary response RPCs
             if code != grpc.StatusCode.OK:
@@ -84,7 +83,7 @@ def _done_callback_stream(span):
                     # we need to call __repr__ as we cannot call code() or details() since they are both async
                     code, details = utils._parse_rpc_repr_string(call.__repr__(), grpc)
 
-                    span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, to_unicode(code))
+                    span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(code))
 
                     # Handle server-side error in unary response RPCs
                     if code != grpc.StatusCode.OK:
@@ -104,22 +103,27 @@ def _handle_error(span, code, details):
     # type: (Span, grpc.StatusCode, str) -> None
     span.error = 1
     span.set_tag_str(ERROR_MSG, details)
-    span.set_tag_str(ERROR_TYPE, to_unicode(code))
+    span.set_tag_str(ERROR_TYPE, str(code))
 
 
 def _handle_rpc_error(span, rpc_error):
     # type: (Span, aio.AioRpcError) -> None
-    code = to_unicode(rpc_error.code())
+    code = str(rpc_error.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
-    span.set_tag_str(ERROR_MSG, rpc_error.details())
+    details = rpc_error.details()
+    if isinstance(details, bytes):
+        details = details.decode("utf-8", errors="ignore")
+    else:
+        details = str(details)
+    span.set_tag_str(ERROR_MSG, details)
     span.set_tag_str(ERROR_TYPE, code)
     span.finish()
 
 
 async def _handle_cancelled_error(call, span):
     # type: (aio.Call, Span) -> None
-    code = to_unicode(await call.code())
+    code = str(await call.code())
     span.error = 1
     span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, code)
     span.set_tag_str(ERROR_MSG, await call.details())
@@ -150,7 +154,8 @@ class _ClientInterceptor:
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, method_as_str, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)

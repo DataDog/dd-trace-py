@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.grpc import utils
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -62,12 +61,10 @@ def _future_done_callback(span):
             # pull out response code from gRPC response to use both for `grpc.status.code`
             # tag and the error type tag if the response is an exception
             response_code = response.code()
-            # cast code to unicode for tags
-            status_code = to_unicode(response_code)
-            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, status_code)
+            span.set_tag_str(constants.GRPC_STATUS_CODE_KEY, str(response_code))
 
             if response_code != grpc.StatusCode.OK:
-                _handle_error(span, response, status_code)
+                _handle_error(span, response, response_code)
         finally:
             span.finish()
 
@@ -100,9 +97,9 @@ def _handle_error(span, response_error, status_code):
     if response_error.cancelled():
         # handle cancelled futures separately to avoid raising grpc.FutureCancelledError
         span.error = 1
-        exc_val = to_unicode(response_error.details())
+        exc_val = str(response_error.details())
         span.set_tag_str(ERROR_MSG, exc_val)
-        span.set_tag_str(ERROR_TYPE, status_code)
+        span.set_tag_str(ERROR_TYPE, str(status_code))
         return
 
     exception = response_error.exception()
@@ -113,14 +110,14 @@ def _handle_error(span, response_error, status_code):
         if isinstance(exception, grpc.RpcError):
             # handle internal gRPC exceptions separately to get status code and
             # details as tags properly
-            exc_val = to_unicode(response_error.details())
+            exc_val = str(response_error.details())
             span.set_tag_str(ERROR_MSG, exc_val)
-            span.set_tag_str(ERROR_TYPE, status_code)
+            span.set_tag_str(ERROR_TYPE, str(status_code))
             span.set_tag_str(ERROR_STACK, str(traceback))
         else:
             exc_type = type(exception)
             span.set_exc_info(exc_type, exception, traceback)
-            status_code = to_unicode(response_error.code())
+            status_code = str(response_error.code())
 
 
 class _WrappedResponseCallFuture(wrapt.ObjectProxy):
@@ -195,7 +192,8 @@ class _ClientInterceptor(
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         utils.set_grpc_method_meta(span, client_call_details.method, method_kind)
         utils.set_grpc_client_meta(span, self._host, self._port)

@@ -523,7 +523,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
         if should_truncate:
             logger.warning(
-                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
+                "dropping event input/output because its size (%d) exceeds the event size limit (5MB)",
                 raw_event_size,
             )
             event = _truncate_span_event(event)
