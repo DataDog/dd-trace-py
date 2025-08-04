@@ -218,6 +218,7 @@ class ExtensionHashes(build_ext):
 
                 sources_hash = hashlib.sha256()
                 for source in sorted(sources):
+                    print(source)
                     sources_hash.update(source.read_bytes())
                 hash_digest = sources_hash.hexdigest()
 
