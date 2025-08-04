@@ -24,7 +24,6 @@ ddup_postfork_child()
 {
     Datadog::Uploader::postfork_child();
     Datadog::SampleManager::postfork_child();
-    Datadog::UploaderBuilder::postfork_child();
 }
 
 void
