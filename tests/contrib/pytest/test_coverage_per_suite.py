@@ -1,4 +1,3 @@
-import json
 import os
 from unittest import mock
 
@@ -9,45 +8,17 @@ from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility.constants import COVERAGE_TAG_NAME
-from ddtrace.internal.coverage.util import collapse_ranges
-from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
 from tests.ci_visibility.api_client._util import _make_fqdn_suite_ids
 from tests.ci_visibility.util import _ci_override_env
 from tests.ci_visibility.util import _mock_ddconfig_test_visibility
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _fetch_test_to_skip_side_effect
+from tests.contrib.pytest.utils import _get_span_coverage_data
 
 
 _USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(not _pytest_version_supports_itr(), reason="pytest version does not support coverage")
-
-
-def _get_tuples_from_bytearray(bitmap):
-    coverage_lines = CoverageLines()
-    coverage_lines._lines = bitmap
-    return collapse_ranges(coverage_lines.to_sorted_list())
-
-
-def _get_tuples_from_segments(segments):
-    return list((segment[0], segment[2]) for segment in segments)
-
-
-def _get_span_coverage_data(span, use_plugin_v2=False):
-    """Returns an abstracted view of the coverage data from the span that is independent of the coverage format."""
-    if use_plugin_v2:
-        tag_data = span.get_struct_tag(COVERAGE_TAG_NAME)
-        assert tag_data is not None, f"Coverage data not found in span {span}"
-        return {
-            file_data["filename"]: _get_tuples_from_bytearray(file_data["bitmap"]) for file_data in tag_data["files"]
-        }
-
-    else:
-        # This will raise an exception and the test will fail if the tag is not found
-        tag_data = json.loads(span.get_tag(COVERAGE_TAG_NAME))
-        return {
-            file_data["filename"]: _get_tuples_from_segments(file_data["segments"]) for file_data in tag_data["files"]
-        }
 
 
 class PytestTestCase(PytestTestCaseBase):
