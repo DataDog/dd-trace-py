@@ -14,6 +14,7 @@ SAVE_FILE = HERE / "save-ext-cache.sh"
 output = subprocess.check_output([sys.executable, ROOT / "setup.py", "ext_hashes", "--inplace"])
 cached_files = set()
 for line in output.decode().splitlines():
+    print(line)
     if not line.startswith("#EXTHASH:"):
         continue
     ext_name, ext_hash, ext_target = t.cast(t.Tuple[str, str, str], eval(line.split(":", 1)[-1].strip()))
