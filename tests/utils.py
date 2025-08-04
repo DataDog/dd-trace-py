@@ -30,7 +30,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
@@ -1197,7 +1196,7 @@ def snapshot_context(
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
-                pytest.fail(to_unicode(r.read()), pytrace=False)
+                pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
         try:
             yield SnapshotTest(
                 tracer=tracer,
@@ -1235,7 +1234,7 @@ def snapshot_context(
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         r = conn.getresponse()
-        result = to_unicode(r.read())
+        result = r.read().decode("utf-8", errors="ignore")
         if r.status != 200:
             lowered = result.lower()
             if "received unmatched traces" not in lowered:
