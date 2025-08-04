@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    openai: Resolves an issue where if the ``OpenAI/AsyncOpenAI`` client was not initialized would result in an ``AttributeError``.
+    openai: Resolves an issue where an uninitialized ``OpenAI/AsyncOpenAI`` client would result in an ``AttributeError``.
