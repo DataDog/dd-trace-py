@@ -143,7 +143,7 @@ def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR
 
     # If xdist is installed but not being used, use default
     if dist_mode == "no" or num_workers in (0, None):
-        log.warning("xdist available but not used, using default ITR suite-level skipping")
+        log.warning("xdist dist mode not set, using default ITR suite-level skipping")
         return ITR_SKIPPING_LEVEL.SUITE
 
     # xdist is being used, detect the parallelization mode
