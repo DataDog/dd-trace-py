@@ -125,7 +125,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
         agent_manifest = self._agent_manifests.get(agent)
         if agent_manifest is None:
-            tools = _get_tools_from_tool_nodes(agent)
+            tools = _get_tools_from_graph(agent)
             agent_manifest = {"name": agent.name or "LangGraph", "tools": tools}
             self._agent_manifests[agent] = agent_manifest
 
@@ -171,10 +171,10 @@ class LangGraphIntegration(BaseLLMIntegration):
         agent_tools: List[Any] = (
             get_argument_value(args, kwargs, 1, "tools", True) or []
         )  # required parameter on the langgraph side, but optional should that ever change
-        system_prompt: Optional[str] = kwargs.get("prompt")
+        system_prompt: Optional[str] = _get_system_prompt_from_react_agent(kwargs.get("prompt"))
         name: Optional[str] = kwargs.get("name")
 
-        tools = [{"name": tool.name, "description": tool.description} for tool in agent_tools]
+        tools = _get_tools_from_react_agent(agent_tools)
 
         agent_manifest = {}
 
@@ -362,32 +362,98 @@ def _get_model_settings(model) -> Dict[str, Any]:
     return {key: value for key, value in invocation_params.items() if key not in EXCLUDED_MODEL_SETTINGS_KEYS and value}
 
 
-def _get_tools_from_tool_nodes(agent) -> List[str]:
+def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
+    """
+    Get the system prompt from a react agent.
+
+    The system prompt can be:
+    - a string
+    - a dict with a "content" key
+    - a Callable that returns a string or dict
+
+    In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
+    """
+    if system_prompt is None:
+        return
+
+    if isinstance(system_prompt, str):
+        return system_prompt
+
+    return _get_attr(system_prompt, "content", None)
+
+
+def _get_tools_from_react_agent(tools):
+    """
+    Get the tools for the agent manifest passed into the react agent.
+
+    Tools can be:
+    - a ToolNode
+    - a list of BaseTools (langchain tools)
+    - a list of Callables
+    - a list of dicts
+
+    In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
+    """
+    if not isinstance(tools, list) or not tools or isinstance(tools[0], dict):
+        return []
+
+    if _is_tool_node(tools):
+        tools_by_name: Dict[str, Any] = _get_attr(tools, "tools_by_name", {})
+        tools = list(tools_by_name.values())
+
+    tools_repr = []
+    for tool in tools:
+        tool_repr = _get_tool_repr_from_langchain_base_tool(tool)
+        if tool_repr:
+            tools_repr.append(tool_repr)
+
+    return tools_repr
+
+
+def _get_tool_repr_from_langchain_base_tool(tool):
+    if tool is None:
+        return
+
+    return {
+        "name": _get_attr(tool, "name", ""),
+        "description": _get_attr(tool, "description", ""),
+        "parameters": _get_attr(tool, "args", {}),
+    }
+
+
+def _is_tool_node(maybe_tool_node):
+    return _get_attr(maybe_tool_node, "tools_by_name", None) is not None
+
+
+def _get_tools_from_graph(agent) -> list:
     """Get the tools from the ToolNode(s) of an agent/graph"""
-    tool_names: Set[str] = set()
+    graph_tools = []
     if agent is None:
-        return list(tool_names)
+        return graph_tools
 
     builder = _get_attr(agent, "builder", None)
     if builder is None:
-        return list(tool_names)
+        return graph_tools
 
     nodes: Optional[Dict[str, Any]] = _get_attr(builder, "nodes", None)
     if nodes is None:
-        return list(tool_names)
+        return graph_tools
 
     for node in nodes.values():
         runnable = _get_attr(node, "runnable", None)
         if runnable is None:
             continue
 
-        tools_by_name: Optional[Dict[str, Any]] = _get_attr(runnable, "tools_by_name", None)
-        if tools_by_name is None:
+        if not _is_tool_node(runnable):
             continue
 
-        tool_names.update(tools_by_name.keys())
+        tools_by_name: Dict[str, Any] = _get_attr(runnable, "tools_by_name", {})
+        for tool in tools_by_name.values():
+            tool_repr = _get_tool_repr_from_langchain_base_tool(tool)
+            if tool_repr:
+                graph_tools.append(tool_repr)
 
-    return list(tool_names)
+    return graph_tools
 
 
 def _get_trigger_ids_from_finished_tasks(
