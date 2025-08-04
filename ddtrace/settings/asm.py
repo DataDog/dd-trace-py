@@ -16,6 +16,9 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
+from ddtrace.internal.constants import AI_GUARD_ENABLED
+from ddtrace.internal.constants import AI_GUARD_ENDPOINT
+from ddtrace.internal.constants import DD_APPLICATION_KEY
 from ddtrace.internal.endpoints import HttpEndPointsCollection
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
@@ -322,3 +325,12 @@ class ASMConfig(DDConfig):
 
 
 config = ASMConfig()
+
+
+class AIGuardConfig(DDConfig):
+    enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=True)
+    endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
+    _dd_app_key = DDConfig.var(str, DD_APPLICATION_KEY, default="")
+
+
+ai_guard_config = AIGuardConfig()
