@@ -230,7 +230,7 @@ class AnthropicIntegration(BaseLLMIntegration):
         base_url = getattr(client, "_base_url", None) if client else None
         return str(base_url) if base_url else None
 
-    def _extract_tools(self, tools: Union[Iterable[Dict[str, Any]], Any]) -> List[ToolDefinition]:
+    def _extract_tools(self, tools: Optional[Any]) -> List[ToolDefinition]:
         if not tools:
             return []
 
