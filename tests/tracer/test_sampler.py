@@ -548,7 +548,6 @@ def test_rate_limit_without_sampling_rules_warning():
     assert config._trace_rate_limit == 2
 
 
-@pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_TRACE_PARTIAL_FLUSH_ENABLED": "true",
@@ -573,13 +572,12 @@ def test_partial_flush_with_sampling_rules():
                 with tracer.trace("span"):
                     pass
 
-    assert child_span1.get_metric("_dd.py.partial_flush") == 5
-    assert child_span2.get_metric("_dd.py.partial_flush") == 5
-
-    tracer.flush()
+    assert root_span.get_metric("_dd.rule_psr") == 0, repr(root_span)
+    assert child_span1.get_metric("_dd.py.partial_flush") == 5, repr(child_span1)
+    assert child_span2.get_metric("_dd.py.partial_flush") == 5, repr(child_span2)
 
     for span in (root_span, child_span1, child_span2):
-        assert span.context.sampling_priority == -1, span.__repr__()
+        assert span.context.sampling_priority == -1, repr(span)
 
 
 def test_datadog_sampler_init():
