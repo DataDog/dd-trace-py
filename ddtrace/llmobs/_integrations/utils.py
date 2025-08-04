@@ -44,85 +44,52 @@ logger = get_logger(__name__)
 
 def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tuple[List[ToolCall], List[ToolResult]]:
     """
-    Handles multiple formats:
-    - Legacy function_call format
-    - Modern tool_calls format with nested function objects
-    - Tool results from tool/tool_result role messages
-    - Streamed response format with direct field access
-
+    Parses message object for tool calls and results.
+    Compatible with OpenAI Chat and Response API formats.
     """
     tool_calls = []
     tool_results = []
 
-    role = _get_attr(message, "role", "")
-    if role in ("tool", "tool_result"):
-        try:
-            tool_result = ToolResult(
-                tool_id=_get_attr(message, "id", "")
-                or _get_attr(message, "tool_id", "")
-                or _get_attr(message, "tool_call_id", ""),
-                result=_get_attr(message, "content", ""),
-                name=_get_attr(message, "name", ""),
-                type=_get_attr(message, "type", "tool_result"),
+    role = str(_get_attr(message, "role", ""))
+    # chat completion tool call
+    raw_tool_calls = _get_attr(message, "tool_calls", [])
+    if raw_tool_calls:
+        for tool_call in raw_tool_calls:
+            arguments = _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}) or _get_attr(
+                tool_call, "arguments", {}
             )
-            tool_results.append(tool_result)
-        except Exception as e:
-            logger.debug("Error extracting tool result: %s", e)
+            try:
+                arguments = json.loads(arguments)
+            except (json.JSONDecodeError, TypeError):
+                arguments = {"value": str(arguments)}
+            tool_call_info = ToolCall(
+                tool_id=_get_attr(tool_call, "id", "") or _get_attr(tool_call, "tool_call_id", ""),
+                arguments=arguments,
+                name=_get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                type=_get_attr(tool_call, "type", "function"),
+            )
+            tool_calls.append(tool_call_info)
+    # chat completion tool result
+    # seems like the fields in a tool_result for chat api are not very strictly defined
+    if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
+        tool_result_info = ToolResult(
+            tool_id=_get_attr(message, "tool_id", "")
+            or _get_attr(message, "tool_call_id", "")
+            or _get_attr(message, "id", ""),
+            result=str(_get_attr(message, "content", "")),
+            name=_get_attr(message, "name", ""),
+            type=_get_attr(message, "type", "tool_result"),
+        )
+        tool_results.append(tool_result_info)
 
-    # handle legacy function_call format
-    function_call = _get_attr(message, "function_call", None)
+    # legacy function_call format
+    function_call = _get_attr(message, "function_call", {})
     if function_call:
-        try:
-            arguments_str = _get_attr(function_call, "arguments", "{}")
-            try:
-                arguments = json.loads(arguments_str) if arguments_str else {}
-            except (json.JSONDecodeError, TypeError):
-                arguments = {"raw_arguments": str(arguments_str)}
-
-            tool_call = ToolCall(
-                name=_get_attr(function_call, "name", ""),
-                arguments=arguments,
-                tool_id="",  # Legacy format doesn't have tool_id
-                type="function",
-            )
-            tool_calls.append(tool_call)
-        except Exception as e:
-            logger.debug("Error extracting legacy function call: %s", e)
-
-    # handle modern tool_calls format
-    tool_calls_list = _get_attr(message, "tool_calls", []) or []
-    for tool_call_obj in tool_calls_list:
-        try:
-            function_obj = _get_attr(tool_call_obj, "function", None)
-            if function_obj:
-                tool_name = _get_attr(function_obj, "name", "")
-                arguments_str = _get_attr(function_obj, "arguments", "{}")
-                tool_id = _get_attr(tool_call_obj, "id", "")
-                tool_type = _get_attr(tool_call_obj, "type", "function")
-            else:  # streamed format
-                tool_name = _get_attr(tool_call_obj, "name", "")
-                arguments_str = _get_attr(tool_call_obj, "arguments", "{}")
-                tool_id = (
-                    _get_attr(tool_call_obj, "id", "")
-                    or _get_attr(tool_call_obj, "tool_id", "")
-                    or _get_attr(tool_call_obj, "tool_call_id", "")
-                )
-                tool_type = _get_attr(tool_call_obj, "type", "function")
-
-            try:
-                arguments = json.loads(arguments_str) if arguments_str else {}
-            except (json.JSONDecodeError, TypeError):
-                arguments = {"raw_arguments": str(arguments_str)}
-
-            tool_call = ToolCall(
-                name=tool_name,
-                arguments=arguments,
-                tool_id=tool_id,
-                type=tool_type,
-            )
-            tool_calls.append(tool_call)
-        except Exception as e:
-            logger.debug("Error extracting tool call: %s", e)
+        tool_call_info = ToolCall(
+            name=_get_attr(function_call, "name", ""),
+            arguments=_get_attr(function_call, "arguments", {}),
+        )
+        tool_calls.append(tool_call_info)
 
     return tool_calls, tool_results
 
@@ -408,16 +375,14 @@ def openai_set_meta_tags_from_chat(
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-            processed_message["tool_id"] = tool_call_id
 
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
-
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
-            processed_message["content"] = ""  # set content to empty string to avoid duplicate content
+            processed_message["content"] = ""  # set content to empty string to avoid duplication
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -470,6 +435,8 @@ def openai_set_meta_tags_from_chat(
 
         output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+    tools = openai_get_tool_definitions(kwargs.get("tools", []))
+    span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
 def get_metadata_from_kwargs(
@@ -678,18 +645,28 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    tools = openai_get_tools_from_response(kwargs.get("tools", []))
+    tools = openai_get_tool_definitions(kwargs.get("tools", []))
     span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
-def openai_get_tools_from_response(tools: List[Any]) -> List[ToolDefinition]:
+def openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
-        tool_definition = ToolDefinition(
-            name=tool.get("name", ""),
-            description=tool.get("description", ""),
-            schema=tool.get("parameters", {}),
-        )
+        # chat API tool definitions
+        if _get_attr(tool, "function", None):
+            function = _get_attr(tool, "function", {})
+            tool_definition = ToolDefinition(
+                name=_get_attr(function, "name", ""),
+                description=_get_attr(function, "description", ""),
+                schema=_get_attr(function, "parameters", {}),
+            )
+        # response API tool definitions
+        else:
+            tool_definition = ToolDefinition(
+                name=_get_attr(tool, "name", ""),
+                description=_get_attr(tool, "description", ""),
+                schema=_get_attr(tool, "parameters", {}),
+            )
         tool_definitions.append(tool_definition)
     return tool_definitions
 
