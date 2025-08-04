@@ -342,16 +342,18 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_links = span_dict.setdefault("span_links", [])
             if condition_type != "AND":
                 triggered = True
-                span_links.append({
-                    "span_id": str(trigger_span_dict["span_id"]),
-                    "trace_id": format_trace_id(flow_span.trace_id),
-                    "attributes": {"from": "output", "to": "input"},
-                })
+                span_links.append(
+                    {
+                        "span_id": str(trigger_span_dict["span_id"]),
+                        "trace_id": format_trace_id(flow_span.trace_id),
+                        "attributes": {"from": "output", "to": "input"},
+                    }
+                )
                 continue
             if any(
                 flow_methods_to_spans.get(_trigger_method, {}).get("span_id") is None
                 for _trigger_method in listener_triggers
-            ): # skip if not all trigger methods have run (span ID must exist) for AND listener
+            ):  # skip if not all trigger methods have run (span ID must exist) for AND listener
                 continue
             triggered = True
             for method in listener_triggers:
