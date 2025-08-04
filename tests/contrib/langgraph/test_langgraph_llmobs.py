@@ -352,6 +352,16 @@ class TestLangGraphLLMObs:
                 {
                     "name": "add",
                     "description": "Adds two numbers together",
+                    "parameters": {
+                        "a": {
+                            "title": "A",
+                            "type": "integer",
+                        },
+                        "b": {
+                            "title": "B",
+                            "type": "integer",
+                        },
+                    },
                 }
             ],
             "model": "gpt-4o-mini",

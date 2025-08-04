@@ -1,5 +1,4 @@
 from typing import Any
-from typing import Callable
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -115,7 +114,7 @@ class LangGraphIntegration(BaseLLMIntegration):
 
     def _get_agent_manifest(self, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Gets the agent manifest for a given agent.
+        Gets the agent manifest for a given agent at the end of its execution.
 
         If the agent is a react agent, we have already stored the manifest in the _react_agents weak key dictionary.
         Otherwise, we try and do some inference to get the manifest.
@@ -160,6 +159,10 @@ class LangGraphIntegration(BaseLLMIntegration):
         return invoked_node
 
     def llmobs_handle_agent_manifest(self, agent, args: tuple, kwargs: dict):
+        """
+        Handles the agent manifest for a given react agent (defined through `langgraph.prebuilt.create_react_agent`),
+        and caches it for use when tagging the graph/agent span in the `_get_agent_manifest`.
+        """
         if not self.llmobs_enabled:
             return
 
@@ -171,12 +174,12 @@ class LangGraphIntegration(BaseLLMIntegration):
         agent_tools: List[Any] = (
             get_argument_value(args, kwargs, 1, "tools", True) or []
         )  # required parameter on the langgraph side, but optional should that ever change
+        tools = _get_tools_from_react_agent(agent_tools)
+
         system_prompt: Optional[str] = _get_system_prompt_from_react_agent(kwargs.get("prompt"))
         name: Optional[str] = kwargs.get("name")
 
-        tools = _get_tools_from_react_agent(agent_tools)
-
-        agent_manifest = {}
+        agent_manifest: Dict[str, Any] = {}
 
         if model_name:
             agent_manifest["model"] = model_name
@@ -329,12 +332,8 @@ def _get_model_info(model) -> Tuple[Optional[str], Optional[str], Dict[str, Any]
     """Get the model name, provider, and settings from a langchain llm"""
     if isinstance(model, str):
         # something like "openai:gpt-4"
-        model_provider, model_name = model.split(":", maxsplit=1)
-        return model_name, model_provider, {}
-
-    if isinstance(model, Callable):
-        # this represents models that are retrieved at runtime as a function of state and config
-        return None, None, {}
+        model_provider_str, model_name_str = model.split(":", maxsplit=1)
+        return model_name_str, model_provider_str, {}
 
     model_name = _get_attr(model, "model_name", None)
     model_provider = _get_model_provider(model)
@@ -374,7 +373,7 @@ def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
     In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
     """
     if system_prompt is None:
-        return
+        return None
 
     if isinstance(system_prompt, str):
         return system_prompt
@@ -427,7 +426,7 @@ def _is_tool_node(maybe_tool_node):
 
 def _get_tools_from_graph(agent) -> list:
     """Get the tools from the ToolNode(s) of an agent/graph"""
-    graph_tools = []
+    graph_tools: List[Dict[str, Any]] = []
     if agent is None:
         return graph_tools
 

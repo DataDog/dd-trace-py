@@ -431,7 +431,7 @@ def unpatch():
         unwrap(Pregel, "stream")
         unwrap(Pregel, "astream")
         unwrap(PregelLoop, "tick")
-        
+
         if LANGGRAPH_VERSION >= (0, 3, 29):
             if LANGGRAPH_VERSION < (0, 6, 0):
                 unwrap(langgraph.utils.runnable, "_consume_aiter")
