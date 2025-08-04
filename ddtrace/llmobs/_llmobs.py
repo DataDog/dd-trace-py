@@ -588,9 +588,9 @@ class LLMObs(Service):
 
             llmobs_info = {
                 "llmobs_enabled": cls.enabled,
-                "llmobs_ml_app": config._llmobs_ml_app or "",
-                "integrations_enabled": integrations_enabled or True,
-                "llmobs_agentless_enabled": config._llmobs_agentless_enabled or False,
+                "llmobs_ml_app": config._llmobs_ml_app,
+                "integrations_enabled": integrations_enabled,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled,
             }
             log.debug("LLMObs configurations: %s", llmobs_info)
 
