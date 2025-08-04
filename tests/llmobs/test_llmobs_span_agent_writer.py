@@ -49,14 +49,11 @@ def test_flush_queue_when_event_cause_queue_to_exceed_payload_limit(mock_send_pa
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
-    llmobs_span_writer.enqueue(_large_event())
     llmobs_span_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
         [
             mock.call("manually flushing buffer because queueing next event will exceed EVP payload limit"),
-            mock.call("encoded %d LLMObs %s events to be sent", 5, "span"),
+            mock.call("encoded %d LLMObs %s events to be sent", 2, "span"),
             mock.call("encoded %d LLMObs %s events to be sent", 1, "span"),
         ],
         any_order=True,
@@ -71,9 +68,9 @@ def test_truncating_oversized_events(mock_send_payload, mock_writer_logs):
     llmobs_span_writer.enqueue(_oversized_workflow_event())
     mock_writer_logs.warning.assert_has_calls(
         [
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400724),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400464),
-            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (1MB)", 1400445),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200724),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200464),
+            mock.call("dropping event input/output because its size (%d) exceeds the event size limit (5MB)", 5200445),
         ]
     )
 
