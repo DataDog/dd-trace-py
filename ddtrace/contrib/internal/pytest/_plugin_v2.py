@@ -108,8 +108,65 @@ skip_pytest_runtest_protocol = False
 _current_coverage_collector = None
 
 
+def _safe_int(val):
+    try:
+        return int(val)
+    except ValueError:
+        return None
+
+
+def _parse_xdist_args_from_cmd(args):
+    num_workers = None
+    dist_mode = None
+    i = 0
+
+    while i < len(args):
+        arg = args[i]
+
+        # -n <N>
+        if arg == "-n" and i + 1 < len(args):
+            val = args[i + 1]
+            num_workers = val if val in ("auto", "logical") else _safe_int(val)
+            dist_mode = dist_mode or "load"
+            i += 1
+
+        # -nN (no space)
+        elif arg.startswith("-n") and len(arg) > 2:
+            val = arg[2:]
+            num_workers = val if val in ("auto", "logical") else _safe_int(val)
+            dist_mode = dist_mode or "load"
+
+        # --numprocesses <N>
+        elif arg == "--numprocesses" and i + 1 < len(args):
+            val = args[i + 1]
+            num_workers = val if val in ("auto", "logical") else _safe_int(val)
+            dist_mode = dist_mode or "load"
+            i += 1
+
+        # --numprocesses=<N>
+        elif arg.startswith("--numprocesses="):
+            val = arg.split("=", 1)[1]
+            num_workers = val if val in ("auto", "logical") else _safe_int(val)
+            dist_mode = dist_mode or "load"
+
+        # --dist <mode>
+        elif arg == "--dist" and i + 1 < len(args):
+            dist_mode = args[i + 1]
+            i += 1
+
+        # --dist=<mode>
+        elif arg.startswith("--dist="):
+            dist_mode = arg.split("=", 1)[1]
+
+        i += 1
+
+    return num_workers, dist_mode
+
+
 def _skipping_level_for_xdist_parallelization_mode(
-    config: pytest_Config, worker_input: dict = None
+    config: pytest_Config,
+    worker_input: dict = None,
+    args=None,
 ) -> ITR_SKIPPING_LEVEL:
     """
     Detect pytest-xdist parallelization mode and return the appropriate ITR skipping level.
@@ -133,28 +190,44 @@ def _skipping_level_for_xdist_parallelization_mode(
         )
         return result
 
-    # Priority 2: Automatic xdist detection
-    if not config.pluginmanager.hasplugin("xdist"):
-        # xdist not available, use default
+    if config and not config.pluginmanager.hasplugin("xdist"):
         log.warning("xdist not available, using default ITR suite-level skipping")
         return ITR_SKIPPING_LEVEL.SUITE
 
-    # Check if xdist is actually being used (n > 0 or auto)
-    # Use worker input if available (for worker nodes), otherwise use config options (for main process)
-    if worker_input:
+    # Handle different config sources: config + args, worker_input, or regular config
+    if config and args:
+        # Try to get xdist options from config if available
+        dist_mode = "no"
+        num_workers = None
+
+        # First try: check if config already parsed the options
+        if hasattr(config, "option") and hasattr(config.option, "dist"):
+            dist_mode = getattr(config.option, "dist", "no")
+        if hasattr(config, "option") and hasattr(config.option, "numprocesses"):
+            num_workers = getattr(config.option, "numprocesses", None)
+
+        # Second try: parse command line arguments if not found in config
+        if dist_mode == "no" and num_workers is None:
+            num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+    elif worker_input:
+        # Worker node case - use configuration passed from main process
         dist_mode = worker_input.get("xdist_dist_mode", "no")
         num_workers = worker_input.get("xdist_num_workers", None)
-    else:
-        dist_mode = getattr(config.option, "dist", "no")
-        num_workers = getattr(config.option, "numprocesses", None)
 
     # If xdist is installed but not being used, use default
-    if dist_mode == "no" or num_workers in (0, None):
-        log.warning("xdist dist mode not set, using default ITR suite-level skipping")
+    # Note: when using -n X without --dist, xdist defaults to "load" mode, but early config shows dist="no"
+    # So we should check num_workers first - if it's > 0, xdist is being used regardless of dist_mode
+    if num_workers in (0, None):
+        log.warning("xdist not being used (no workers specified), using default ITR suite-level skipping")
         return ITR_SKIPPING_LEVEL.SUITE
 
     # xdist is being used, detect the parallelization mode
-    if dist_mode in ("loadscope", "loadfile"):
+    # If dist_mode is "no" but we have workers, xdist defaults to "load" mode
+    if dist_mode == "no":
+        dist_mode = "load"
+        log.warning("xdist being used without explicit --dist, defaulting to load mode")
+
+    elif dist_mode in ("loadscope", "loadfile"):
         # Suite-level parallelization modes - keep tests together by suite/file/group
         log.warning("Detected xdist suite-level parallelization mode (%s), using ITR suite-level skipping", dist_mode)
         return ITR_SKIPPING_LEVEL.SUITE
@@ -363,10 +436,11 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
         return
 
     try:
-        dd_config.test_visibility.itr_skipping_level = (
-            ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
-            else ITR_SKIPPING_LEVEL.TEST
+        # Detect xdist configuration early to set correct ITR level before CIVisibility initialization
+        dd_config.test_visibility.itr_skipping_level = _skipping_level_for_xdist_parallelization_mode(
+            config=early_config,
+            worker_input=None,
+            args=args,
         )
         enable_test_visibility(config=dd_config.pytest)
         if InternalTestSession.should_collect_coverage():
@@ -439,32 +513,24 @@ def pytest_configure(config: pytest_Config) -> None:
                     # Main process
                     pytest.global_worker_itr_results = 0
 
-                # Detect xdist parallelization mode and align ITR skipping strategy
-                # This should be done before any other plugin configuration
-                # Pass worker input if this is a worker node, so it can use the same xdist config as main process
+                # For worker nodes, use the xdist configuration passed from main process
                 worker_input = getattr(config, "workerinput", None)
-                detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config, worker_input)
-                current_itr_level = dd_config.test_visibility.itr_skipping_level
+                if worker_input:
+                    # Worker node: use configuration passed from main process
+                    detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config, worker_input)
+                    current_itr_level = dd_config.test_visibility.itr_skipping_level
 
-                if detected_itr_level != current_itr_level:
-                    log.warning(
-                        "Updating ITR skipping level from %s to %s to align with xdist parallelization mode",
-                        current_itr_level.name,
-                        detected_itr_level.name,
-                    )
-                    dd_config.test_visibility.itr_skipping_level = detected_itr_level
-
-                    # Update the CI visibility service if it's already initialized
-                    try:
-                        ci_visibility_service = require_ci_visibility_service()
-                        ci_visibility_service._suite_skipping_mode = detected_itr_level == ITR_SKIPPING_LEVEL.SUITE
+                    if detected_itr_level != current_itr_level:
                         log.warning(
-                            "Updated CI visibility service suite skipping mode to %s",
-                            ci_visibility_service._suite_skipping_mode,
+                            "Worker node updating ITR skipping level from %s to %s based on main process configuration",
+                            current_itr_level.name,
+                            detected_itr_level.name,
                         )
-                    except RuntimeError:
-                        # Service might not be initialized yet, that's okay
-                        pass
+                        dd_config.test_visibility.itr_skipping_level = detected_itr_level
+
+                else:
+                    # Main process: ITR level was already detected early, no need to change it
+                    log.debug("Main process: ITR skipping level already set during early initialization")
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
