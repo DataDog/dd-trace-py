@@ -4,10 +4,12 @@ stages:
   - gate
   - report
 
+include:
+  - .gitlab/testrunner.yml
+
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
-  PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
   GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
 
@@ -92,10 +94,11 @@ baseline:detect:
       - "baseline.env"
 
 baseline:build:
-  image: $PACKAGE_IMAGE
-  tags: [ "arch:amd64" ]
+  extends: .testrunner
   needs: [ "baseline:detect" ]
   stage: build
+  # .testrunner sets a default `retry: 2`
+  retry: 1
   variables:
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
@@ -120,9 +123,10 @@ baseline:build:
       - "*.whl"
 
 candidate:
-  image: $PACKAGE_IMAGE
+  extends: .testrunner
   stage: build
-  tags: [ "arch:amd64" ]
+  # .testrunner sets a default `retry: 2`
+  retry: 1
   needs:
     - pipeline: $PARENT_PIPELINE_ID
       job: download_ddtrace_artifacts

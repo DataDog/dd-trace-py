@@ -7,9 +7,6 @@ if [[ -n "${BASELINE_TAG}" ]];
 then
   python3.9 -m pip download --no-deps "ddtrace==${BASELINE_TAG:1}"
 else
-  ulimit -c unlimited
-  curl -sSf https://sh.rustup.rs | sh -s -- -y;
-  export PATH="$HOME/.cargo/bin:$PATH"
   echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
   git checkout "${BASELINE_COMMIT_SHA}"
   mkdir ./tmp
