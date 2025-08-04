@@ -108,7 +108,9 @@ skip_pytest_runtest_protocol = False
 _current_coverage_collector = None
 
 
-def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR_SKIPPING_LEVEL:
+def _skipping_level_for_xdist_parallelization_mode(
+    config: pytest_Config, worker_input: dict = None
+) -> ITR_SKIPPING_LEVEL:
     """
     Detect pytest-xdist parallelization mode and return the appropriate ITR skipping level.
 
@@ -138,8 +140,13 @@ def _skipping_level_for_xdist_parallelization_mode(config: pytest_Config) -> ITR
         return ITR_SKIPPING_LEVEL.SUITE
 
     # Check if xdist is actually being used (n > 0 or auto)
-    dist_mode = getattr(config.option, "dist", "no")
-    num_workers = getattr(config.option, "numprocesses", None)
+    # Use worker input if available (for worker nodes), otherwise use config options (for main process)
+    if worker_input:
+        dist_mode = worker_input.get("xdist_dist_mode", "no")
+        num_workers = worker_input.get("xdist_num_workers", None)
+    else:
+        dist_mode = getattr(config.option, "dist", "no")
+        num_workers = getattr(config.option, "numprocesses", None)
 
     # If xdist is installed but not being used, use default
     if dist_mode == "no" or num_workers in (0, None):
@@ -167,6 +174,14 @@ class XdistHooks:
             root_span = 0
 
         node.workerinput["root_span"] = root_span
+
+        # Pass xdist configuration to workers so they can make the same ITR level decisions
+        config = node.config
+        dist_mode = getattr(config.option, "dist", "no")
+        num_workers = getattr(config.option, "numprocesses", None)
+
+        node.workerinput["xdist_dist_mode"] = dist_mode
+        node.workerinput["xdist_num_workers"] = num_workers
 
     @pytest.hookimpl
     def pytest_testnodedown(self, node, error):
@@ -426,7 +441,9 @@ def pytest_configure(config: pytest_Config) -> None:
 
                 # Detect xdist parallelization mode and align ITR skipping strategy
                 # This should be done before any other plugin configuration
-                detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config)
+                # Pass worker input if this is a worker node, so it can use the same xdist config as main process
+                worker_input = getattr(config, "workerinput", None)
+                detected_itr_level = _skipping_level_for_xdist_parallelization_mode(config, worker_input)
                 current_itr_level = dd_config.test_visibility.itr_skipping_level
 
                 if detected_itr_level != current_itr_level:

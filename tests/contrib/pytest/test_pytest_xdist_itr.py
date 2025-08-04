@@ -576,6 +576,86 @@ class TestXdistHooksUnit:
         # Clean up
         delattr(pytest, "global_worker_itr_results")
 
+    def test_xdist_configuration_passed_to_workers(self):
+        """Test that xdist configuration is properly passed to worker nodes via execnet."""
+        from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
+
+        # Create a mock node and config
+        mock_node = mock.MagicMock()
+        mock_config = mock.MagicMock()
+
+        # Set up xdist options on the config
+        mock_config.option.dist = "loadscope"
+        mock_config.option.numprocesses = 2
+
+        # Set up the node's config and workerinput
+        mock_node.config = mock_config
+        mock_node.workerinput = {}
+
+        # Create XdistHooks instance and call pytest_configure_node
+        xdist_hooks = XdistHooks()
+
+        with mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.InternalTestSession.get_span", return_value=None):
+            xdist_hooks.pytest_configure_node(mock_node)
+
+        # Verify that xdist configuration was passed to worker
+        assert "xdist_dist_mode" in mock_node.workerinput
+        assert "xdist_num_workers" in mock_node.workerinput
+        assert mock_node.workerinput["xdist_dist_mode"] == "loadscope"
+        assert mock_node.workerinput["xdist_num_workers"] == 2
+
+    def test_worker_uses_received_xdist_configuration_loadscope(self):
+        """Test that worker nodes use received xdist configuration for ITR level detection."""
+        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
+        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+
+        # Create a mock config that would normally indicate no xdist
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"  # This would normally indicate no xdist
+        mock_config.option.numprocesses = None
+
+        # But worker input indicates loadscope mode was used
+        worker_input = {"xdist_dist_mode": "loadscope", "xdist_num_workers": 2}
+
+        # The function should use worker input and detect suite-level mode
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        assert result == ITR_SKIPPING_LEVEL.SUITE
+
+    def test_worker_uses_received_xdist_configuration_worksteal(self):
+        """Test that worker nodes use received xdist configuration for ITR level detection."""
+        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
+        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+
+        # Create a mock config that would normally indicate no xdist
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"  # This would normally indicate no xdist
+        mock_config.option.numprocesses = None
+
+        # Test with worksteal mode in worker input
+        worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 2}
+
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        assert result == ITR_SKIPPING_LEVEL.TEST
+
+    def test_worker_uses_received_xdist_configuration_0_numworkers(self):
+        """Test that worker nodes use received xdist configuration for ITR level detection."""
+        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
+        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+
+        # Create a mock config that would normally indicate no xdist
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = "no"  # This would normally indicate no xdist
+        mock_config.option.numprocesses = None
+
+        # Test with worksteal mode in worker input
+        worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 0}
+
+        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        assert result == ITR_SKIPPING_LEVEL.SUITE
+
 
 class TestXdistModeDetectionIntegration(PytestTestCaseBase):
     """Integration tests for xdist mode detection using inline_run."""
