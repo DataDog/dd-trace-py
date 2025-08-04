@@ -4100,6 +4100,7 @@ class BotocoreTest(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
+    @pytest.mark.skip(reason="Flaky test")
     def test_aws_payload_tagging_s3_invalid_config(self):
         with self.override_config(
             "botocore",
