@@ -76,7 +76,9 @@ class CrewAIIntegration(BaseLLMIntegration):
             if span._parent is None:
                 return span
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(method_name, {})
-            span_dict["span_id"] = str(span.span_id)
+            is_router_method_name = span.name in getattr(kwargs.get("flow_instance"), "_routers", [])
+            # Need to differentiate between the same routers being stored by both their method name and result
+            span_dict.update({"span_id": str(span.span_id), "is_router_method_name": is_router_method_name})
         return span
 
     def _get_current_ctx(self, pin):
@@ -296,6 +298,12 @@ class CrewAIIntegration(BaseLLMIntegration):
                     "attributes": {"from": "input", "to": "input"},
                 }
             )
+
+        if span.name in getattr(flow_instance, "_routers", []):
+            # Routers use their result (not method name) to link to the next method, so do the same for spans
+            span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
+            span_dict.update({"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)})
+
         span._set_ctx_items(
             {
                 NAME: span.name or "Flow Method",
@@ -307,30 +315,62 @@ class CrewAIIntegration(BaseLLMIntegration):
         return
 
     def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
-        """Set span links for the next queued listener method(s) in a CrewAI flow."""
+        """
+        Set span links for the next queued listener method(s) in a CrewAI flow.
+
+        Notes:
+            - Router methods passed by name are skipped (span links are based on router results)
+            - AND conditions:
+                - temporary output->output span links added by default for all trigger methods
+                - once all trigger methods have run for the listener, remove temporary output->output links and
+                  add span links from trigger spans to listener span
+        """
         trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
         if not self.llmobs_enabled or not trigger_method:
             return
-        trigger_span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).get(trigger_method)
-        if not trigger_span_dict:
+        flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
+        trigger_span_dict = flow_methods_to_spans.get(trigger_method)
+        if not trigger_span_dict or trigger_span_dict.get("is_router_method_name", False):
             return
         listeners = getattr(flow_instance, "_listeners", {})
         triggered = False
-        # Check trigger method against each listener methods' triggers
-        for listener_name, (_, listener_triggers) in listeners.items():
+        for listener_name, (condition_type, listener_triggers) in listeners.items():
             if trigger_method not in listener_triggers:
                 continue
-            triggered = True
-            span_dict = self._flow_span_to_method_to_span_dict.get(flow_span, {}).setdefault(listener_name, {})
+            span_dict = flow_methods_to_spans.setdefault(listener_name, {})
             span_dict["trace_id"] = format_trace_id(flow_span.trace_id)
             span_links = span_dict.setdefault("span_links", [])
-            span_links.append(
-                {
+            if condition_type != "AND":
+                triggered = True
+                span_links.append({
                     "span_id": str(trigger_span_dict["span_id"]),
                     "trace_id": format_trace_id(flow_span.trace_id),
                     "attributes": {"from": "output", "to": "input"},
-                }
-            )
+                })
+                continue
+            if any(
+                flow_methods_to_spans.get(_trigger_method, {}).get("span_id") is None
+                for _trigger_method in listener_triggers
+            ): # skip if not all trigger methods have run (span ID must exist) for AND listener
+                continue
+            triggered = True
+            for method in listener_triggers:
+                method_span_dict = flow_methods_to_spans.get(method, {})
+                if not method_span_dict:
+                    continue
+                span_links.append(
+                    {
+                        "span_id": str(method_span_dict["span_id"]),
+                        "trace_id": format_trace_id(flow_span.trace_id),
+                        "attributes": {"from": "output", "to": "input"},
+                    }
+                )
+                flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
+                updated_links = [
+                    link for link in flow_span_span_links if link["span_id"] != str(method_span_dict["span_id"])
+                ]
+                flow_span._set_ctx_item(SPAN_LINKS, updated_links)
+
         if triggered is False:
             flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
             flow_span_span_links.append(

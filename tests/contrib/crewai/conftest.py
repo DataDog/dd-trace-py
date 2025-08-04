@@ -8,6 +8,7 @@ from crewai import Process
 from crewai import Task
 from crewai.flow.flow import and_
 from crewai.flow.flow import listen
+from crewai.flow.flow import router
 from crewai.flow.flow import start
 from crewai.tasks.conditional_task import ConditionalTask
 from crewai.tools import tool
@@ -266,6 +267,70 @@ def complex_flow_async(crewai):
         async def generate_itinerary(self):
             time.sleep(0.05)
             return itinerary_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        async def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        async def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        async def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
 
     yield ExFlow()
 

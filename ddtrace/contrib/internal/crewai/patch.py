@@ -147,7 +147,12 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
     with integration.trace(
-        pin, "CrewAI Flow Method", span_name=span_name, operation="flow_method", submit_to_llmobs=True
+        pin,
+        "CrewAI Flow Method",
+        span_name=span_name,
+        operation="flow_method",
+        submit_to_llmobs=True,
+        flow_instance=instance,
     ) as span:
         initial_flow_state = {**getattr(instance, "state", {})}
         result = await func(*args, **kwargs)
@@ -161,10 +166,8 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
 def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
     integration = crewai._datadog_integration
     result = func(*args, **kwargs)
-    if get_argument_value(args, kwargs, 1, "router_only", optional=True) is False:
-        # TODO: Work for routers too?
-        current_span = pin.tracer.current_span()
-        integration._llmobs_set_span_link_on_flow(current_span, args, kwargs, instance)
+    current_span = pin.tracer.current_span()
+    integration._llmobs_set_span_link_on_flow(current_span, args, kwargs, instance)
     return result
 
 

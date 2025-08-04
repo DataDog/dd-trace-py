@@ -265,6 +265,23 @@ def _assert_complex_flow_links(llmobs_events):
     _assert_span_link(llmobs_events[4], llmobs_events[5], "output", "input")
 
 
+def _assert_router_flow_events(llmobs_events, spans):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(spans) == len(llmobs_events) == 4
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **expected_span_args)
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **expected_span_args)
+
+
+def _assert_router_flow_links(llmobs_events):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[2], "output", "input")
+    _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
+    _assert_span_link(llmobs_events[3], llmobs_events[0], "output", "output")
+
+
 def test_basic_crew(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
     with request_vcr.use_cassette("test_basic_crew.yaml"):
         basic_crew.kickoff(inputs={"topic": "AI"})
@@ -412,7 +429,6 @@ async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, reque
 def test_simple_flow(crewai, simple_flow, mock_tracer, llmobs_events):
     simple_flow.kickoff(inputs={"continent": "North America"})
     spans = mock_tracer.pop_traces()[0]
-    assert len(spans) == 3
     _assert_simple_flow_events(llmobs_events, spans)
     _assert_simple_flow_links(llmobs_events)
 
@@ -420,7 +436,6 @@ def test_simple_flow(crewai, simple_flow, mock_tracer, llmobs_events):
 async def test_simple_flow_async(crewai, simple_flow_async, mock_tracer, llmobs_events):
     await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
     spans = mock_tracer.pop_traces()[0]
-    assert len(spans) == 3
     _assert_simple_flow_events(llmobs_events, spans)
     _assert_simple_flow_links(llmobs_events)
 
@@ -428,7 +443,6 @@ async def test_simple_flow_async(crewai, simple_flow_async, mock_tracer, llmobs_
 def test_complex_flow(crewai, complex_flow, mock_tracer, llmobs_events):
     complex_flow.kickoff(inputs={"continent": "North America"})
     spans = mock_tracer.pop_traces()[0]
-    assert len(spans) == 6
     _assert_complex_flow_events(llmobs_events, spans)
     _assert_complex_flow_links(llmobs_events)
 
@@ -436,6 +450,19 @@ def test_complex_flow(crewai, complex_flow, mock_tracer, llmobs_events):
 async def test_complex_flow_async(crewai, complex_flow_async, mock_tracer, llmobs_events):
     await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
     spans = mock_tracer.pop_traces()[0]
-    assert len(spans) == 6
     _assert_complex_flow_events(llmobs_events, spans)
     _assert_complex_flow_links(llmobs_events)
+
+
+def test_router_flow(crewai, router_flow, mock_tracer, llmobs_events):
+    router_flow.kickoff()
+    spans = mock_tracer.pop_traces()[0]
+    _assert_router_flow_events(llmobs_events, spans)
+    _assert_router_flow_links(llmobs_events)
+
+
+async def test_router_flow_async(crewai, router_flow_async, mock_tracer, llmobs_events):
+    await router_flow_async.kickoff_async()
+    spans = mock_tracer.pop_traces()[0]
+    _assert_router_flow_events(llmobs_events, spans)
+    _assert_router_flow_links(llmobs_events)
