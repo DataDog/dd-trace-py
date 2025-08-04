@@ -22,8 +22,8 @@ from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
-from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOOL_DEFINITIONS
+from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
@@ -50,7 +50,6 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
     tool_calls = []
     tool_results = []
 
-    role = str(_get_attr(message, "role", ""))
     # chat completion tool call
     raw_tool_calls = _get_attr(message, "tool_calls", [])
     if raw_tool_calls:
@@ -85,9 +84,14 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
     # legacy function_call format
     function_call = _get_attr(message, "function_call", {})
     if function_call:
+        arguments = _get_attr(function_call, "arguments", {})
+        try:
+            arguments = json.loads(arguments)
+        except (json.JSONDecodeError, TypeError):
+            arguments = {"value": str(arguments)}
         tool_call_info = ToolCall(
             name=_get_attr(function_call, "name", ""),
-            arguments=_get_attr(function_call, "arguments", {}),
+            arguments=arguments,
         )
         tool_calls.append(tool_call_info)
 
@@ -436,6 +440,11 @@ def openai_set_meta_tags_from_chat(
         output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = openai_get_tool_definitions(kwargs.get("tools", []))
+    # Handle legacy functions parameter
+    functions = kwargs.get("functions", [])
+    if functions:
+        # Legacy functions are already in the {"function": {...}} format that openai_get_tool_definitions expects
+        tools.extend(openai_get_tool_definitions(functions))
     span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
