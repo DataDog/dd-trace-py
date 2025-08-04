@@ -172,7 +172,7 @@ class CIVisibility(Service):
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
                 self.tracer.context_provider = CIContextProvider()
-            elif asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+            elif asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
                 self.tracer = CIVisibilityTracer()
                 self.tracer.context_provider = CIContextProvider()
             else:
@@ -649,7 +649,7 @@ class CIVisibility(Service):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)
 
-        if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
 
         def _task_fetch_tests_to_skip():
@@ -716,7 +716,7 @@ class CIVisibility(Service):
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
 
-        if asbool(os.getenv("_DD_CIVISIBILITY_USE_BETA_WRITER")):
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
             self._set_global_span_forwarder(None)
 
     def _set_global_span_forwarder(self, span_forwarder: Optional[TraceFilter]) -> None:
