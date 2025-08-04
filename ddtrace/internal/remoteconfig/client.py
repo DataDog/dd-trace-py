@@ -410,6 +410,7 @@ class RemoteConfigClient:
         config_metadata: ConfigMetadata,
     ) -> None:
         callback.append(config_content, target, config_metadata)
+        print(f"[PID {os.getpid()}] APPLY CALLBACK Processing target {target!r} with config {config_content!r}\n{config_metadata}", file=sys.stderr, flush=True)
         if callback not in list_callbacks and not any(filter(lambda x: x is callback, list_callbacks)):
             list_callbacks.append(callback)
 
@@ -422,13 +423,16 @@ class RemoteConfigClient:
     ) -> None:
         witness = object()
         for target, config in self._applied_configs.items():
+            print(f"[PID {os.getpid()}] REMOVE Processing target {target!r} with config {config!r}", file=sys.stderr, flush=True)
             if client_configs.get(target, witness) == config:
                 # The configuration has not changed.
+                print(f"[PID {os.getpid()}] REMOVE Processing target {target!r} with config {config!r} NO CHANGES", file=sys.stderr, flush=True)
                 applied_configs[target] = config
                 continue
             elif target not in targets:
                 callback_action = None
             else:
+                print(f"[PID {os.getpid()}] REMOVE Processing target {target!r} with config {config!r} DO NOTHING", file=sys.stderr, flush=True)
                 continue
 
             callback = self._products.get(config.product_name)
@@ -448,13 +452,16 @@ class RemoteConfigClient:
         payload: AgentPayload,
     ) -> None:
         for target, config in client_configs.items():
+            print(f"[PID {os.getpid()}] LOAD NEW Processing target {target!r} with config {config!r}", file=sys.stderr, flush=True)
             callback = self._products.get(config.product_name)
             if callback:
                 applied_config = self._applied_configs.get(target)
                 if applied_config == config:
+                    print(f"[PID {os.getpid()}] LOAD NEW Processing target {target!r} ALREADY APPLIED", file=sys.stderr, flush=True)
                     continue
                 config_content = self._extract_target_file(payload, target, config)
                 if config_content is None:
+                    print(f"[PID {os.getpid()}] LOAD NEW Processing target {target!r} CONTENT EMPTY", file=sys.stderr, flush=True)
                     continue
 
                 try:
