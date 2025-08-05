@@ -71,11 +71,12 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
     # chat completion tool result
     # seems like the fields in a tool_result for chat api are not very strictly defined
     if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
+        result = _get_attr(message, "content", "")
         tool_result_info = ToolResult(
             tool_id=_get_attr(message, "tool_id", "")
             or _get_attr(message, "tool_call_id", "")
             or _get_attr(message, "id", ""),
-            result=str(_get_attr(message, "content", "")),
+            result=str(result) if result else "",
             name=_get_attr(message, "name", ""),
             type=_get_attr(message, "type", "tool_result"),
         )
@@ -440,12 +441,9 @@ def openai_set_meta_tags_from_chat(
         output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = openai_get_tool_definitions(kwargs.get("tools", []))
-    # Handle legacy functions parameter
-    functions = kwargs.get("functions", [])
-    if functions:
-        # Legacy functions are already in the {"function": {...}} format that openai_get_tool_definitions expects
-        tools.extend(openai_get_tool_definitions(functions))
-    span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
+    if tools:
+        span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
 def get_metadata_from_kwargs(
@@ -655,7 +653,8 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
     tools = openai_get_tool_definitions(kwargs.get("tools", []))
-    span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    if tools:
+        span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
 def openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
