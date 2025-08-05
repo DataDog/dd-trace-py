@@ -115,14 +115,14 @@ def _skipping_level_for_xdist_parallelization_mode(
     explicit_suite_mode = os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE")
     if explicit_suite_mode is not None:
         result = ITR_SKIPPING_LEVEL.SUITE if asbool(explicit_suite_mode) else ITR_SKIPPING_LEVEL.TEST
-        log.warning(
+        log.debug(
             "Explicit ITR skipping level from _DD_CIVISIBILITY_ITR_SUITE_MODE=%s",
             explicit_suite_mode,
         )
         return result
 
     if config and not config.pluginmanager.hasplugin("xdist"):
-        log.warning("xdist not available, using default ITR suite-level skipping")
+        log.debug("xdist not available, using default ITR suite-level skipping")
         return ITR_SKIPPING_LEVEL.SUITE
 
     # If explicit parameters are not provided, try to read from config
@@ -130,13 +130,13 @@ def _skipping_level_for_xdist_parallelization_mode(
     if num_workers == XDIST_UNSET and config:
         try:
             num_workers = getattr(config.option, "numprocesses", None)
-            log.warning("DEBUG: num_workers read from config: %r", num_workers)
+            log.debug("DEBUG: num_workers read from config: %r", num_workers)
         except AttributeError:
             num_workers = None
     if dist_mode == XDIST_UNSET and config:
         try:
             dist_mode = getattr(config.option, "dist", None)
-            log.warning("DEBUG: dist_mode read from config: %r", dist_mode)
+            log.debug("DEBUG: dist_mode read from config: %r", dist_mode)
         except AttributeError:
             dist_mode = None
 
@@ -147,22 +147,22 @@ def _skipping_level_for_xdist_parallelization_mode(
     # Note: when using -n X without --dist, xdist defaults to "load" mode, but early config shows dist="no"
     # So we should check num_workers first - if it's > 0, xdist is being used regardless of dist_mode
     if num_workers in (0, None, XDIST_UNSET):
-        log.warning("xdist not being used (no workers specified), using default ITR suite-level skipping")
+        log.debug("xdist not being used (no workers specified), using default ITR suite-level skipping")
         return ITR_SKIPPING_LEVEL.SUITE
 
     # xdist is being used, detect the parallelization mode
     # If dist_mode is "no" but we have workers, xdist defaults to "load" mode
     if dist_mode == "no":
         dist_mode = "load"
-        log.warning("xdist being used without explicit --dist, defaulting to load mode")
+        log.debug("xdist being used without explicit --dist, defaulting to load mode")
 
     if dist_mode in ("loadscope", "loadfile"):
         # Suite-level parallelization modes - keep tests together by suite/file/group
-        log.warning("Detected xdist suite-level parallelization mode (%s), using ITR suite-level skipping", dist_mode)
+        log.debug("Detected xdist suite-level parallelization mode (%s), using ITR suite-level skipping", dist_mode)
         return ITR_SKIPPING_LEVEL.SUITE
     else:
         # Test-level parallelization modes (load, worksteal, or default)
-        log.warning("Detected xdist test-level parallelization mode (%s), using ITR test-level skipping", dist_mode)
+        log.debug("Detected xdist test-level parallelization mode (%s), using ITR test-level skipping", dist_mode)
         return ITR_SKIPPING_LEVEL.TEST
 
 
