@@ -42,6 +42,11 @@ def genai_client(request, genai):
 
 
 @pytest.fixture
+def genai_client_vcr(genai):
+    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai"})
+
+
+@pytest.fixture
 def mock_tracer(ddtrace_global_config, genai):
     try:
         pin = Pin.get_from(genai)
