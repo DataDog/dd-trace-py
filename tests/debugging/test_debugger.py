@@ -1160,7 +1160,8 @@ def test_debugger_redacted_identifiers():
 
         assert (
             msg_line["message"] == f"token={REDACTED} answer=42 "
-            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
+            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin', "
+            f"b'authorization': '{REDACTED}'}} "
             f"pii_dict['jwt']={REDACTED}"
         )
 
@@ -1179,8 +1180,9 @@ def test_debugger_redacted_identifiers():
                         [{"type": "str", "value": "'jwt'"}, redacted_value(str())],
                         [{"type": "str", "value": "'password'"}, redacted_value(str())],
                         [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                        [{"type": "bytes", "value": "b'authorization'"}, redacted_value(str())],
                     ],
-                    "size": 3,
+                    "size": 4,
                 },
             },
             "staticFields": {},
@@ -1207,8 +1209,12 @@ def test_debugger_redacted_identifiers():
                                 {"type": "str", "notCapturedReason": "redactedIdent"},
                             ],
                             [{"type": "str", "value": "'username'"}, {"type": "str", "value": "'admin'"}],
+                            [
+                                {"type": "bytes", "value": "b'authorization'"},
+                                {"type": "str", "notCapturedReason": "redactedIdent"},
+                            ],
                         ],
-                        "size": 3,
+                        "size": 4,
                     },
                     "@return": {"type": "str", "value": "'top secret'"},  # TODO: Ouch!
                 },
@@ -1254,7 +1260,8 @@ def test_debugger_redaction_excluded_identifiers():
         # Only the token value be visible now because it's explicitly excluded from redaction
         assert (
             msg_line["message"] == f"token='deadbeef' answer=42 "
-            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin'}} "
+            f"pii_dict={{'jwt': '{REDACTED}', 'password': '{REDACTED}', 'username': 'admin', "
+            f"b'authorization': '{REDACTED}'}} "
             f"pii_dict['jwt']={REDACTED}"
         )
 
