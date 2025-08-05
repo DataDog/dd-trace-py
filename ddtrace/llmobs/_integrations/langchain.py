@@ -1,5 +1,6 @@
 from collections import defaultdict
 import json
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -31,6 +32,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -365,6 +367,31 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
+
+    def _get_prompt_variable_name(self, instance: Any) -> str:
+        """
+        Attempts to find the variable name used for the prompt template instance by inspecting
+        the caller's frame locals and globals, and returns it in the format:
+        {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
+        
+        Call stack:
+        0: _get_prompt_variable_name (this method)
+        1: handle_prompt_template_invoke 
+        2: traced_base_prompt_template_invoke (ddtrace wrapper)
+        3: BasePromptTemplate.invoke (langchain internal)
+        4: user code (where we want to find the variable name)
+        """
+        variable_name, module_name = extract_instance_metadata_from_stack(
+            instance=instance,
+            internal_variable_names=["instance", "self", "step"],
+            default_variable_name="unknown_prompt_template",
+            default_module_name="unknown_module",
+            frame_start_offset=2,
+            frame_search_depth=10,
+        )
+        
+        # Construct the enhanced format: {integration_name}.{module_name}.{variable_name}
+        return f"{self._integration_name}.{module_name}.{variable_name}"
 
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
         identifying_params = kwargs.pop("_dd.identifying_params", None)
@@ -779,10 +806,13 @@ class LangChainIntegration(BaseLLMIntegration):
         if not template or not variables:
             return
 
+        # Try to detect the variable name used for this prompt template instance
+        prompt_id = self._get_prompt_variable_name(instance)
+
         prompt = {
             "variables": variables,
             "template": template,
-            "id": "my_unnamed_prompt",
+            "id": prompt_id if prompt_id is not None else "unknown",
             "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],

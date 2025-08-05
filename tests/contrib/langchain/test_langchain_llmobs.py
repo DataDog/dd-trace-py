@@ -145,22 +145,48 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
-def test_llmobs_prompt_template(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, llmobs_events, tracer):
     prompt_template = langchain_core.prompts.PromptTemplate(
         input_variables=["question"], template="You are a helpful assistant. Please answer this question: {question}"
     )
     llm = langchain_openai.OpenAI()
     chain = prompt_template | llm
     with get_request_vcr().use_cassette("lcel_openai_chain_call.yaml"):
-        result = chain.invoke({"question": "What is machine learning?"})
+        chain.invoke({"question": "What is machine learning?"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(llmobs_events) == 2
     expected_prompt = "You are a helpful assistant. Please answer this question: {question}"
     expected_variables = {"question": "What is machine learning?"}
     actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "langchain.test_langchain_llmobs.prompt_template"
     assert actual_prompt["template"] == expected_prompt 
     assert actual_prompt["variables"]["question"] == expected_variables["question"]
+
+
+def test_llmobs_string_prompt_template_direct_invoke(langchain_core, langchain_openai, llmobs_events, tracer):
+    """Test StringPromptTemplate (PromptTemplate) with variable name detection using direct invoke (no chains)."""
+    greeting_template = langchain_core.prompts.PromptTemplate(
+        input_variables=["name", "time_of_day"],
+        template="Good {time_of_day}, {name}! How are you doing today?"
+    )
+    llm = langchain_openai.OpenAI()
+    
+    # Direct invoke on template first, then pass to LLM (no chain)
+    prompt_value = greeting_template.invoke({"name": "Alice", "time_of_day": "morning"})
+    with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
+        llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
+    
+    # The prompt should be attached to the LLM span
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "langchain.test_langchain_llmobs.greeting_template"
+    assert actual_prompt["template"] == "Good {time_of_day}, {name}! How are you doing today?"
+    assert actual_prompt["variables"]["name"] == "Alice"
+    assert actual_prompt["variables"]["time_of_day"] == "morning"
+
 
 def test_llmobs_chain(langchain_core, langchain_openai, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
