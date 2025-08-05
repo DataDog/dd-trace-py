@@ -7,12 +7,13 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
-from ddtrace.contrib.internal.pytest._plugin_v2 import _parse_xdist_args_from_cmd
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
-from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
+from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
+from ddtrace.contrib.internal.pytest._xdist import XdistHooks
+from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
+from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 from ddtrace.ext.test_visibility._test_visibility_base import TestId
@@ -647,7 +648,7 @@ class TestParseXdistArgsFromCmd:
 
         expected_dist_mode = "load"
         if workers == "0":
-            expected_dist_mode = "UNSET"
+            expected_dist_mode = XDIST_UNSET
         assert dist_mode == expected_dist_mode
 
     @pytest.mark.parametrize("workers", ["4", "0", "auto", "logical"])
@@ -663,7 +664,7 @@ class TestParseXdistArgsFromCmd:
 
         expected_dist_mode = "load"
         if workers == "0":
-            expected_dist_mode = "UNSET"
+            expected_dist_mode = XDIST_UNSET
         assert dist_mode == expected_dist_mode
 
     def test_parse_numprocesses_with_space(self):
@@ -694,34 +695,34 @@ class TestParseXdistArgsFromCmd:
         """Test parsing --dist <mode> format."""
         # Test --dist loadscope
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadscope"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "loadscope"
 
         # Test --dist worksteal
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "worksteal"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "worksteal"
 
         # Test --dist loadfile
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadfile"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "loadfile"
 
         # Test --dist load
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "load"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "load"
 
     def test_parse_dist_equals(self):
         """Test parsing --dist=<mode> format."""
         # Test --dist=loadscope
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist=loadscope"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "loadscope"
 
         # Test --dist=each
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist=each"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "each"
 
     def test_parse_combined_args(self):
@@ -752,35 +753,35 @@ class TestParseXdistArgsFromCmd:
         """Test parsing when no xdist arguments are present."""
         # Test empty args
         num_workers, dist_mode = _parse_xdist_args_from_cmd([])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
         # Test with other pytest args but no xdist
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--ddtrace", "-v", "tests/"])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
     def test_parse_invalid_values(self):
         """Test parsing with invalid values."""
         # Test -n with invalid number
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", "invalid"])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
         # Test -n at end of args (no value)
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n"])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
         # Test --dist at end of args (no value)
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist"])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
         # Test --numprocesses with invalid value
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses", "bad"])
-        assert num_workers == "UNSET"
-        assert dist_mode == "UNSET"
+        assert num_workers == XDIST_UNSET
+        assert dist_mode == XDIST_UNSET
 
     def test_parse_edge_cases(self):
         """Test edge cases and boundary conditions."""
@@ -796,7 +797,7 @@ class TestParseXdistArgsFromCmd:
 
         # Test multiple --dist values (last one wins)
         num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadscope", "--dist", "worksteal"])
-        assert num_workers == "UNSET"
+        assert num_workers == XDIST_UNSET
         assert dist_mode == "worksteal"
 
         # Test mixed formats
@@ -1883,7 +1884,7 @@ class TestSkippingLevelForXdistParallelizationMode:
 
         with mock.patch.dict("os.environ", {}, clear=True):
             # Call without explicit parameters to force config detection
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config, XDIST_UNSET, XDIST_UNSET)
             assert result == expected_result
 
     @pytest.mark.parametrize(
@@ -1910,7 +1911,7 @@ class TestSkippingLevelForXdistParallelizationMode:
             del mock_config.option
 
         with mock.patch.dict("os.environ", {}, clear=True):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config, XDIST_UNSET, XDIST_UNSET)
             assert result == expected_result
 
     @pytest.mark.parametrize(
@@ -1936,7 +1937,7 @@ class TestSkippingLevelForXdistParallelizationMode:
         with mock.patch.dict("os.environ", {}, clear=True):
             # For None values, don't pass parameters to trigger config fallback
             if explicit_workers is None and explicit_dist is None:
-                result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+                result = _skipping_level_for_xdist_parallelization_mode(mock_config, XDIST_UNSET, XDIST_UNSET)
             else:
                 result = _skipping_level_for_xdist_parallelization_mode(
                     config=mock_config, num_workers=explicit_workers, dist_mode=explicit_dist
