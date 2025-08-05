@@ -89,6 +89,7 @@ from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import SpanLinker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_session_id
@@ -208,6 +209,7 @@ class LLMObs(Service):
 
         forksafe.register(self._child_after_fork)
 
+        self._span_linker = SpanLinker()
         self._link_tracker = LinkTracker()
         self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
@@ -222,6 +224,8 @@ class LLMObs(Service):
 
     def _on_span_finish(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
+            self._span_linker.on_span_finish(span)
+            self._span_linker.remove_child_spans(span)
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
 
@@ -971,6 +975,7 @@ class LLMObs(Service):
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
+            self._llmobs_context_provider.register_child_span(llmobs_parent, span)
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))
             parent_llmobs_trace_id = (
                 llmobs_parent._get_ctx_item(LLMOBS_TRACE_ID)

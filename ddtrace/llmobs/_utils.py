@@ -9,6 +9,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -351,3 +352,50 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+
+class SpanLinker:
+    """
+    Handles span linking for LLM Obs spans across integrations.
+    """
+
+    def __init__(self):
+        self._parent_to_children_spans: Dict[str, List[Span]] = {}
+
+    def register_child_span(self, parent: Span, child: Span) -> None:
+        """Registers a child span with its parent span."""
+        self._parent_to_children_spans.setdefault(parent.span_id, []).append(child)
+
+    def remove_child_spans(self, parent: Span) -> None:
+        """Removes the children spans of the given parent span."""
+        self._parent_to_children_spans.pop(parent.span_id, None)
+    
+    def on_span_finish(self, span: Span) -> None:
+        """
+        Called when a span finishes. This is used to add span links to the span before it is finished.
+        
+        Currently, this only works for adding span links between adjacent LLM and tool spans.
+        """
+        siblings = self._parent_to_children_spans.get(span.parent_id, [])
+        try:
+            span_index = siblings.index(span)
+            if span_index > 0:
+                previous_span = siblings[span_index - 1]
+                if (
+                    (
+                        previous_span._get_ctx_item(SPAN_KIND) == "llm"
+                        and span._get_ctx_item(SPAN_KIND) == "tool"
+                    ) or (
+                        previous_span._get_ctx_item(SPAN_KIND) == "tool"
+                        and span._get_ctx_item(SPAN_KIND) == "llm"
+                    )
+                ):
+                    add_span_link(
+                        span,
+                        previous_span.span_id,
+                        previous_span.trace_id,
+                        "output",
+                        "input",
+                    )
+        except ValueError:
+            return
