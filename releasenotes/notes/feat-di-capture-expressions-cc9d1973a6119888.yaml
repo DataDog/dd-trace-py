@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    dynamic instrumentation: added support for capture expressions in log
+    probes.
