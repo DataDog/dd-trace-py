@@ -154,21 +154,18 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_code_in_subprocess):
+def test_remoteconfig_sampling_rate_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update(
         {
             "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
-    out, err, status, _ = run_python_code_in_subprocess(
+    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace._trace.product import apm_tracing_rc_subscribe
 from tests.internal.test_settings import _base_rc_config
 from tests.internal.test_settings import call_apm_tracing_rc
-
-apm_tracing_rc_subscribe(config)
 
 call_apm_tracing_rc(
     _base_rc_config(

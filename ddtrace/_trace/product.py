@@ -5,6 +5,7 @@ import typing as t
 
 from envier import En
 
+from ddtrace import tracer
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import asbool
@@ -30,35 +31,32 @@ class _Config(En):
 _config = _Config()
 
 
-# TODO: Consolidate with the apm_tracing_rc function
-def _on_global_config_update(cfg: Config, items: t.List[str]) -> None:
-    from ddtrace import tracer
-
+def _on_global_config_update(cfg: Config, config_name: str, config_value: t.Any) -> None:
     # sampling configs always come as a pair
-    if "_trace_sampling_rules" in items:
-        tracer._sampler.set_sampling_rules(cfg._trace_sampling_rules)
-        log.debug("Updated tracer sampling rules via remote_config: %s", cfg._trace_sampling_rules)
+    if config_name == "_trace_sampling_rules":
+        tracer._sampler.set_sampling_rules(config_value)
+        log.debug("Updated tracer sampling rules via remote_config: %s", config_value)
 
-    if "tags" in items:
-        tracer._tags = cfg.tags.copy()
+    if config_name == "tags":
+        tracer._tags = (config_value or {}).copy()
         log.debug("Updated tracer tags via remote_config: %s", tracer._tags)
 
-    if "_tracing_enabled" in items:
-        if tracer.enabled and cfg._tracing_enabled is False:
+    if config_name == "_tracing_enabled":
+        if tracer.enabled and config_value is False:
             tracer.enabled = False
-            log.debug("Tracing disabled via remote_config. Config Items: %s", items)
-        elif cfg._tracing_enabled is True and cfg._get_source("_tracing_enabled") != "remote_config":
+            log.debug("Tracing disabled via remote_config. Config: %s Value: %s", config_name, config_value)
+        elif config_value is True and cfg._get_source("_tracing_enabled") != "remote_config":
             tracer.enabled = True
-            log.debug("Tracing enabled via remote_config. Config Items: %s", items)
+            log.debug("Tracing enabled via remote_config. Config %s Value: %s", config_name, config_value)
 
-    if "_trace_http_header_tags" in items:
+    if config_name == "_trace_http_header_tags":
         # Update the HTTP header tags configuration
-        cfg._http = HttpConfig(header_tags=cfg._trace_http_header_tags)
-        log.debug("Updated HTTP header tags configuration via remote_config: %s", cfg._http._header_tags)
+        cfg._http = HttpConfig(header_tags=config_value)
+        log.debug("Updated HTTP header tags configuration via remote_config: %s", config_value)
 
-    if "_logs_injection" in items:
+    if config_name == "_logs_injection":
         # Update the logs injection configuration
-        log.debug("Updated logs injection configuration via remote_config: %s", cfg._logs_injection)
+        log.debug("Updated logs injection configuration via remote_config: %s", config_value)
 
 
 def post_preload():
@@ -73,7 +71,16 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        apm_tracing_rc_subscribe(config)
+        log.debug(
+            "APM Tracing Remote Config enabled for trace sampling rules, log injection, dd tags, "
+            "tracing enablement, and HTTP header tags.\nConfigs on startup: sampling_rules: %s, "
+            "logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
+            config._trace_sampling_rules,
+            config._logs_injection,
+            config.tags,
+            config._tracing_enabled,
+            config._trace_http_header_tags,
+        )
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods
 
@@ -122,23 +129,6 @@ class APMCapabilities(enum.IntFlag):
     APM_TRACING_CUSTOM_TAGS = 1 << 15
     APM_TRACING_ENABLED = 1 << 19
     APM_TRACING_SAMPLE_RULES = 1 << 29
-
-
-def apm_tracing_rc_subscribe(dd_config):
-    dd_config._subscribe(
-        ["_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled", "_trace_http_header_tags"],
-        _on_global_config_update,
-    )
-    log.debug(
-        "APM Tracing Remote Config enabled for trace sampling rules, log injection, dd tags, "
-        "tracing enablement, and HTTP header tags.\nConfigs on startup: sampling_rules: %s, "
-        "logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
-        dd_config._trace_sampling_rules,
-        dd_config._logs_injection,
-        dd_config.tags,
-        dd_config._tracing_enabled,
-        dd_config._trace_http_header_tags,
-    )
 
 
 def _remove_invalid_rules(rc_rules: t.List) -> t.List:
@@ -204,7 +194,10 @@ def _convert_rc_trace_sampling_rules(
 
 
 def apm_tracing_rc(lib_config, dd_config):
-    new_rc_configs: t.Dict[str, t.Any] = {n: None for n in dd_config._config}
+    new_rc_configs: t.Dict[str, t.Any] = {
+        k: None
+        for k in {"_trace_sampling_rules", "_logs_injection", "tags", "_tracing_enabled", "_trace_http_header_tags"}
+    }
 
     if "tracing_sampling_rules" in lib_config or "tracing_sampling_rate" in lib_config:
         global_sampling_rate = lib_config.get("tracing_sampling_rate")
@@ -232,5 +225,10 @@ def apm_tracing_rc(lib_config, dd_config):
             tags = dd_config._format_tags(lib_config["tracing_header_tags"])
         new_rc_configs["_trace_http_header_tags"] = tags
 
-    dd_config._set_config_items([(k, v, "remote_config") for k, v in new_rc_configs.items()])
+    for config_name, new_rc_value in new_rc_configs.items():
+        config_item = dd_config._config[config_name]
+        if config_item.get_value_source("remote_config") != new_rc_value:
+            config_item.set_value_source(new_rc_value, "remote_config")
+            _on_global_config_update(dd_config, config_name, config_item.value())
+
     log.debug("APM Tracing Received: %s from the Agent", lib_config)

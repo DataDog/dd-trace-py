@@ -322,10 +322,10 @@ class _ConfigItem:
             log.warning("Invalid source: %s", source)
 
     def get_value_source(self, source: _ConfigSource) -> _JSONType:
-        if source == "code":
-            return self._code_value
-        elif source == "remote_config":
+        if source == "remote_config":
             return self._rc_value
+        elif source == "code":
+            return self._code_value
         elif source == "env_var":
             return self._env_value
         elif source == "default":
@@ -648,7 +648,6 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -776,17 +775,6 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
-    def _subscribe(self, items, handler):
-        # type: (List[str], Callable[[Config, List[str]], None]) -> None
-        self._subscriptions.append((items, handler))
-
-    def _notify_subscribers(self, changed_items):
-        # type: (List[str]) -> None
-        for sub_items, sub_handler in self._subscriptions:
-            sub_updated_items = [i for i in changed_items if i in sub_items]
-            if sub_updated_items:
-                sub_handler(self, sub_updated_items)
-
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
         if key in ("_config", "_from_endpoint"):
@@ -808,7 +796,6 @@ class Config(object):
             item_names.append(key)
             item.set_value_source(value, origin)
             telemetry_writer.add_configuration(item._name, item.value(), item.source())
-        self._notify_subscribers(item_names)
 
     def _reset(self):
         # type: () -> None

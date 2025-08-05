@@ -2,10 +2,8 @@ import json
 import os
 from typing import Sequence
 
-import mock
 import pytest
 
-from ddtrace._trace.product import _on_global_config_update
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.settings._config import Config
@@ -212,8 +210,6 @@ def test_settings_parametrized(testcase, config, monkeypatch):
         config._reset()
 
     expected_name = list(testcase["expected"].keys())[0]
-    config._subscribe([expected_name], _on_global_config_update)
-
     for code_name, code_value in testcase.get("code", {}).items():
         setattr(config, code_name, code_value)
 
@@ -256,14 +252,6 @@ def test_settings_missing_lib_config(config, monkeypatch):
 
     for expected_name, expected_source in testcase.get("expected_source", {}).items():
         assert config._get_source(expected_name) == expected_source
-
-
-def test_config_subscription(config):
-    for s in ("_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags"):
-        _handler = mock.MagicMock()
-        config._subscribe([s], _handler)
-        setattr(config, s, "1")
-        _handler.assert_called_once_with(config, [s])
 
 
 def test_remoteconfig_sampling_rules(ddtrace_run_python_code_in_subprocess):
@@ -641,40 +629,6 @@ def test_config_public_properties_and_methods():
 
 
 @pytest.mark.subprocess()
-def test_subscription_handler_called_once_for_duplicate_values():
-    """This test ensures that the subscription handler is called only once
-    when the value is set multiple times to the same value.
-    It also checks that the handler is called again when the value changes.
-    """
-    from ddtrace import config
-
-    call_count = 0
-
-    def _handler(cfg, items):
-        global call_count
-        call_count += 1
-
-    config._subscribe(
-        [
-            "_logs_injection",
-        ],
-        _handler,
-    )
-
-    assert call_count == 0, "Handler should not be called before setting the value"
-    for _ in range(3):
-        config._logs_injection = "true"
-        assert call_count == 1, "Handler should be called only once for the same value"
-
-    for _ in range(3):
-        config._logs_injection = "false"
-        assert call_count == 2, "Handler should be called only once for the same value"
-
-    config._logs_injection = "true"
-    assert call_count == 3, "Handler should be called again for a different value"
-
-
-@pytest.mark.subprocess()
 def test_remoteconfig_debug_logging():
     import mock
 
@@ -700,7 +654,7 @@ def test_remoteconfig_debug_logging():
                 config,
             )
     # Ensure APM Tracing Remote Config debug logs are generated
-    assert mock_log.debug.call_args_list == [
+    expected_logs = [
         mock.call(
             "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
             "dd tags, tracing enablement, and HTTP header tags.\nConfigs on startup: "
@@ -714,12 +668,9 @@ def test_remoteconfig_debug_logging():
         # Tracer configurations are only updated once (calls with duplicate values should be ignored)
         mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
         mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
+        mock.call("Tracing disabled via remote_config. Config: %s Value: %s", "_tracing_enabled", False),
         mock.call(
-            "Tracing disabled via remote_config. Config Items: %s",
-            ["_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags", "tags", "_tracing_enabled"],
-        ),
-        mock.call(
-            "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
+            "Updated HTTP header tags configuration via remote_config: %s", {"X-Header-Tag-420": "header_tag_420"}
         ),
         mock.call("Updated logs injection configuration via remote_config: %s", False),
         # 3 payloads should be received generating 3 debug logs.
@@ -735,4 +686,7 @@ def test_remoteconfig_debug_logging():
             "APM Tracing Received: %s from the Agent",
             rc_configs,
         ),
-    ], mock_log.debug.call_args_list
+    ]
+    assert sorted(mock_log.debug.call_args_list) == sorted(
+        expected_logs
+    ), f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"
