@@ -10,7 +10,6 @@ specific Django apps like Django Rest Framework (DRF).
 from collections.abc import Iterable
 import functools
 from inspect import getmro
-from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
@@ -25,6 +24,8 @@ from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.django.middleware import LoadMiddlewareWrappingContext
+from ddtrace.contrib.internal.django.utils import DjangoFunctionWrappingContext
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
@@ -359,79 +360,6 @@ def traced_process_exception(django, name, resource=None):
     return trace_utils.with_traced_module(wrapped)(django)
 
 
-@trace_utils.with_traced_module
-def traced_load_middleware(django, pin, func, instance, args, kwargs):
-    """
-    Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
-    middlewares.
-    """
-    settings_middleware = []
-    # Gather all the middleware
-    if getattr(django.conf.settings, "MIDDLEWARE", None):
-        settings_middleware += django.conf.settings.MIDDLEWARE
-    if getattr(django.conf.settings, "MIDDLEWARE_CLASSES", None):
-        settings_middleware += django.conf.settings.MIDDLEWARE_CLASSES
-
-    # Iterate over each middleware provided in settings.py
-    # Each middleware can either be a function or a class
-    for mw_path in settings_middleware:
-        mw = django.utils.module_loading.import_string(mw_path)
-
-        # Instrument function-based middleware
-        if isfunction(mw) and not trace_utils.iswrapped(mw):
-            split = mw_path.split(".")
-            if len(split) < 2:
-                continue
-            base = ".".join(split[:-1])
-            attr = split[-1]
-
-            # DEV: We need to have a closure over `mw_path` for the resource name or else
-            # all function based middleware will share the same resource name
-            def _wrapper(resource):
-                # Function-based middleware is a factory which returns a handler function for
-                # requests.
-                # So instead of tracing the factory, we want to trace its returned value.
-                # We wrap the factory to return a traced version of the handler function.
-                def wrapped_factory(func, instance, args, kwargs):
-                    # r is the middleware handler function returned from the factory
-                    r = func(*args, **kwargs)
-                    if r:
-                        return wrapt.FunctionWrapper(
-                            r,
-                            traced_func(django, "django.middleware", resource=resource),
-                        )
-                    # If r is an empty middleware function (i.e. returns None), don't wrap since
-                    # NoneType cannot be called
-                    else:
-                        return r
-
-                return wrapped_factory
-
-            trace_utils.wrap(base, attr, _wrapper(resource=mw_path))
-
-        # Instrument class-based middleware
-        elif isclass(mw):
-            for hook in [
-                "process_request",
-                "process_response",
-                "process_view",
-                "process_template_response",
-                "__call__",
-            ]:
-                if hasattr(mw, hook) and not trace_utils.iswrapped(mw, hook):
-                    trace_utils.wrap(
-                        mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
-                    )
-            # Do a little extra for `process_exception`
-            if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
-                res = mw_path + ".{0}".format("process_exception")
-                trace_utils.wrap(
-                    mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res)
-                )
-
-    return func(*args, **kwargs)
-
-
 def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext):
     from . import utils
 
@@ -580,6 +508,8 @@ def instrument_view(django, view, path=None):
     """
     if hasattr(view, "__mro__"):
         for cls in reversed(getmro(view)):
+            if cls is object:
+                continue
             _instrument_view(django, cls)
 
     return _instrument_view(django, view, path=path)
@@ -601,8 +531,6 @@ _DEFAULT_METHODS = ("get", "delete", "post", "options", "head")
 
 def _instrument_view(django, view, path=None):
     """Helper to wrap Django views."""
-    from . import utils
-
     # All views should be callable, double check before doing anything
     if not callable(view):
         return view
@@ -618,12 +546,12 @@ def _instrument_view(django, view, path=None):
     for name in list(request_method_list or _DEFAULT_METHODS) + list(lifecycle_methods):
         try:
             func = getattr(view, name, None)
-            if not func or isinstance(func, wrapt.ObjectProxy):
+            if not func:
                 continue
 
             resource = "{0}.{1}".format(func_name(view), name)
             op_name = "django.view.{0}".format(name)
-            trace_utils.wrap(view, name, traced_func(django, name=op_name, resource=resource))
+            DjangoFunctionWrappingContext.maybe_wrap(func, django, name=op_name, resource=resource)
         except Exception:
             log.debug("Failed to instrument Django view %r function %s", view, name, exc_info=True)
 
@@ -635,19 +563,19 @@ def _instrument_view(django, view, path=None):
             try:
                 func = getattr(response_cls, name, None)
                 # Do not wrap if the method does not exist or is already wrapped
-                if not func or isinstance(func, wrapt.ObjectProxy):
+                if not func:
                     continue
 
                 resource = "{0}.{1}".format(func_name(response_cls), name)
                 op_name = "django.response.{0}".format(name)
-                trace_utils.wrap(response_cls, name, traced_func(django, name=op_name, resource=resource))
+                DjangoFunctionWrappingContext.maybe_wrap(func, django, name=op_name, resource=resource)
             except Exception:
                 log.debug("Failed to instrument Django response %r function %s", response_cls, name, exc_info=True)
 
     # If the view itself is not wrapped, wrap it
-    if not isinstance(view, wrapt.ObjectProxy):
-        view = utils.DjangoViewProxy(
-            view, traced_func(django, "django.view", resource=func_name(view), ignored_excs=[django.http.Http404])
+    if isfunction(view):
+        DjangoFunctionWrappingContext.maybe_wrap(
+            view, django, name="django.view", resource=func_name(view), ignored_excs=[django.http.Http404]
         )
     return view
 
@@ -687,7 +615,16 @@ def traced_as_view(django, pin, func, instance, args, kwargs):
     except Exception:
         log.debug("Failed to instrument Django view %r", instance, exc_info=True)
     view = func(*args, **kwargs)
-    return wrapt.FunctionWrapper(view, traced_func(django, "django.view", resource=func_name(instance)))
+    # DEV: Django does `view.__dict__.update(self.dispatch.__dict___)`
+    #      so we need to clear out the reference to the dispatch context wrapper
+    #      otherwise we either won't be able to wrap this view function, or we'll
+    #      end up with double wrapping (django.view + django.view.dispatch)
+    if hasattr(view, "__dd_context_wrapped__"):
+        del view.__dd_context_wrapped__
+    DjangoFunctionWrappingContext.maybe_wrap(
+        view, django, name="django.view", resource=func_name(instance), ignored_excs=[django.http.Http404]
+    )
+    return view
 
 
 @trace_utils.with_traced_module
@@ -902,12 +839,10 @@ def unwrap_views(func, instance, args, kwargs):
     DjangoViewProxy.
     Since get_asgi_application is not a django view callback this function will unwrap it.
     """
-    from . import utils
-
     routes = get_argument_value(args, kwargs, 0, "routes")
     for route in routes:
-        if isinstance(route.callback, utils.DjangoViewProxy):
-            route.callback = route.callback.__wrapped__
+        if DjangoFunctionWrappingContext.is_wrapped(route.callback):
+            DjangoFunctionWrappingContext.extract(route.callback).unwrap()
 
     return func(*args, **kwargs)
 
@@ -919,7 +854,7 @@ def _patch(django):
 
     if config_django.instrument_middleware:
         when_imported("django.core.handlers.base")(
-            lambda m: trace_utils.wrap(m, "BaseHandler.load_middleware", traced_load_middleware(django))
+            lambda m: LoadMiddlewareWrappingContext(m.BaseHandler.load_middleware, django).wrap()
         )
 
     when_imported("django.core.handlers.wsgi")(lambda m: trace_utils.wrap(m, "WSGIRequest.__init__", wrap_wsgi_environ))
@@ -1012,7 +947,7 @@ def patch():
 
 def _unpatch(django):
     trace_utils.unwrap(django.apps.registry.Apps, "populate")
-    trace_utils.unwrap(django.core.handlers.base.BaseHandler, "load_middleware")
+    LoadMiddlewareWrappingContext.uninstrument_module(django.core.handlers.base)
     trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response")
     trace_utils.unwrap(django.core.handlers.base.BaseHandler, "get_response_async")
     trace_utils.unwrap(django.template.base.Template, "render")

@@ -137,6 +137,11 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
 
+    ignored_excs = ctx.get_item("ignored_excs")
+    if ignored_excs:
+        for exc in ignored_excs:
+            span._ignore_exception(exc)
+
     ctx.span = span
 
     if config._inferred_proxy_services_enabled:
@@ -540,17 +545,6 @@ def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
     ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
-def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
-    if ignored_excs:
-        for exc in ignored_excs:
-            ctx.span._ignore_exception(exc)
-
-
-def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
-    if should_set_traceback:
-        ctx.span.set_traceback()
-
-
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         ctx.span.set_tag_str(tk, tv)
@@ -889,8 +883,6 @@ def listen():
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
     core.on("django.cache", _on_django_cache)
-    core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -961,9 +953,18 @@ def listen():
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",
+        "django.middleware",
         "django.template.render",
         "django.process_exception",
-        "django.func.wrapped",
+        "django.view",
+        "django.view.delete",
+        "django.view.dispatch",
+        "django.view.get",
+        "django.view.head",
+        "django.view.http_method_not_allowed",
+        "django.view.options",
+        "django.view.post",
+        "django.view.setup",
         # non web frameworks
         "botocore.instrumented_api_call",
         "botocore.instrumented_lib_function",
@@ -985,7 +986,20 @@ def listen():
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("django.template.render",):
+    for name in (
+        "django.middleware",
+        "django.process_exception",
+        "django.template.render",
+        "django.view",
+        "django.view.delete",
+        "django.view.dispatch",
+        "django.view.get",
+        "django.view.head",
+        "django.view.http_method_not_allowed",
+        "django.view.options",
+        "django.view.post",
+        "django.view.setup",
+    ):
         core.on(f"context.ended.{name}", _finish_span)
 
 

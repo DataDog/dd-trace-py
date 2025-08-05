@@ -1,7 +1,21 @@
+from types import FunctionType
+from typing import Type
+
+from ddtrace.contrib.internal.django.middleware import LoadMiddlewareWrappingContext
 from ddtrace.contrib.internal.django.patch import get_version
 from ddtrace.contrib.internal.django.patch import patch
 from ddtrace.contrib.internal.django.templates import DjangoTemplateWrappingContext
+from ddtrace.internal.wrapping.context import WrappingContext
 from tests.contrib.patch import PatchTestCase
+
+
+def assert_ctx_not_dobule_wrapped(ctx: Type[WrappingContext], f: FunctionType) -> None:
+    """
+    Assert that the context is not double wrapped.
+    """
+    assert ctx.is_wrapped(f), "Context should be wrapped"
+    ctx.extract(f).unwrap()
+    assert not ctx.is_wrapped(f), "Context should not be wrapped after unwrapping"
 
 
 class TestDjangoPatch(PatchTestCase.Base):
@@ -18,7 +32,7 @@ class TestDjangoPatch(PatchTestCase.Base):
 
         import django.core.handlers.base
 
-        self.assert_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
+        assert LoadMiddlewareWrappingContext.is_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_wrapped(django.core.handlers.base.BaseHandler.get_response)
 
         import django.template.base
@@ -33,7 +47,7 @@ class TestDjangoPatch(PatchTestCase.Base):
         self.assertFalse(hasattr(django, "app"))
         import django.core.handlers.base
 
-        self.assert_not_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
+        assert not LoadMiddlewareWrappingContext.is_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_not_wrapped(django.core.handlers.base.BaseHandler.get_response)
         assert not DjangoTemplateWrappingContext.is_wrapped(django.template.base.Template.render)
         if django.VERSION >= (2, 0, 0):
@@ -45,13 +59,12 @@ class TestDjangoPatch(PatchTestCase.Base):
 
     def assert_not_module_double_patched(self, django):
         self.assert_not_double_wrapped(django.apps.registry.Apps.populate)
-        self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
+        assert_ctx_not_dobule_wrapped(
+            LoadMiddlewareWrappingContext, django.core.handlers.base.BaseHandler.load_middleware
+        )
         self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.get_response)
 
-        assert DjangoTemplateWrappingContext.is_wrapped(django.template.base.Template.render)
-        ctx = DjangoTemplateWrappingContext.extract(django.template.base.Template.render)
-        ctx.unwrap()
-        assert not DjangoTemplateWrappingContext.is_wrapped(django.template.base.Template.render)
+        assert_ctx_not_dobule_wrapped(DjangoTemplateWrappingContext, django.template.base.Template.render)
 
         if django.VERSION >= (2, 0, 0):
             self.assert_not_double_wrapped(django.urls.path)

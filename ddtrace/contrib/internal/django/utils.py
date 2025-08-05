@@ -1,17 +1,24 @@
 import io
 import json
-from typing import Any  # noqa:F401
+from types import FunctionType
+from types import ModuleType
+from types import TracebackType
+from typing import Any
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Mapping  # noqa:F401
+from typing import Optional
 from typing import Text  # noqa:F401
+from typing import Type
+from typing import TypeVar
 from typing import Union  # noqa:F401
 
 import django
 from django.utils.functional import SimpleLazyObject
-from wrapt import FunctionWrapper
 
+import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
@@ -20,11 +27,13 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import compat
 from ddtrace.internal import core
+from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import parse_form_multipart
 from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
+from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.trace import Span
 import ddtrace.vendor.xmltodict as xmltodict
@@ -427,19 +436,103 @@ def _after_request_tags(pin, span: Span, request, response):
             span.resource = request.method
 
 
-class DjangoViewProxy(FunctionWrapper):
-    """
-    This custom function wrapper is used to wrap the callback passed to django views handlers (path/re_path/url).
-    This allows us to distinguish between wrapped django views and wrapped asgi applications in django channels.
-    """
+T = TypeVar("T")
 
-    @property
-    def __module__(self):
+
+class DjangoFunctionWrappingContext(WrappingContext):
+    def __init__(
+        self,
+        f: FunctionType,
+        django: ModuleType,
+        name: str,
+        resource: Optional[str] = None,
+        ignored_excs: Optional[List[type]] = None,
+    ) -> None:
+        super().__init__(f)
+        self._django: ModuleType = django
+        self._name: str = name
+        self._resource: Optional[str] = resource
+        self._ignored_excs: Optional[List[type]] = ignored_excs
+
+    @classmethod
+    def maybe_wrap(
+        cls,
+        f: FunctionType,
+        django: ModuleType,
+        name: str,
+        resource: Optional[str] = None,
+        ignored_excs: Optional[List[type]] = None,
+    ) -> None:
         """
-        DjangoViewProxy.__module__ defaults to ddtrace.contrib.internal.django when a wrapped function does not have
-        a __module__ attribute. This method ensures that DjangoViewProxy.__module__ always returns the module
-        attribute of the wrapped function or an empty string if this attribute is not available.
-        The function Django.urls.path() does not have a __module__ attribute and would require this override
-        to resolve the correct module name.
+        Wrap the function if it is not already wrapped.
         """
-        return self.__wrapped__.__module__
+        if not cls.is_wrapped(f):
+            cls(f, django=django, name=name, resource=resource, ignored_excs=ignored_excs).wrap()
+
+    def _context_kwargs(self) -> Dict[str, str]:
+        """Return additional context kwargs for the span."""
+        return {}
+
+    def __enter__(self) -> "DjangoFunctionWrappingContext":
+        super().__enter__()
+
+        tags: Dict[str, str] = {COMPONENT: config.django.integration_name}
+        # Create the span context
+        pin = Pin.get_from(self._django)
+        tracer = ddtrace.tracer
+        if pin:
+            tracer = pin.tracer or tracer
+
+        try:
+            resource = self.get("resource")
+        except KeyError:
+            resource = self._resource
+
+        ctx_kwargs = {
+            "span_name": self._name,
+            "resource": resource,
+            "tags": tags,
+            "tracer": tracer,
+        }
+        # Allow sub-classes to override attributes
+        # DEV: We cannot use `__enter__` + `self.set()` since we don't
+        #      have storage stack until `super().__enter__()` is called in
+        #      in this method
+        ctx_kwargs.update(self._context_kwargs())
+        ctx = core.context_with_data(
+            self._name,
+            **ctx_kwargs,
+        )
+
+        # TODO: ASM still needs this? they at least have a django.func.wrapped listener
+        #   django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
+
+        # Enter the context and store it
+        ctx.__enter__()
+        self.set("ctx", ctx)
+
+        return self
+
+    def _close_ctx(
+        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
+    ) -> None:
+        try:
+            # Close the context and any open span
+            ctx = self.get("ctx")
+            ctx.__exit__(exc_type, exc_val, exc_tb)
+        except Exception:
+            log.exception("Failed to close Django template render wrapping context")
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
+        self._close_ctx(exc_type, exc_val, exc_tb)
+        super().__exit__(exc_type, exc_val, exc_tb)
+        return False
+
+    def __return__(self, value: T) -> T:
+        self._close_ctx(None, None, None)
+        return super().__return__(value)
