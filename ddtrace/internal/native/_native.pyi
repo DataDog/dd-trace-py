@@ -54,6 +54,51 @@ class PyConfigurator:
         """
         ...
 
+class StacktraceCollection:
+    Disabled: "StacktraceCollection"
+    WithoutSymbols: "StacktraceCollection"
+    EnabledWithInprocessSymbols: "StacktraceCollection"
+    EnabledWithSymbolsInReceiver: "StacktraceCollection"
+
+class CrashtrackerConfiguration:
+    def __init__(
+        self,
+        additional_files: List[str],
+        create_alt_stack: bool,
+        use_alt_stack: bool,
+        timeout_ms: int,
+        resolve_frames: StacktraceCollection,
+        endpoint: Optional[str],
+        unix_socket_path: Optional[str],
+    ): ...
+
+class CrashtrackerReceiverConfig:
+    def __init__(
+        self,
+        args: List[str],
+        env: Dict[str, str],
+        path_to_receiver_binary: str,
+        stderr_filename: Optional[str],
+        stdout_filename: Optional[str],
+    ): ...
+
+class CrashtrackerMetadata:
+    def __init__(self, library_name: str, library_version: str, family: str, tags: Dict[str, str]): ...
+
+class CrashtrackerStatus:
+    NotInitialized: "CrashtrackerStatus"
+    Initialized: "CrashtrackerStatus"
+    FailedToInitialize: "CrashtrackerStatus"
+
+def crashtracker_init(
+    config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
+) -> None: ...
+def crashtracker_on_fork(
+    config: CrashtrackerConfiguration, receiver_config: CrashtrackerReceiverConfig, metadata: CrashtrackerMetadata
+) -> None: ...
+def crashtracker_status() -> CrashtrackerStatus: ...
+def crashtracker_receiver() -> None: ...
+
 class PyTracerMetadata:
     """
     Stores the configuration settings for the Tracer.

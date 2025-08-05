@@ -35,10 +35,10 @@ def get_distributions() -> t.Mapping[str, str]:
         # PKG-INFO and/or METADATA files are parsed when dist.metadata is accessed
         # Optimization: we should avoid accessing dist.metadata more than once
         metadata = dist.metadata
-        name = metadata["name"].lower()
+        name = metadata["name"]
         version = metadata["version"]
         if name and version:
-            pkgs[name] = version
+            pkgs[name.lower()] = version
 
     return pkgs
 
@@ -197,8 +197,7 @@ def _package_for_root_module_mapping() -> t.Optional[t.Dict[str, Distribution]]:
 
     except Exception:
         LOG.warning(
-            "Unable to build package file mapping, "
-            "please report this to https://github.com/DataDog/dd-trace-py/issues",
+            "Unable to build package file mapping, please report this to https://github.com/DataDog/dd-trace-py/issues",
             exc_info=True,
         )
         return None

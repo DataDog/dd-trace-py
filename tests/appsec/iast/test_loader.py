@@ -5,7 +5,7 @@ import sys
 from unittest import mock
 
 import ddtrace.appsec._iast._loader
-import ddtrace.bootstrap.preload
+from ddtrace.internal.iast.product import post_preload
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -31,7 +31,7 @@ def test_patching_error():
         ddtrace.appsec._iast._loader.IS_IAST_ENABLED = True
 
         with mock.patch("ddtrace.appsec._iast._loader.compile", side_effect=ValueError) as loader_compile:
-            importlib.reload(ddtrace.bootstrap.preload)
+            post_preload()
             imported_fixture_module = importlib.import_module(fixture_module)
 
             imported_fixture_module.add(2, 1)
