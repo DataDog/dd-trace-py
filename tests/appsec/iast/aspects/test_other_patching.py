@@ -5,8 +5,8 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -85,7 +85,7 @@ def test_index_lower_add():
 
 @pytest.mark.skipif(
     sys.version_info >= (3, 11),
-    reason="Python 3.11 and 3.12 raise TypeError: don't know how to" "disassemble _lru_cache_wrapper objects",
+    reason="Python 3.11 and 3.12 raise TypeError: don't know how todisassemble _lru_cache_wrapper objects",
 )
 def test_urlib_parse_patching():
     _iast_patched_module("urllib.parse")

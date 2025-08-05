@@ -32,7 +32,7 @@ class deduplication:
         return asm_config._asm_deduplication_enabled
 
     def __call__(self, *args, **kwargs):
-        result = None
+        result = False
         if self._check_deduplication():
             raw_log_hash = hash("".join([str(arg) for arg in self._extract(args)]))
             last_reported_timestamp = self.reported_logs.get(raw_log_hash, M_INF) + self._time_lapse

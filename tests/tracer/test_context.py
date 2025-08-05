@@ -112,6 +112,14 @@ def test_context_serializable(context):
     assert context == restored
 
 
+def test_context_serializable_reactivate():
+    context = Context()
+    assert not context._reactivate, "default value should be False to maintain backwards compatibility"
+    context._reactivate = True
+    serialized_context = pickle.loads(pickle.dumps(context))
+    assert context._reactivate == serialized_context._reactivate
+
+
 @pytest.mark.parametrize(
     "context,expected_traceparent",
     [

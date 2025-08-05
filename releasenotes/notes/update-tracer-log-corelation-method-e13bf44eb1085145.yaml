@@ -1,0 +1,6 @@
+fixes:
+  - |
+    logging: Fixed an issue where ``ddtrace.tracer.get_log_correlation_context()`` would return the service name of the current span instead of the global service name.
+  - |
+    logging: Ensured that ``ddtrace.tracer.get_log_correlation_context()`` returns the expected log correlation attributes (e.g., ``dd.trace_id``, ``dd.span_id``, ``dd.service`` instead of ``trace_id``, ``span_id``, ``service``).  
+    This change aligns the method's output with the attributes in `ddtrace log-correlation docs <https://docs.datadoghq.com/logs/log_collection/python/?tab=ddtrace#log-correlation>`_.

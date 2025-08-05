@@ -3,11 +3,6 @@ The Overhead control engine (OCE) is an element that by design ensures that the 
 limit. It will measure operations being executed in a request and it will deactivate detection
 (and therefore reduce the overhead to nearly 0) if a certain threshold is reached.
 """
-from typing import Set
-from typing import Text
-from typing import Tuple
-from typing import Type
-
 from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
@@ -24,58 +19,6 @@ def get_request_sampling_value() -> float:
     return float(asm_config._iast_request_sampling)
 
 
-class Operation(object):
-    """Common operation related to Overhead Control Engine (OCE). Every vulnerabilities/taint_sinks should inherit
-    from this class. OCE instance calls these methods to control the overhead produced in each request.
-    """
-
-    _lock = threading.Lock()
-    _vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
-    _reported_vulnerabilities: Set[Tuple[str, int]] = set()
-
-    @classmethod
-    def reset(cls):
-        cls._vulnerability_quota = asm_config._iast_max_vulnerabilities_per_requests
-        cls._reported_vulnerabilities = set()
-
-    @classmethod
-    def acquire_quota(cls) -> bool:
-        cls._lock.acquire()
-        result = False
-        if cls._vulnerability_quota > 0:
-            cls._vulnerability_quota -= 1
-            result = True
-        cls._lock.release()
-        return result
-
-    @classmethod
-    def increment_quota(cls) -> bool:
-        cls._lock.acquire()
-        result = False
-        if cls._vulnerability_quota < asm_config._iast_max_vulnerabilities_per_requests:
-            cls._vulnerability_quota += 1
-            result = True
-        cls._lock.release()
-        return result
-
-    @classmethod
-    def has_quota(cls) -> bool:
-        cls._lock.acquire()
-        result = cls._vulnerability_quota > 0
-        cls._lock.release()
-        return result
-
-    @classmethod
-    def is_not_reported(cls, filename: Text, lineno: int) -> bool:
-        if asm_config._iast_deduplication_enabled:
-            vulnerability_id = (filename, lineno)
-            if vulnerability_id in cls._reported_vulnerabilities:
-                return False
-
-            cls._reported_vulnerabilities.add(vulnerability_id)
-        return True
-
-
 class OverheadControl(object):
     """This class is meant to control the overhead introduced by IAST analysis.
     The goal is to do sampling at different levels of the IAST analysis (per process, per request, etc)
@@ -83,7 +26,6 @@ class OverheadControl(object):
 
     _lock = threading.Lock()
     _request_quota = asm_config._iast_max_concurrent_requests
-    _vulnerabilities: Set[Type[Operation]] = set()
     _sampler = RateSampler(sample_rate=get_request_sampling_value() / 100.0)
 
     def reconfigure(self):
@@ -115,16 +57,6 @@ class OverheadControl(object):
         """increment request's quota at end of the request."""
         with self._lock:
             self._request_quota += 1
-        self.vulnerabilities_reset_quota()
-
-    def register(self, klass: Type[Operation]) -> Type[Operation]:
-        """Register vulnerabilities/taint_sinks. This set of elements will restart for each request."""
-        self._vulnerabilities.add(klass)
-        return klass
-
-    def vulnerabilities_reset_quota(self):
-        for k in self._vulnerabilities:
-            k.reset()
 
 
 oce = OverheadControl()

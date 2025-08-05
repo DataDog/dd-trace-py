@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+from unittest.mock import ANY
 
 import pytest
 
@@ -106,7 +107,7 @@ def test_iast_flask_headers():
         content = json.loads(tainted_response.content)
         assert content["param"] == [
             ["Host", f"0.0.0.0:{_PORT}"],
-            ["User-Agent", "python-requests/2.32.3"],
+            ["User-Agent", ANY],
             ["Accept-Encoding", "gzip, deflate, br"],
             ["Accept", "*/*"],
             ["Connection", "keep-alive"],

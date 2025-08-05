@@ -7,16 +7,39 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Tuple
 from typing import Union
 
 import lz4.frame
 
-from ddtrace.profiling.exporter.pprof import pprof_pb2
 from tests.profiling.collector.lock_utils import LineNo
 
 
 UINT64_MAX = (1 << 64) - 1
 DEBUG_TEST = False
+
+
+def _protobuf_version() -> Tuple[int, int, int]:
+    """Check if protobuf version is post 3.12"""
+    import google.protobuf
+
+    from ddtrace.internal.utils.version import parse_version
+
+    return parse_version(google.protobuf.__version__)
+
+
+# Load the appropriate pprof_pb2 module
+_pb_version = _protobuf_version()
+for v in [(4, 21), (3, 19), (3, 12)]:
+    if _pb_version >= v:
+        import sys
+
+        pprof_module = "tests.profiling.collector.pprof_%s%s_pb2" % v
+        __import__(pprof_module)
+        pprof_pb2 = sys.modules[pprof_module]
+        break
+else:
+    from tests.profiling.collector import pprof_3_pb2 as pprof_pb2  # type: ignore[no-redef]
 
 
 # Clamp the value to the range [0, UINT64_MAX] as done in clamp_to_uint64_unsigned
@@ -112,9 +135,15 @@ class LockReleaseEvent(LockEvent):
         super().__init__(event_type=LockEventType.RELEASE, *args, **kwargs)
 
 
-def parse_profile(filename_prefix: str):
+def parse_newest_profile(filename_prefix: str) -> pprof_pb2.Profile:
+    """Parse the newest profile that has given filename prefix. The profiler
+    outputs profile file with following naming convention:
+    <filename_prefix>.<pid>.<counter>.pprof, and in tests, we'd want to parse
+    the newest profile that has given filename prefix.
+    """
     files = glob.glob(filename_prefix + ".*")
-    files.sort()
+    # Sort files by creation timestamp (oldest first, newest last)
+    files.sort(key=lambda f: os.path.getctime(f))
     filename = files[-1]
     with lz4.frame.open(filename) as fp:
         serialized_data = fp.read()

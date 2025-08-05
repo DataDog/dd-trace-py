@@ -68,7 +68,7 @@ apm_configuration_default:
         _, err, status, _ = call_program(sys.executable, "-c", "import ddtrace", env=env)
         assert status == 0, err
         assert b"Read the following static config: StableConfig" in err
-        assert b'ConfigMap([(DdVersion, "c")]), tags: {}, rules: [] }' in err
+        assert b'ConfigMap([("DD_VERSION", "c")]), tags: {}, rules: [] }' in err
         assert b"configurator: Configurator { debug_logs: true }" in err
 
 

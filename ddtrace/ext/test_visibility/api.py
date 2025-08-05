@@ -12,49 +12,56 @@ Stable values of module, suite, test names, and parameters, are a necessity for 
 
 All types and methods for interacting with the API are provided and documented in this file.
 """
-import dataclasses
 from enum import Enum
 from pathlib import Path
-from types import TracebackType
 from typing import Any
 from typing import Dict
 from typing import List
-from typing import NamedTuple
 from typing import Optional
-from typing import Type
 
-from ddtrace.ext.test import Status as _TestStatus
-from ddtrace.ext.test_visibility._item_ids import TestId
-from ddtrace.ext.test_visibility._item_ids import TestModuleId
-from ddtrace.ext.test_visibility._item_ids import TestSuiteId
+from ddtrace._trace.context import Context
+from ddtrace.ext.test_visibility._test_visibility_base import TestId
+from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSessionId
-from ddtrace.ext.test_visibility._test_visibility_base import TestSourceFileInfoBase
+from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.ext.test_visibility._test_visibility_base import TestVisibilityItemId
 from ddtrace.ext.test_visibility._test_visibility_base import _TestVisibilityAPIBase
 from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
-from ddtrace.ext.test_visibility._utils import _delete_item_tag
-from ddtrace.ext.test_visibility._utils import _delete_item_tags
-from ddtrace.ext.test_visibility._utils import _get_item_tag
-from ddtrace.ext.test_visibility._utils import _is_item_finished
-from ddtrace.ext.test_visibility._utils import _set_item_tag
-from ddtrace.ext.test_visibility._utils import _set_item_tags
-from ddtrace.internal import core
+from ddtrace.ext.test_visibility.status import TestExcInfo
+from ddtrace.ext.test_visibility.status import TestSourceFileInfo
+from ddtrace.ext.test_visibility.status import TestStatus
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.logger import get_logger as _get_logger
+
+
+def _get_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> Any:
+    return require_ci_visibility_service().get_item_by_id(item_id).get_tag(tag_name)
+
+
+def _set_item_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any) -> None:
+    require_ci_visibility_service().get_item_by_id(item_id).set_tag(tag_name, tag_value)
+
+
+def _set_item_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]) -> None:
+    require_ci_visibility_service().get_item_by_id(item_id).set_tags(tags)
+
+
+def _delete_item_tag(item_id: TestVisibilityItemId, tag_name: str) -> None:
+    require_ci_visibility_service().get_item_by_id(item_id).delete_tag(tag_name)
+
+
+def _delete_item_tags(item_id: TestVisibilityItemId, tag_names: List[str]) -> None:
+    require_ci_visibility_service().get_item_by_id(item_id).delete_tags(tag_names)
+
+
+def _is_item_finished(item_id: TestVisibilityItemId) -> bool:
+    return require_ci_visibility_service().get_item_by_id(item_id).is_finished()
 
 
 log = _get_logger(__name__)
 
 # this triggers the registration of trace handlers after civis startup
 import ddtrace._trace.trace_handlers  # noqa: F401, E402
-
-
-class TestStatus(Enum):
-    __test__ = False
-    PASS = _TestStatus.PASS.value
-    FAIL = _TestStatus.FAIL.value
-    SKIP = _TestStatus.SKIP.value
-    XFAIL = _TestStatus.XFAIL.value
-    XPASS = _TestStatus.XPASS.value
 
 
 DEFAULT_SESSION_NAME = "test_visibility_session"
@@ -67,25 +74,12 @@ class DEFAULT_OPERATION_NAMES(Enum):
     TEST = "test_visibility.test"
 
 
-@dataclasses.dataclass(frozen=True)
-class TestSourceFileInfo(TestSourceFileInfoBase):
-    path: Path
-    start_line: Optional[int] = None
-    end_line: Optional[int] = None
-
-
-@dataclasses.dataclass(frozen=True)
-class TestExcInfo:
-    __test__ = False
-    exc_type: Type[BaseException]
-    exc_value: BaseException
-    exc_traceback: TracebackType
-
-
 @_catch_and_log_exceptions
 def enable_test_visibility(config: Optional[Any] = None):
     log.debug("Enabling Test Visibility with config: %s", config)
-    core.dispatch("test_visibility.enable", (config,))
+    from ddtrace.internal.ci_visibility.recorder import CIVisibility
+
+    CIVisibility.enable(config=config)
 
     if not is_test_visibility_enabled():
         log.warning("Failed to enable Test Visibility")
@@ -93,14 +87,18 @@ def enable_test_visibility(config: Optional[Any] = None):
 
 @_catch_and_log_exceptions
 def is_test_visibility_enabled():
-    return core.dispatch_with_results("test_visibility.is_enabled").is_enabled.value
+    try:
+        return require_ci_visibility_service().enabled
+    except RuntimeError:
+        return False
 
 
 @_catch_and_log_exceptions
 def disable_test_visibility():
     log.debug("Disabling Test Visibility")
-    core.dispatch("test_visibility.disable")
-    if is_test_visibility_enabled():
+    ci_visibility_instance = require_ci_visibility_service()
+    ci_visibility_instance.disable()
+    if ci_visibility_instance.enabled:
         log.warning("Failed to disable Test Visibility")
 
 
@@ -110,20 +108,20 @@ class TestBase(_TestVisibilityAPIBase):
         return _get_item_tag(item_id, tag_name)
 
     @staticmethod
-    def set_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any, recurse: bool = False):
-        _set_item_tag(item_id, tag_name, tag_value, recurse)
+    def set_tag(item_id: TestVisibilityItemId, tag_name: str, tag_value: Any):
+        _set_item_tag(item_id, tag_name, tag_value)
 
     @staticmethod
-    def set_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any], recurse: bool = False):
-        _set_item_tags(item_id, tags, recurse)
+    def set_tags(item_id: TestVisibilityItemId, tags: Dict[str, Any]):
+        _set_item_tags(item_id, tags)
 
     @staticmethod
-    def delete_tag(item_id: TestVisibilityItemId, tag_name: str, recurse: bool = False):
-        _delete_item_tag(item_id, tag_name, recurse)
+    def delete_tag(item_id: TestVisibilityItemId, tag_name: str):
+        _delete_item_tag(item_id, tag_name)
 
     @staticmethod
-    def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str], recurse: bool = False):
-        _delete_item_tags(item_id, tag_names, recurse)
+    def delete_tags(item_id: TestVisibilityItemId, tag_names: List[str]):
+        _delete_item_tags(item_id, tag_names)
 
     @staticmethod
     def is_finished(item_id: TestVisibilityItemId) -> bool:
@@ -131,19 +129,7 @@ class TestBase(_TestVisibilityAPIBase):
 
 
 class TestSession(_TestVisibilityAPIBase):
-    class DiscoverArgs(NamedTuple):
-        test_command: str
-        reject_duplicates: bool
-        test_framework: str
-        test_framework_version: str
-        session_operation_name: str
-        module_operation_name: str
-        suite_operation_name: str
-        test_operation_name: str
-        root_dir: Optional[Path] = None
-
     @staticmethod
-    @_catch_and_log_exceptions
     def discover(
         test_command: str,
         test_framework: str,
@@ -160,32 +146,28 @@ class TestSession(_TestVisibilityAPIBase):
             log.debug("Test Visibility is not enabled, session not registered.")
             return
 
-        core.dispatch(
-            "test_visibility.session.discover",
-            (
-                TestSession.DiscoverArgs(
-                    test_command,
-                    reject_duplicates,
-                    test_framework,
-                    test_framework_version,
-                    session_operation_name,
-                    module_operation_name,
-                    suite_operation_name,
-                    test_operation_name,
-                    root_dir,
-                ),
-            ),
+        from ddtrace.internal.ci_visibility.recorder import on_discover_session
+
+        on_discover_session(
+            test_command=test_command,
+            reject_duplicates=reject_duplicates,
+            test_framework=test_framework,
+            test_framework_version=test_framework_version,
+            session_operation_name=session_operation_name,
+            module_operation_name=module_operation_name,
+            suite_operation_name=suite_operation_name,
+            test_operation_name=test_operation_name,
+            root_dir=root_dir,
         )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start():
+    def start(distributed_children: bool = False, context: Optional[Context] = None):
         log.debug("Starting session")
-        core.dispatch("test_visibility.session.start")
-
-    class FinishArgs(NamedTuple):
-        force_finish_children: bool
-        override_status: Optional[TestStatus]
+        session = require_ci_visibility_service().get_session()
+        session.start(context)
+        if distributed_children:
+            session.set_distributed_children()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -195,52 +177,54 @@ class TestSession(_TestVisibilityAPIBase):
     ):
         log.debug("Finishing session, force_finish_session_modules: %s", force_finish_children)
 
-        core.dispatch(
-            "test_visibility.session.finish", (TestSession.FinishArgs(force_finish_children, override_status),)
-        )
+        session = require_ci_visibility_service().get_session()
+        session.finish(force=force_finish_children, override_status=override_status)
 
     @staticmethod
     def get_tag(tag_name: str) -> Any:
         return _get_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
-    def set_tag(tag_name: str, tag_value: Any, recurse: bool = False):
-        _set_item_tag(TestSessionId(), tag_name, tag_value, recurse)
+    def set_tag(tag_name: str, tag_value: Any):
+        _set_item_tag(TestSessionId(), tag_name, tag_value)
 
     @staticmethod
-    def set_tags(tags: Dict[str, Any], recurse: bool = False):
-        _set_item_tags(TestSessionId(), tags, recurse)
+    def set_tags(tags: Dict[str, Any]):
+        _set_item_tags(TestSessionId(), tags)
 
     @staticmethod
-    def delete_tag(tag_name: str, recurse: bool = False):
-        _delete_item_tag(TestSessionId(), tag_name, recurse)
+    def delete_tag(tag_name: str):
+        _delete_item_tag(TestSessionId(), tag_name)
 
     @staticmethod
-    def delete_tags(tag_names: List[str], recurse: bool = False):
-        _delete_item_tags(TestSessionId(), tag_names, recurse)
+    def delete_tags(tag_names: List[str]):
+        _delete_item_tags(TestSessionId(), tag_names)
 
 
 class TestModule(TestBase):
-    class DiscoverArgs(NamedTuple):
-        module_id: TestModuleId
-        module_path: Optional[Path] = None
-
-    class FinishArgs(NamedTuple):
-        module_id: TestModuleId
-        override_status: Optional[TestStatus] = None
-        force_finish_children: bool = False
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(item_id: TestModuleId, module_path: Optional[Path] = None):
+        from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+
         log.debug("Registered module %s", item_id)
-        core.dispatch("test_visibility.module.discover", (TestModule.DiscoverArgs(item_id, module_path),))
+        ci_visibility_instance = require_ci_visibility_service()
+        session = ci_visibility_instance.get_session()
+
+        session.add_child(
+            item_id,
+            TestVisibilityModule(
+                item_id.name,
+                ci_visibility_instance.get_session_settings(),
+                module_path,
+            ),
+        )
 
     @staticmethod
     @_catch_and_log_exceptions
-    def start(item_id: TestModuleId):
+    def start(item_id: TestModuleId, *args, **kwargs):
         log.debug("Starting module %s", item_id)
-        core.dispatch("test_visibility.module.start", (item_id,))
+        require_ci_visibility_service().get_module_by_id(item_id).start()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -255,17 +239,13 @@ class TestModule(TestBase):
             override_status,
             force_finish_children,
         )
-        core.dispatch(
-            "test_visibility.module.finish", (TestModule.FinishArgs(item_id, override_status, force_finish_children),)
+
+        require_ci_visibility_service().get_module_by_id(item_id).finish(
+            force=force_finish_children, override_status=override_status
         )
 
 
 class TestSuite(TestBase):
-    class DiscoverArgs(NamedTuple):
-        suite_id: TestSuiteId
-        codeowners: Optional[List[str]] = None
-        source_file_info: Optional[TestSourceFileInfo] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
@@ -275,20 +255,26 @@ class TestSuite(TestBase):
     ):
         """Registers a test suite with the Test Visibility service."""
         log.debug("Registering suite %s, source: %s", item_id, source_file_info)
-        core.dispatch(
-            "test_visibility.suite.discover", (TestSuite.DiscoverArgs(item_id, codeowners, source_file_info),)
+        from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
+
+        ci_visibility_instance = require_ci_visibility_service()
+        module = ci_visibility_instance.get_module_by_id(item_id.parent_id)
+
+        module.add_child(
+            item_id,
+            TestVisibilitySuite(
+                item_id.name,
+                ci_visibility_instance.get_session_settings(),
+                codeowners,
+                source_file_info,
+            ),
         )
 
     @staticmethod
     @_catch_and_log_exceptions
     def start(item_id: TestSuiteId):
         log.debug("Starting suite %s", item_id)
-        core.dispatch("test_visibility.suite.start", (item_id,))
-
-    class FinishArgs(NamedTuple):
-        suite_id: TestSuiteId
-        force_finish_children: bool = False
-        override_status: Optional[TestStatus] = None
+        require_ci_visibility_service().get_suite_by_id(item_id).start()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -303,19 +289,13 @@ class TestSuite(TestBase):
             force_finish_children,
             override_status,
         )
-        core.dispatch(
-            "test_visibility.suite.finish",
-            (TestSuite.FinishArgs(item_id, force_finish_children, override_status),),
+
+        require_ci_visibility_service().get_suite_by_id(item_id).finish(
+            force=force_finish_children, override_status=override_status
         )
 
 
 class Test(TestBase):
-    class DiscoverArgs(NamedTuple):
-        test_id: TestId
-        codeowners: Optional[List[str]] = None
-        source_file_info: Optional[TestSourceFileInfo] = None
-        resource: Optional[str] = None
-
     @staticmethod
     @_catch_and_log_exceptions
     def discover(
@@ -325,6 +305,9 @@ class Test(TestBase):
         resource: Optional[str] = None,
     ):
         """Registers a test with the Test Visibility service."""
+        from ddtrace.internal.ci_visibility._api_client import TestProperties
+        from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
+
         log.debug(
             "Discovering test %s, codeowners: %s, source file: %s, resource: %s",
             item_id,
@@ -332,21 +315,48 @@ class Test(TestBase):
             source_file_info,
             resource,
         )
-        core.dispatch(
-            "test_visibility.test.discover", (Test.DiscoverArgs(item_id, codeowners, source_file_info, resource),)
+
+        log.debug("Handling discovery for test %s", item_id)
+        ci_visibility_instance = require_ci_visibility_service()
+        suite = ci_visibility_instance.get_suite_by_id(item_id.parent_id)
+
+        # New tests are currently only considered for EFD:
+        # - if known tests were fetched properly (enforced by is_known_test)
+        # - if they have no parameters
+        if ci_visibility_instance.is_known_tests_enabled() and item_id.parameters is None:
+            is_new = not ci_visibility_instance.is_known_test(item_id)
+        else:
+            is_new = False
+
+        test_properties = None
+        if ci_visibility_instance.is_test_management_enabled():
+            test_properties = ci_visibility_instance.get_test_properties(item_id)
+
+        if not test_properties:
+            test_properties = TestProperties()
+
+        suite.add_child(
+            item_id,
+            TestVisibilityTest(
+                item_id.name,
+                ci_visibility_instance.get_session_settings(),
+                parameters=item_id.parameters,
+                codeowners=codeowners,
+                source_file_info=source_file_info,
+                resource=resource,
+                is_new=is_new,
+                is_quarantined=test_properties.quarantined,
+                is_disabled=test_properties.disabled,
+                is_attempt_to_fix=test_properties.attempt_to_fix,
+            ),
         )
 
     @staticmethod
     @_catch_and_log_exceptions
     def start(item_id: TestId):
         log.debug("Starting test %s", item_id)
-        core.dispatch("test_visibility.test.start", (item_id,))
 
-    class FinishArgs(NamedTuple):
-        test_id: TestId
-        status: TestStatus
-        skip_reason: Optional[str] = None
-        exc_info: Optional[TestExcInfo] = None
+        require_ci_visibility_service().get_test_by_id(item_id).start()
 
     @staticmethod
     @_catch_and_log_exceptions
@@ -363,16 +373,17 @@ class Test(TestBase):
             skip_reason,
             exc_info,
         )
-        core.dispatch(
-            "test_visibility.test.finish",
-            (Test.FinishArgs(item_id, status, skip_reason=skip_reason, exc_info=exc_info),),
+
+        require_ci_visibility_service().get_test_by_id(item_id).finish_test(
+            status=status, skip_reason=skip_reason, exc_info=exc_info
         )
 
     @staticmethod
     @_catch_and_log_exceptions
     def set_parameters(item_id: TestId, params: str):
         log.debug("Setting test %s parameters to %s", item_id, params)
-        core.dispatch("test_visibility.test.set_parameters", (item_id, params))
+
+        require_ci_visibility_service().get_test_by_id(item_id).set_parameters(parameters=params)
 
     @staticmethod
     @_catch_and_log_exceptions

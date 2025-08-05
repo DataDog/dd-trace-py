@@ -2,6 +2,7 @@
 pyasn1==0.6.0
 https://pypi.org/project/pyasn1/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -52,7 +53,7 @@ def pkg_pyasn1_propagation_view():
     from pyasn1.type import namedtype
     from pyasn1.type import univ
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

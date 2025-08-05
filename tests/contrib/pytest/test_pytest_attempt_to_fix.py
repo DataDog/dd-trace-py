@@ -5,7 +5,6 @@ from xml.etree import ElementTree
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_attempt_to_fix
 from ddtrace.internal.ci_visibility._api_client import ITRData
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
@@ -17,6 +16,8 @@ from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 from tests.contrib.pytest.test_pytest import _get_spans_from_list
 from tests.contrib.pytest.utils import assert_stats
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_attempt_to_fix()),
@@ -138,7 +139,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_quarantined") == "true"
             assert span.get_tag("test.status") == "fail"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
 
     def test_attempt_to_fix_quarantined_test_flaky(self):
@@ -158,7 +159,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_quarantined") == "true"
             assert span.get_tag("test.status") == ("pass" if i == 10 else "fail")
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
     def test_attempt_to_fix_disabled_test(self):
@@ -221,7 +222,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") is None
             assert span.get_tag("test.status") == "fail"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") == "true"
 
     def test_attempt_to_fix_active_test_skip(self):
@@ -242,7 +243,7 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") is None
             assert span.get_tag("test.status") == "skip"
 
-        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert test_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert test_spans[-1].get_tag("test.has_failed_all_retries") is None
 
     def test_pytest_attempt_to_fix_junit_xml_active(self):
@@ -257,7 +258,6 @@ class PytestAttemptToFixTestCase(PytestTestCaseBase):
         assert test_suite.attrib["skipped"] == "1"
         assert test_suite.attrib["errors"] == "0"
 
-    @pytest.mark.xfail(reason="JUnit XML miscounts quarantined tests")
     def test_pytest_attempt_to_fix_junit_xml_quarantined(self):
         self.testdir.makepyfile(test_quarantined=_TEST_PASS + _TEST_FAIL + _TEST_SKIP)
 
@@ -319,5 +319,5 @@ class PytestAttemptToFixITRTestCase(PytestTestCaseBase):
             assert span.get_tag("test.test_management.is_test_disabled") == "true"
             assert span.get_tag("test.status") == "fail"
 
-        assert attempt_to_fix_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") is None
+        assert attempt_to_fix_spans[-1].get_tag("test.test_management.attempt_to_fix_passed") == "false"
         assert attempt_to_fix_spans[-1].get_tag("test.has_failed_all_retries") == "true"

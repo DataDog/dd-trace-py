@@ -1,6 +1,5 @@
 import base64
 import dataclasses
-from datetime import datetime
 import enum
 import hashlib
 import json
@@ -32,7 +31,6 @@ from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT
 from ddtrace.internal.service import ServiceStatus
 from ddtrace.internal.utils.formats import parse_tags_str
-from ddtrace.internal.utils.time import parse_isoformat
 from ddtrace.internal.utils.version import _pep440_to_semver
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._core import DDConfig
@@ -98,16 +96,14 @@ class Root:
     _type: str
     spec_version: str
     consistent_snapshot: bool
-    expires: datetime
+    expires: str
     keys: Mapping[str, Key]
     roles: Mapping[str, Role]
-    version: int
+    version: int = 0
 
     def __post_init__(self):
         if self._type != "root":
             raise ValueError("Root: invalid root type")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
         for k, v in self.keys.items():
             if isinstance(v, dict):
                 self.keys[k] = Key(**v)
@@ -140,18 +136,16 @@ class TargetDesc:
 class Targets:
     _type: str
     custom: Mapping[str, Any]
-    expires: datetime
+    expires: str
     spec_version: str
     targets: Mapping[str, TargetDesc]
-    version: int
+    version: int = 0
 
     def __post_init__(self):
         if self._type != "targets":
             raise ValueError("Targets: invalid targets type")
         if self.spec_version not in ("1.0", "1.0.0"):
             raise ValueError("Targets: invalid spec version")
-        if isinstance(self.expires, str):
-            self.expires = parse_isoformat(self.expires)
         for k, v in self.targets.items():
             if isinstance(v, dict):
                 self.targets[k] = TargetDesc(**v)
@@ -161,6 +155,7 @@ class Targets:
 class SignedTargets:
     signatures: List[Signature]
     signed: Targets
+    version: int = 0
 
     def __post_init__(self):
         for i in range(len(self.signatures)):
@@ -254,6 +249,7 @@ class RemoteConfigClient:
         # called after the process is forked to declare a new id
         self.id = str(uuid.uuid4())
         self._client_tracer["runtime_id"] = runtime.get_runtime_id()
+        self._applied_configs.clear()
 
     def register_product(self, product_name: str, pubsub_instance: Optional[PubSub] = None) -> None:
         if pubsub_instance is not None:
@@ -299,12 +295,8 @@ class RemoteConfigClient:
     def _send_request(self, payload: str) -> Optional[Mapping[str, Any]]:
         conn = None
         try:
-            log.debug(
-                "[%s][P: %s] Requesting RC data from products: %s", os.getpid(), os.getppid(), str(self._products)
-            )  # noqa: G200
-
             if config.log_payloads:
-                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)  # noqa: G200
+                log.debug("[%s][P: %s] RC request payload: %s", os.getpid(), os.getppid(), payload)
 
             conn = agent.get_connection(self.agent_url, timeout=agent_config.trace_agent_timeout_seconds)
             conn.request("POST", REMOTE_CONFIG_AGENT_ENDPOINT, payload, self._headers)
@@ -316,11 +308,9 @@ class RemoteConfigClient:
             data = resp.read()
 
             if config.log_payloads:
-                log.debug(
-                    "[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8")
-                )  # noqa: G200
+                log.debug("[%s][P: %s] RC response payload: %s", os.getpid(), os.getppid(), data.decode("utf-8"))
         except OSError as e:
-            log.debug("Unexpected connection error in remote config client request: %s", str(e))  # noqa: G200
+            log.debug("Unexpected connection error in remote config client request: %s", str(e))
             return None
         finally:
             if conn is not None:

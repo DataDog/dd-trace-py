@@ -172,7 +172,7 @@ async def test_parenting(patched_conn):
     await c
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -201,7 +201,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_configure_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -230,7 +230,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env_v0(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -258,7 +258,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 def test_unspecified_service_name_env_v1(ddtrace_run_python_code_in_subprocess):
     code = """
 import asyncio
@@ -286,7 +286,7 @@ asyncio.run(test())
     assert err == b""
 
 
-@pytest.mark.snapshot(async_mode=False)
+@pytest.mark.snapshot()
 @pytest.mark.parametrize("version", ("v0", "v1"))
 def test_span_name_by_schema(ddtrace_run_python_code_in_subprocess, version):
     code = """

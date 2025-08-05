@@ -8,57 +8,9 @@ import pytest
 
 from ddtrace.internal.compat import is_integer
 from ddtrace.internal.compat import maybe_stringify
-from ddtrace.internal.compat import to_unicode
 
 
 class TestCompat(object):
-    def test_to_unicode_string(self):
-        # Calling `compat.to_unicode` on a non-unicode string
-        res = to_unicode(b"test")
-        assert type(res) == str
-        assert res == "test"
-
-    def test_to_unicode_unicode_encoded(self):
-        # Calling `compat.to_unicode` on a unicode encoded string
-        res = to_unicode(b"\xc3\xbf")
-        assert type(res) == str
-        assert res == "ÿ"
-
-    def test_to_unicode_unicode_double_decode(self):
-        # Calling `compat.to_unicode` on a unicode decoded string
-        # This represents the double-decode issue, which can cause a `UnicodeEncodeError`
-        #   `'\xc3\xbf'.decode('utf-8').decode('utf-8')`
-        res = to_unicode(b"\xc3\xbf".decode("utf-8"))
-        assert type(res) == str
-        assert res == "ÿ"
-
-    def test_to_unicode_unicode_string(self):
-        # Calling `compat.to_unicode` on a unicode string
-        res = to_unicode("ÿ")
-        assert type(res) == str
-        assert res == "ÿ"
-
-    def test_to_unicode_bytearray(self):
-        # Calling `compat.to_unicode` with a `bytearray` containing unicode
-        res = to_unicode(bytearray(b"\xc3\xbf"))
-        assert type(res) == str
-        assert res == "ÿ"
-
-    def test_to_unicode_bytearray_double_decode(self):
-        #  Calling `compat.to_unicode` with an already decoded `bytearray`
-        # This represents the double-decode issue, which can cause a `UnicodeEncodeError`
-        #   `bytearray('\xc3\xbf').decode('utf-8').decode('utf-8')`
-        res = to_unicode(bytearray(b"\xc3\xbf").decode("utf-8"))
-        assert type(res) == str
-        assert res == "ÿ"
-
-    def test_to_unicode_non_string(self):
-        #  Calling `compat.to_unicode` on non-string types
-        assert to_unicode(1) == "1"
-        assert to_unicode(True) == "True"
-        assert to_unicode(None) == "None"
-        assert to_unicode(dict(key="value")) == "{'key': 'value'}"
-
     def test_get_connection_response(self):
         """Ensure that buffering is in kwargs."""
 

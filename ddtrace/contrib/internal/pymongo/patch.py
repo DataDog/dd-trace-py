@@ -1,4 +1,5 @@
 import contextlib
+from typing import Dict
 
 import pymongo
 
@@ -66,6 +67,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(pymongo, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"pymongo": ">=3.8.0"}
 
 
 def patch():
@@ -141,7 +146,8 @@ def traced_get_socket(func, args, kwargs):
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
             # Ensure the pin used on the traced mongo client is passed down to the socket instance
             # (via the server instance)
             Pin.get_from(instance).onto(sock_info)

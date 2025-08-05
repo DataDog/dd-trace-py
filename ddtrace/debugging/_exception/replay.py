@@ -224,10 +224,12 @@ class SpanExceptionHandler:
 
     _instance: t.Optional["SpanExceptionHandler"] = None
 
-    def _capture_tb_frame_for_span(self, span: Span, tb: TracebackType, exc_id: uuid.UUID, seq_nr: int = 1) -> bool:
+    def _capture_tb_frame_for_span(
+        self, span: Span, tb: TracebackType, exc_id: uuid.UUID, seq_nr: int = 1, only_user_code: bool = True
+    ) -> bool:
         frame = tb.tb_frame
         code = frame.f_code
-        if not is_user_code(Path(code.co_filename)):
+        if only_user_code and not is_user_code(Path(code.co_filename)):
             return False
 
         snapshot = None
@@ -301,7 +303,7 @@ class SpanExceptionHandler:
         if not frames_captured and tb is not None:
             # Ensure we capture at least one frame if we have a traceback,
             # the one potentially closer to user code.
-            frames_captured += self._capture_tb_frame_for_span(span, tb, exc_id)
+            frames_captured += self._capture_tb_frame_for_span(span, tb, exc_id, only_user_code=False)
 
         if frames_captured:
             span.set_tag_str(DEBUG_INFO_TAG, "true")

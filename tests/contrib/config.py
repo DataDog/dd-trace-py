@@ -95,7 +95,7 @@ HTTPBIN_CONFIG = {
 
 MOTO_CONFIG = {
     "host": os.getenv("TEST_MOTO_HOST", "127.0.0.1"),
-    "port": int(os.getenv("TEST_MOTO_PORT", "5000")),
+    "port": int(os.getenv("TEST_MOTO_PORT", "3000")),
 }
 
 KAFKA_CONFIG = {

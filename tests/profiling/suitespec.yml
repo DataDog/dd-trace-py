@@ -1,0 +1,109 @@
+---
+components:
+  $harness:
+    - docker/*
+    - docker-compose.yml
+    - riotfile.py
+    - .riot/requirements/*
+    - scripts/ddtest
+    - scripts/run-test-suite
+    - hatch.toml
+    - tests/conftest.py
+    - tests/utils.py
+    - tests/__init__.py
+    - tests/suitespec.yml
+    - tests/suitespec.py
+    - tests/meta/*
+    - tests/smoke_test.py
+    - tests/subprocesstest.py
+    - tests/wait-for-services.py
+    - tests/webclient.py
+    - tests/test_module/*
+    - .gitlab-ci.yml
+    - .gitlab/*
+    - tests/suitespec.yml
+  $setup:
+    - setup.py
+    - setup.cfg
+    - pyproject.toml
+  profiling:
+    - ddtrace/profiling/*
+    - ddtrace/internal/datadog/profiling/*
+    - ddtrace/internal/processor/endpoint_call_counter.py
+    - ddtrace/settings/profiling.py
+  core:
+    - ddtrace/internal/__init__.py
+    - ddtrace/internal/_exceptions.py
+    - ddtrace/internal/_file_queue.py
+    - ddtrace/internal/_rand.pyi
+    - ddtrace/internal/_rand.pyx
+    - ddtrace/internal/_stdint.h
+    - ddtrace/internal/_threads.*
+    - ddtrace/internal/_unpatched.py
+    - ddtrace/internal/agent.py
+    - ddtrace/internal/assembly.py
+    - ddtrace/internal/atexit.py
+    - ddtrace/internal/compat.py
+    - ddtrace/internal/core/*
+    - ddtrace/internal/datadog/__init__.py
+    - ddtrace/internal/debug.py
+    - ddtrace/internal/dogstatsd.py
+    - ddtrace/internal/forksafe.py
+    - ddtrace/internal/gitmetadata.py
+    - ddtrace/internal/glob_matching.py
+    - ddtrace/internal/logger.py
+    - ddtrace/internal/hostname.py
+    - ddtrace/internal/http.py
+    - ddtrace/internal/bytecode_injection/*
+    - ddtrace/internal/logger.py
+    - ddtrace/internal/metrics.py
+    - ddtrace/internal/module.py
+    - ddtrace/internal/native/*
+    - ddtrace/internal/packages.py
+    - ddtrace/internal/third-party.tar.gz
+    - ddtrace/internal/periodic.py
+    - ddtrace/internal/products.py
+    - ddtrace/internal/rate_limiter.py
+    - ddtrace/internal/safety.py
+    - ddtrace/internal/service.py
+    - ddtrace/internal/uds.py
+    - ddtrace/internal/utils/*
+    - ddtrace/internal/uwsgi.py
+    - ddtrace/internal/wrapping/*
+    - ddtrace/__init__.py
+    - ddtrace/py.typed
+    - ddtrace/version.py
+    - ddtrace/settings/_config.py
+    - src/native/*
+  bootstrap:
+    - ddtrace/bootstrap/*
+    - ddtrace/commands/*
+    - ddtrace/auto.py
+suites:
+  profile:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    # `riot list --hash-only profile$ | wc -1` = 19
+    parallelism: 19
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - tests/profiling/*
+    pattern: profile$
+    retry: 2
+    runner: riot
+  profile_v2:
+    env:
+      DD_TRACE_AGENT_URL: ''
+    # `riot list --hash-only profile-v2$ | wc -1` = 19
+    parallelism: 19
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@profiling'
+      - tests/profiling/suitespec.yml
+      - tests/profiling_v2/*
+    pattern: profile-v2$
+    retry: 2
+    runner: riot

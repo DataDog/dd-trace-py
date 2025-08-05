@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: fixed an issue with the instrumentation of the
+    first line of an iteration block (e.g. for loops) that could have caused
+    undefined behavior.

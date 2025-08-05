@@ -1,20 +1,12 @@
 import json
-import re
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Text
+from typing import TypedDict
 
-
-# TypedDict was added to typing in python 3.8
-try:
-    from typing import TypedDict  # noqa:F401
-except ImportError:
-    from typing_extensions import TypedDict
-
-from ddtrace._trace.sampling_rule import SamplingRule  # noqa:F401
+from ddtrace._trace.sampling_rule import SamplingRule
+from ddtrace._trace.span import Span
 from ddtrace.constants import _SAMPLING_AGENT_DECISION
 from ddtrace.constants import _SAMPLING_RULE_DECISION
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
@@ -38,16 +30,6 @@ from .rate_limiter import RateLimiter
 
 log = get_logger(__name__)
 
-try:
-    from json.decoder import JSONDecodeError
-except ImportError:
-    # handling python 2.X import error
-    JSONDecodeError = ValueError  # type: ignore
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.context import Context  # noqa:F401
-    from ddtrace._trace.span import Span  # noqa:F401
-
 
 class PriorityCategory(object):
     DEFAULT = "default"
@@ -57,9 +39,9 @@ class PriorityCategory(object):
     RULE_DYNAMIC = "rule_dynamic"
 
 
-# Use regex to validate trace tag value
-TRACE_TAG_RE = re.compile(r"^-([0-9])$")
-
+SAMPLING_MECHANISM_CONSTANTS = {
+    "-{}".format(value) for name, value in vars(SamplingMechanism).items() if name.isupper()
+}
 
 SpanSamplingRules = TypedDict(
     "SpanSamplingRules",
@@ -79,20 +61,11 @@ def validate_sampling_decision(
     value = meta.get(SAMPLING_DECISION_TRACE_TAG_KEY)
     if value:
         # Skip propagating invalid sampling mechanism trace tag
-        if TRACE_TAG_RE.match(value) is None:
+        if value not in SAMPLING_MECHANISM_CONSTANTS:
             del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
             meta["_dd.propagation_error"] = "decoding_error"
             log.warning("failed to decode _dd.p.dm: %r", value)
     return meta
-
-
-def set_sampling_decision_maker(
-    context,  # type: Context
-    sampling_mechanism: int,
-) -> Optional[Text]:
-    value = "-%d" % sampling_mechanism
-    context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
-    return value
 
 
 class SpanSamplingRule:
@@ -244,7 +217,7 @@ def _load_span_sampling_json(raw_json_rules: str) -> List[Dict[str, Any]]:
         if not isinstance(json_rules, list):
             log.warning("DD_SPAN_SAMPLING_RULES is not list, got %r", json_rules)
             return []
-    except JSONDecodeError:
+    except json.JSONDecodeError:
         log.warning("Unable to parse DD_SPAN_SAMPLING_RULES=%r", raw_json_rules)
         return []
 
@@ -264,11 +237,10 @@ def is_single_span_sampled(span):
     return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
 
 
-def _set_sampling_tags(span, sampled, sample_rate, mechanism):
-    # type: (Span, bool, float, int) -> None
+def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-        set_sampling_decision_maker(span.context, mechanism)
+        span._set_sampling_decision_maker(mechanism)
 
     # Set the sampling psr rate
     if mechanism in (
@@ -286,8 +258,7 @@ def _set_sampling_tags(span, sampled, sample_rate, mechanism):
     span.context.sampling_priority = priorities[priority_index]
 
 
-def _get_highest_precedence_rule_matching(span, rules):
-    # type: (Span, List[SamplingRule]) -> Optional[SamplingRule]
+def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
     if not rules:
         return None
 

@@ -2,6 +2,7 @@ from http.server import BaseHTTPRequestHandler
 from http.server import HTTPServer
 import json
 import os
+import pprint
 import threading
 import time
 
@@ -98,7 +99,11 @@ def ddtrace_global_config():
 
 
 def default_global_config():
-    return {"_dd_api_key": "<not-a-real-api_key>", "_llmobs_ml_app": "unnamed-ml-app", "service": "tests.llmobs"}
+    return {
+        "_dd_api_key": os.environ.get("DD_API_KEY", "<not-a-real-api_key>"),
+        "_llmobs_ml_app": "unnamed-ml-app",
+        "service": "tests.llmobs",
+    }
 
 
 @pytest.fixture
@@ -171,8 +176,9 @@ def tracer():
 @pytest.fixture
 def llmobs_env():
     return {
-        "DD_API_KEY": "<default-not-a-real-key>",
+        "DD_API_KEY": os.environ.get("DD_API_KEY", "<default-not-a-real-key>"),
         "DD_LLMOBS_ML_APP": "unnamed-ml-app",
+        "DD_LLMOBS_PROJECT_NAME": "test-project",
     }
 
 
@@ -224,9 +230,12 @@ def _llmobs_backend():
 
 @pytest.fixture
 def llmobs_backend(_llmobs_backend):
-    _, reqs = _llmobs_backend
+    _url, reqs = _llmobs_backend
 
     class _LLMObsBackend:
+        def url(self):
+            return _url
+
         def wait_for_num_events(self, num, attempts=1000):
             for _ in range(attempts):
                 if len(reqs) == num:
@@ -234,9 +243,14 @@ def llmobs_backend(_llmobs_backend):
                 # time.sleep will yield the GIL so the server can process the request
                 time.sleep(0.001)
             else:
-                raise TimeoutError(f"Expected {num} events, got {len(reqs)}")
+                raise TimeoutError(f"Expected {num} events, got {len(reqs)}: {pprint.pprint(reqs)}")
 
     return _LLMObsBackend()
+
+
+@pytest.fixture
+def llmobs_enable_opts():
+    yield {"project_name": "test-project"}
 
 
 @pytest.fixture
@@ -244,6 +258,7 @@ def llmobs(
     ddtrace_global_config,
     monkeypatch,
     tracer,
+    llmobs_enable_opts,
     llmobs_env,
     llmobs_span_writer,
     mock_llmobs_eval_metric_writer,
@@ -256,11 +271,21 @@ def llmobs(
     global_config.update(ddtrace_global_config)
     # TODO: remove once rest of tests are moved off of global config tampering
     with override_global_config(global_config):
-        llmobs_service.enable(_tracer=tracer)
+        llmobs_service.enable(_tracer=tracer, **llmobs_enable_opts)
         llmobs_service._instance._llmobs_span_writer = llmobs_span_writer
         llmobs_service._instance._llmobs_span_writer.start()
+        llmobs_service._instance._dne_client._intake = "http://localhost:9126/vcr/datadog"
         yield llmobs_service
+    tracer.shutdown()
     llmobs_service.disable()
+
+
+@pytest.fixture
+def llmobs_no_ml_app(tracer):
+    with override_global_config(dict(_llmobs_ml_app=None)):
+        llmobs_service.enable(_tracer=tracer)
+        yield llmobs_service
+        llmobs_service.disable()
 
 
 @pytest.fixture

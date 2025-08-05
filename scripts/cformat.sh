@@ -19,6 +19,7 @@ exclude_patterns() {
         '.riot/'
         '_taint_tracking/_vendor/'
         'ddtrace/appsec/_iast/_taint_tracking/cmake-build-debug/'
+        'ddtrace/profiling/collector/vendor/'
     )
 
     # Join all patterns with '|'
@@ -83,13 +84,15 @@ if [[ "$UPDATE_MODE" == "true" ]]; then
         done
 else
     # Check mode: Compare formatted output to existing files
-    enumerate_files \
-        | exclude_patterns \
-        | while IFS= read -r filename; do
-            CFORMAT_TMP=$(mktemp)
-            ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
-            diff -u "$filename" "$CFORMAT_TMP" || true
-            rm -f "$CFORMAT_TMP"
-        done
+    has_diff=0
+    while IFS= read -r filename; do
+        CFORMAT_TMP=$(mktemp)
+        ${CLANG_FORMAT} "$filename" > "$CFORMAT_TMP"
+        if ! diff -u "$filename" "$CFORMAT_TMP"; then
+            has_diff=1
+        fi
+        rm -f "$CFORMAT_TMP"
+    done < <(enumerate_files | exclude_patterns)
+    exit $has_diff
 fi
 

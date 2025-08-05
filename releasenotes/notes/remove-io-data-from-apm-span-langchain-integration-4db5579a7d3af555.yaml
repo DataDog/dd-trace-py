@@ -1,0 +1,3 @@
+other:
+  - |
+    langchain: Removes I/O tags from APM spans for LangChain LLM requests and responses, which is duplicated in LLM Observability.

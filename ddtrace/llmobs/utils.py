@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -20,7 +21,35 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
-
+ToolCall = TypedDict(
+    "ToolCall",
+    {
+        "name": str,
+        "arguments": Dict[str, Any],
+        "tool_id": str,
+        "type": str,
+    },
+    total=False,
+)
+ToolResult = TypedDict(
+    "ToolResult",
+    {
+        "name": str,
+        "result": Dict[str, Any],
+        "tool_id": str,
+        "type": str,
+    },
+    total=False,
+)
+ToolDefinition = TypedDict(
+    "ToolDefinition",
+    {
+        "name": str,
+        "description": str,
+        "schema": Dict[str, Any],
+    },
+    total=False,
+)
 
 class Prompt(TypedDict, total=False):
     """

@@ -13,7 +13,6 @@ from wrapt import ObjectProxy
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -144,7 +143,8 @@ def _datadog_trace_operation(operation, wrapped):
     # set span.kind to the operation type being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tag_str(mongox.DB, cmd.db)
     span.set_tag_str(mongox.COLLECTION, cmd.coll)
     span.set_tag_str(db.SYSTEM, mongox.SERVICE)
@@ -153,10 +153,6 @@ def _datadog_trace_operation(operation, wrapped):
     # set `mongodb.query` tag and resource for span
     _set_query_metadata(span, cmd)
 
-    # set analytics sample rate
-    sample_rate = config.pymongo.get_analytics_sample_rate()
-    if sample_rate is not None:
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
     return span
 
 
@@ -271,7 +267,8 @@ def _trace_cmd(cmd, socket_instance, address):
     # set span.kind to the type of operation being performed
     s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-    s.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    s.set_metric(_SPAN_MEASURED_KEY, 1)
     if cmd.db:
         s.set_tag_str(mongox.DB, cmd.db)
     if cmd:
@@ -281,9 +278,6 @@ def _trace_cmd(cmd, socket_instance, address):
 
     # set `mongodb.query` tag and resource for span
     _set_query_metadata(s, cmd)
-
-    # set analytics sample rate
-    s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.pymongo.get_analytics_sample_rate())
 
     if address:
         set_address_tags(s, address)

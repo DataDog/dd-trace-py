@@ -1,13 +1,13 @@
 from collections import defaultdict
 from collections import deque
 from itertools import chain
+import json
 import linecache
 import os
 from pathlib import Path
 import sys
 import threading
 import time
-from types import CodeType
 from types import FunctionType
 from types import ModuleType
 from types import TracebackType
@@ -27,6 +27,7 @@ from ddtrace.debugging._config import di_config
 from ddtrace.debugging._function.discovery import FunctionDiscovery
 from ddtrace.debugging._function.store import FullyNamedContextWrappedFunction
 from ddtrace.debugging._function.store import FunctionStore
+from ddtrace.debugging._import import DebuggerModuleWatchdog
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import FunctionProbe
@@ -37,16 +38,16 @@ from ddtrace.debugging._probe.registry import ProbeRegistry
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEvent
 from ddtrace.debugging._probe.remoteconfig import ProbePollerEventType
 from ddtrace.debugging._probe.remoteconfig import ProbeRCAdapter
+from ddtrace.debugging._probe.remoteconfig import build_probe
 from ddtrace.debugging._probe.status import ProbeStatusLogger
 from ddtrace.debugging._signal.collector import SignalCollector
 from ddtrace.debugging._signal.model import Signal
 from ddtrace.debugging._signal.model import SignalState
 from ddtrace.debugging._uploader import LogsIntakeUploaderV1
 from ddtrace.debugging._uploader import UploaderProduct
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.metrics import Metrics
-from ddtrace.internal.module import ModuleHookType
-from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import origin
 from ddtrace.internal.module import register_post_run_module_hook
 from ddtrace.internal.module import unregister_post_run_module_hook
@@ -69,70 +70,6 @@ class DebuggerError(Exception):
     """Generic debugger error."""
 
     pass
-
-
-class DebuggerModuleWatchdog(ModuleWatchdog):
-    _locations: Set[str] = set()
-
-    def transform(self, code: CodeType, module: ModuleType) -> CodeType:
-        return FunctionDiscovery.transformer(code, module)
-
-    @classmethod
-    def register_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
-        if origin in cls._locations:
-            # We already have a hook for this origin, don't register a new one
-            # but invoke it directly instead, if the module was already loaded.
-            module = cls.get_by_origin(origin)
-            if module is not None:
-                hook(module)
-
-            return
-
-        cls._locations.add(str(origin))
-
-        super().register_origin_hook(origin, hook)
-
-    @classmethod
-    def unregister_origin_hook(cls, origin: Path, hook: ModuleHookType) -> None:
-        try:
-            cls._locations.remove(str(origin))
-        except KeyError:
-            # Nothing to unregister.
-            return
-
-        return super().unregister_origin_hook(origin, hook)
-
-    @classmethod
-    def register_module_hook(cls, module: str, hook: ModuleHookType) -> None:
-        if module in cls._locations:
-            # We already have a hook for this origin, don't register a new one
-            # but invoke it directly instead, if the module was already loaded.
-            mod = sys.modules.get(module)
-            if mod is not None:
-                hook(mod)
-
-            return
-
-        cls._locations.add(module)
-
-        super().register_module_hook(module, hook)
-
-    @classmethod
-    def unregister_module_hook(cls, module: str, hook: ModuleHookType) -> None:
-        try:
-            cls._locations.remove(module)
-        except KeyError:
-            # Nothing to unregister.
-            return
-
-        return super().unregister_module_hook(module, hook)
-
-    @classmethod
-    def on_run_module(cls, module: ModuleType) -> None:
-        if cls._instance is not None:
-            # Treat run module as an import to trigger import hooks and register
-            # the module's origin.
-            cls._instance.after_import(module)
 
 
 class DebuggerWrappingContext(WrappingContext):
@@ -275,8 +212,6 @@ class Debugger(Service):
 
         di_config.enabled = True
 
-        cls.__watchdog__.install()
-
         if di_config.metrics:
             metrics.enable()
 
@@ -287,6 +222,8 @@ class Debugger(Service):
         register_post_run_module_hook(cls._on_run_module)
 
         log.debug("%s enabled", cls.__name__)
+
+        core.dispatch("dynamic-instrumentation.enabled")
 
     @classmethod
     def disable(cls, join: bool = True) -> None:
@@ -308,7 +245,6 @@ class Debugger(Service):
         cls._instance.stop(join=join)
         cls._instance = None
 
-        cls.__watchdog__.uninstall()
         if di_config.metrics:
             metrics.disable()
 
@@ -336,6 +272,8 @@ class Debugger(Service):
             raise_on_exceed=False,
         )
 
+        self.probe_file = di_config.probe_file
+
         if di_config.enabled:
             # TODO: this is only temporary and will be reverted once the DD_REMOTE_CONFIGURATION_ENABLED variable
             #  has been removed
@@ -347,7 +285,27 @@ class Debugger(Service):
             di_callback = self.__rc_adapter__(None, self._on_configuration, status_logger=status_logger)
             remoteconfig_poller.register("LIVE_DEBUGGING", di_callback, restart_on_fork=True)
 
+            # Load local probes from the probe file.
+            self._load_local_config()
+
         log.debug("%s initialized (service name: %s)", self.__class__.__name__, service_name)
+
+    def _load_local_config(self) -> None:
+        if self.probe_file is None:
+            return
+
+        # This is intentionally an all or nothing approach. If one probe is malformed, none of the
+        # local probes will be installed, that way waiting for the success log guarantees installation.
+        try:
+            raw_probes = json.loads(self.probe_file.read_text())
+
+            probes = [build_probe(p) for p in raw_probes]
+
+            self._on_configuration(ProbePollerEvent.NEW_PROBES, probes)
+            log.info("Successfully loaded probes from file %s: %s", self.probe_file, [p.probe_id for p in probes])
+
+        except Exception as e:
+            log.error("Failed to load probes from file %s: %s", self.probe_file, e)
 
     def _dd_debugger_hook(self, probe: Probe) -> None:
         """Debugger probe hook.

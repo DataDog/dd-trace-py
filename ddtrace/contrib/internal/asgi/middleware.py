@@ -7,7 +7,6 @@ from urllib import parse
 
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
@@ -23,6 +22,8 @@ from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_blocked
+from ddtrace.internal.utils.formats import asbool
+from ddtrace.settings._config import _get_config
 from ddtrace.trace import Span
 
 
@@ -34,6 +35,7 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
+        obfuscate_404_resource=asbool(_get_config("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False)),
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
     ),
 )
@@ -183,10 +185,6 @@ class TraceMiddleware:
             if self.span_modifier:
                 self.span_modifier(span, scope)
 
-            sample_rate = self.integration_config.get_analytics_sample_rate(use_global_config=True)
-            if sample_rate is not None:
-                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, sample_rate)
-
             host_header = None
             for key, value in _extract_headers(scope).items():
                 if key.encode() == b"host":
@@ -253,6 +251,9 @@ class TraceMiddleware:
                 if span and message.get("type") == "http.response.start" and "status" in message:
                     cookies = _parse_response_cookies(response_headers)
                     status_code = message["status"]
+                    if self.integration_config.obfuscate_404_resource and status_code == 404:
+                        span.resource = " ".join((method, "404"))
+
                     trace_utils.set_http_meta(
                         span,
                         self.integration_config,

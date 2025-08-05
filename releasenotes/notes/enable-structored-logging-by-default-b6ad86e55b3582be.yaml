@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    loguru,structlog,logbook: Enable trace-log correlation for structured loggers by default.
+  - |
+    loguru,structlog,logbook: Adds support for trace-log correlation via remote configuration. Previously, this functionality was only available for Python’s built-in logging library.

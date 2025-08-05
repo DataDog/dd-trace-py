@@ -30,6 +30,7 @@ _ContextState = Tuple[
     List[SpanLink],  #  span_links
     Dict[str, Any],  # baggage
     bool,  # is_remote
+    bool,  # _reactivate
 ]
 
 
@@ -104,11 +105,21 @@ class Context(object):
             self._span_links,
             self._baggage,
             self._is_remote,
+            self._reactivate,
             # Note: self._lock is not serializable
         )
 
     def __setstate__(self, state: _ContextState) -> None:
-        self.trace_id, self.span_id, self._meta, self._metrics, self._span_links, self._baggage, self._is_remote = state
+        (
+            self.trace_id,
+            self.span_id,
+            self._meta,
+            self._metrics,
+            self._span_links,
+            self._baggage,
+            self._is_remote,
+            self._reactivate,
+        ) = state
         # We cannot serialize and lock, so we must recreate it unless we already have one
         self._lock = threading.RLock()
 
@@ -206,7 +217,7 @@ class Context(object):
             self._meta[_USER_ID_KEY] = str(base64.b64encode(bytes(value, encoding="utf-8")), encoding="utf-8")
 
     @property
-    def _trace_id_64bits(self):
+    def _trace_id_64bits(self) -> Optional[int]:
         """Return the trace ID as a 64-bit value."""
         if self.trace_id is None:
             return None
@@ -275,17 +286,11 @@ class Context(object):
         return False
 
     def __repr__(self) -> str:
-        return "Context(trace_id=%s, span_id=%s, _meta=%s, _metrics=%s, _span_links=%s, _baggage=%s, _is_remote=%s)" % (
-            self.trace_id,
-            self.span_id,
-            self._meta,
-            self._metrics,
-            self._span_links,
-            self._baggage,
-            self._is_remote,
+        return (
+            f"Context(trace_id={self.trace_id}, span_id={self.span_id}, _meta={self._meta}, "
+            f"_metrics={self._metrics}, _span_links={self._span_links}, _baggage={self._baggage}, "
+            f"_is_remote={self._is_remote})"
         )
 
     def __hash__(self) -> int:
         return hash(self.trace_id)
-
-    __str__ = __repr__

@@ -1,4 +1,5 @@
 import os
+from typing import Dict
 
 import fastapi
 import fastapi.routing
@@ -27,6 +28,7 @@ config._add(
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
         _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
     ),
 )
 
@@ -34,6 +36,10 @@ config._add(
 def get_version():
     # type: () -> str
     return getattr(fastapi, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"fastapi": ">=0.64.0"}
 
 
 def wrap_middleware_stack(wrapped, instance, args, kwargs):

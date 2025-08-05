@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: Increases span event size limit from 1MB to 5MB.

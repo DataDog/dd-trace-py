@@ -1,10 +1,10 @@
+from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast.constants import VULN_INSECURE_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_HTTPONLY_COOKIE
 from ddtrace.appsec._iast.constants import VULN_NO_SAMESITE_COOKIE
 from ddtrace.appsec._iast.taint_sinks.insecure_cookie import _iast_response_cookies
-from tests.appsec.iast.conftest import _end_iast_context_and_oce
-from tests.appsec.iast.conftest import _start_iast_context_and_oce
-from tests.appsec.iast.taint_sinks.conftest import _get_span_report
+from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
+from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 
 
 def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):
@@ -19,7 +19,7 @@ def test_insecure_cookie_deduplication(iast_context_deduplication_enabled):
                 dict(secure=False, httponly=True, samesite="Strict"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None
@@ -44,7 +44,7 @@ def test_no_httponly_cookie_deduplication(iast_context_deduplication_enabled):
                 dict(secure=True, httponly=False, samesite="Strict"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None
@@ -69,7 +69,7 @@ def test_no_samesite_cookie_deduplication(iast_context_deduplication_enabled):
                 dict(secure=True, httponly=True, samesite="None"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None
@@ -94,7 +94,7 @@ def test_all_cookies_deduplication(iast_context_deduplication_enabled):
                 dict(secure=False, httponly=False, samesite="None"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None
@@ -127,7 +127,7 @@ def test_all_cookies_two_different_sinks_deduplication(iast_context_deduplicatio
                 dict(secure=False, httponly=False, samesite="None"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None
@@ -166,7 +166,7 @@ def test_all_cookies_three_different_sinks_deduplication(iast_context_deduplicat
                 dict(secure=False, httponly=False, samesite="None"),
             )
 
-        span_report = _get_span_report()
+        span_report = get_iast_reporter()
 
         if num_vuln_expected == 0:
             assert span_report is None

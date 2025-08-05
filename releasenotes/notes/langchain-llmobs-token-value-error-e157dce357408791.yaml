@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixed an issue where grabbing token values for some providers through ``langchain`` libraries raised a ``ValueError``.

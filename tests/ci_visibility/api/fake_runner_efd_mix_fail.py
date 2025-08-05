@@ -18,7 +18,7 @@ from ddtrace.internal.test_visibility import api
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 
 
-def _hack_test_duration(test_id: api.InternalTestId, duration: float):
+def _hack_test_duration(test_id: ext_api.TestId, duration: float):
     from ddtrace.internal.ci_visibility import CIVisibility
 
     test = CIVisibility.get_test_by_id(test_id)
@@ -60,7 +60,7 @@ def _make_test_ids():
         for suite, tests in suites.items():
             suite_id = ext_api.TestSuiteId(module_id, suite)
             for test in tests:
-                test_id = api.InternalTestId(suite_id, *test)
+                test_id = ext_api.TestId(suite_id, *test)
                 test_ids.add(test_id)
     return test_ids
 
@@ -83,13 +83,13 @@ def run_tests():
 
     # M1_S1 tests
 
-    m1_s1_t1_id = api.InternalTestId(m1_s1_id, "m1_s1_t1")
+    m1_s1_t1_id = ext_api.TestId(m1_s1_id, "m1_s1_t1")
     api.InternalTest.discover(m1_s1_t1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
 
-    m1_s1_t2_id = api.InternalTestId(m1_s1_id, "m1_s1_t2")
+    m1_s1_t2_id = ext_api.TestId(m1_s1_id, "m1_s1_t2")
     api.InternalTest.discover(m1_s1_t2_id, source_file_info=None)
 
-    m1_s1_t3_id = api.InternalTestId(m1_s1_id, "m1_s1_t3")
+    m1_s1_t3_id = ext_api.TestId(m1_s1_id, "m1_s1_t3")
     api.InternalTest.discover(
         m1_s1_t3_id,
         codeowners=["@romain", "@romain2"],
@@ -97,9 +97,9 @@ def run_tests():
     )
 
     # NOTE: these parametrized tests will not be retried
-    m1_s1_t4_p1_id = api.InternalTestId(m1_s1_id, "m1_s1_t4_p1", parameters=json.dumps({"param1": "value1"}))
+    m1_s1_t4_p1_id = ext_api.TestId(m1_s1_id, "m1_s1_t4_p1", parameters=json.dumps({"param1": "value1"}))
     api.InternalTest.discover(m1_s1_t4_p1_id)
-    m1_s1_t4_p2_id = api.InternalTestId(m1_s1_id, "m1_s1_t4_p2_id", parameters=json.dumps({"param1": "value2"}))
+    m1_s1_t4_p2_id = ext_api.TestId(m1_s1_id, "m1_s1_t4_p2_id", parameters=json.dumps({"param1": "value2"}))
     api.InternalTest.discover(m1_s1_t4_p2_id)
 
     # M2
@@ -114,15 +114,15 @@ def run_tests():
 
     # M2_S1 tests (mostly exist to keep under faulty session threshold)
     m2_s1_test_ids = [
-        api.InternalTestId(m2_s1_id, "m2_s1_t1"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t2"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t3"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t4"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t5"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t6"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t7"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t8"),
-        api.InternalTestId(m2_s1_id, "m2_s1_t9"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t1"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t2"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t3"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t4"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t5"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t6"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t7"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t8"),
+        ext_api.TestId(m2_s1_id, "m2_s1_t9"),
     ]
     for test_id in m2_s1_test_ids:
         api.InternalTest.discover(test_id)
@@ -134,23 +134,23 @@ def run_tests():
 
     # M2_S2 tests
 
-    m2_s2_t1_id = api.InternalTestId(m2_s2_id, "m2_s2_t1")
+    m2_s2_t1_id = ext_api.TestId(m2_s2_id, "m2_s2_t1")
     api.InternalTest.discover(m2_s2_t1_id, source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 1, 2))
 
-    m2_s2_t2_id = api.InternalTestId(m2_s2_id, "m2_s2_t2")
+    m2_s2_t2_id = ext_api.TestId(m2_s2_id, "m2_s2_t2")
     api.InternalTest.discover(m2_s2_t2_id)
 
-    m2_s2_t3_id = api.InternalTestId(m2_s2_id, "m2_s2_t3")
+    m2_s2_t3_id = ext_api.TestId(m2_s2_id, "m2_s2_t3")
     api.InternalTest.discover(
         m2_s2_t3_id,
         codeowners=["@romain"],
         source_file_info=ext_api.TestSourceFileInfo(Path("my_file_1.py"), 4, 12),
     )
 
-    m2_s2_t4_id = api.InternalTestId(m2_s2_id, "m2_s2_t4")
+    m2_s2_t4_id = ext_api.TestId(m2_s2_id, "m2_s2_t4")
     api.InternalTest.discover(m2_s2_t4_id)
 
-    m2_s2_t5_id = api.InternalTestId(m2_s2_id, "m2_s2_t5")
+    m2_s2_t5_id = ext_api.TestId(m2_s2_id, "m2_s2_t5")
     api.InternalTest.discover(m2_s2_t5_id)
 
     # END DISCOVERY

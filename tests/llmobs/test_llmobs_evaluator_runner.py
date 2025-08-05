@@ -102,16 +102,10 @@ def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subproces
     )
     out, err, status, pid = run_python_code_in_subprocess(
         """
-import atexit
-
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
-from tests.llmobs._utils import logs_vcr
 from tests.llmobs._utils import DummyEvaluator
 
-ctx = logs_vcr.use_cassette("tests.llmobs.test_llmobs_evaluator_runner.send_score_metric.yaml")
-ctx.__enter__()
-atexit.register(lambda: ctx.__exit__())
 LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
 LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
 LLMObs._instance._evaluator_runner.start()
@@ -121,7 +115,11 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
     )
     assert status == 0, err
     assert out == b""
-    assert err == b""
+    assert b"got response code 403" in err
+    assert (
+        b'status: b\'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}\'\n'
+        in err
+    )
 
 
 def test_evaluator_runner_unsupported_evaluator():

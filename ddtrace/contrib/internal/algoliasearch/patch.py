@@ -1,3 +1,5 @@
+from typing import Dict
+
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -24,7 +26,6 @@ V2 = parse_version("2.0")
 V3 = parse_version("3.0")
 
 try:
-    VERSION = "0.0.0"
     import algoliasearch
     from algoliasearch.version import VERSION
 
@@ -33,12 +34,16 @@ try:
     # Default configuration
     config._add("algoliasearch", dict(_default_service=SERVICE_NAME, collect_query_text=False))
 except ImportError:
-    algoliasearch_version = V0
+    algoliasearch_version = VERSION = V0
 
 
 def get_version():
     # type: () -> str
     return VERSION
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"algoliasearch": ">=2.5.0"}
 
 
 def patch():
@@ -129,7 +134,8 @@ def _patched_search(func, instance, wrapt_args, wrapt_kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
             return func(*wrapt_args, **wrapt_kwargs)
 

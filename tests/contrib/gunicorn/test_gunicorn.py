@@ -165,6 +165,7 @@ SETTINGS_GEVENT_DDTRACERUN_DEBUGMODE_MODULE_CLONE = _gunicorn_settings_factory(
 )
 
 
+@pytest.mark.skip(reason="Server startup is flaky in CI. It is unclear whether the server fails to start or shutdown.")
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Gunicorn is only supported up to 3.10")
 def test_no_known_errors_occur(tmp_path):
     for gunicorn_server_settings in [

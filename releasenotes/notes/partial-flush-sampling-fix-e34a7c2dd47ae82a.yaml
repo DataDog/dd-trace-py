@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fix inconsistent trace sampling during partial flush (traces >300 spans). Now correctly applies sampling rules to the root span instead of a random payload span. 
+    Since traces are sampled only once, using the wrong span could bypass sampling rules and cause the agent to apply default rate limits. Fixes regression introduced in v2.8.0.

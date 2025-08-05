@@ -1,0 +1,260 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"Use the provided tool to calculate the square
+      of 2.","role":"system"},{"role":"user","content":"What is the square of 2?"}],"model":"gpt-4o","stream":true,"stream_options":{"include_usage":true},"tool_choice":"required","tools":[{"type":"function","function":{"name":"calculate_square_tool","description":"","parameters":{"additionalProperties":false,"properties":{"x":{"type":"integer"}},"required":["x"],"type":"object"},"strict":true}},{"type":"function","function":{"name":"final_result","description":"The
+      final response which ends this conversation","parameters":{"additionalProperties":false,"properties":{"original_number":{"type":"integer"},"square":{"type":"integer"}},"required":["original_number","square"],"type":"object"},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '778'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=xZz7_.qw1TG4RqR9og5otIe6zPbBog2eS53QIMAik0A-1751918538240-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - pydantic-ai/0.3.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.93.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_uE7CdCsjQFEF5HK4ajqdxWc3","type":"function","function":{"name":"calculate_square_tool","arguments":""}}],"refusal":null},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\""}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"x"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"2"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2ovElsdWs4gx7WmKdpL1UeaJGK7","object":"chat.completion.chunk","created":1751981925,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[],"usage":{"prompt_tokens":85,"completion_tokens":15,"total_tokens":100,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-RAY:
+      - 95bffbd1ec5dae7d-IAD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 08 Jul 2025 13:38:46 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=RlQmlP20cQQcJbJpgzhdgUR4T8PLtWue2j3GY.qVU7s-1751981926-1.0.1.1-AE0RlwdRvaHRl06FkMnw1VfffgrfUCwh.KhZbifnb46N60ETxGmO0cMtGAGQBmg92EJVoc9IaltROaa5MxjsOiseYntwnObIN6WfvhekQUI;
+        path=/; expires=Tue, 08-Jul-25 14:08:46 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '376'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '379'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999978'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_9069c62b6aacd294457626539b06794b
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages":[{"content":"Use the provided tool to calculate the square
+      of 2.","role":"system"},{"role":"user","content":"What is the square of 2?"},{"role":"assistant","tool_calls":[{"id":"call_uE7CdCsjQFEF5HK4ajqdxWc3","type":"function","function":{"name":"calculate_square_tool","arguments":"{\"x\":2}"}}]},{"role":"tool","tool_call_id":"call_uE7CdCsjQFEF5HK4ajqdxWc3","content":"4"}],"model":"gpt-4o","stream":true,"stream_options":{"include_usage":true},"tool_choice":"required","tools":[{"type":"function","function":{"name":"calculate_square_tool","description":"","parameters":{"additionalProperties":false,"properties":{"x":{"type":"integer"}},"required":["x"],"type":"object"},"strict":true}},{"type":"function","function":{"name":"final_result","description":"The
+      final response which ends this conversation","parameters":{"additionalProperties":false,"properties":{"original_number":{"type":"integer"},"square":{"type":"integer"}},"required":["original_number","square"],"type":"object"},"strict":true}}]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1016'
+      content-type:
+      - application/json
+      cookie:
+      - __cf_bm=RlQmlP20cQQcJbJpgzhdgUR4T8PLtWue2j3GY.qVU7s-1751981926-1.0.1.1-AE0RlwdRvaHRl06FkMnw1VfffgrfUCwh.KhZbifnb46N60ETxGmO0cMtGAGQBmg92EJVoc9IaltROaa5MxjsOiseYntwnObIN6WfvhekQUI;
+        _cfuvid=xZz7_.qw1TG4RqR9og5otIe6zPbBog2eS53QIMAik0A-1751918538240-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - pydantic-ai/0.3.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - async:asyncio
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.93.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: 'data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_SFJ8RcVqYmd07reqSUFf8dvR","type":"function","function":{"name":"final_result","arguments":""}}],"refusal":null},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{\""}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"original"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"_number"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"2"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":",\""}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"square"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\":"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"4"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"logprobs":null,"finish_reason":null}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[{"index":0,"delta":{},"logprobs":null,"finish_reason":"tool_calls"}],"usage":null}
+
+
+        data: {"id":"chatcmpl-Br2oxdf4qykrUm1Wi9xICyygOR2Wv","object":"chat.completion.chunk","created":1751981927,"model":"gpt-4o-2024-08-06","service_tier":"default","system_fingerprint":"fp_a288987b44","choices":[],"usage":{"prompt_tokens":110,"completion_tokens":19,"total_tokens":129,"prompt_tokens_details":{"cached_tokens":0,"audio_tokens":0},"completion_tokens_details":{"reasoning_tokens":0,"audio_tokens":0,"accepted_prediction_tokens":0,"rejected_prediction_tokens":0}}}
+
+
+        data: [DONE]
+
+
+        '
+    headers:
+      CF-RAY:
+      - 95bffbe0682fae7d-IAD
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Tue, 08 Jul 2025 13:38:47 GMT
+      Server:
+      - cloudflare
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '430'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '433'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '30000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '29999975'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_966c5deb745bb9b14c05a6d52c650dce
+    status:
+      code: 200
+      message: OK
+version: 1

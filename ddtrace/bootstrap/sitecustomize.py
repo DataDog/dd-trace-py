@@ -20,22 +20,11 @@ import sys
 import warnings  # noqa:F401
 
 from ddtrace import config  # noqa:F401
-from ddtrace._logger import DD_LOG_FORMAT
 from ddtrace.internal.logger import get_logger  # noqa:F401
 from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.utils.formats import asbool  # noqa:F401
-
-
-# Debug mode from the tracer will do the same here, so only need to do this otherwise.
-if config._logs_injection:
-    from ddtrace import patch
-
-    patch(logging=True)
-    ddtrace_logger = logging.getLogger("ddtrace")
-    for handler in ddtrace_logger.handlers:
-        handler.setFormatter(logging.Formatter(DD_LOG_FORMAT))
 
 
 log = get_logger(__name__)
@@ -86,6 +75,7 @@ def cleanup_loaded_modules():
             "google",
             "google.protobuf",  # the upb backend in >= 4.21 does not like being unloaded
             "wrapt",
+            "bytecode",  # needed by before-fork hooks
         ]
     )
     for m in list(_ for _ in sys.modules if _ not in ddtrace.LOADED_MODULES):
@@ -164,12 +154,20 @@ try:
             log.debug("additional sitecustomize not found")
         else:
             log.debug("additional sitecustomize found in: %s", sys.path)
-    # Detect if ddtrace-run is being used by checking if the bootstrap directory is in the python path
-    bootstrap_dir = os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap")
-    if bootstrap_dir in sys.path:
-        telemetry_writer.add_configuration("instrumentation_source", "cmd_line", "code")
+
+    if os.getenv("_DD_PY_SSI_INJECT") == "1":
+        # _DD_PY_SSI_INJECT is set to `1` in lib-injection/sources/sitecustomize.py when ssi is started
+        # and doesn't abort.
+        source = "ssi"
+    elif os.path.join(os.path.dirname(ddtrace.__file__), "bootstrap") in sys.path:
+        # Checks the python path to see if the bootstrap directory is present, this operation
+        # is performed in ddtrace/commands/ddtrace_run.py and is triggered by ddtrace-run
+        source = "cmd_line"
     else:
-        telemetry_writer.add_configuration("instrumentation_source", "manual", "code")
+        # If none of the above, then the user must have manually configured ddtrace instrumentation
+        # ex: import ddtrace.auto
+        source = "manual"
+    telemetry_writer.add_configuration("instrumentation_source", source, "code")
     # Loading status used in tests to detect if the `sitecustomize` has been
     # properly loaded without exceptions. This must be the last action in the module
     # when the execution ends with a success.

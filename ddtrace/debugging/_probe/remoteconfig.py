@@ -1,3 +1,4 @@
+from enum import Enum
 from itertools import count
 import os
 import time
@@ -5,6 +6,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import Iterable
+from typing import List
 from typing import Optional
 from typing import Type
 
@@ -270,7 +272,7 @@ def get_probes(config: dict, status_logger: ProbeStatusLogger) -> Iterable[Probe
         return []
 
 
-class ProbePollerEvent(object):
+class ProbePollerEvent(int, Enum):
     NEW_PROBES = 0
     DELETED_PROBES = 1
     MODIFIED_PROBES = 2
@@ -287,8 +289,14 @@ class DebuggerRemoteConfigSubscriber(RemoteConfigSubscriber):
     events that can be handled easily by the debugger.
     """
 
-    def __init__(self, data_connector, callback, name, status_logger):
-        super().__init__(data_connector, None, name)
+    def __init__(
+        self,
+        data_connector: PublisherSubscriberConnector,
+        callback: Callable[[ProbePollerEvent, List[Probe]], None],
+        name: str,
+        status_logger: ProbeStatusLogger,
+    ) -> None:
+        super().__init__(data_connector, lambda _: None, name)
         self._configs: Dict[str, Dict[str, Probe]] = {}
         self._status_timestamp_sequence = count(
             time.time() + di_config.diagnostics_interval, di_config.diagnostics_interval

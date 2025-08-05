@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where test retry numbers were not reported correctly when tests were run
+    with ``pytest-xdist``.

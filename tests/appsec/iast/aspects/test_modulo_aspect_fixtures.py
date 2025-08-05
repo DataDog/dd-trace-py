@@ -11,9 +11,10 @@ import pytest
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
+from tests.appsec.iast.aspects.aspect_utils import _to_tainted_string_with_origin
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
 
@@ -28,13 +29,13 @@ class TestOperatorModuloReplacement(BaseReplacement):
         expected_result,  # type: Text
         escaped_expected_result,  # type: Text
     ):  # type: (...) -> None
-        template = self._to_tainted_string_with_origin(taint_escaped_template)
+        template = _to_tainted_string_with_origin(taint_escaped_template)
 
         parameter = tuple()  # type: Any
         if isinstance(taint_escaped_parameter, (tuple, List)):
-            parameter = tuple([self._to_tainted_string_with_origin(item) for item in taint_escaped_parameter])
+            parameter = tuple([_to_tainted_string_with_origin(item) for item in taint_escaped_parameter])
         else:
-            parameter = self._to_tainted_string_with_origin(taint_escaped_parameter)
+            parameter = _to_tainted_string_with_origin(taint_escaped_parameter)
 
         result = mod.do_modulo(template, parameter)
 
@@ -108,7 +109,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template<input1>-+: %s",
             taint_escaped_parameter=":+-<input2>parameter<input2>-+:",
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template<input1>-+: " ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template<input1>-+: :+-<input2>parameter<input2>-+:",
         )
 
     def test_modulo_when_tainted_template_range_with_percent_and_tainted_param_then_tainted(self):  # type: () -> None
@@ -116,7 +117,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template %s<input1>-+:",
             taint_escaped_parameter=":+-<input1>parameter<input2>-+:",
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template <input1>-+:" ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template <input1>-+::+-<input2>parameter<input2>-+:",
         )
 
     def test_modulo_when_ranges_overlap_then_give_preference_to_ranges_from_parameter(self):  # type: () -> None
@@ -134,7 +135,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: %s",
             taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
             expected_result="template⚠️ parameter⚠️",
-            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: :+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_modulo_when_tainted_unicode_emoji_strings_then_tainted_result(self):  # type: () -> None
@@ -142,7 +143,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: %s",
             taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
             expected_result="template⚠️ parameter⚠️",
-            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: :+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_modulo_when_tainted_template_range_no_percent_and_param_not_str_then_tainted(self):  # type: () -> None
@@ -165,9 +166,9 @@ class TestOperatorModuloReplacement(BaseReplacement):
         self,
     ):  # type: () -> None
         self._assert_modulo_result(
-            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: %s",
-            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::",
-            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::<input1>-+: %s",
+            taint_escaped_parameter=":+-<input2>parameter<input2>-+: ::++--<0>my_code<0>--++::",
+            expected_result="template :+-<0>my_code<0>-+: parameter :+-<0>my_code<0>-+:",
             escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
             ":+-<0>my_code<0>-+:",

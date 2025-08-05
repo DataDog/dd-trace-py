@@ -5,7 +5,6 @@ from celery import signals
 
 from ddtrace import config
 from ddtrace._trace.pin import _DD_PIN_NAME
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -99,10 +98,8 @@ def _traced_beat_function(integration_config, fn_name, resource_fn=None):
             if resource_fn:
                 span.resource = resource_fn(args)
             span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
-            rate = config.celery.get_analytics_sample_rate()
-            if rate is not None:
-                span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, rate)
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
 
             return func(*args, **kwargs)
 
@@ -138,8 +135,8 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
                 task_span = core.get_item("task_span")
                 if task_span:
                     log.debug(
-                        "The after_task_publish signal was not called, so manually closing span: %s",
-                        task_span._pprint(),
+                        "The after_task_publish signal was not called, so manually closing span: %r",
+                        task_span,
                     )
                     task_span.finish()
 

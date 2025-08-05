@@ -5,7 +5,9 @@ import pytest
     env=dict(
         DD_PROFILING_OUTPUT_PPROF="/tmp/test_stack_asyncio",
     ),
+    err=None,
 )
+# For macOS: err=None ignores expected stderr from tracer failing to connect to agent (not relevant to this test)
 def test_asyncio():
     import asyncio
     import os
@@ -59,7 +61,7 @@ def test_asyncio():
 
     output_filename = os.environ["DD_PROFILING_OUTPUT_PPROF"] + "." + str(os.getpid())
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
 
     samples_with_span_id = pprof_utils.get_samples_with_label_key(profile, "span id")
     assert len(samples_with_span_id) > 0

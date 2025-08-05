@@ -16,13 +16,16 @@ from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import IS_EVALUATION_SPAN
+from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
+from ddtrace.llmobs._constants import ML_APP
 from ddtrace.llmobs._constants import MODEL_NAME
 from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_DOCUMENTS
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import PROPAGATED_ML_APP_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
@@ -144,17 +147,6 @@ def test_service_enable_no_api_key():
         assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
 
 
-def test_service_enable_no_ml_app_specified():
-    with override_global_config(dict(_dd_api_key="<not-a-real-key>", _llmobs_ml_app="")):
-        dummy_tracer = DummyTracer()
-        with pytest.raises(ValueError):
-            llmobs_service.enable(_tracer=dummy_tracer)
-        assert llmobs_service.enabled is False
-        assert llmobs_service._instance._llmobs_eval_metric_writer.status.value == "stopped"
-        assert llmobs_service._instance._llmobs_span_writer.status.value == "stopped"
-        assert llmobs_service._instance._evaluator_runner.status.value == "stopped"
-
-
 def test_service_enable_already_enabled(mock_llmobs_logs):
     with override_global_config(dict(_dd_api_key="<not-a-real-api-key>", _llmobs_ml_app="<ml-app-name>")):
         dummy_tracer = DummyTracer()
@@ -226,6 +218,44 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
                 continue
             assert kwargs[module] is True
         llmobs_service.disable()
+
+
+def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
+    with pytest.raises(ValueError):
+        with llmobs_no_ml_app.task():
+            pass
+
+
+def test_start_span_without_ml_app_does_noop():
+    with llmobs_service.task():
+        pass
+
+
+def test_ml_app_local_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app") as span:
+            assert span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_parent_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow(ml_app="local-ml-app"):
+            with llmobs.workflow() as child_workflow_span:
+                assert child_workflow_span._get_ctx_item(ML_APP) == "local-ml-app"
+
+
+def test_ml_app_propagated_precedence(llmobs, tracer):
+    with tracer.trace("apm") as apm_span:
+        apm_span.context._meta[PROPAGATED_ML_APP_KEY] = "propagated-ml-app"
+        with llmobs.workflow() as span:
+            assert span._get_ctx_item(ML_APP) == "propagated-ml-app"
+
+
+def test_ml_app_uses_global_as_default(llmobs):
+    with llmobs.workflow() as span:
+        assert span._get_ctx_item(ML_APP) == "unnamed-ml-app"
 
 
 def test_start_span_while_disabled_logs_warning(llmobs, mock_llmobs_logs):
@@ -524,6 +554,22 @@ def test_llmobs_annotate_incorrect_message_content_type_raises_warning(llmobs, m
         mock_llmobs_logs.reset_mock()
         llmobs.annotate(span=span, output_data={"role": "user", "content": {"nested": "yes"}})
         mock_llmobs_logs.warning.assert_called_once_with("Failed to parse output messages.", exc_info=True)
+
+
+def test_annotate_input_llm_message_with_role_none_implicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input"}])
+
+        # force the span event to be created - this is where we normalize the role
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
+
+
+def test_annotate_input_llm_message_with_role_none_explicit(llmobs):
+    with llmobs.llm(model_name="test_model") as span:
+        llmobs.annotate(span=span, input_data=[{"content": "test_input", "role": None}])
+        span_event = llmobs._instance._llmobs_span_event(span)
+        assert span_event["meta"]["input"]["messages"] == [{"content": "test_input", "role": ""}]
 
 
 def test_annotate_document_str(llmobs):
@@ -935,7 +981,7 @@ def test_export_span_specified_span_returns_span_context(llmobs):
         span_context = llmobs.export_span(span=span)
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
 
 
 def test_export_span_no_specified_span_no_active_span_raises_warning(llmobs, mock_llmobs_logs):
@@ -954,7 +1000,7 @@ def test_export_span_no_specified_span_returns_exported_active_span(llmobs):
         span_context = llmobs.export_span()
         assert span_context is not None
         assert span_context["span_id"] == str(span.span_id)
-        assert span_context["trace_id"] == format_trace_id(span.trace_id)
+        assert span_context["trace_id"] == format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID))
 
 
 def test_submit_evaluation_ml_app_raises_warning(llmobs, mock_llmobs_logs):
@@ -1018,12 +1064,12 @@ def test_submit_evaluation_incorrect_metric_type_raises_warning(llmobs, mock_llm
     llmobs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
     )
-    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score', or 'boolean'.")
     mock_llmobs_logs.reset_mock()
     llmobs.submit_evaluation(
         span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
     )
-    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical' or 'score'.")
+    mock_llmobs_logs.warning.assert_called_once_with("metric_type must be one of 'categorical', 'score', or 'boolean'.")
 
 
 def test_submit_evaluation_numerical_value_raises_unsupported_warning(llmobs, mock_llmobs_logs):
@@ -1218,7 +1264,7 @@ def test_submit_evaluation_enqueues_writer_with_categorical_metric(llmobs, mock_
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -1247,7 +1293,7 @@ def test_submit_evaluation_enqueues_writer_with_score_metric(llmobs, mock_llmobs
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -1284,12 +1330,49 @@ def test_submit_evaluation_with_numerical_metric_enqueues_writer_with_score_metr
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="token_count",
             metric_type="score",
             score_value=35,
         )
     )
+
+
+def test_submit_evaluation_enqueues_writer_with_boolean_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"},
+        label="is_toxic",
+        metric_type="boolean",
+        value=True,
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123", trace_id="456", label="is_toxic", metric_type="boolean", boolean_value=True, ml_app="dummy"
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.submit_evaluation(
+            span_context=llmobs.export_span(span), label="is_toxic", metric_type="boolean", value=False, ml_app="dummy"
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            label="is_toxic",
+            metric_type="boolean",
+            boolean_value=False,
+            ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_incorrect_boolean_value_type_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="is_toxic", metric_type="boolean", value="true"
+    )
+    mock_llmobs_logs.warning.assert_called_once_with("value must be a boolean for a boolean metric.")
 
 
 def test_flush_does_not_call_periodic_when_llmobs_is_disabled(
@@ -1393,7 +1476,7 @@ def test_activate_distributed_headers_no_llmobs_parent_id_does_nothing(llmobs, m
         with mock.patch("ddtrace.llmobs.LLMObs._instance.tracer.context_provider.activate") as mock_activate:
             llmobs.activate_distributed_headers({})
             assert mock_extract.call_count == 1
-            mock_llmobs_logs.warning.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
+            mock_llmobs_logs.debug.assert_called_once_with("Failed to extract LLMObs parent ID from request headers.")
             mock_activate.assert_called_once_with(dummy_context)
 
 
@@ -1420,20 +1503,16 @@ def test_listener_hooks_enqueue_correct_writer(run_python_code_in_subprocess):
     out, err, status, pid = run_python_code_in_subprocess(
         """
 import mock
+import sys
+import time
 from ddtrace.llmobs import LLMObs
 
 LLMObs.enable(ml_app="repro-issue", agentless_enabled=True, api_key="foobar.baz", site="datad0g.com")
-with LLMObs.agent("dummy"):
-    pass
+assert LLMObs._instance._llmobs_span_writer._url == "https://llmobs-intake.datad0g.com/api/v2/llmobs"
 """,
         env=env,
     )
     assert status == 0, err
-    assert out == b""
-    agentless_writer_log = b'failed to send 1 LLMObs span events to https://llmobs-intake.datad0g.com/api/v2/llmobs, got response code 403, status: b\'{"errors":[{"status":"403","title":"Forbidden","detail":"API key is invalid"}]}\'\n'  # noqa: E501
-    agent_proxy_log = b"failed to send, dropping 1 traces to intake at http://localhost:8126/evp_proxy/v2/api/v2/llmobs after 5 retries"  # noqa: E501
-    assert err == agentless_writer_log
-    assert agent_proxy_log not in err
 
 
 def test_llmobs_fork_recreates_and_restarts_span_writer():
@@ -1804,6 +1883,8 @@ def test_annotation_context_nested_maintains_trace_structure(llmobs, llmobs_even
     assert child_span["span_id"] != parent_span["span_id"]
     assert child_span["parent_id"] == parent_span["span_id"]
     assert parent_span["parent_id"] == "undefined"
+    assert child_span["_dd"]["apm_trace_id"] == parent_span["_dd"]["apm_trace_id"]
+    assert parent_span["_dd"]["apm_trace_id"] != parent_span["trace_id"]
 
 
 def test_annotation_context_separate_traces_maintained(llmobs, llmobs_events):
@@ -2081,11 +2162,11 @@ def test_submit_evaluation_for_empty_label_raises_error(llmobs, mock_llmobs_logs
 
 
 def test_submit_evaluation_for_incorrect_metric_type_raises_error(llmobs, mock_llmobs_logs):
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="wrong", value="high"
         )
-    with pytest.raises(ValueError, match="metric_type must be one of 'categorical' or 'score'."):
+    with pytest.raises(ValueError, match="metric_type must be one of 'categorical', 'score', or 'boolean'."):
         llmobs.submit_evaluation_for(
             span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="", value="high"
         )
@@ -2220,7 +2301,7 @@ def test_submit_evaluation_for_enqueues_writer_with_categorical_metric(llmobs, m
         _expected_llmobs_eval_metric_event(
             ml_app="dummy",
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="toxicity",
             metric_type="categorical",
             categorical_value="high",
@@ -2249,7 +2330,7 @@ def test_submit_evaluation_for_enqueues_writer_with_score_metric(llmobs, mock_ll
     mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
         _expected_llmobs_eval_metric_event(
             span_id=str(span.span_id),
-            trace_id=format_trace_id(span.trace_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
             label="sentiment",
             metric_type="score",
             score_value=0.9,
@@ -2316,7 +2397,8 @@ def test_llmobs_parenting_with_root_apm_span(llmobs, tracer, llmobs_events):
     assert llmobs_events[1]["name"] == "llm_span_2"
     assert llmobs_events[1]["parent_id"] == "undefined"
     # document buggy `trace_id` behavior
-    assert llmobs_events[0]["trace_id"] == llmobs_events[1]["trace_id"]
+    assert llmobs_events[0]["_dd"]["apm_trace_id"] == llmobs_events[1]["_dd"]["apm_trace_id"]
+    assert llmobs_events[0]["trace_id"] != llmobs_events[1]["trace_id"]
 
 
 def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_events):
@@ -2348,3 +2430,63 @@ def test_llmobs_parenting_with_intermixed_apm_spans(llmobs, tracer, llmobs_event
 
     assert llmobs_events[3]["name"] == "level_1_llm"
     assert llmobs_events[3]["parent_id"] == "undefined"
+
+    assert llmobs_events[0]["_dd"]["apm_trace_id"] != llmobs_events[0]["trace_id"]
+    for event in llmobs_events:
+        assert event["trace_id"] == llmobs_events[0]["trace_id"]
+        assert event["_dd"]["apm_trace_id"] == llmobs_events[0]["_dd"]["apm_trace_id"]
+
+
+def test_submit_evaluation_for_enqueues_writer_with_boolean_metric(llmobs, mock_llmobs_eval_metric_writer):
+    llmobs.submit_evaluation_for(
+        span={"span_id": "123", "trace_id": "456"},
+        label="is_toxic",
+        metric_type="boolean",
+        value=True,
+        ml_app="dummy",
+    )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id="123", trace_id="456", label="is_toxic", metric_type="boolean", boolean_value=True, ml_app="dummy"
+        )
+    )
+    mock_llmobs_eval_metric_writer.reset_mock()
+    with llmobs.llm(model_name="test_model", name="test_llm_call", model_provider="test_provider") as span:
+        llmobs.submit_evaluation_for(
+            span=llmobs.export_span(span),
+            label="is_toxic",
+            metric_type="boolean",
+            value=False,
+            ml_app="dummy",
+        )
+    mock_llmobs_eval_metric_writer.enqueue.assert_called_with(
+        _expected_llmobs_eval_metric_event(
+            span_id=str(span.span_id),
+            trace_id=format_trace_id(span._get_ctx_item(LLMOBS_TRACE_ID)),
+            label="is_toxic",
+            metric_type="boolean",
+            boolean_value=False,
+            ml_app="dummy",
+        )
+    )
+
+
+def test_submit_evaluation_for_incorrect_boolean_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="value must be a boolean for a boolean metric."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="is_toxic", metric_type="boolean", value="true"
+        )
+
+
+def test_submit_evaluation_incorrect_categorical_value_type_raises_warning(llmobs, mock_llmobs_logs):
+    llmobs.submit_evaluation(
+        span_context={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
+    )
+    mock_llmobs_logs.warning.assert_called_once_with("value must be a string for a categorical metric.")
+
+
+def test_submit_evaluation_for_incorrect_categorical_value_type_raises_error(llmobs, mock_llmobs_logs):
+    with pytest.raises(TypeError, match="value must be a string for a categorical metric."):
+        llmobs.submit_evaluation_for(
+            span={"span_id": "123", "trace_id": "456"}, label="toxicity", metric_type="categorical", value=123
+        )

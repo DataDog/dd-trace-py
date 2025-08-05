@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    single-step instrumentation: Updates library injection guardrails to use safe instrumentation patching feature ``DD_TRACE_SAFE_INSTRUMENTATION_ENABLED``. 
+    This change ensures that instrumentation patching is only applied to for supported versions of packages, leaving unsupported package versions unpatched.

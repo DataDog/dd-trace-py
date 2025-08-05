@@ -23,7 +23,6 @@ def tracer_config(__init__, app, args, kwargs):
         "tracer": ddtrace.tracer,
         "default_service": schematize_service_name(config._get_service("tornado-web")),
         "distributed_tracing": None,
-        "analytics_enabled": None,
     }
 
     # update defaults with users settings

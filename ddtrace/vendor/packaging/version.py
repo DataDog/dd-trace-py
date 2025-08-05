@@ -439,3 +439,20 @@ def _cmpkey(epoch, release, pre, post, dev, local):
         )
 
     return epoch, release, pre, post, dev, local
+
+
+class _TrimmedRelease(Version):
+    @property
+    def release(self):
+        """
+        Release segment without any trailing zeros.
+
+        >>> _TrimmedRelease('1.0.0').release
+        (1,)
+        >>> _TrimmedRelease('0.0').release
+        (0,)
+        """
+        rel = super().release
+        nonzeros = (index for index, val in enumerate(rel) if val)
+        last_nonzero = max(nonzeros, default=0)
+        return rel[: last_nonzero + 1]

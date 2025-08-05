@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    docs: Update docs and tests for uwsgi ``--lazy-apps`` config.
+    For ``uWSGI<2.0.30`` when ``--lazy-apps`` is set , we advise our customers
+    to also set ``--skip-atexit`` to avoid crashes that could occur from our
+    native extensions when worker processes are terminated.

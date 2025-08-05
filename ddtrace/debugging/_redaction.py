@@ -1,3 +1,5 @@
+import typing as t
+
 from ddtrace.debugging._expressions import DDCompiler
 from ddtrace.debugging._expressions import DDExpression
 from ddtrace.internal.logger import get_logger
@@ -108,8 +110,9 @@ REDACTED_PLACEHOLDER = r"{redacted}"
 
 
 @cached()
-def redact(ident: str) -> bool:
-    return normalize_ident(ident) in REDACTED_IDENTIFIERS
+def redact(ident: t.Union[str, bytes]) -> bool:
+    normalized = normalize_ident(ident if isinstance(ident, str) else ident.decode("utf-8", errors="replace"))
+    return normalized in REDACTED_IDENTIFIERS and normalized not in config.redaction_excluded_identifiers
 
 
 @cached()
@@ -134,7 +137,7 @@ class DDRedactedCompiler(DDCompiler):
 
     @classmethod
     def __index__(cls, o, i):
-        if isinstance(i, str) and redact(i):
+        if isinstance(i, (str, bytes)) and redact(i):
             raise DDRedactedExpressionError(f"Access to entry {i!r} is not allowed")
 
         return super().__index__(o, i)

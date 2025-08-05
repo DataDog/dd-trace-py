@@ -4,9 +4,7 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.settings.asm import config as asm_config
 
-from ..constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
@@ -65,7 +63,8 @@ class TracedAsyncCursor(TracedCursor):
             name, service=ext_service(pin, self._self_config), resource=resource, span_type=SpanTypes.SQL
         ) as s:
             if measured:
-                s.set_tag(_SPAN_MEASURED_KEY)
+                # PERF: avoid setting via Span.set_tag
+                s.set_metric(_SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)
@@ -76,20 +75,14 @@ class TracedAsyncCursor(TracedCursor):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            if asm_config._iast_enabled:
-                from ddtrace.appsec._iast.taint_sinks.sql_injection import check_and_report_sqli
-
-                check_and_report_sqli(args, kwargs, self._self_config.integration_name, method)
-
-            # set analytics sample rate if enabled but only for non-FetchTracedCursor
-            if not isinstance(self, FetchTracedAsyncCursor):
-                s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, self._self_config.get_analytics_sample_rate())
+            # Security and IAST validations
+            core.dispatch("db_query_check", (args, kwargs, self._self_config.integration_name, method))
 
             # dispatch DBM
             if dbm_propagator:
                 # this check is necessary to prevent fetch methods from trying to add dbm propagation
                 result = core.dispatch_with_results(
-                    f"{self._self_config.integration_name}.execute", [self._self_config, s, args, kwargs]
+                    f"{self._self_config.integration_name}.execute", (self._self_config, s, args, kwargs)
                 ).result
                 if result:
                     s, args, kwargs = result.value

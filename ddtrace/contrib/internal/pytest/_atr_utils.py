@@ -4,30 +4,30 @@ import _pytest
 import pytest
 
 from ddtrace.contrib.internal.pytest._retry_utils import RetryOutcomes
-from ddtrace.contrib.internal.pytest._retry_utils import RetryTestReport
+from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
+from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
-from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import _PYTEST_STATUS
+from ddtrace.contrib.internal.pytest._utils import TestPhase
 from ddtrace.contrib.internal.pytest._utils import _get_test_id_from_item
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
+from ddtrace.contrib.internal.pytest._utils import get_user_property
+from ddtrace.ext.test_visibility.api import TestId
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.test_visibility._internal_item_ids import InternalTestId
 from ddtrace.internal.test_visibility.api import InternalTest
 
 
 log = get_logger(__name__)
 
 
-class _ATR_RETRY_OUTCOMES:
+class _ATR_RETRY_OUTCOMES(_PYTEST_STATUS):
     ATR_ATTEMPT_PASSED = "dd_atr_attempt_passed"
     ATR_ATTEMPT_FAILED = "dd_atr_attempt_failed"
     ATR_ATTEMPT_SKIPPED = "dd_atr_attempt_skipped"
-    ATR_FINAL_PASSED = "dd_atr_final_passed"
-    ATR_FINAL_FAILED = "dd_atr_final_failed"
 
 
 class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
@@ -39,8 +39,8 @@ class _QUARANTINE_ATR_RETRY_OUTCOMES(_ATR_RETRY_OUTCOMES):
 
 
 _FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
-    TestStatus.PASS: _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
-    TestStatus.FAIL: _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+    TestStatus.PASS: _ATR_RETRY_OUTCOMES.PASSED,
+    TestStatus.FAIL: _ATR_RETRY_OUTCOMES.FAILED,
 }
 
 
@@ -51,13 +51,16 @@ _QUARANTINE_FINAL_OUTCOMES: t.Dict[TestStatus, str] = {
 
 
 def atr_handle_retries(
-    test_id: InternalTestId,
+    test_id: TestId,
     item: pytest.Item,
-    when: str,
-    original_result: pytest_TestReport,
+    test_reports: t.Dict[str, pytest_TestReport],
     test_outcome: _TestOutcome,
     is_quarantined: bool = False,
 ):
+    setup_report = test_reports.get(TestPhase.SETUP)
+    call_report = test_reports.get(TestPhase.CALL)
+    teardown_report = test_reports.get(TestPhase.TEARDOWN)
+
     if is_quarantined:
         retry_outcomes = _QUARANTINE_ATR_RETRY_OUTCOMES
         final_outcomes = _QUARANTINE_FINAL_OUTCOMES
@@ -73,24 +76,34 @@ def atr_handle_retries(
         XPASS=retry_outcomes.ATR_ATTEMPT_FAILED,
     )
 
+    item.ihook.pytest_runtest_logreport(report=setup_report)
+
     # Overwrite the original result to avoid double-counting when displaying totals in final summary
-    if when == "call":
+    if call_report:
         if test_outcome.status == TestStatus.FAIL:
-            original_result.outcome = outcomes.FAILED
-        return
+            call_report.outcome = outcomes.FAILED
+
+        item.ihook.pytest_runtest_logreport(report=call_report)
 
     atr_outcome = _atr_do_retries(item, outcomes)
     longrepr = InternalTest.stash_get(test_id, "failure_longrepr")
 
-    final_report = RetryTestReport(
+    final_report = pytest_TestReport(
         nodeid=item.nodeid,
         location=item.location,
-        keywords=item.keywords,
-        when="call",
+        keywords={k: 1 for k in item.keywords},
+        when=TestPhase.CALL,
         longrepr=longrepr,
         outcome=final_outcomes[atr_outcome],
+        user_properties=item.user_properties
+        + [
+            (UserProperty.RETRY_REASON, RetryReason.AUTO_TEST_RETRY),
+            (UserProperty.RETRY_FINAL_OUTCOME, atr_outcome.value),
+        ],
     )
     item.ihook.pytest_runtest_logreport(report=final_report)
+
+    item.ihook.pytest_runtest_logreport(report=teardown_report)
 
 
 def atr_get_failed_reports(terminalreporter: _pytest.terminal.TerminalReporter) -> t.List[pytest_TestReport]:
@@ -103,8 +116,7 @@ def _atr_do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     while InternalTest.atr_should_retry(test_id):
         retry_num = InternalTest.atr_add_retry(test_id, start_immediately=True)
 
-        with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _get_outcome_from_retry(item, outcomes)
+        retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
         InternalTest.atr_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
@@ -122,8 +134,13 @@ def _atr_write_report_for_status(
     markedup_strings: t.List[str],
     color: str,
     delete_reports: bool = True,
+    retry_reason: str = RetryReason.AUTO_TEST_RETRY,
 ):
-    reports = terminalreporter.getreports(status_key)
+    reports = [
+        report
+        for report in terminalreporter.getreports(report_outcome)
+        if get_user_property(report, UserProperty.RETRY_REASON) == retry_reason
+    ]
     markup_kwargs = {color: True}
     if reports:
         text = f"{len(reports)} {status_text}"
@@ -133,15 +150,6 @@ def _atr_write_report_for_status(
         for report in reports:
             line = f"{terminalreporter._tw.markup(status_text.upper(), **markup_kwargs)} {report.nodeid}"
             terminalreporter.write_line(line)
-            report.outcome = report_outcome
-            # Do not re-append a report if a report already exists for the item in the reports
-            for existing_reports in terminalreporter.stats.get(report_outcome, []):
-                if existing_reports.nodeid == report.nodeid:
-                    break
-            else:
-                terminalreporter.stats.setdefault(report_outcome, []).append(report)
-        if delete_reports:
-            del terminalreporter.stats[status_key]
 
 
 def _atr_prepare_attempts_strings(
@@ -177,9 +185,9 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED,
+        status_key=_ATR_RETRY_OUTCOMES.FAILED,
         status_text="failed",
-        report_outcome=PYTEST_STATUS.FAILED,
+        report_outcome=_PYTEST_STATUS.FAILED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="red",
@@ -187,9 +195,9 @@ def atr_pytest_terminal_summary_post_yield(terminalreporter: _pytest.terminal.Te
 
     _atr_write_report_for_status(
         terminalreporter,
-        status_key=_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED,
+        status_key=_ATR_RETRY_OUTCOMES.PASSED,
         status_text="passed",
-        report_outcome=PYTEST_STATUS.PASSED,
+        report_outcome=_PYTEST_STATUS.PASSED,
         raw_strings=raw_summary_strings,
         markedup_strings=markedup_summary_strings,
         color="green",
@@ -266,24 +274,20 @@ def atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_teststatus_r
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
             "r",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}PASSED", {"green": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED:
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
             "R",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}FAILED", {"yellow": True}),
         )
     if report.outcome == _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED:
         return (
             _ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
             "s",
-            (f"ATR RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"ATR RETRY {_get_retry_attempt_string(report)}SKIPPED", {"yellow": True}),
         )
-    if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
-        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED, ".", ("ATR FINAL STATUS: PASSED", {"green": True}))
-    if report.outcome == _ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED:
-        return (_ATR_RETRY_OUTCOMES.ATR_FINAL_FAILED, "F", ("ATR FINAL STATUS: FAILED", {"red": True}))
     return None
 
 
@@ -292,19 +296,19 @@ def quarantine_atr_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_PASSED,
             "q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}PASSED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED:
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_FAILED,
             "Q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}FAILED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED:
         return (
             _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_ATTEMPT_SKIPPED,
             "q",
-            (f"QUARANTINED RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"blue": True}),
+            (f"QUARANTINED RETRY {_get_retry_attempt_string(report)}SKIPPED", {"blue": True}),
         )
     if report.outcome == _QUARANTINE_ATR_RETRY_OUTCOMES.ATR_FINAL_PASSED:
         return (

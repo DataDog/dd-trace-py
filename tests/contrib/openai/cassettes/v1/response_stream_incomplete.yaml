@@ -1,0 +1,217 @@
+interactions:
+- request:
+    body: '{"input":"Give me a multi paragraph narrative on the life of a car","max_output_tokens":16,"model":"gpt-4o","stream":true,"temperature":0.1}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '140'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.91.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.91.0
+      x-stainless-read-timeout:
+      - '600'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/responses
+  response:
+    body:
+      string: 'event: response.created
+
+        data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_6866d2dec420819c92534dcf75e475120847a84b87aad89c","object":"response","created_at":1751569118,"status":"in_progress","background":false,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":16,"max_tool_calls":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":0.1,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}
+
+
+        event: response.in_progress
+
+        data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_6866d2dec420819c92534dcf75e475120847a84b87aad89c","object":"response","created_at":1751569118,"status":"in_progress","background":false,"error":null,"incomplete_details":null,"instructions":null,"max_output_tokens":16,"max_tool_calls":null,"model":"gpt-4o-2024-08-06","output":[],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"auto","store":false,"temperature":0.1,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":null,"user":null,"metadata":{}}}
+
+
+        event: response.output_item.added
+
+        data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","type":"message","status":"in_progress","content":[],"role":"assistant"}}
+
+
+        event: response.content_part.added
+
+        data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":""}}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"In","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":5,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        the","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":6,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        bustling","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":7,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        city","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":8,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        of","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":9,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        Detroit","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":10,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":",","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":11,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        a","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":12,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        sleek","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":13,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":",","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":14,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        metallic","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":15,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        blue","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":16,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        sedan","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":17,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        rolled","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":18,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        off","logprobs":[]}
+
+
+        event: response.output_text.delta
+
+        data: {"type":"response.output_text.delta","sequence_number":19,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"delta":"
+        the","logprobs":[]}
+
+
+        event: response.output_text.done
+
+        data: {"type":"response.output_text.done","sequence_number":20,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"text":"In
+        the bustling city of Detroit, a sleek, metallic blue sedan rolled off the","logprobs":[]}
+
+
+        event: response.content_part.done
+
+        data: {"type":"response.content_part.done","sequence_number":21,"item_id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","output_index":0,"content_index":0,"part":{"type":"output_text","annotations":[],"logprobs":[],"text":"In
+        the bustling city of Detroit, a sleek, metallic blue sedan rolled off the"}}
+
+
+        event: response.output_item.done
+
+        data: {"type":"response.output_item.done","sequence_number":22,"output_index":0,"item":{"id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","type":"message","status":"incomplete","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"In
+        the bustling city of Detroit, a sleek, metallic blue sedan rolled off the"}],"role":"assistant"}}
+
+
+        event: response.incomplete
+
+        data: {"type":"response.incomplete","sequence_number":23,"response":{"id":"resp_6866d2dec420819c92534dcf75e475120847a84b87aad89c","object":"response","created_at":1751569118,"status":"incomplete","background":false,"error":null,"incomplete_details":{"reason":"max_output_tokens"},"instructions":null,"max_output_tokens":16,"max_tool_calls":null,"model":"gpt-4o-2024-08-06","output":[{"id":"msg_6866d2df1c0c819c885ca369ba853e7f0847a84b87aad89c","type":"message","status":"incomplete","content":[{"type":"output_text","annotations":[],"logprobs":[],"text":"In
+        the bustling city of Detroit, a sleek, metallic blue sedan rolled off the"}],"role":"assistant"}],"parallel_tool_calls":true,"previous_response_id":null,"reasoning":{"effort":null,"summary":null},"service_tier":"default","store":false,"temperature":0.1,"text":{"format":{"type":"text"}},"tool_choice":"auto","tools":[],"top_logprobs":0,"top_p":1.0,"truncation":"disabled","usage":{"input_tokens":0,"input_tokens_details":{"cached_tokens":0},"output_tokens":0,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":0},"user":null,"metadata":{}}}
+
+
+        '
+    headers:
+      CF-RAY:
+      - 95989d900ebc15c7-EWR
+      Connection:
+      - keep-alive
+      Content-Type:
+      - text/event-stream; charset=utf-8
+      Date:
+      - Thu, 03 Jul 2025 18:58:38 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=KpYG1oRKkQLyyjVvJMwoM7ql79VaamURrWrTFo.aTE0-1751569118-1.0.1.1-KGbIEiERemwjKrv8ycZmhv0cRJOMMKhFVJv.o0u1rPJqtnugj.3FF_6iz78OARuG5mZZ0ohKG5geXbCQ3uC9eZ0wEn0sBFq3X2qgV5BUl44;
+        path=/; expires=Thu, 03-Jul-25 19:28:38 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=r8PrX5IPe5I9EgCb9rpkzUITgLbT65.Q573NUBXW_iY-1751569118795-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '27'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-request-id:
+      - req_e5f20714325d29dc7b7e40b8a587ff3d
+    status:
+      code: 200
+      message: OK
+version: 1

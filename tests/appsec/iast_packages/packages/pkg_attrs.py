@@ -2,6 +2,7 @@
 attrs==23.2.0
 https://pypi.org/project/attrs/
 """
+
 from flask import Blueprint
 from flask import request
 
@@ -37,7 +38,7 @@ def pkg_attrs_view():
 def pkg_attrs_propagation_view():
     import attrs
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

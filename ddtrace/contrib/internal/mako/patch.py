@@ -1,3 +1,5 @@
+from typing import Dict
+
 import mako
 from mako.template import DefTemplate
 from mako.template import Template
@@ -19,6 +21,10 @@ from .constants import DEFAULT_TEMPLATE_NAME
 def get_version():
     # type: () -> str
     return getattr(mako, "__version__", "")
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"mako": ">=1.0.0"}
 
 
 def patch():
@@ -63,7 +69,8 @@ def _wrap_render(wrapped, instance, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, "mako")
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)
         finally:

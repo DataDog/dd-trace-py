@@ -33,7 +33,7 @@ def pkg_multipart_view():
 def pkg_multipart_propagation_view():
     from multipart.multipart import parse_options_header
 
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import is_pyobject_tainted
+    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 
     response = ResultResponse(request.args.get("package_param"))
     if not is_pyobject_tainted(response.package_param):

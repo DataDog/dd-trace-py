@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    AAP: This introduces the WAF trace tagging feature. This feature enables Datadog’s security research team to efficiently gather API security findings without generating appsec events, which bypass tracer sampling mechanisms. As an example, trace-tagging rules can be used to add attributes to traces with details about the signing algorithm and expiration of a JWT token with the goal of providing authentication-related findings.
+

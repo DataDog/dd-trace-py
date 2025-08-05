@@ -4,9 +4,9 @@ Datadog trace code for flask_cache
 
 import logging
 import typing
+from typing import Dict
 
 from ddtrace import config
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -41,6 +41,10 @@ def get_version():
         return getattr(flask_caching, "__version__", "")
     except ImportError:
         return ""
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"flask_cache": ">=0.13"}
 
 
 def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=None):
@@ -88,12 +92,11 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
 
             s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
 
-            s.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            s.set_metric(_SPAN_MEASURED_KEY, 1)
             # set span tags
             s.set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
             s.set_tags(self._datadog_meta)
-            # set analytics sample rate
-            s.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.flask_cache.get_analytics_sample_rate())
             # add connection meta if there is one
             client = _extract_client(self.cache)
             if client is not None:

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    dynamic instrumentation: extended captured value redaction in mappings with
+    keys of type ``bytes``.

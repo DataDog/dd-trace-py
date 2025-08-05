@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from flask import Flask
 import pytest
-from redis.exceptions import ConnectionError
+from redis.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.contrib.internal.flask_cache.patch import CACHE_BACKEND
 from ddtrace.contrib.internal.flask_cache.patch import get_traced_cache

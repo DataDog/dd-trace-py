@@ -24,7 +24,14 @@ if vcr:
         cassette_library_dir=os.path.join(os.path.dirname(__file__), "llmobs_cassettes/"),
         record_mode="once",
         match_on=["path"],
-        filter_headers=["authorization", "OpenAI-Organization", "api-key", "x-api-key", ("DD-API-KEY", "XXXXXX")],
+        filter_headers=[
+            "authorization",
+            "OpenAI-Organization",
+            "api-key",
+            "x-api-key",
+            ("DD-API-KEY", "XXXXXX"),
+            ("DD-APPLICATION-KEY", "XXXXXX"),
+        ],
         # Ignore requests to the agent
         ignore_localhost=True,
     )
@@ -78,6 +85,7 @@ def _expected_llmobs_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
+    tool_definitions=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -94,6 +102,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
+    tool_definitions: list of tool definitions that were available to the LLM
     """
     span_event = _llmobs_base_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, span_links
@@ -101,8 +110,24 @@ def _expected_llmobs_llm_span_event(
     meta_dict = {"input": {}, "output": {}}
     if span_kind == "llm":
         if input_messages is not None:
+            input_messages = (
+                [
+                    input_message if input_message.get("role") is not None else {**input_message, "role": ""}
+                    for input_message in input_messages
+                ]
+                if isinstance(input_messages, list)
+                else input_messages
+            )
             meta_dict["input"].update({"messages": input_messages})
         if output_messages is not None:
+            output_messages = (
+                [
+                    output_message if output_message.get("role") is not None else {**output_message, "role": ""}
+                    for output_message in output_messages
+                ]
+                if isinstance(output_messages, list)
+                else output_messages
+            )
             meta_dict["output"].update({"messages": output_messages})
         if prompt is not None:
             meta_dict["input"].update({"prompt": prompt})
@@ -119,6 +144,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
+    if tool_definitions is not None:
+        meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
@@ -192,7 +219,7 @@ def _llmobs_base_span_event(
     span_links=False,
 ):
     span_event = {
-        "trace_id": format_trace_id(span.trace_id),
+        "trace_id": mock.ANY,
         "span_id": str(span.span_id),
         "parent_id": _get_llmobs_parent_id(span),
         "name": _get_span_name(span),
@@ -202,7 +229,11 @@ def _llmobs_base_span_event(
         "meta": {"span.kind": span_kind},
         "metrics": {},
         "tags": _expected_llmobs_tags(span, tags=tags, error=error, session_id=session_id),
-        "_dd": {"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)},
+        "_dd": {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        },
     }
     if session_id:
         span_event["session_id"] = session_id
@@ -239,6 +270,7 @@ def _expected_llmobs_eval_metric_event(
     categorical_value=None,
     score_value=None,
     numerical_value=None,
+    boolean_value=None,
     tags=None,
     metadata=None,
 ):
@@ -261,6 +293,8 @@ def _expected_llmobs_eval_metric_event(
         eval_metric_event["score_value"] = score_value
     if numerical_value is not None:
         eval_metric_event["numerical_value"] = numerical_value
+    if boolean_value is not None:
+        eval_metric_event["boolean_value"] = boolean_value
     if tags is not None:
         eval_metric_event["tags"] = tags
     if timestamp_ms is not None:
@@ -412,7 +446,7 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 900_000,
+                        "content": "A" * 2_000_000,
                         "role": "assistant",
                     },
                 ]
@@ -443,14 +477,14 @@ def _oversized_llm_event():
                         "role": "system",
                         "content": "You are an evil dark lord looking for his one ring to rule them all",
                     },
-                    {"role": "user", "content": "A" * 700_000},
+                    {"role": "user", "content": "A" * 2_600_000},
                 ],
                 "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 700_000,
+                        "content": "A" * 2_600_000,
                         "role": "assistant",
                     },
                 ]
@@ -473,8 +507,8 @@ def _oversized_workflow_event():
         "status": "ok",
         "meta": {
             "span.kind": "workflow",
-            "input": {"value": "A" * 700_000},
-            "output": {"value": "A" * 700_000},
+            "input": {"value": "A" * 2_600_000},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -493,8 +527,8 @@ def _oversized_retrieval_event():
         "status": "ok",
         "meta": {
             "span.kind": "retrieval",
-            "input": {"documents": {"content": "A" * 700_000}},
-            "output": {"value": "A" * 700_000},
+            "input": {"documents": {"content": "A" * 2_600_000}},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -594,7 +628,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -613,7 +647,7 @@ def _expected_ragas_context_precision_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -641,7 +675,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -659,7 +693,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -677,7 +711,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -691,7 +725,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -709,7 +743,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -723,7 +757,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             "meta": {"span.kind": "task", "metadata": {}},
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -740,7 +774,7 @@ def _expected_ragas_faithfulness_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -765,7 +799,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
             "span_links": mock.ANY,
         },
         {
@@ -784,7 +818,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
         {
             "trace_id": mock.ANY,
@@ -802,7 +836,7 @@ def _expected_ragas_answer_relevancy_spans(ragas_inputs=None):
             },
             "metrics": {},
             "tags": expected_ragas_trace_tags(),
-            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY},
+            "_dd": {"span_id": mock.ANY, "trace_id": mock.ANY, "apm_trace_id": mock.ANY},
         },
     ]
 
@@ -816,6 +850,8 @@ def _expected_span_link(span_event, link_from, link_to):
 
 
 class TestLLMObsSpanWriter(LLMObsSpanWriter):
+    __test__ = False
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.events = []

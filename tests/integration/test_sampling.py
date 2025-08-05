@@ -33,6 +33,53 @@ def test_sampling_with_rate_limit_3():
         tracer.trace("child").finish()
 
 
+def test_supported_sampling_mechanism():
+    """
+    validate_sampling_decision should not give errors for supported sampling mechanisms
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.constants import SamplingMechanism
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    # This list can grow over time so we should test all of them
+    supported_mechanisms = {
+        name: getattr(SamplingMechanism, name) for name in dir(SamplingMechanism) if not name.startswith("_")
+    }
+
+    # The mechanisms we support should NOT return a decoding error
+    for mechanism, value in supported_mechanisms.items():
+        sampling_decision_validation = None
+        meta = {}
+        sampling_dm_value = "-" + str(value)
+        meta = {SAMPLING_DECISION_TRACE_TAG_KEY: sampling_dm_value}
+        sampling_decision_validation = validate_sampling_decision(meta)
+        decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+        assert sampling_decision_validation != decoding_error_result, f"{mechanism} returned {decoding_error_result}"
+
+
+def test_unsupported_sampling_mechanism():
+    """
+    Unsupported sampling mechanisms actually return a decoding error in validate_sampling_decision
+    """
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.internal.sampling import validate_sampling_decision
+
+    meta = {SAMPLING_DECISION_TRACE_TAG_KEY: "-999999999999"}
+    sampling_decision_validation = validate_sampling_decision(meta)
+    decoding_error_result = {"_dd.propagation_error": "decoding_error"}
+    assert (
+        sampling_decision_validation == decoding_error_result
+    ), f"Instead of getting {decoding_error_result}, received {sampling_decision_validation}"
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": "0"}])})
+def test_extended_sampling_string_sample_rate():
+    from ddtrace.trace import tracer
+
+    tracer.trace("should_not_send").finish()
+
+
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "resource": RESOURCE}])})
 def test_extended_sampling_resource():
@@ -204,10 +251,33 @@ def test_extended_sampling_tags_and_name_glob():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "2*"}}])})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [{"sample_rate": 0, "service": "mycoolservice", "tags": {"tag1": "monkey", "tag2": "banana"}}]
+        )
+    }
+)
+def test_extended_sampling_tags_partial_match():
+    """
+    For a span to match a sampling rule it must contain all the tags listed in the rule.
+    Partial matches are not allowed.
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace(name="should_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+
+    with tracer.trace(name="should_not_send", service="mycoolservice") as span:
+        span.set_tag("tag1", "monkey")
+        span.set_tag("tag2", "banana")
+
+
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag1": "2*"}}])})
 def test_extended_sampling_float_special_case_do_not_match():
-    """A float with a non-zero decimal and a tag with a non-* pattern
-    # should not match the rule, and should therefore be kept
+    """A float with a non-zero decimal and a tag with a pattern
+    that contains a digit should not match the rule, and should therefore be kept.
     """
     from ddtrace.trace import tracer
 
@@ -216,15 +286,31 @@ def test_extended_sampling_float_special_case_do_not_match():
 
 
 @pytest.mark.snapshot()
-@pytest.mark.subprocess(env={"DD_TRACE_SAMPLING_RULES": json.dumps([{"sample_rate": 0, "tags": {"tag": "*"}}])})
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": json.dumps(
+            [
+                {"sample_rate": 0, "tags": {"tag": "*"}},
+                {"sample_rate": 0, "tags": {"tag2": "?*"}},
+                {"sample_rate": 0, "tags": {"tag3": "**"}},
+            ]
+        )
+    }
+)
 def test_extended_sampling_float_special_case_match_star():
-    """A float with a non-zero decimal and a tag with a * pattern
-    # should match the rule, and should therefore should be dropped
+    """A float with a non-zero decimal and a tag with a glob pattern that does
+    not contain a digit should match the rule and should therefore should be dropped
     """
     from ddtrace.trace import tracer
 
-    with tracer.trace(name="should_send") as span:
+    with tracer.trace(name="should_not_send") as span:
         span.set_tag("tag", 20.1)
+
+    with tracer.trace(name="should_not_send2") as span:
+        span.set_tag("tag2", 22.2)
+
+    with tracer.trace(name="should_not_send3") as span:
+        span.set_tag("tag3", 3333333.33333)
 
 
 @pytest.mark.subprocess()

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    tracing: Fixes an issue where truncation of span attributes longer than 25000 characters would not consistently
+    count the size of UTF-8 multibyte characters, leading to a ``unicode string is too large`` error.

@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: This introduces the capability for the waf to decide of the sampling priority of the trace in case of a security event.

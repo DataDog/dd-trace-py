@@ -13,8 +13,8 @@ from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
-from ddtrace.appsec._iast._taint_tracking._taint_objects import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 import ddtrace.appsec._iast._taint_tracking.aspects as ddtrace_aspects
 from tests.appsec.iast.aspects.aspect_utils import BaseReplacement
 from tests.appsec.iast.aspects.aspect_utils import create_taint_range_with_format
@@ -84,7 +84,7 @@ class TestOperatorFormatReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template<input1>-+: {}",
             taint_escaped_parameter=":+-<input2>parameter<input2>-+:",
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template<input1>-+: " ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template<input1>-+: :+-<input2>parameter<input2>-+:",
         )
 
     def test_format_when_tainted_template_range_with_brackets_and_tainted_param_then_tainted(self):
@@ -93,7 +93,7 @@ class TestOperatorFormatReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template {}<input1>-+:",
             taint_escaped_parameter=":+-<input1>parameter<input2>-+:",
             expected_result="template parameter",
-            escaped_expected_result=":+-<input1>template <input1>-+:" ":+-<input2>parameter<input2>-+:",
+            escaped_expected_result=":+-<input1>template <input1>-+::+-<input2>parameter<input2>-+:",
         )
 
     def test_format_when_ranges_overlap_then_give_preference_to_ranges_from_parameter(self):
@@ -113,7 +113,7 @@ class TestOperatorFormatReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: {}",
             taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
             expected_result="template⚠️ parameter⚠️",
-            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: :+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_format_when_tainted_unicode_emoji_strings_then_tainted_result(self):
@@ -122,7 +122,7 @@ class TestOperatorFormatReplacement(BaseReplacement):
             taint_escaped_template=":+-<input1>template⚠️<input1>-+: {}",
             taint_escaped_parameter=":+-<input2>parameter⚠️<input2>-+:",
             expected_result="template⚠️ parameter⚠️",
-            escaped_expected_result=":+-<input1>template⚠️<input1>-+: " ":+-<input2>parameter⚠️<input2>-+:",
+            escaped_expected_result=":+-<input1>template⚠️<input1>-+: :+-<input2>parameter⚠️<input2>-+:",
         )
 
     def test_format_when_tainted_template_range_no_brackets_and_param_not_str_then_tainted(self):
@@ -146,9 +146,9 @@ class TestOperatorFormatReplacement(BaseReplacement):
     def test_format_when_texts_tainted_and_contain_escape_sequences_then_result_uncorrupted(self):
         # type: () -> None
         self._assert_format_result(
-            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::" "<input1>-+: {}",
-            taint_escaped_parameter=":+-<input2>parameter<input2>-+: " "::++--<0>my_code<0>--++::",
-            expected_result="template :+-<0>my_code<0>-+: parameter " ":+-<0>my_code<0>-+:",
+            taint_escaped_template=":+-<input1>template ::++--<0>my_code<0>--++::<input1>-+: {}",
+            taint_escaped_parameter=":+-<input2>parameter<input2>-+: ::++--<0>my_code<0>--++::",
+            expected_result="template :+-<0>my_code<0>-+: parameter :+-<0>my_code<0>-+:",
             escaped_expected_result=":+-<input1>template :+-<0>my_code<0>-+:<input1>-+: "
             ":+-<input2>parameter<input2>-+: "
             ":+-<0>my_code<0>-+:",

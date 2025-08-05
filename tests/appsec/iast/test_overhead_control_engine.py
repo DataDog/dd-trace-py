@@ -1,10 +1,8 @@
 import logging
 from time import sleep
 
-import pytest
-
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._overhead_control_engine import oce
+from ddtrace.appsec._iast.sampling.vulnerability_detection import reset_request_vulnerabilities
 from ddtrace.settings.asm import config as asm_config
 from tests.utils import override_global_config
 
@@ -42,8 +40,7 @@ def function_with_vulnerabilities_1(tracer):
     return 1
 
 
-@pytest.mark.skip_iast_check_logs
-def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
+def test_oce_max_vulnerabilities_per_request(iast_context_deduplication_enabled):
     import hashlib
 
     m = hashlib.md5()
@@ -57,8 +54,7 @@ def test_oce_max_vulnerabilities_per_request(iast_context_defaults):
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests
 
 
-@pytest.mark.skip_iast_check_logs
-def test_oce_reset_vulnerabilities_report(iast_context_defaults):
+def test_oce_reset_vulnerabilities_report(iast_context_deduplication_enabled):
     import hashlib
 
     m = hashlib.md5()
@@ -66,7 +62,7 @@ def test_oce_reset_vulnerabilities_report(iast_context_defaults):
     m.digest()
     m.digest()
     m.digest()
-    oce.vulnerabilities_reset_quota()
+    reset_request_vulnerabilities()
     m.digest()
 
     span_report = get_iast_reporter()
@@ -74,7 +70,6 @@ def test_oce_reset_vulnerabilities_report(iast_context_defaults):
     assert len(span_report.vulnerabilities) == asm_config._iast_max_vulnerabilities_per_requests + 1
 
 
-@pytest.mark.skip_iast_check_logs
 def test_oce_no_race_conditions_in_span(iast_span_defaults):
     from ddtrace.appsec._iast._overhead_control_engine import OverheadControl
 
@@ -140,7 +135,6 @@ def acquire_and_release_quota_in_spans(oc, iast_span_defaults):
         oc.release_request()
 
 
-@pytest.mark.skip_iast_check_logs
 def test_oce_concurrent_requests_in_spans(iast_span_defaults):
     """
     Ensures quota is always within bounds after multithreading scenario
@@ -168,7 +162,6 @@ def test_oce_concurrent_requests_in_spans(iast_span_defaults):
     assert 0 <= oc._request_quota <= asm_config._iast_max_concurrent_requests
 
 
-@pytest.mark.skip_iast_check_logs
 def test_oce_concurrent_requests_futures_in_spans(tracer, iast_span_defaults, caplog):
     import concurrent.futures
 

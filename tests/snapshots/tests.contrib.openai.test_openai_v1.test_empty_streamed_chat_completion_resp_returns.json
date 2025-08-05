@@ -1,0 +1,31 @@
+[[
+  {
+    "name": "openai.request",
+    "service": "tests.contrib.openai",
+    "resource": "createChatCompletion",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68757a3a00000000",
+      "component": "openai",
+      "language": "python",
+      "openai.request.endpoint": "/v1/chat/completions",
+      "openai.request.method": "POST",
+      "openai.request.model": "gpt-3.5-turbo",
+      "openai.request.provider": "OpenAI",
+      "runtime-id": "cbc863d986aa4ec2b8a3437b7398c196"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 88640
+    },
+    "duration": 1543000,
+    "start": 1752529466595429000
+  }]]

@@ -1,0 +1,12 @@
+---
+prelude: >
+  AI Guard is an upcoming Datadog security product currently under active design and development.
+
+  .. note::
+    The Python SDK is released as a technical preview. Functionality and APIs are subject to change,
+    and backward compatibility is not guaranteed at this stage.
+
+features:
+  - |
+    App and API Protection (AAP): Introduce a public Python SDK that provides programmatic access to
+    AI Guard’s public endpoint.

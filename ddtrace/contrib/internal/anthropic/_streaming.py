@@ -7,7 +7,6 @@ from typing import Tuple
 import anthropic
 import wrapt
 
-from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._utils import _get_attr
 
@@ -154,8 +153,6 @@ def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
     # builds the response message given streamed chunks and sets according span tags
     try:
         resp_message = _construct_message(streamed_chunks)
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_chat_completion_response(integration, span, resp_message)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
@@ -201,6 +198,14 @@ def _on_message_start_chunk(chunk, message):
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {"input_tokens": _get_attr(chunk_usage, "input_tokens", 0)}
+
+            cache_write_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+            cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+            if cache_write_tokens is not None:
+                message["usage"]["cache_creation_input_tokens"] = cache_write_tokens
+            if cache_read_tokens is not None:
+                message["usage"]["cache_read_input_tokens"] = cache_read_tokens
+
     return message
 
 
@@ -253,6 +258,14 @@ def _on_message_delta_chunk(chunk, message):
     if chunk_usage:
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
         message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
+
+        cache_creation_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+        if cache_creation_tokens is not None:
+            message_usage["cache_creation_input_tokens"] = cache_creation_tokens
+        if cache_read_tokens is not None:
+            message_usage["cache_read_input_tokens"] = cache_read_tokens
+
         message["usage"] = message_usage
 
     return message
@@ -266,27 +279,6 @@ def _on_error_chunk(chunk, message):
         if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
-
-
-def _tag_streamed_chat_completion_response(integration, span, message):
-    """Tagging logic for streamed chat completions."""
-    if message is None:
-        return
-    for idx, block in enumerate(message["content"]):
-        span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
-        span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
-        if "text" in block:
-            span.set_tag_str(
-                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]))
-            )
-        if block["type"] == "tool_use":
-            tag_tool_use_output_on_span(integration, span, block, idx)
-
-        if message.get("finish_reason") is not None:
-            span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))
-
-    usage = _get_attr(message, "usage", {})
-    integration.record_usage(span, usage)
 
 
 def _is_stream(resp: Any) -> bool:

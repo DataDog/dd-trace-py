@@ -1,3 +1,5 @@
+from typing import Dict
+
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
@@ -42,6 +44,10 @@ def get_version():
     import rq
 
     return str(getattr(rq, "__version__", ""))
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"rq": ">=1.8"}
 
 
 @trace_utils.with_traced_module
@@ -112,6 +118,7 @@ def traced_perform_job(rq, pin, func, instance, args, kwargs):
             resource=job.func_name,
             integration_config=config.rq_worker,
             distributed_headers=job.meta,
+            activate_distributed_headers=True,
             tags={COMPONENT: config.rq.integration_name, SPAN_KIND: SpanKind.CONSUMER, JOB_ID: job.get_id()},
         ) as ctx, ctx.span:
             try:

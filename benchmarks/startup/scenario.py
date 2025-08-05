@@ -8,9 +8,14 @@ import bm
 class Startup(bm.Scenario):
     import_ddtrace: bool
     import_ddtrace_auto: bool
+    ddtrace_run: bool
     import_flask: bool
     import_django: bool
+    send_span: bool
     env: str
+
+    # Not helpful for subprocess benchmarks
+    cprofile_loops: int = 0
 
     def run(self):
         env = os.environ.copy()
@@ -33,7 +38,14 @@ class Startup(bm.Scenario):
             # `import django` doesn't really do anything, `django.core.management` is what `manage.py` uses
             commands.append("import django.core.management")
 
+        if self.send_span:
+            commands.append("from ddtrace.trace import tracer")
+            commands.append("tracer.trace('test-x', service='bench-test').finish()")
+
         args = ["python", "-c"] + [";".join(commands)]
+
+        if self.ddtrace_run:
+            args = ["ddtrace-run"] + args
 
         def _(loops: int):
             for _ in range(loops):

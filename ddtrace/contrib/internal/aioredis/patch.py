@@ -1,6 +1,7 @@
 import asyncio
 import os
 import sys
+from typing import Dict
 
 import aioredis
 from wrapt import wrap_function_wrapper as _w
@@ -8,7 +9,6 @@ from wrapt import wrap_function_wrapper as _w
 from ddtrace import config
 from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
-from ddtrace.constants import _ANALYTICS_SAMPLE_RATE_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -53,6 +53,10 @@ V2 = parse_version("2.0")
 def get_version():
     # type: () -> str
     return aioredis_version_str
+
+
+def _supported_versions() -> Dict[str, str]:
+    return {"aioredis": "*"}
 
 
 def patch():
@@ -149,7 +153,8 @@ def traced_13_execute_command(func, instance, args, kwargs):
 
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
@@ -162,8 +167,6 @@ def traced_13_execute_command(func, instance, args, kwargs):
         }
     )
     span.set_metric(redisx.ARGS_LEN, len(args))
-    # set analytics sample rate if enabled
-    span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
     def _finish_span(future):
         try:
@@ -225,10 +228,9 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
             }
         )
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         span.set_tag_str(redisx.RAWCMD, cmds_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
-        # set analytics sample rate if enabled
-        span.set_tag(_ANALYTICS_SAMPLE_RATE_KEY, config.aioredis.get_analytics_sample_rate())
 
         return await func(*args, **kwargs)

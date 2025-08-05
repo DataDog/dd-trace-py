@@ -9,7 +9,7 @@ from ddtrace.appsec._iast._taint_tracking import Source
 from ddtrace.appsec._iast._taint_tracking import TaintRange
 from ddtrace.appsec._iast._taint_tracking import as_formatted_evidence
 from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
 from tests.appsec.iast.iast_utils import TEXT_TYPE
 from tests.appsec.iast.iast_utils import _iast_patched_module
 
@@ -65,47 +65,48 @@ def create_taint_range_with_format(text_input: Any, fn_origin: str = "") -> Any:
     return text_output
 
 
-class BaseReplacement:
-    def _to_tainted_string_with_origin(self, text: TEXT_TYPE) -> TEXT_TYPE:
-        if not isinstance(text, (str, bytes, bytearray)):
-            return text
+def _to_tainted_string_with_origin(text: TEXT_TYPE) -> TEXT_TYPE:
+    if not isinstance(text, (str, bytes, bytearray)):
+        return text
 
-        # CAVEAT: the sequences ":+-" and "-+:" can be escaped with  "::++--" and "--+*::"
-        elements = re.split(r"(\:\+-<[0-9a-zA-Z\-]+>|<[0-9a-zA-Z\-]+>-\+\:)", text)
+    # CAVEAT: the sequences ":+-" and "-+:" can be escaped with  "::++--" and "--+*::"
+    elements = re.split(r"(\:\+-<[0-9a-zA-Z\-]+>|<[0-9a-zA-Z\-]+>-\+\:)", text)
 
-        ranges: List[TaintRange] = []
-        ranges_append = ranges.append
-        new_text = text.__class__()
-        context: Optional[EscapeContext] = None
-        for index, element in enumerate(elements):
-            if index % 2 == 0:
-                element = element.replace("::++--", ":+-")
-                element = element.replace("--++::", "-+:")
-                new_text += element
+    ranges: List[TaintRange] = []
+    ranges_append = ranges.append
+    new_text = text.__class__()
+    context: Optional[EscapeContext] = None
+    for index, element in enumerate(elements):
+        if index % 2 == 0:
+            element = element.replace("::++--", ":+-")
+            element = element.replace("--++::", "-+:")
+            new_text += element
+        else:
+            separator = element
+            if element.startswith(":"):
+                id_evidence = separator[4:-1]
+                start = len(new_text)
+                context = EscapeContext(id_evidence, start)
             else:
-                separator = element
-                if element.startswith(":"):
-                    id_evidence = separator[4:-1]
-                    start = len(new_text)
-                    context = EscapeContext(id_evidence, start)
-                else:
-                    id_evidence = separator[1:-4]
-                    end = len(new_text)
-                    assert context is not None
-                    start = context.position
-                    if start != end:
-                        assert isinstance(id_evidence, str)
+                id_evidence = separator[1:-4]
+                end = len(new_text)
+                assert context is not None
+                start = context.position
+                if start != end:
+                    assert isinstance(id_evidence, str)
 
-                        ranges_append(
-                            TaintRange(
-                                start,
-                                end - start,
-                                Source(name=id_evidence, value=new_text[start:], origin=OriginType.PARAMETER),
-                            )
+                    ranges_append(
+                        TaintRange(
+                            start,
+                            end - start,
+                            Source(name=id_evidence, value=new_text[start:], origin=OriginType.PARAMETER),
                         )
-        set_ranges(new_text, tuple(ranges))
-        return new_text
+                    )
+    set_ranges(new_text, tuple(ranges))
+    return new_text
 
+
+class BaseReplacement:
     def _assert_format_result(
         self,
         taint_escaped_template: TEXT_TYPE,
@@ -113,8 +114,8 @@ class BaseReplacement:
         expected_result: TEXT_TYPE,
         escaped_expected_result: TEXT_TYPE,
     ) -> None:
-        template = self._to_tainted_string_with_origin(taint_escaped_template)
-        parameter = self._to_tainted_string_with_origin(taint_escaped_parameter)
+        template = _to_tainted_string_with_origin(taint_escaped_template)
+        parameter = _to_tainted_string_with_origin(taint_escaped_parameter)
         result = mod.do_format_with_positional_parameter(template, parameter)
 
         assert result == expected_result

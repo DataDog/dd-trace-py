@@ -1,5 +1,7 @@
 baseline: &defaults
   env: {}
+  ddtrace_run: false
+  send_span: false
   import_ddtrace: false
   import_ddtrace_auto: false
   import_flask: false
@@ -32,3 +34,29 @@ import_ddtrace_auto_django:
   <<: *defaults
   import_ddtrace_auto: true
   import_django: true
+ddtrace_run:
+  <<: *defaults
+  ddtrace_run: true
+ddtrace_run_appsec:
+  <<: *defaults
+  env: {"DD_APPSEC_ENABLED": "true"}
+  ddtrace_run: true
+ddtrace_run_profiling:
+  <<: *defaults
+  env: {"DD_PROFILING_ENABLED": "true"}
+  ddtrace_run: true
+ddtrace_run_telemetry_enabled:
+  <<: *defaults
+  env: {"_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true"}
+  ddtrace_run: true
+ddtrace_run_telemetry_disabled:
+  <<: *defaults
+  env: {"DD_INSTRUMENTATION_TELEMETRY_ENABLED": "false", "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "false"}
+  ddtrace_run: true
+ddtrace_run_send_span:
+  <<: *defaults
+  send_span: true
+ddtrace_run_runtime_metrics:
+  <<: *defaults
+  env: {"DD_RUNTIME_METRICS_ENABLED": "true"}
+  ddtrace_run: true
