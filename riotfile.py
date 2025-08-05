@@ -2631,7 +2631,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
