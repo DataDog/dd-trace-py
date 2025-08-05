@@ -472,7 +472,7 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
 
         # Check if we're actually using xdist to optimize coverage collection
         # Main process doesn't need coverage when using xdist since it doesn't run tests
-        using_xdist = num_workers not in (0, None)
+        using_xdist = num_workers not in (0, None, XDIST_UNSET)
 
         if should_collect_coverage and (not using_xdist or is_worker):
             workspace_path = InternalTestSession.get_workspace_path()
