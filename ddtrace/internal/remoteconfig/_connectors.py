@@ -57,7 +57,6 @@ class PublisherSubscriberConnector:
         # shared_data_counter attr validates if the Subscriber send new data
         self.shared_data_counter = 0
         self.read_pid = os.getpid()
-        self.write_pid = os.getpid()
 
     @staticmethod
     def _hash_config(payload_sequence: Sequence[Payload]):
@@ -83,9 +82,6 @@ class PublisherSubscriberConnector:
 
     def write(self, payload_list: Sequence[Payload]) -> None:
         last_checksum = self._hash_config(payload_list)
-        if (current_pid := os.getpid()) != self.write_pid:
-            self.write_pid = current_pid
-            self.checksum = None
         if last_checksum != self.checksum:
             data = self.serialize(payload_list)
             data_len = len(data)
