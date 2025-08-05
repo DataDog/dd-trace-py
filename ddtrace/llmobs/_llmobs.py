@@ -585,6 +585,15 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+
+            llmobs_info = {
+                "llmobs_enabled": cls.enabled,
+                "llmobs_ml_app": config._llmobs_ml_app,
+                "integrations_enabled": integrations_enabled,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled,
+            }
+            log.debug("LLMObs configurations: %s", llmobs_info)
+
         finally:
             telemetry.record_llmobs_enabled(
                 error,
@@ -906,7 +915,8 @@ class LLMObs(Service):
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
         patch(raise_errors=True, **integrations_to_patch)
-        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
+        llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
+        log.debug("Patched LLM integrations: %s", llm_patched_modules)
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
