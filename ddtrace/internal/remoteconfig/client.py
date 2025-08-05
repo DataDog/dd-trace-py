@@ -543,7 +543,7 @@ class RemoteConfigClient:
     def _process_response(self, data: Mapping[str, Any]) -> None:
         try:
             payload = AgentPayload(**data)
-            print(f"[PID {os.getpid()}] Reading value {payload.target_files!r}", file=sys.stderr, flush=True)
+            print(f"[PID {os.getpid()}] AGENT PAYLOAD Reading value {payload.target_files!r}", file=sys.stderr, flush=True)
         except Exception as e:
             log.debug("invalid agent payload received: %r", data, exc_info=True)
             msg = f"invalid agent payload received: {e}"
