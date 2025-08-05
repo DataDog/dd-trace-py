@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Remote Config: Eagerly query Remote Config upon process startup to ensure timely configuration updates.
