@@ -327,11 +327,9 @@ def traced_populate(django, pin, func, instance, args, kwargs):
 def traced_func(django, name, resource=None, ignored_excs=None):
     def wrapped(django, pin, func, instance, args, kwargs):
         tags = {COMPONENT: config_django.integration_name}
-        with core.context_with_data(
-            "django.func.wrapped", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx.span:
+        with core.context_with_data(name, span_name=name, resource=resource, tags=tags, pin=pin) as ctx, ctx.span:
             core.dispatch(
-                "django.func.wrapped",
+                name,
                 (
                     args,
                     kwargs,
@@ -769,14 +767,14 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
 def traced_process_request(django, pin, func, instance, args, kwargs):
     tags = {COMPONENT: config_django.integration_name}
     with core.context_with_data(
-        "django.func.wrapped",
+        "django.middleware",
         span_name="django.middleware",
         resource="django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
         tags=tags,
         pin=pin,
     ) as ctx, ctx.span:
         core.dispatch(
-            "django.func.wrapped",
+            "django.middleware",
             (
                 args,
                 kwargs,
