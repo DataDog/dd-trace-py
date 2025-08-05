@@ -145,13 +145,12 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
-def test_llmobs_chain(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    chain = prompt | langchain_openai.OpenAI()
-    with get_request_vcr().use_cassette("lcel_openai_chain_call.yaml"):
-        chain.invoke({"input": "Can you explain what an LLM chain is?"})
+    chain = prompt | langchain_openai.OpenAI(base_url=openai_url)
+    chain.invoke({"input": "Can you explain what an LLM chain is?"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
@@ -168,18 +167,17 @@ def test_llmobs_chain(langchain_core, langchain_openai, llmobs_events, tracer):
     )
 
 
-def test_llmobs_chain_nested(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt1 = langchain_core.prompts.ChatPromptTemplate.from_template("what is the city {person} is from?")
     prompt2 = langchain_core.prompts.ChatPromptTemplate.from_template(
         "what country is the city {city} in? respond in {language}"
     )
-    model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.OpenAI(base_url=openai_url)
     chain1 = prompt1 | model | langchain_core.output_parsers.StrOutputParser()
     chain2 = prompt2 | model | langchain_core.output_parsers.StrOutputParser()
     complete_chain = {"city": chain1, "language": itemgetter("language")} | chain2
 
-    with get_request_vcr().use_cassette("lcel_openai_chain_nested.yaml"):
-        complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
+    complete_chain.invoke({"person": "Spongebob Squarepants", "language": "Spanish"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
@@ -198,13 +196,11 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, llmobs_events, tr
     )
     assert llmobs_events[2] == _expected_langchain_llmobs_llm_span(
         trace[2],
-        input_role="user",
         mock_token_metrics=True,
         span_links=True,
     )
     assert llmobs_events[3] == _expected_langchain_llmobs_llm_span(
         trace[3],
-        input_role="user",
         mock_token_metrics=True,
         span_links=True,
     )
@@ -258,7 +254,7 @@ def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tra
         )
 
 
-def test_llmobs_chain_schema_io(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [
             ("system", "You're an assistant who's good at {ability}. Respond in 20 words or fewer"),
@@ -266,19 +262,18 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, llmobs_events,
             ("human", "{input}"),
         ]
     )
-    chain = prompt | langchain_openai.ChatOpenAI()
+    chain = prompt | langchain_openai.ChatOpenAI(base_url=openai_url)
 
-    with get_request_vcr().use_cassette("lcel_openai_chain_schema_io.yaml"):
-        chain.invoke(
-            {
-                "ability": "world capitals",
-                "history": [
-                    HumanMessage(content="Can you be my science teacher instead?"),
-                    AIMessage(content="Yes"),
-                ],
-                "input": "What's the powerhouse of the cell?",
-            }
-        )
+    chain.invoke(
+        {
+            "ability": "world capitals",
+            "history": [
+                HumanMessage(content="Can you be my science teacher instead?"),
+                AIMessage(content="Yes"),
+            ],
+            "input": "What's the powerhouse of the cell?",
+        }
+    )
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
@@ -294,7 +289,7 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, llmobs_events,
                 }
             ]
         ),
-        output_value=json.dumps(["assistant", "Mitochondria."]),
+        output_value=json.dumps(["assistant", "Mitochondria"]),
         span_links=True,
     )
     assert llmobs_events[1] == _expected_langchain_llmobs_llm_span(
@@ -550,10 +545,9 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_r
     )
 
 
-def test_llmobs_non_ascii_completion(langchain_openai, llmobs_events, tracer):
-    llm = langchain_openai.OpenAI()
-    with get_request_vcr().use_cassette("openai_completion_non_ascii.yaml"):
-        llm.invoke("안녕,\n 지금 몇 시야?")
+def test_llmobs_non_ascii_completion(langchain_openai, openai_url, llmobs_events):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    llm.invoke("안녕,\n 지금 몇 시야?")
 
     assert len(llmobs_events) == 1
     actual_llmobs_span_event = llmobs_events[0]
@@ -727,9 +721,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         patch(langchain=True, openai=True)
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        llm = OpenAI()
-        with get_request_vcr().use_cassette("openai_completion_non_ascii.yaml"):
-            llm.invoke("안녕,\n 지금 몇 시야?")
+        llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
+        llm.invoke("안녕,\n 지금 몇 시야?")
         langchain_span = self.mock_llmobs_span_writer.enqueue.call_args_list[1][0][0]
         assert langchain_span["meta"]["input"]["value"] == '[{"content": "안녕,\\n 지금 몇 시야?"}]'
 

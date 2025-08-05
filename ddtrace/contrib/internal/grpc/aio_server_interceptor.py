@@ -23,7 +23,6 @@ from ddtrace.contrib.internal.grpc import constants
 from ddtrace.contrib.internal.grpc.utils import set_grpc_method_meta
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -97,9 +96,14 @@ def _handle_server_exception(
     if servicer_context is None:
         return
     if hasattr(servicer_context, "details"):
-        span.set_tag_str(ERROR_MSG, to_unicode(servicer_context.details()))
+        details = servicer_context.details()
+        if isinstance(details, bytes):
+            details = details.decode("utf-8", errors="ignore")
+        else:
+            details = str(details)
+        span.set_tag_str(ERROR_MSG, details)
     if hasattr(servicer_context, "code") and servicer_context.code() != 0 and servicer_context.code() in _INT2CODE:
-        span.set_tag_str(ERROR_TYPE, to_unicode(_INT2CODE[servicer_context.code()]))
+        span.set_tag_str(ERROR_TYPE, str(_INT2CODE[servicer_context.code()]))
 
 
 async def _wrap_aio_stream_response(
@@ -190,7 +194,8 @@ def _create_span(pin, method, invocation_metadata, method_kind):
     # set span.kind to the type of operation being performed
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     set_grpc_method_meta(span, method, method_kind)
     span.set_tag_str(constants.GRPC_SPAN_KIND_KEY, constants.GRPC_SPAN_KIND_VALUE_SERVER)

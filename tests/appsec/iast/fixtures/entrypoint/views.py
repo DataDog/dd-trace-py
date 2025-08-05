@@ -1,12 +1,12 @@
 from flask import Flask
 
+from ddtrace.appsec._iast._taint_tracking import OriginType
+from ddtrace.appsec._iast._taint_tracking._context import create_context
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
+
 
 def add_test():
-    from ddtrace.appsec._iast._taint_tracking import OriginType
-    from ddtrace.appsec._iast._taint_tracking._context import create_context
-    from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
-    from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
-
     string_to_taint = "abc"
     create_context()
     result = taint_pyobject(
@@ -22,15 +22,5 @@ def add_test():
 
 
 def create_app_patch_all():
-    import ddtrace.auto  # noqa: F401
-
-    app = Flask(__name__)
-    return app
-
-
-def create_app_enable_iast_propagation():
-    from ddtrace.appsec.iast import enable_iast_propagation
-
-    enable_iast_propagation()
     app = Flask(__name__)
     return app
