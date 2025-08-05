@@ -230,9 +230,6 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        pin = ddtrace.trace.Pin(service="asgi")
-        pin._tracer = self.tracer
-
         with core.context_with_data(
             "asgi.__call__",
             remote_addr=scope.get("REMOTE_ADDR"),
@@ -247,7 +244,6 @@ class TraceMiddleware:
             distributed_headers=headers,
             integration_config=config.asgi,
             activate_distributed_headers=True,
-            pin=pin,
         ) as ctx, ctx.span as span:
             span.set_tag_str(COMPONENT, self.integration_config.integration_name)
             ctx.set_item("req_span", span)
@@ -347,12 +343,8 @@ class TraceMiddleware:
                     return await receive()
 
                 # Create the span when the handler is invoked (when receive() is called)
-                pin = ddtrace.trace.Pin(service=span.service)
-                pin._tracer = self.tracer
-
                 with core.context_with_data(
                     "asgi.websocket.receive_message",
-                    pin=pin,
                     tracer=self.tracer,
                     integration_config=self.integration_config,
                     span_name="websocket.receive",
@@ -511,12 +503,8 @@ class TraceMiddleware:
         else:
             parent_span = request_span
 
-        pin = ddtrace.trace.Pin(service=request_span.service)
-        pin._tracer = self.tracer
-
         with core.context_with_data(
             "asgi.websocket.send_message",
-            pin=pin,
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.send",
@@ -557,11 +545,8 @@ class TraceMiddleware:
         else:
             parent_span = request_span
 
-        pin = ddtrace.trace.Pin(service=request_span.service)
-        pin._tracer = self.tracer
         with core.context_with_data(
             "asgi.websocket.close_message",
-            pin=pin,
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
@@ -668,11 +653,8 @@ class TraceMiddleware:
             scope["datadog"].pop("current_receive_span", None)
 
         # Create the span when the handler is invoked (when receive() is called)
-        pin = ddtrace.trace.Pin(service=request_span.service)
-        pin._tracer = self.tracer
         with core.context_with_data(
             "asgi.websocket.disconnect_message",
-            pin=pin,
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
