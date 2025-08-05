@@ -682,7 +682,7 @@ class LLMObs(Service):
             try:
                 validated_prompt = _validate_prompt(prompt, _get_ml_app(span))
                 self._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-            except TypeError:
+            except (ValueError, TypeError):
                 log.warning("Failed to validate prompt with error: ", exc_info=True)
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         return span
@@ -983,7 +983,7 @@ class LLMObs(Service):
                     # strict validation disabled to allow for retro-compatibility
                     validated_prompt = _validate_prompt(prompt, _get_ml_app(span), strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                except TypeError:
+                except (ValueError, TypeError) :
                     error = "invalid_prompt"
                     log.warning("Failed to validate prompt with error: ", exc_info=True)
             if not span_kind:
@@ -1473,7 +1473,11 @@ class LLMObs(Service):
             rag_context_variables=rag_context_variable_keys,
             rag_query_variables=rag_query_variable_keys,
         )
-        _strict_validate_prompt(prompt)
+        try:
+            _strict_validate_prompt(prompt)
+        except (ValueError, TypeError) as e:
+            log.warning("Failed to validate prompt with error: %s", e)
+            raise ValueError("Invalid prompt provided.") from e
         return cls.annotation_context(prompt=prompt)
 
 
