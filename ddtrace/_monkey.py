@@ -43,6 +43,7 @@ PATCH_MODULES = {
     "consul": True,
     "ddtrace_api": True,
     "django": True,
+    "duckdb": True,
     "dramatiq": True,
     "elasticsearch": True,
     "algoliasearch": True,

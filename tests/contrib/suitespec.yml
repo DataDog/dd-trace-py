@@ -71,6 +71,8 @@ components:
     - tests/snapshots/tests.contrib.ddtrace_api.*
   django:
     - ddtrace/contrib/internal/django/*
+  duckdb:
+    - ddtrace/contrib/internal/duckdb/*
   dogpile_cache:
     - ddtrace/contrib/internal/dogpile_cache/*
   dramatiq:
@@ -513,6 +515,17 @@ suites:
       - postgres
       - memcached
       - redis
+    snapshot: true
+  duckdb:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@duckdb'
+      - tests/contrib/duckdb/*
+      - tests/snapshots/tests.{suite}.*
+    runner: riot
     snapshot: true
   django_hosts:
     parallelism: 2
