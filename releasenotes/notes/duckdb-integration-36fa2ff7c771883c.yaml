@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add DuckDB integration support with comprehensive tracing capabilities including query execution monitoring, performance metrics, and error handling for DuckDB ≥ 0.8.0.
