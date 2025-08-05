@@ -8,7 +8,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.llmobs._integrations import CrewAIIntegration
+from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.trace import Pin
 
 
