@@ -1159,3 +1159,76 @@ if __name__ == "__main__":
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, out.decode() + err.decode()
+
+
+def test_cluster_id_failure_caching(dummy_tracer, kafka_topic):
+    """Test that _get_cluster_id caches failures and doesn't repeatedly timeout when cluster is down."""
+    import time
+
+    from ddtrace.contrib.internal.kafka.patch import _get_cluster_id
+
+    # Create a producer with an incorrect server address to simulate cluster being down
+    producer_with_bad_address = confluent_kafka.Producer(
+        {
+            "bootstrap.servers": "non-existent-kafka-host:9092",
+            "socket.timeout.ms": 1000,
+        }
+    )
+    Pin._override(producer_with_bad_address, tracer=dummy_tracer)
+
+    start_time = time.time()
+    result1 = _get_cluster_id(producer_with_bad_address, kafka_topic)
+    elapsed_time1 = time.time() - start_time
+
+    assert result1 is None
+    # Should take approximately 1 second (our timeout)
+    assert 0.5 < elapsed_time1 < 2.0, f"First call took {elapsed_time1} seconds, expected ~1 second"
+
+    assert hasattr(producer_with_bad_address, "_dd_cluster_id_failure_time")
+    assert producer_with_bad_address._dd_cluster_id_failure_time > 0
+
+    # Second call should return None immediately
+    start_time = time.time()
+    result2 = _get_cluster_id(producer_with_bad_address, kafka_topic)
+    elapsed_time2 = time.time() - start_time
+
+    assert result2 is None
+    assert elapsed_time2 < 0.1, f"Second call took {elapsed_time2} seconds, expected < 0.1 seconds"
+
+    producer_with_bad_address._dd_cluster_id_failure_time = 0  # Simulate 5 minutes passing
+
+    start_time = time.time()
+    result3 = _get_cluster_id(producer_with_bad_address, kafka_topic)
+    elapsed_time3 = time.time() - start_time
+
+    assert result3 is None
+    # Should timeout again after ~1 second
+    assert 0.5 < elapsed_time3 < 2.0, f"Third call took {elapsed_time3} seconds, expected ~1 second"
+
+
+def test_cluster_id_success_caching(dummy_tracer, producer, kafka_topic):
+    """Test that successful cluster ID retrieval is cached."""
+    from ddtrace.contrib.internal.kafka.patch import _get_cluster_id
+
+    # Set up counting wrapper
+    original_list_topics = producer.list_topics
+    call_count = 0
+
+    def counting_list_topics(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        return original_list_topics(*args, **kwargs)
+
+    producer.list_topics = counting_list_topics
+
+    # First call should get the cluster ID from the real cluster
+    result1 = _get_cluster_id(producer, kafka_topic)
+    assert result1 is not None
+    assert hasattr(producer, "_dd_cluster_id")
+    assert producer._dd_cluster_id == result1
+    assert call_count == 1
+
+    # Second call should use cached value
+    result2 = _get_cluster_id(producer, kafka_topic)
+    assert result2 == result1
+    assert call_count == 1  # Should still be 1 (used cache)

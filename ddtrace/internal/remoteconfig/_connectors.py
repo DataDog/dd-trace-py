@@ -2,6 +2,7 @@ from ctypes import c_char
 from dataclasses import asdict
 import json
 import os
+import time
 from typing import List
 from typing import Sequence
 from uuid import UUID
@@ -56,6 +57,7 @@ class PublisherSubscriberConnector:
         self.checksum = -1
         # shared_data_counter attr validates if the Subscriber send new data
         self.shared_data_counter = 0
+        self.read_pid = os.getpid()
 
     @staticmethod
     def _hash_config(payload_sequence: Sequence[Payload]):
@@ -71,15 +73,18 @@ class PublisherSubscriberConnector:
         config = json.loads(config_raw) if config_raw else None
         if config is not None:
             shared_data_counter = config["shared_data_counter"]
-            if shared_data_counter > self.shared_data_counter:
-                self.shared_data_counter += 1
+            if (current_pid := os.getpid()) != self.read_pid:
+                self.read_pid = current_pid
+                self.shared_data_counter = 0
+            if shared_data_counter != self.shared_data_counter:
+                self.shared_data_counter = shared_data_counter
                 return [Payload(**value) for value in config["payload_list"]]
         return []
 
     def write(self, payload_list: Sequence[Payload]) -> None:
         last_checksum = self._hash_config(payload_list)
         if last_checksum != self.checksum:
-            data = self.serialize(payload_list, self.shared_data_counter + 1)
+            data = self.serialize(payload_list)
             data_len = len(data)
             if data_len >= (SHARED_MEMORY_SIZE - 1000):
                 log.warning("Datadog Remote Config shared data is %s/%s", data_len, SHARED_MEMORY_SIZE)
@@ -88,9 +93,9 @@ class PublisherSubscriberConnector:
             self.checksum = last_checksum
 
     @staticmethod
-    def serialize(payload_list: Sequence[Payload], shared_data_counter: int) -> bytes:
+    def serialize(payload_list: Sequence[Payload]) -> bytes:
         return json.dumps(
-            {"payload_list": [asdict(p) for p in payload_list], "shared_data_counter": shared_data_counter},
+            {"payload_list": [asdict(p) for p in payload_list], "shared_data_counter": time.monotonic_ns()},
             cls=UUIDEncoder,
             ensure_ascii=False,
         ).encode()
