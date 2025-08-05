@@ -31,10 +31,11 @@ def _():
 class PeriodicService(service.Service):
     """A service that runs periodically."""
 
-    def __init__(self, interval: float = 0.0) -> None:
+    def __init__(self, interval: float = 0.0, no_wait_at_start: bool = False) -> None:
         super().__init__()
         self._interval = interval
         self._worker: typing.Optional[PeriodicThread] = None
+        self._no_wait_at_start = no_wait_at_start
 
     @property
     def interval(self):
@@ -60,6 +61,7 @@ class PeriodicService(service.Service):
             target=self.periodic,
             name="%s:%s" % (self.__class__.__module__, self.__class__.__name__),
             on_shutdown=self.on_shutdown,
+            no_wait_at_start=self._no_wait_at_start,
         )
         self._worker.start()
 
