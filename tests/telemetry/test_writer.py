@@ -436,7 +436,6 @@ import ddtrace.settings.exception_replay
         {"name": "DD_PROFILING_IGNORE_PROFILER", "origin": "default", "value": False},
         {"name": "DD_PROFILING_LOCK_ENABLED", "origin": "env_var", "value": False},
         {"name": "DD_PROFILING_LOCK_NAME_INSPECT_DIR", "origin": "default", "value": True},
-        {"name": "DD_PROFILING_MAX_EVENTS", "origin": "default", "value": 16384},
         {"name": "DD_PROFILING_MAX_FRAMES", "origin": "env_var", "value": 512},
         {"name": "DD_PROFILING_MAX_TIME_USAGE_PCT", "origin": "default", "value": 1.0},
         {"name": "DD_PROFILING_MEMORY_ENABLED", "origin": "env_var", "value": False},
