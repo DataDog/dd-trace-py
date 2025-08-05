@@ -35,6 +35,8 @@ jobs:
           deactivate
 
       - name: Collect import data from PR
+        env:
+          DD_REMOTE_CONFIGURATION_ENABLED: 0
         run: |
           source .venv-pr/bin/activate
           for n in {0..1000}; do
@@ -57,6 +59,8 @@ jobs:
           deactivate
   
       - name: Collect import data from base
+        env:
+          DD_REMOTE_CONFIGURATION_ENABLED: 0
         run: |
           source .venv-base/bin/activate
           for n in {0..1000}; do
