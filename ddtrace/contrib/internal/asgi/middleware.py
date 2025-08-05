@@ -12,7 +12,6 @@ import ddtrace
 from ddtrace import config
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.constants import SPAN_KIND
-from ddtrace.constants import SPAN_LINK_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
 from ddtrace.ext import SpanKind
@@ -20,6 +19,7 @@ from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.ext import websocket
+from ddtrace.ext.net import TARGET_HOST
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.compat import is_valid_ip
@@ -28,6 +28,7 @@ from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
 from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
 from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -52,8 +53,10 @@ config._add(
         service_name=config._get_service(default="asgi"),
         request_span_name="asgi.request",
         distributed_tracing=True,
-        trace_asgi_websocket_messages=asbool(
-            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", False))
+        trace_asgi_websocket_messages=_get_config(
+            "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
@@ -553,7 +556,7 @@ class TraceMiddleware:
             client = scope.get("client")
             if len(client) >= 1:
                 client_ip = client[0]
-                send_span.set_tag_str("out.host", client_ip)
+                send_span.set_tag_str(TARGET_HOST, client_ip)
                 try:
                     ipaddress.ip_address(client_ip)
                     send_span.set_tag_str("network.client.ip", client_ip)
@@ -598,7 +601,7 @@ class TraceMiddleware:
             client = scope.get("client")
             if len(client) >= 1:
                 client_ip = client[0]
-                close_span.set_tag_str("out.host", client_ip)
+                close_span.set_tag_str(TARGET_HOST, client_ip)
                 try:
                     ipaddress.ip_address(client_ip)  # validate ip address
                     close_span.set_tag_str("network.client.ip", client_ip)

@@ -45,6 +45,7 @@ MAX_INT_64BITS = 2**63 - 1
 SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
 SAMPLING_DECISION_MAKER_SERVICE = "_dd.dm.service"
 SAMPLING_DECISION_MAKER_RESOURCE = "_dd.dm.resource"
+SPAN_LINK_KIND = "dd.kind"
 SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"

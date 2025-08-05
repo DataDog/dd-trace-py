@@ -30,8 +30,10 @@ config._add(
         distributed_tracing=True,
         trace_query_string=None,  # Default to global config
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
-        trace_asgi_websocket_messages=asbool(
-            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_ENABLED", default=_get_config("DD_ASGI_TRACE_WEBSOCKET", False))
+        trace_asgi_websocket_messages=_get_config(
+            "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            modifier=asbool,
         ),
         asgi_websocket_messages_inherit_sampling=asbool(
             _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
