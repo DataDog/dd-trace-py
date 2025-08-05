@@ -1,14 +1,13 @@
 import os
 
+import azure.functions as func
 import azure.servicebus as azure_servicebus
+import requests
 
 from ddtrace import patch
 
 
 patch(azure_functions=True, azure_servicebus=True, requests=True)
-
-import azure.functions as func  # noqa: E402
-import requests  # noqa: E402
 
 
 app = func.FunctionApp()
