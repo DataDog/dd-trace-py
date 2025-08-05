@@ -9,6 +9,8 @@ components:
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
     - ddtrace/contrib/internal/webbrowser/*
+  ai_guard:
+    - ddtrace/appsec/ai_guard/*
 suites:
   appsec:
     parallelism: 4
@@ -249,3 +251,12 @@ suites:
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     runner: riot
     skip: true  # TODO: No environment available
+  ai_guard:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/*
+    retry: 2
+    runner: riot

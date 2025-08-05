@@ -369,10 +369,10 @@ def test_appsec_span_rate_limit(tracer):
 
 
 def test_ddwaf_not_raises_exception():
-    with open(DEFAULT.RULES) as rules:
-        rules_json = json.loads(rules.read())
+    with open(DEFAULT.RULES, "br") as rules:
+        rules_json_str = rules.read()
         DDWaf(
-            rules_json,
+            rules_json_str,
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_KEY_REGEXP.encode("utf-8"),
             DEFAULT.APPSEC_OBFUSCATION_PARAMETER_VALUE_REGEXP.encode("utf-8"),
             _metrics,
@@ -502,9 +502,9 @@ def test_obfuscation_parameter_value_configured_matching(tracer):
 
 
 def test_ddwaf_run():
-    with open(rules.RULES_GOOD_PATH) as rule_set:
-        rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        rules_json_str = rule_set.read()
+        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
         data = {
             "server.request.query": {},
             "server.request.headers.no_cookies": {"user-agent": "werkzeug/2.1.2", "host": "localhost"},
@@ -522,8 +522,8 @@ def test_ddwaf_run():
 
 
 def test_ddwaf_run_timeout():
-    with open(rules.RULES_GOOD_PATH) as rule_set:
-        rules_json = json.loads(rule_set.read())
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        rules_json = rule_set.read()
         _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
         data = {
             "server.request.path_params": {"param_{}".format(i): "value_{}".format(i) for i in range(100)},
@@ -538,11 +538,12 @@ def test_ddwaf_run_timeout():
 
 
 def test_ddwaf_info():
-    with open(rules.RULES_GOOD_PATH) as rule_set:
-        rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+    with open(rules.RULES_GOOD_PATH, "br") as rule_set:
+        rules_json_str = rule_set.read()
+        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
 
         info = _ddwaf.info
+        rules_json = json.loads(rules_json_str.decode())
         assert info.loaded == len(rules_json["rules"])
         assert info.failed == 0
         assert info.errors == ""
@@ -550,9 +551,9 @@ def test_ddwaf_info():
 
 
 def test_ddwaf_info_with_2_errors():
-    with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json")) as rule_set:
-        rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+    with open(os.path.join(rules.ROOT_DIR, "rules-with-2-errors.json"), "br") as rule_set:
+        rules_json_str = rule_set.read()
+        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1
@@ -566,9 +567,9 @@ def test_ddwaf_info_with_2_errors():
 
 
 def test_ddwaf_info_with_3_errors():
-    with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json")) as rule_set:
-        rules_json = json.loads(rule_set.read())
-        _ddwaf = DDWaf(rules_json, b"", b"", _metrics)
+    with open(os.path.join(rules.ROOT_DIR, "rules-with-3-errors.json"), "br") as rule_set:
+        rules_json_str = rule_set.read()
+        _ddwaf = DDWaf(rules_json_str, b"", b"", _metrics)
 
         info = _ddwaf.info
         assert info.loaded == 1

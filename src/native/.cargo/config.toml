@@ -1,0 +1,13 @@
+[build]
+rustflags = ["-C", "relocation-model=pic"]
+
+[target.'cfg(target_os = "windows")']
+rustflags = [
+    "-C", "target-feature=+crt-static"
+]
+
+[target.x86_64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=-crt-static"]
+
+[target.aarch64-unknown-linux-musl]
+rustflags = ["-C", "target-feature=-crt-static"]

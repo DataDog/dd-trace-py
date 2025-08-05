@@ -35,6 +35,8 @@ jobs:
       SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
     steps:
+      - name: Install Dependencies
+        run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -42,7 +44,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '91b8489594010d8f4647d37380c44d448849cdc7'
+          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -96,7 +98,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '91b8489594010d8f4647d37380c44d448849cdc7'
+          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -271,13 +273,16 @@ jobs:
     env:
       TEST_LIBRARY: python
     steps:
+      - name: Install Dependencies
+        run: sudo apt-get install -y patchelf
+
       - name: Checkout system tests
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '91b8489594010d8f4647d37380c44d448849cdc7'
+          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

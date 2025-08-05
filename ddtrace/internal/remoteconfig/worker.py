@@ -29,7 +29,7 @@ class RemoteConfigPoller(periodic.PeriodicService):
     _enable = True
 
     def __init__(self):
-        super(RemoteConfigPoller, self).__init__(interval=ddconfig._remote_config_poll_interval)
+        super(RemoteConfigPoller, self).__init__(interval=ddconfig._remote_config_poll_interval, no_wait_at_start=True)
         self._client = RemoteConfigClient()
         self._state = self._agent_check
         self._parent_id = os.getpid()
@@ -48,6 +48,8 @@ class RemoteConfigPoller(periodic.PeriodicService):
                 REMOTE_CONFIG_AGENT_ENDPOINT in endpoints or ("/" + REMOTE_CONFIG_AGENT_ENDPOINT) in endpoints
             ):
                 self._state = self._online
+                # Immediately query the agent for the remote config configuration
+                self._online()
                 return
         log.debug(
             "Agent is down or Remote Config is not enabled in the Agent\n"
