@@ -26,7 +26,7 @@ XDIST_AUTO = "auto"
 XDIST_LOGICAL = "logical"
 
 
-def parse_worker_value(val: str) -> t.Union[int, str, None]:
+def parse_worker_value(val: str) -> t.Union[int, str]:
     """Parse worker count value, handling auto/logical or integers."""
     if val in (XDIST_AUTO, XDIST_LOGICAL):
         return val
@@ -36,7 +36,7 @@ def parse_worker_value(val: str) -> t.Union[int, str, None]:
         return XDIST_UNSET
 
 
-def _parse_xdist_args_from_cmd(args: t.List[str]) -> t.Tuple[t.Union[int, str, None], t.Optional[str]]:
+def _parse_xdist_args_from_cmd(args: t.List[str]) -> t.Tuple[t.Union[int, str], str]:
     """
     Parse xdist-related arguments from command line args.
 
@@ -46,7 +46,7 @@ def _parse_xdist_args_from_cmd(args: t.List[str]) -> t.Tuple[t.Union[int, str, N
                dist_mode can be str or None
     """
 
-    def set_workers_and_dist(val):
+    def set_workers_and_dist(val: str) -> None:
         """Set num_workers and ensure dist_mode defaults to 'load'."""
         nonlocal num_workers, dist_mode
         num_workers = parse_worker_value(val)

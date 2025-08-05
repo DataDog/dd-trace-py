@@ -81,6 +81,98 @@ class SomeTestCase(unittest.TestCase):
 
 
 class PytestXdistITRTestCase(PytestTestCaseBase):
+    def test_pytest_xdist_itr_skips_tests_at_test_level_by_pytest_addopts_env_var(self):
+        """Test that ITR tags are correctly aggregated from xdist workers."""
+        # Create a simplified sitecustomize with just the essential ITR setup
+        itr_skipping_sitecustomize = """
+# sitecustomize.py - Simplified ITR setup for xdist
+from unittest import mock
+
+# Import required modules
+from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
+from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
+from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
+from ddtrace.internal.ci_visibility._api_client import ITRData
+from ddtrace.ext.test_visibility._test_visibility_base import TestId, TestSuiteId, TestModuleId
+
+
+# Create ITR settings and data
+itr_settings = TestVisibilityAPISettings(
+    coverage_enabled=False, skipping_enabled=True, require_git=False, itr_enabled=True,
+    flaky_test_retries_enabled=False, known_tests_enabled=False,
+    early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
+)
+
+# Create skippable tests
+skippable_tests = {
+    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "test_func_fail"),
+    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "SomeTestCase::test_class_func_fail")
+}
+
+
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
+
+# Mock API calls to return our settings
+mock.patch(
+    "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
+    return_value=itr_settings
+).start()
+
+# Set ITR data when CIVisibility is enabled
+import ddtrace.internal.ci_visibility.recorder
+CIVisibility = ddtrace.internal.ci_visibility.recorder.CIVisibility
+original_enable = CIVisibility.enable
+
+def patched_enable(cls, *args, **kwargs):
+    result = original_enable(*args, **kwargs)
+    if cls._instance:
+        cls._instance._itr_data = itr_data
+    return result
+
+CIVisibility.enable = classmethod(patched_enable)
+"""
+        self.testdir.makepyfile(sitecustomize=itr_skipping_sitecustomize)
+        self.testdir.makepyfile(test_pass=_TEST_PASS_CONTENT)
+        self.testdir.makepyfile(test_fail=_TEST_FAIL_CONTENT)
+        self.testdir.chdir()
+
+        itr_settings = TestVisibilityAPISettings(
+            coverage_enabled=False,
+            skipping_enabled=True,
+            require_git=False,
+            itr_enabled=True,
+            flaky_test_retries_enabled=False,
+            known_tests_enabled=False,
+            early_flake_detection=EarlyFlakeDetectionSettings(),
+            test_management=TestManagementSettings(),
+        )
+
+        with mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features", return_value=itr_settings
+        ), mock.patch(
+            "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
+            return_value=True,
+        ):
+            # note, passing -n 2 without --dist will fallback to dist=load
+            # passing args via PYTEST_ADDOPTS env var
+            rec = self.inline_run(
+                "--ddtrace",
+                extra_env={
+                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
+                    "DD_API_KEY": "foobar.baz",
+                    "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                    "PYTEST_ADDOPTS": "-n 2",
+                },
+            )
+            assert rec.ret == 0  # All tests skipped, so exit code is 0
+
+        spans = self.pop_spans()
+        session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
+        assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
+        # Verify number of skipped tests in session
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
+
     def test_pytest_xdist_itr_skips_tests_at_test_level_without_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
         # Create a simplified sitecustomize with just the essential ITR setup
@@ -588,12 +680,9 @@ class TestXdistHooksUnit:
         mock_config.option.dist = "no"  # This would normally indicate no xdist
         mock_config.option.numprocesses = None
 
-        # But worker input indicates loadscope mode was used
-        worker_input = {"xdist_dist_mode": "loadscope", "xdist_num_workers": 2}
-
         # The function should use worker input and detect suite-level mode
         result = _skipping_level_for_xdist_parallelization_mode(
-            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+            config=mock_config, num_workers=2, dist_mode="loadscope"
         )
         assert result == ITR_SKIPPING_LEVEL.SUITE
 
@@ -605,11 +694,8 @@ class TestXdistHooksUnit:
         mock_config.option.dist = "no"  # This would normally indicate no xdist
         mock_config.option.numprocesses = None
 
-        # Test with worksteal mode in worker input
-        worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 2}
-
         result = _skipping_level_for_xdist_parallelization_mode(
-            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+            config=mock_config, num_workers=2, dist_mode="worksteal"
         )
         assert result == ITR_SKIPPING_LEVEL.TEST
 
@@ -622,11 +708,8 @@ class TestXdistHooksUnit:
         mock_config.option.dist = "no"  # This would normally indicate no xdist
         mock_config.option.numprocesses = None
 
-        # Test with worksteal mode in worker input
-        worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 0}
-
         result = _skipping_level_for_xdist_parallelization_mode(
-            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+            config=mock_config, num_workers=0, dist_mode="worksteal"
         )
         assert result == ITR_SKIPPING_LEVEL.SUITE
 
