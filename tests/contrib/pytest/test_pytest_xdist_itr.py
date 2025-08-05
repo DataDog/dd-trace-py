@@ -7,12 +7,11 @@ from unittest import mock
 
 import pytest
 
-from ddtrace import config as dd_config
 from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
 from ddtrace.contrib.internal.pytest._plugin_v2 import _handle_itr_should_skip
+from ddtrace.contrib.internal.pytest._plugin_v2 import _parse_xdist_args_from_cmd
 from ddtrace.contrib.internal.pytest._plugin_v2 import _pytest_sessionfinish
 from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_itr
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -93,7 +92,7 @@ from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility._api_client import TestManagementSettings
 from ddtrace.internal.ci_visibility._api_client import ITRData
-from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId, TestModuleId
+from ddtrace.ext.test_visibility._test_visibility_base import TestId, TestSuiteId, TestModuleId
 
 
 # Create ITR settings and data
@@ -103,12 +102,14 @@ itr_settings = TestVisibilityAPISettings(
     early_flake_detection=EarlyFlakeDetectionSettings(), test_management=TestManagementSettings()
 )
 
-# Create skippable test suites
-skippable_suites = {
-    TestSuiteId(TestModuleId(""), "test_pass.py"),
-    TestSuiteId(TestModuleId(""), "test_fail.py")
+# Create skippable tests
+skippable_tests = {
+    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "test_func_fail"),
+    TestId(TestSuiteId(TestModuleId(""), "test_fail.py"), "SomeTestCase::test_class_func_fail")
 }
-itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_suites)
+
+
+itr_data = ITRData(correlation_id="12345678-1234-1234-1234-123456789012", skippable_items=skippable_tests)
 
 # Mock API calls to return our settings
 mock.patch(
@@ -151,6 +152,7 @@ CIVisibility.enable = classmethod(patched_enable)
             "ddtrace.internal.ci_visibility.recorder.CIVisibility.test_skipping_enabled",
             return_value=True,
         ):
+            # note, passing -n 2 without --dist will fallback to dist=load
             rec = self.inline_run(
                 "--ddtrace",
                 "-n",
@@ -166,9 +168,9 @@ CIVisibility.enable = classmethod(patched_enable)
         spans = self.pop_spans()
         session_span = [span for span in spans if span.get_tag("type") == "test_session_end"][0]
         assert session_span.get_tag("test.itr.tests_skipping.enabled") == "true"
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
+        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"  # load uses suite-level skipping
         # Verify number of skipped tests in session
-        assert session_span.get_metric("test.itr.tests_skipping.count") == 4
+        assert session_span.get_metric("test.itr.tests_skipping.count") == 2
 
     def test_pytest_xdist_itr_skips_tests_at_suite_level_with_loadscope(self):
         """Test that ITR tags are correctly aggregated from xdist workers."""
@@ -576,38 +578,8 @@ class TestXdistHooksUnit:
         # Clean up
         delattr(pytest, "global_worker_itr_results")
 
-    def test_xdist_configuration_passed_to_workers(self):
-        """Test that xdist configuration is properly passed to worker nodes via execnet."""
-        from ddtrace.contrib.internal.pytest._plugin_v2 import XdistHooks
-
-        # Create a mock node and config
-        mock_node = mock.MagicMock()
-        mock_config = mock.MagicMock()
-
-        # Set up xdist options on the config
-        mock_config.option.dist = "loadscope"
-        mock_config.option.numprocesses = 2
-
-        # Set up the node's config and workerinput
-        mock_node.config = mock_config
-        mock_node.workerinput = {}
-
-        # Create XdistHooks instance and call pytest_configure_node
-        xdist_hooks = XdistHooks()
-
-        with mock.patch("ddtrace.contrib.internal.pytest._plugin_v2.InternalTestSession.get_span", return_value=None):
-            xdist_hooks.pytest_configure_node(mock_node)
-
-        # Verify that xdist configuration was passed to worker
-        assert "xdist_dist_mode" in mock_node.workerinput
-        assert "xdist_num_workers" in mock_node.workerinput
-        assert mock_node.workerinput["xdist_dist_mode"] == "loadscope"
-        assert mock_node.workerinput["xdist_num_workers"] == 2
-
     def test_worker_uses_received_xdist_configuration_loadscope(self):
         """Test that worker nodes use received xdist configuration for ITR level detection."""
-        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
-        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 
         # Create a mock config that would normally indicate no xdist
         mock_config = mock.MagicMock()
@@ -619,14 +591,13 @@ class TestXdistHooksUnit:
         worker_input = {"xdist_dist_mode": "loadscope", "xdist_num_workers": 2}
 
         # The function should use worker input and detect suite-level mode
-        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        result = _skipping_level_for_xdist_parallelization_mode(
+            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+        )
         assert result == ITR_SKIPPING_LEVEL.SUITE
 
     def test_worker_uses_received_xdist_configuration_worksteal(self):
         """Test that worker nodes use received xdist configuration for ITR level detection."""
-        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
-        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
-
         # Create a mock config that would normally indicate no xdist
         mock_config = mock.MagicMock()
         mock_config.pluginmanager.hasplugin.return_value = True
@@ -636,13 +607,13 @@ class TestXdistHooksUnit:
         # Test with worksteal mode in worker input
         worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 2}
 
-        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        result = _skipping_level_for_xdist_parallelization_mode(
+            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+        )
         assert result == ITR_SKIPPING_LEVEL.TEST
 
     def test_worker_uses_received_xdist_configuration_0_numworkers(self):
         """Test that worker nodes use received xdist configuration for ITR level detection."""
-        from ddtrace.contrib.internal.pytest._plugin_v2 import _skipping_level_for_xdist_parallelization_mode
-        from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
 
         # Create a mock config that would normally indicate no xdist
         mock_config = mock.MagicMock()
@@ -653,8 +624,216 @@ class TestXdistHooksUnit:
         # Test with worksteal mode in worker input
         worker_input = {"xdist_dist_mode": "worksteal", "xdist_num_workers": 0}
 
-        result = _skipping_level_for_xdist_parallelization_mode(mock_config, worker_input)
+        result = _skipping_level_for_xdist_parallelization_mode(
+            config=mock_config, num_workers=worker_input["xdist_num_workers"], dist_mode=worker_input["xdist_dist_mode"]
+        )
         assert result == ITR_SKIPPING_LEVEL.SUITE
+
+
+class TestParseXdistArgsFromCmd:
+    """Unit tests for _parse_xdist_args_from_cmd function."""
+
+    @pytest.mark.parametrize("workers", ["4", "0", "auto", "logical"])
+    def test_parse_n_with_space(self, workers: str):
+        """Test parsing -n <number> format."""
+        expected_workers = workers
+        if len(workers) == 1:
+            expected_workers = int(workers)
+
+        # Test -n 4
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", workers])
+
+        assert num_workers == expected_workers
+
+        expected_dist_mode = "load"
+        if workers == "0":
+            expected_dist_mode = "UNSET"
+        assert dist_mode == expected_dist_mode
+
+    @pytest.mark.parametrize("workers", ["4", "0", "auto", "logical"])
+    def test_parse_n_no_space(self, workers: str):
+        """Test parsing -n<number> format (no space)."""
+        expected_workers = workers
+        if len(workers) == 1:
+            expected_workers = int(workers)
+        # Test -n4
+        args = ["-n" + workers]
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+        assert num_workers == expected_workers
+
+        expected_dist_mode = "load"
+        if workers == "0":
+            expected_dist_mode = "UNSET"
+        assert dist_mode == expected_dist_mode
+
+    def test_parse_numprocesses_with_space(self):
+        """Test parsing --numprocesses <number> format."""
+        # Test --numprocesses 8
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses", "8"])
+        assert num_workers == 8
+        assert dist_mode == "load"
+
+        # Test --numprocesses auto
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses", "auto"])
+        assert num_workers == "auto"
+        assert dist_mode == "load"
+
+    def test_parse_numprocesses_equals(self):
+        """Test parsing --numprocesses=<number> format."""
+        # Test --numprocesses=2
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses=2"])
+        assert num_workers == 2
+        assert dist_mode == "load"
+
+        # Test --numprocesses=logical
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses=logical"])
+        assert num_workers == "logical"
+        assert dist_mode == "load"
+
+    def test_parse_dist_with_space(self):
+        """Test parsing --dist <mode> format."""
+        # Test --dist loadscope
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadscope"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "loadscope"
+
+        # Test --dist worksteal
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "worksteal"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "worksteal"
+
+        # Test --dist loadfile
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadfile"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "loadfile"
+
+        # Test --dist load
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "load"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "load"
+
+    def test_parse_dist_equals(self):
+        """Test parsing --dist=<mode> format."""
+        # Test --dist=loadscope
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist=loadscope"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "loadscope"
+
+        # Test --dist=each
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist=each"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "each"
+
+    def test_parse_combined_args(self):
+        """Test parsing combined -n and --dist arguments."""
+        # Test -n 4 --dist loadscope
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", "4", "--dist", "loadscope"])
+        assert num_workers == 4
+        assert dist_mode == "loadscope"
+
+        # Test --dist worksteal -n 2
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "worksteal", "-n", "2"])
+        assert num_workers == 2
+        assert dist_mode == "worksteal"
+
+        # Test --numprocesses=8 --dist=loadfile
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses=8", "--dist=loadfile"])
+        assert num_workers == 8
+        assert dist_mode == "loadfile"
+
+        # Test with other pytest args mixed in
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(
+            ["--ddtrace", "-v", "-n", "4", "--tb=short", "--dist=loadscope", "tests/"]
+        )
+        assert num_workers == 4
+        assert dist_mode == "loadscope"
+
+    def test_parse_no_xdist_args(self):
+        """Test parsing when no xdist arguments are present."""
+        # Test empty args
+        num_workers, dist_mode = _parse_xdist_args_from_cmd([])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+        # Test with other pytest args but no xdist
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--ddtrace", "-v", "tests/"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+    def test_parse_invalid_values(self):
+        """Test parsing with invalid values."""
+        # Test -n with invalid number
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", "invalid"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+        # Test -n at end of args (no value)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+        # Test --dist at end of args (no value)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+        # Test --numprocesses with invalid value
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--numprocesses", "bad"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "UNSET"
+
+    def test_parse_edge_cases(self):
+        """Test edge cases and boundary conditions."""
+        # Test -n followed by --dist (both should be parsed)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", "2", "--dist"])
+        assert num_workers == 2
+        assert dist_mode == "load"  # --dist without value doesn't change dist_mode
+
+        # Test multiple -n values (last one wins)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n", "2", "-n", "4"])
+        assert num_workers == 4
+        assert dist_mode == "load"
+
+        # Test multiple --dist values (last one wins)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["--dist", "loadscope", "--dist", "worksteal"])
+        assert num_workers == "UNSET"
+        assert dist_mode == "worksteal"
+
+        # Test mixed formats
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(["-n2", "--numprocesses", "4"])
+        assert num_workers == 4  # --numprocesses overrides -n
+        assert dist_mode == "load"
+
+    def test_parse_realistic_command_lines(self):
+        """Test with realistic pytest command lines."""
+        # Typical xdist usage
+        args = ["--ddtrace", "-v", "--tb=short", "--strict-markers", "-n", "4", "-p", "no:rerunfailures", "tests"]
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+        assert num_workers == 4
+        assert dist_mode == "load"
+
+        # With explicit dist mode
+        args = ["pytest", "-n", "8", "--dist=loadscope", "--cov=mypackage", "tests/"]
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+        assert num_workers == 8
+        assert dist_mode == "loadscope"
+
+        # Complex example
+        args = [
+            "--ddtrace",
+            "--ddtrace-include-class-name",
+            "-v",
+            "--tb=short",
+            "-n",
+            "auto",
+            "--dist",
+            "worksteal",
+            "--maxfail=5",
+            "tests/integration/",
+        ]
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+        assert num_workers == "auto"
+        assert dist_mode == "worksteal"
 
 
 class TestXdistModeDetectionIntegration(PytestTestCaseBase):
@@ -1534,277 +1713,232 @@ class TestScope2:
         # The ITR skipping type should be test due to explicit env var override
         assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
 
-    def test_explicit_env_var_overrides_no_xdist(self):
-        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE works without xdist."""
-        # Create test files
-        self.testdir.makepyfile(
-            test_file="""
-def test_func():
-    assert True
-            """,
-        )
 
-        with mock.patch(
-            "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
-            return_value=TestVisibilityAPISettings(False, True, False, True),  # Enable skipping and ITR
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility._api_client.AgentlessTestVisibilityAPIClient.fetch_settings",
-            return_value=TestVisibilityAPISettings(False, True, False, True),
-        ):
-            # Run without xdist but with explicit test-level setting
-            result = self.inline_run(
-                "--ddtrace",
-                extra_env={
-                    "DD_CIVISIBILITY_AGENTLESS_ENABLED": "1",
-                    "DD_API_KEY": "foobar.baz",
-                    "_DD_CIVISIBILITY_ITR_SUITE_MODE": "False",  # Explicit test-level
-                },
+class TestSkippingLevelForXdistParallelizationMode:
+    """Comprehensive parametrized tests for the refactored _skipping_level_for_xdist_parallelization_mode function."""
+
+    @pytest.mark.parametrize(
+        "env_value,expected_result",
+        [
+            ("1", ITR_SKIPPING_LEVEL.SUITE),
+            ("true", ITR_SKIPPING_LEVEL.SUITE),
+            ("True", ITR_SKIPPING_LEVEL.SUITE),
+            ("0", ITR_SKIPPING_LEVEL.TEST),
+            ("false", ITR_SKIPPING_LEVEL.TEST),
+            ("False", ITR_SKIPPING_LEVEL.TEST),
+            ("", ITR_SKIPPING_LEVEL.TEST),  # Empty string is falsy
+            ("invalid", ITR_SKIPPING_LEVEL.TEST),  # Invalid values are falsy
+        ],
+    )
+    def test_explicit_env_var_overrides_xdist_config(self, env_value, expected_result):
+        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE env var overrides xdist configuration."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+
+        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": env_value}):
+            # Test with configuration that would normally give opposite result
+            opposite_dist_mode = "loadscope" if expected_result == ITR_SKIPPING_LEVEL.TEST else "worksteal"
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=4, dist_mode=opposite_dist_mode
+            )
+            assert result == expected_result
+
+    @pytest.mark.parametrize("has_xdist_plugin", [True, False])
+    def test_no_xdist_plugin_always_returns_suite(self, has_xdist_plugin):
+        """Test behavior when xdist plugin is not available."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = has_xdist_plugin
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(config=mock_config, num_workers=4, dist_mode="load")
+            expected = ITR_SKIPPING_LEVEL.SUITE if not has_xdist_plugin else ITR_SKIPPING_LEVEL.TEST
+            assert result == expected
+
+    @pytest.mark.parametrize(
+        "num_workers,expected_result",
+        [
+            (None, ITR_SKIPPING_LEVEL.SUITE),
+            (0, ITR_SKIPPING_LEVEL.SUITE),
+        ],
+    )
+    def test_no_workers_returns_suite_level(self, num_workers, expected_result):
+        """Test when no workers are specified (xdist not being used)."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=num_workers, dist_mode="load"
+            )
+            assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "dist_mode,expected_result",
+        [
+            ("loadscope", ITR_SKIPPING_LEVEL.SUITE),
+            ("loadfile", ITR_SKIPPING_LEVEL.SUITE),
+            ("load", ITR_SKIPPING_LEVEL.TEST),
+            ("worksteal", ITR_SKIPPING_LEVEL.TEST),
+            ("each", ITR_SKIPPING_LEVEL.TEST),
+            ("unknown_mode", ITR_SKIPPING_LEVEL.TEST),
+            ("no", ITR_SKIPPING_LEVEL.TEST),  # "no" with workers defaults to "load"
+        ],
+    )
+    def test_distribution_modes(self, dist_mode, expected_result):
+        """Test all xdist distribution modes map to correct ITR skipping levels."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=4, dist_mode=dist_mode
+            )
+            assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "num_workers,dist_mode,expected_result",
+        [
+            (1, "loadscope", ITR_SKIPPING_LEVEL.SUITE),
+            (2, "loadfile", ITR_SKIPPING_LEVEL.SUITE),
+            (4, "load", ITR_SKIPPING_LEVEL.TEST),
+            (8, "worksteal", ITR_SKIPPING_LEVEL.TEST),
+            ("auto", "loadscope", ITR_SKIPPING_LEVEL.SUITE),
+            ("auto", "worksteal", ITR_SKIPPING_LEVEL.TEST),
+            ("logical", "loadfile", ITR_SKIPPING_LEVEL.SUITE),
+            ("logical", "load", ITR_SKIPPING_LEVEL.TEST),
+        ],
+    )
+    def test_worker_dist_mode_combinations(self, num_workers, dist_mode, expected_result):
+        """Test various combinations of num_workers and dist_mode."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=num_workers, dist_mode=dist_mode
+            )
+            assert result == expected_result
+
+    @pytest.mark.parametrize("env_var_set", [True, False])
+    @pytest.mark.parametrize("has_xdist", [True, False])
+    def test_environment_combinations(self, env_var_set, has_xdist):
+        """Test combinations of environment variable and xdist plugin availability."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = has_xdist
+
+        env_dict = {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"} if env_var_set else {}
+
+        with mock.patch.dict("os.environ", env_dict, clear=True):
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=4, dist_mode="worksteal"
             )
 
-            assert result.ret == 0
+            if env_var_set:
+                # Environment variable always takes precedence
+                assert result == ITR_SKIPPING_LEVEL.SUITE
+            elif not has_xdist:
+                # No xdist plugin -> SUITE
+                assert result == ITR_SKIPPING_LEVEL.SUITE
+            else:
+                # worksteal mode -> TEST
+                assert result == ITR_SKIPPING_LEVEL.TEST
 
-        # Verify that explicit env var is honored
-        spans = self.pop_spans()
-        session_spans = [span for span in spans if span.get_tag("type") == "test_session_end"]
-        assert len(session_spans) == 1
-        session_span = session_spans[0]
-
-        # The ITR skipping type should be test due to explicit env var
-        assert session_span.get_tag("test.itr.tests_skipping.type") == "test"
-
-
-class TestXdistModeDetection:
-    """Unit tests for xdist parallelization mode detection and ITR alignment."""
-
-    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_1(self):
-        """Test mode detection when xdist plugin is not available."""
-        # Mock config without xdist plugin
+    def test_edge_case_none_values(self):
+        """Test edge case with None values for both workers and dist_mode."""
         mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = False
+        mock_config.pluginmanager.hasplugin.return_value = True
 
-        # Test with default env var (True -> SUITE)
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.SUITE
-
-    def test_detect_xdist_parallelization_mode_no_xdist_env_var_suite_mode_0(self):
-        """Test mode detection when xdist plugin is not available."""
-        # Mock config without xdist plugin
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = False
-
-        # Test with env var set to False -> TEST
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.TEST
-
-    def test_detect_xdist_parallelization_mode_no_xdist_no_env_var_suite_mode(self):
-        """Test mode detection when xdist plugin is not available."""
-        # Mock config without xdist plugin
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = False
-
-        # Test without env var - should check xdist plugin
         with mock.patch.dict("os.environ", {}, clear=True):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
+            result = _skipping_level_for_xdist_parallelization_mode(
+                config=mock_config, num_workers=None, dist_mode=None
+            )
+            # No workers specified -> SUITE level
             assert result == ITR_SKIPPING_LEVEL.SUITE
 
-        mock_config.pluginmanager.hasplugin.assert_called_with("xdist")
-
-    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_1(self):
-        """Test mode detection when xdist is installed but not being used."""
-        # Test with default env var (True -> SUITE)
-        #
-        # Mock config with xdist plugin but not being used
+    @pytest.mark.parametrize(
+        "config_dist,config_numprocesses,expected_result",
+        [
+            # Config-based suite-level modes
+            ("loadscope", 4, ITR_SKIPPING_LEVEL.SUITE),
+            ("loadfile", 2, ITR_SKIPPING_LEVEL.SUITE),
+            # Config-based test-level modes
+            ("load", 4, ITR_SKIPPING_LEVEL.TEST),
+            ("worksteal", 8, ITR_SKIPPING_LEVEL.TEST),
+            ("each", 2, ITR_SKIPPING_LEVEL.TEST),
+            # No dist specified with workers defaults to load (test-level)
+            ("no", 4, ITR_SKIPPING_LEVEL.TEST),
+            # No workers specified
+            ("loadscope", None, ITR_SKIPPING_LEVEL.SUITE),
+            ("load", 0, ITR_SKIPPING_LEVEL.SUITE),
+        ],
+    )
+    def test_config_based_xdist_detection(self, config_dist, config_numprocesses, expected_result):
+        """Test xdist detection from pytest config when explicit parameters are not provided."""
         mock_config = mock.MagicMock()
         mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "no"
-        mock_config.option.numprocesses = None
 
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.SUITE
+        # Set up config with xdist options (simulating pytest.ini or setup.cfg)
+        mock_config.option.dist = config_dist
+        mock_config.option.numprocesses = config_numprocesses
 
-    def test_detect_xdist_parallelization_mode_xdist_not_used_env_var_suite_mode_0(self):
-        """Test mode detection when xdist is installed but not being used."""
-        # Test with env var set to False -> TEST
-        #
-        # Mock config with xdist plugin but not being used
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "no"
-        mock_config.option.numprocesses = None
-
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "0"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.TEST
-
-    @pytest.mark.parametrize("suite_level_mode", ["loadscope", "loadfile"])
-    def test_detect_xdist_parallelization_mode_suite_level_modes(self, suite_level_mode):
-        """Test mode detection for suite-level parallelization modes."""
-
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = suite_level_mode
-        mock_config.option.numprocesses = 2
-
-        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-        assert result == ITR_SKIPPING_LEVEL.SUITE, f"Mode {suite_level_mode} should return SUITE level"
-
-    @pytest.mark.parametrize("test_level_mode", ["load", "worksteal", "each", "loadgroup"])
-    def test_detect_xdist_parallelization_mode_test_level_modes(self, test_level_mode):
-        """Test mode detection for test-level parallelization modes."""
-
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = test_level_mode
-        mock_config.option.numprocesses = 2
-
-        result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-        assert result == ITR_SKIPPING_LEVEL.TEST, f"Mode {test_level_mode} should return TEST level"
-
-    def test_detect_xdist_parallelization_mode_zero_workers(self):
-        """Test mode detection when xdist is configured with zero workers."""
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "load"
-        mock_config.option.numprocesses = 0  # No workers
-
-        # Should fall back to env var setting
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "1"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.SUITE
-
-    def test_pytest_configure_updates_itr_level_for_xdist(self):
-        """Test that pytest_configure updates ITR level when xdist mode is detected."""
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.side_effect = lambda name: name == "xdist"
-        mock_config.option.dist = "loadscope"  # Suite-level mode
-        mock_config.option.numprocesses = 2
-        mock_config.workerinput = None  # Not a worker
-
-        # Set initial ITR level to TEST (opposite of what we expect)
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.TEST
-
-        with mock.patch("ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=True), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.unpatch_unittest"
-        ), mock.patch("ddtrace.ext.test_visibility.api.enable_test_visibility"), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.service_registry.require_ci_visibility_service"
-        ) as mock_service, mock.patch.dict(
-            "os.environ", {"PYTEST_XDIST_WORKER": ""}, clear=True
-        ):
-            mock_service_instance = mock.MagicMock()
-            mock_service.return_value = mock_service_instance
-
-            # Call pytest_configure
-            pytest_configure(mock_config)
-
-            # Verify ITR level was updated to SUITE
-            assert dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-
-    def test_pytest_configure_no_update_when_levels_match(self):
-        """Test that pytest_configure doesn't update when ITR level already matches xdist mode."""
-
-        # Mock config with xdist in suite-level mode
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.side_effect = lambda name: name == "xdist"
-        mock_config.option.dist = "loadscope"  # Suite-level mode
-        mock_config.option.numprocesses = 2
-        mock_config.workerinput = None  # Not a worker
-
-        # Set initial ITR level to SUITE (matches what we expect)
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
-
-        with mock.patch("ddtrace.contrib.internal.pytest.plugin.is_enabled", return_value=True), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2.unpatch_unittest"
-        ), mock.patch("ddtrace.ext.test_visibility.api.enable_test_visibility"), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._is_pytest_cov_enabled", return_value=False
-        ), mock.patch(
-            "ddtrace.internal.ci_visibility.service_registry.require_ci_visibility_service"
-        ) as mock_service, mock.patch.dict(
-            "os.environ", {"PYTEST_XDIST_WORKER": ""}, clear=True
-        ):
-            # Call pytest_configure
-            pytest_configure(mock_config)
-
-            # Verify ITR level remained SUITE
-            assert dd_config.test_visibility.itr_skipping_level == ITR_SKIPPING_LEVEL.SUITE
-
-            # Service should not have been called since no update was needed
-            mock_service.assert_not_called()
-
-    def test_explicit_env_var_overrides_xdist_detection_suite_mode(self):
-        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=True overrides xdist test-level detection."""
-        # Mock config with xdist in test-level mode
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "load"  # Test-level mode
-        mock_config.option.numprocesses = 2
-
-        # Test with explicit suite mode set
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "True"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            # Should return SUITE due to explicit env var, not TEST from xdist detection
-            assert result == ITR_SKIPPING_LEVEL.SUITE
-
-    def test_explicit_env_var_overrides_xdist_detection_test_mode(self):
-        """Test that explicit _DD_CIVISIBILITY_ITR_SUITE_MODE=False overrides xdist suite-level detection."""
-        # Mock config with xdist in suite-level mode
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "loadscope"  # Suite-level mode
-        mock_config.option.numprocesses = 2
-
-        # Test with explicit test mode set
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": "False"}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            # Should return TEST due to explicit env var, not SUITE from xdist detection
-            assert result == ITR_SKIPPING_LEVEL.TEST
-
-    @pytest.mark.parametrize("truthy_value", ["1", "true", "TRUE", "True"])
-    def test_explicit_env_var_overrides_with_truthy_values(self, truthy_value):
-        """Test that explicit env var works with different string values."""
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "load"  # Test-level mode
-        mock_config.option.numprocesses = 2
-
-        # Test different truthy values (only "1" and "true" are recognized by asbool)
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": truthy_value}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.SUITE, f"Value '{truthy_value}' should result in SUITE"
-
-    @pytest.mark.parametrize("falsy_value", ["0", "false", "FALSE", "False"])
-    def test_explicit_env_var_overrides_with_falsy_values(self, falsy_value):
-        """Test that explicit env var works with different string values."""
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "load"  # Test-level mode
-        mock_config.option.numprocesses = 2
-
-        # Test different falsy values
-        with mock.patch.dict("os.environ", {"_DD_CIVISIBILITY_ITR_SUITE_MODE": falsy_value}):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            assert result == ITR_SKIPPING_LEVEL.TEST, f"Value '{falsy_value}' should result in TEST"
-
-    def test_no_explicit_env_var_uses_xdist_detection(self):
-        """Test that when env var is not set (None), automatic xdist detection is used."""
-        mock_config = mock.MagicMock()
-        mock_config.pluginmanager.hasplugin.return_value = True
-        mock_config.option.dist = "loadscope"  # Suite-level mode
-        mock_config.option.numprocesses = 2
-
-        # Ensure env var is not set
         with mock.patch.dict("os.environ", {}, clear=True):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            # Should use xdist detection (loadscope -> SUITE)
-            assert result == ITR_SKIPPING_LEVEL.SUITE
+            # Call without explicit parameters to force config detection
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+            assert result == expected_result
 
-        # Test with test-level xdist mode
-        mock_config.option.dist = "load"  # Test-level mode
+    @pytest.mark.parametrize(
+        "has_config_attr,config_dist,config_numprocesses,expected_result",
+        [
+            # Config object has option attribute with xdist settings
+            (True, "loadscope", 4, ITR_SKIPPING_LEVEL.SUITE),
+            (True, "worksteal", 2, ITR_SKIPPING_LEVEL.TEST),
+            # Config object missing option attribute (fallback)
+            (False, None, None, ITR_SKIPPING_LEVEL.SUITE),
+        ],
+    )
+    def test_config_attribute_availability(self, has_config_attr, config_dist, config_numprocesses, expected_result):
+        """Test handling of config objects with/without xdist option attributes."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+
+        if has_config_attr:
+            # Config has option attribute with xdist settings
+            mock_config.option.dist = config_dist
+            mock_config.option.numprocesses = config_numprocesses
+        else:
+            # Config missing option attribute entirely
+            del mock_config.option
+
         with mock.patch.dict("os.environ", {}, clear=True):
-            result = _skipping_level_for_xdist_parallelization_mode(mock_config)
-            # Should use xdist detection (load -> TEST)
-            assert result == ITR_SKIPPING_LEVEL.TEST
+            result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+            assert result == expected_result
+
+    @pytest.mark.parametrize(
+        "explicit_workers,explicit_dist,config_dist,config_numprocesses,expected_result",
+        [
+            # Explicit parameters should override config
+            (4, "worksteal", "loadscope", 8, ITR_SKIPPING_LEVEL.TEST),  # explicit wins
+            (2, "loadscope", "worksteal", 4, ITR_SKIPPING_LEVEL.SUITE),  # explicit wins
+            # None explicit parameters should use config
+            (None, None, "loadfile", 4, ITR_SKIPPING_LEVEL.SUITE),  # config used
+            (None, None, "load", 2, ITR_SKIPPING_LEVEL.TEST),  # config used
+        ],
+    )
+    def test_explicit_params_vs_config_precedence(
+        self, explicit_workers, explicit_dist, config_dist, config_numprocesses, expected_result
+    ):
+        """Test that explicit parameters take precedence over config, but config is used as fallback."""
+        mock_config = mock.MagicMock()
+        mock_config.pluginmanager.hasplugin.return_value = True
+        mock_config.option.dist = config_dist
+        mock_config.option.numprocesses = config_numprocesses
+
+        with mock.patch.dict("os.environ", {}, clear=True):
+            # For None values, don't pass parameters to trigger config fallback
+            if explicit_workers is None and explicit_dist is None:
+                result = _skipping_level_for_xdist_parallelization_mode(mock_config, "UNSET", "UNSET")
+            else:
+                result = _skipping_level_for_xdist_parallelization_mode(
+                    config=mock_config, num_workers=explicit_workers, dist_mode=explicit_dist
+                )
+            assert result == expected_result
