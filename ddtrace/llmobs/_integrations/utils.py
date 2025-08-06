@@ -1242,8 +1242,8 @@ def _find_instance_name(instance: Any, var_dict: Dict[str, Any]) -> Optional[str
 def extract_instance_metadata_from_stack(
     instance: Any,
     internal_variable_names: Optional[List[str]] = None,
-    default_variable_name: str = "unknown_variable",
-    default_module_name: str = "unknown_module",
+    default_variable_name: str = None,
+    default_module_name: str = None,
     frame_start_offset: int = 2,
     frame_search_depth: int = 6,
 ) -> Tuple[str, str]:
@@ -1261,33 +1261,26 @@ def extract_instance_metadata_from_stack(
     Returns:
         Tuple of (variable_name, module_name)
     """
-    if internal_variable_names is None:
-        internal_variable_names = ["instance", "self", "step"]
-
     variable_name = default_variable_name
     module_name = default_module_name
 
-    try:
-        for frame_depth in range(frame_start_offset, frame_start_offset + frame_search_depth):
-            try:
-                frame = sys._getframe(frame_depth)
-                instance_name = _find_instance_name(instance, frame.f_locals) or _find_instance_name(
-                    instance, frame.f_globals
-                )
-                if not instance_name:
-                    continue
-
-                if instance_name not in internal_variable_names:
-                    variable_name = instance_name
-
-                    if hasattr(frame, "f_code") and hasattr(frame.f_code, "co_filename"):
-                        filename = frame.f_code.co_filename
-                        module_name = os.path.splitext(os.path.basename(filename))[0]
-                    break
-            except (ValueError, AttributeError):
+    for frame_depth in range(frame_start_offset, frame_start_offset + frame_search_depth):
+        try:
+            frame = sys._getframe(frame_depth)
+            instance_name = _find_instance_name(instance, frame.f_locals) or _find_instance_name(
+                instance, frame.f_globals
+            )
+            if not instance_name:
                 continue
-    except Exception:
-        # use defaults
-        pass
+
+            if instance_name not in internal_variable_names:
+                variable_name = instance_name
+
+                if hasattr(frame, "f_code") and hasattr(frame.f_code, "co_filename"):
+                    filename = frame.f_code.co_filename
+                    module_name = os.path.splitext(os.path.basename(filename))[0]
+                break
+        except (ValueError, AttributeError):
+            continue
 
     return variable_name, module_name
