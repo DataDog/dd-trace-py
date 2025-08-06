@@ -645,12 +645,12 @@ def patch():
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.invoke",
-        traced_chat_model_invoke(langchain),
+        traced_llm_invoke(langchain),
     )
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.ainvoke",
-        traced_chat_model_ainvoke(langchain),
+        traced_llm_ainvoke(langchain),
     )
     wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
@@ -765,38 +765,6 @@ async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
     Wrapper for BaseLLM.ainvoke() method to handle prompt template metadata transfer.
 
     BaseLLM.ainvoke() wraps BaseLLM.agenerate(), converting .ainvoke()'s input (often a PromptValue
-    with templating information) into a string.
-    While most tagging happens in the .agenerate() wrapper, we need to enter here to capture
-    that templating information before it is consumed.
-    """
-    integration: LangChainIntegration = langchain._datadog_integration
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = await func(*args, **kwargs)
-    return response
-
-
-@with_traced_module
-def traced_chat_model_invoke(langchain, pin, func, instance, args, kwargs):
-    """
-    Wrapper for BaseChatModel.invoke() method to handle prompt template metadata transfer.
-
-    BaseChatModel.invoke() wraps BaseChatModel.generate(), converting .invoke()'s input (often a PromptValue
-    with templating information) into a string.
-    While most tagging happens in the .generate() wrapper, we need to enter here to capture
-    that templating information before it is consumed.
-    """
-    integration: LangChainIntegration = langchain._datadog_integration
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = func(*args, **kwargs)
-    return response
-
-
-@with_traced_module
-async def traced_chat_model_ainvoke(langchain, pin, func, instance, args, kwargs):
-    """
-    Wrapper for BaseChatModel.ainvoke() method to handle prompt template metadata transfer.
-
-    BaseChatModel.ainvoke() wraps BaseChatModel.agenerate(), converting .ainvoke()'s input (often a PromptValue
     with templating information) into a string.
     While most tagging happens in the .agenerate() wrapper, we need to enter here to capture
     that templating information before it is consumed.
