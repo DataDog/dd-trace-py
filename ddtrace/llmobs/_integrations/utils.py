@@ -1,11 +1,7 @@
 from dataclasses import dataclass
 import inspect
 import json
-import os
-import pathlib
 import re
-import sys
-import types
 from typing import Any
 from typing import Dict
 from typing import List
@@ -1250,7 +1246,8 @@ def extract_instance_metadata_from_stack(
     Returns:
         Tuple of (variable_name, module_name)
     """
-    internal_variable_names = set(internal_variable_names or [])
+    if internal_variable_names is None:
+        internal_variable_names = []
     variable_name = default_variable_name
     module_name = default_module_name
 
@@ -1272,11 +1269,9 @@ def extract_instance_metadata_from_stack(
 
         try:
             frame_info = inspect.getframeinfo(current_frame)
-            
+
             for var_name, var_value in current_frame.f_locals.items():
-                if (var_name.startswith("__") or 
-                    inspect.ismodule(var_value) or 
-                    var_name in internal_variable_names):
+                if var_name.startswith("__") or inspect.ismodule(var_value) or var_name in internal_variable_names:
                     continue
                 if var_value is instance:
                     variable_name = var_name

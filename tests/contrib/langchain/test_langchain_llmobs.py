@@ -163,7 +163,9 @@ def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, 
     assert actual_prompt["variables"] == variable_dict
 
 
-def test_llmobs_string_prompt_template_direct_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_string_prompt_template_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
     """Test StringPromptTemplate (PromptTemplate) with variable name detection using direct invoke (no chains)."""
     template_string = "Good {time_of_day}, {name}! How are you doing today?"
     variable_dict = {"name": "Alice", "time_of_day": "morning"}
