@@ -1,13 +1,15 @@
 from ddtrace.internal import core
+from ddtrace.internal.core import events
 
 
 _APPSEC_TO_BE_LOADED = True
 
 
-def load_appsec():
+def load_appsec() -> None:
     """Lazily load the appsec module listeners."""
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._handlers import listen
+    from ddtrace.appsec._processor import AppSecSpanProcessor
     from ddtrace.appsec._trace_utils import listen as trace_listen
 
     global _APPSEC_TO_BE_LOADED
@@ -16,6 +18,7 @@ def load_appsec():
         trace_listen()
         asm_listen()
         _APPSEC_TO_BE_LOADED = False
+        events.security_processor.on(AppSecSpanProcessor)
 
 
 def load_common_appsec_modules():

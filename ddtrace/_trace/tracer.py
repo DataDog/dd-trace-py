@@ -7,7 +7,6 @@ import logging
 import os
 from os import getpid
 from threading import RLock
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
@@ -35,6 +34,7 @@ from ddtrace.internal import core
 from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
+from ddtrace.internal.appsec.prototypes import AppsecSpanProcessorProto
 from ddtrace.internal.atexit import register_on_exit_signal
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
@@ -45,6 +45,7 @@ from ddtrace.internal.constants import LOG_ATTR_VALUE_ZERO
 from ddtrace.internal.constants import LOG_ATTR_VERSION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.core import events
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
@@ -69,11 +70,9 @@ log = get_logger(__name__)
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
-def _start_appsec_processor():
+def _start_appsec_processor() -> Optional[AppsecSpanProcessorProto]:
     try:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        return AppSecSpanProcessor()
+        return events.security_processor()
     except Exception as e:
         # DDAS-001-01
         log.error(
@@ -91,12 +90,12 @@ def _start_appsec_processor():
 
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Any]:
+) -> Tuple[List[SpanProcessor], Optional[AppsecSpanProcessorProto]]:
     """Construct the default list of span processors to use."""
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    appsec_processor = None
+    appsec_processor: Optional[AppsecSpanProcessorProto] = None
     if asm_config._asm_libddwaf_available:
         if asm_config._asm_enabled:
             if asm_config._api_security_enabled:
