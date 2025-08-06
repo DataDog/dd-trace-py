@@ -611,7 +611,7 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: Union[List[DatasetRecord], None] = None) -> Dataset:
+    def create_dataset(cls, name: str, description: str, records: Optional[List[DatasetRecord]] = None) -> Dataset:
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
@@ -627,8 +627,8 @@ class LLMObs(Service):
         csv_path: str,
         dataset_name: str,
         input_data_columns: List[str],
-        expected_output_columns: Union[List[str], None] = None,
-        metadata_columns: Union[List[str], None] = None,
+        expected_output_columns: Optional[List[str]] = None,
+        metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
         description="",
     ) -> Dataset:

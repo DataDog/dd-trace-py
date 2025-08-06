@@ -373,12 +373,11 @@ def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_da
     assert test_dataset._version == 1
 
     with pytest.raises(
-        ValueError, match="invalid update, at least one of input_data, expected_output, or metadata must be updated"
+        ValueError,
+        match="invalid update, record should contain at least one of "
+        "input_data, expected_output, or metadata to update",
     ):
-        test_dataset.update(
-            0,
-            {},
-        )
+        test_dataset.update(0, {})
 
 
 @pytest.mark.parametrize(
@@ -509,7 +508,7 @@ def test_dataset_append_no_expected_output(llmobs, test_dataset):
     assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
     assert ds[1]["expected_output"] == {"answer": "Paris"}
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Sealand?"}
-    assert ds[0]["expected_output"] == ""
+    assert ds[0]["expected_output"] is None
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
 
@@ -575,7 +574,7 @@ def test_dataset_delete_no_expected_output(llmobs, test_dataset):
     assert ds._version == 2
     assert len(ds) == 1
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Nauru?"}
-    assert ds[0]["expected_output"] == ""
+    assert ds[0]["expected_output"] is None
 
 
 def test_project_create_new_project(llmobs):
