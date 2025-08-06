@@ -525,8 +525,8 @@ class TraceMiddleware:
                 try:
                     ipaddress.ip_address(client_ip)
                     send_span.set_tag_str("network.client.ip", client_ip)
-                except ValueError:
-                    log.debug("Could not validate client IP address")
+                except ValueError as e:
+                    log.debug("Could not validate client IP address for websocket send message: %s", str(e))
 
             send_span.set_link(
                 trace_id=request_span.trace_id,
@@ -550,7 +550,6 @@ class TraceMiddleware:
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
-            service=request_span.service,
             resource=f"websocket {scope.get('path', '')}",
             span_type=SpanTypes.WEBSOCKET,
             child_of=parent_span,
@@ -565,8 +564,8 @@ class TraceMiddleware:
                 try:
                     ipaddress.ip_address(client_ip)  # validate ip address
                     close_span.set_tag_str("network.client.ip", client_ip)
-                except ValueError:
-                    log.debug("Could not validate client IP address")
+                except ValueError as e:
+                    log.debug("Could not validate client IP address for websocket close message: %s", str(e))
 
             _set_message_tags_on_span(close_span, message)
             # should act like send span (outgoing message) case
