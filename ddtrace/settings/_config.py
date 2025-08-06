@@ -313,7 +313,7 @@ class _ConfigItem:
         if val is not self._default_value:
             self._env_value = val
 
-    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
+    def set_value(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
@@ -321,24 +321,6 @@ class _ConfigItem:
         else:
             log.warning("Invalid source: %s", source)
         telemetry_writer.add_configuration(self._name, self.value(), self.source())
-
-    def get_value_source(self, source: _ConfigSource) -> _JSONType:
-        if source == "remote_config":
-            return self._rc_value
-        elif source == "code":
-            return self._code_value
-        elif source == "env_var":
-            return self._env_value
-        elif source == "default":
-            return self._default_value
-        else:
-            log.warning("Invalid source: %s", source)
-
-    def set_code(self, value: _JSONType) -> None:
-        self._code_value = value
-
-    def unset_rc(self) -> None:
-        self._rc_value = None
 
     def value(self) -> _JSONType:
         if self._rc_value is not None:
@@ -781,38 +763,14 @@ class Config(object):
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._set_config_items([(key, value, "code")])
+            self._config[key].set_value(value, "code")
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _set_config_items(self, items):
-        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
-        item_names = []
-        for key, value, origin in items:
-            item = self._config[key]
-            if item.get_value_source(origin) == value:
-                # No change in config value, no need to notify subscribers or report telemetry
-                continue
-            item_names.append(key)
-            item.set_value_source(value, origin)
-
     def _reset(self):
         # type: () -> None
         self._config = _default_config()
-
-    def _get_source(self, item):
-        # type: (str) -> str
-        return self._config[item].source()
-
-    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
-        if not tags:
-            return {}
-        if isinstance(tags[0], Dict):
-            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
-        else:
-            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
-        return {k: v for k, v in pairs}
 
     def _lower(self, value):
         return value.lower()

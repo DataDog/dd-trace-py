@@ -169,11 +169,15 @@ def _convert_rc_trace_sampling_rules(lib_config) -> t.Optional[str]:
 
 def _convert_rc_tags(lib_config, key, dd_config):
     """Extract and format tags from remote config."""
-    if key not in lib_config:
+    tags = lib_config.get(key)
+    if not tags:
         return None
 
-    tags = lib_config[key]
-    return dd_config._format_tags(tags) if tags else tags
+    if isinstance(tags[0], dict):
+        pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+    else:
+        pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+    return {k: v for k, v in pairs}
 
 
 def _convert_optional_bool(lib_config, key):
@@ -196,7 +200,7 @@ def _apply_config_change(config_name, config_value, dd_config):
         if tracer.enabled and config_value is False:
             tracer.enabled = False
             log.debug("Tracing disabled via remote_config. Config: %s Value: %s", config_name, config_value)
-        elif config_value is True and dd_config._get_source("_tracing_enabled") != "remote_config":
+        elif config_value is True and dd_config._config["_tracing_enabled"].source() != "remote_config":
             tracer.enabled = True
             log.debug("Tracing enabled via remote_config. Config %s Value: %s", config_name, config_value)
     elif config_name == "_trace_http_header_tags":
@@ -222,8 +226,8 @@ def apm_tracing_rc(lib_config, dd_config):
     for config_name, new_rc_value in config_mapping.items():
         config_item = dd_config._config[config_name]
         # Only proceed if value actually changed
-        if config_item.get_value_source("remote_config") != new_rc_value:
-            config_item.set_value_source(new_rc_value, "remote_config")
+        if config_item._rc_value != new_rc_value:
+            config_item.set_value(new_rc_value, "remote_config")
             _apply_config_change(config_name, config_item.value(), dd_config)
 
     log.debug("APM Tracing Received: %s from the Agent", lib_config)

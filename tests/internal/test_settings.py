@@ -221,7 +221,7 @@ def test_settings_parametrized(testcase, config, monkeypatch):
         assert getattr(config, expected_name) == expected_value
 
     for expected_name, expected_source in testcase.get("expected_source", {}).items():
-        assert config._get_source(expected_name) == expected_source
+        assert config._config[expected_name].source() == expected_source
 
 
 def test_settings_missing_lib_config(config, monkeypatch):
@@ -251,7 +251,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
         assert getattr(config, expected_name) == expected_value
 
     for expected_name, expected_source in testcase.get("expected_source", {}).items():
-        assert config._get_source(expected_name) == expected_source
+        assert config._config[expected_name].source() == expected_source
 
 
 def test_remoteconfig_sampling_rules(ddtrace_run_python_code_in_subprocess):
