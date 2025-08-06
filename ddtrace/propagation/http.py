@@ -8,6 +8,7 @@ from typing import Literal  # noqa:F401
 from typing import Optional  # noqa:F401
 from typing import Text  # noqa:F401
 from typing import Tuple  # noqa:F401
+from typing import Union
 from typing import cast  # noqa:F401
 import urllib.parse
 
@@ -21,8 +22,10 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.vendor.debtcollector import deprecate
 
 from ..constants import AUTO_KEEP
 from ..constants import AUTO_REJECT
@@ -1009,6 +1012,47 @@ class HTTPPropagator(object):
     """
 
     @staticmethod
+    def _get_sampled_injection_context(
+        trace_info: Union[Context, Span], non_active_span: Optional[Span] = None
+    ) -> Context:
+        """Handle sampling decision and return context for header injection.
+
+        If sampling_priority is already set, returns immediately. Otherwise, finds the
+        appropriate span and triggers sampling before returning the injection context.
+        """
+        # Extract context for header injection (non_active_span takes precedence)
+        injection_context = trace_info.context if isinstance(trace_info, Span) else trace_info
+
+        # Find root span for sampling decisions
+        if injection_context.sampling_priority is not None:
+            return injection_context
+        elif core.tracer is None:
+            # This should never happen, tracer should be initialized before headers can be injected.
+            log.error(
+                "No tracer found and injection context %s has no sampling priority, skipping sampling",
+                injection_context,
+            )
+            return injection_context
+
+        sampling_span: Optional[Span] = None
+        if non_active_span is not None:
+            # Deprecated: non_active_span takes precedence
+            sampling_span = non_active_span._local_root
+        elif isinstance(trace_info, Span):
+            # Use span's root for sampling
+            sampling_span = trace_info._local_root
+        elif (current_root := core.tracer.current_root_span()) and current_root.trace_id == trace_info.trace_id:
+            # Get the local root span for the current trace (if it is active, otherwise we can't sample)
+            sampling_span = current_root
+
+        # Sample the local root span before injecting headers.
+        if sampling_span:
+            core.tracer.sample(sampling_span)
+            log.debug("%s sampled before propagating trace: span_context=%s", sampling_span, injection_context)
+
+        return injection_context
+
+    @staticmethod
     def _extract_configured_contexts_avail(normalized_headers: Dict[str, str]) -> Tuple[List[Context], List[str]]:
         contexts = []
         styles_w_ctx = []
@@ -1083,8 +1127,7 @@ class HTTPPropagator(object):
         return primary_context
 
     @staticmethod
-    def inject(span_context, headers, non_active_span=None):
-        # type: (Context, Dict[str, str], Optional[Span]) -> None
+    def inject(context: Union[Context, Span], headers: Dict[str, str], non_active_span: Optional[Span] = None) -> None:
         """Inject Context attributes that have to be propagated as HTTP headers.
 
         Here is an example using `requests`::
@@ -1094,40 +1137,51 @@ class HTTPPropagator(object):
             from ddtrace.propagation.http import HTTPPropagator
 
             def parent_call():
-                with tracer.trace('parent_span') as span:
+                with tracer.start_span('parent_span') as span:
                     headers = {}
+                    # Preferred: Pass span object to context argument
+                    HTTPPropagator.inject(span, headers)
+                    url = '<some RPC endpoint>'
+                    r = requests.get(url, headers=headers)
+
+                with tracer.start_span('child_span2') as span:
+                    headers = {}
+                    # Alternative: Pass context, but ensure sampling_priority is set
+                    tracer.sample(span)
                     HTTPPropagator.inject(span.context, headers)
                     url = '<some RPC endpoint>'
                     r = requests.get(url, headers=headers)
 
-        :param Context span_context: Span context to propagate.
+        :param Union[Span, Context] context: Pass a Span object (preferred) or Context object.
+            Span objects automatically trigger sampling decisions. Context objects should have
+            sampling_priority set to avoid inconsistent downstream sampling.
         :param dict headers: HTTP headers to extend with tracing attributes.
-        :param Span non_active_span: Only to be used if injecting a non-active span.
+        :param Span non_active_span: **DEPRECATED** - Pass Span objects to the context parameter instead.
         """
+        if non_active_span is not None:
+            # non_active_span is only used for sampling decisions, not to inject headers.
+            deprecate(
+                "The non_active_span parameter is deprecated",
+                message="Use the context parameter instead.",
+                category=DDTraceDeprecationWarning,
+                removal_version="4.0.0",
+            )
+        # Cannot rename context parameter due to backwards compatibility
+        # Handle sampling and get context for header injection
+        span_context = HTTPPropagator._get_sampled_injection_context(context, non_active_span)
+        # Log a warning if we cannot determine a sampling decision before injecting headers.
+        if span_context.span_id and span_context.trace_id and span_context.sampling_priority is None:
+            log.debug(
+                "Sampling decision not available. Downstream spans will not inherit a sampling priority: "
+                "args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                context,
+                non_active_span,
+                span_context,
+            )
+
         core.dispatch("http.span_inject", (span_context, headers))
         if not config._propagation_style_inject:
             return
-        if non_active_span is not None and non_active_span.context is not span_context:
-            log.error(
-                "span_context and non_active_span.context are not the same, but should be. non_active_span.context "
-                "will be used to generate distributed tracing headers. span_context: {}, non_active_span.context: {}",
-                span_context,
-                non_active_span.context,
-            )
-
-            span_context = non_active_span.context
-
-        if core.tracer and hasattr(core.tracer, "sample"):
-            root_span: Optional[Span] = None
-            if non_active_span is not None:
-                root_span = non_active_span._local_root
-            else:
-                root_span = core.tracer.current_root_span()
-
-            if root_span is not None and root_span.context.sampling_priority is None:
-                core.tracer.sample(root_span)
-        else:
-            log.error("ddtrace.tracer.sample is not available, unable to sample span.")
 
         # baggage should be injected regardless of existing span or trace id
         if _PROPAGATION_STYLE_BAGGAGE in config._propagation_style_inject:
