@@ -66,11 +66,6 @@ def _connect(func, instance, args, kwargs):
         db.SYSTEM: "duckdb",
     }
 
-    if database_path == ":memory:":
-        tags[db.NAME] = "memory"
-    else:
-        tags[db.NAME] = database_path
-
     pin = Pin(tags=tags)
 
     # Choose cursor class based on trace_fetch_methods configuration
