@@ -113,12 +113,7 @@ class LangGraphIntegration(BaseLLMIntegration):
             span._set_ctx_item(AGENT_MANIFEST, agent_manifest)
 
     def _get_agent_manifest(self, agent, args, config: Dict[str, Any]) -> Optional[Dict[str, Any]]:
-        """
-        Gets the agent manifest for a given agent at the end of its execution.
-
-        If the agent is a react agent, we have already stored the manifest in the _react_agents weak key dictionary.
-        Otherwise, we try and do some inference to get the manifest.
-        """
+        """Gets the agent manifest for a given agent at the end of its execution."""
         if agent is None:
             return None
 
@@ -409,9 +404,10 @@ def _get_tools_from_react_agent(tools):
     return tools_repr
 
 
-def _get_tool_repr_from_langchain_base_tool(tool):
+def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[Dict[str, Any]]:
+    """Get the tool representation from a langchain base tool"""
     if tool is None:
-        return
+        return None
 
     return {
         "name": _get_attr(tool, "name", ""),
@@ -421,6 +417,7 @@ def _get_tool_repr_from_langchain_base_tool(tool):
 
 
 def _is_tool_node(maybe_tool_node):
+    """Check if a node is a tool node without a specific instance check"""
     return _get_attr(maybe_tool_node, "tools_by_name", None) is not None
 
 
