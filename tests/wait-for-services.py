@@ -6,6 +6,7 @@ import typing as t
 
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
+from contrib.config import AZURE_SERVICE_BUS_EMULATOR_CONFIG
 from contrib.config import CASSANDRA_CONFIG
 from contrib.config import ELASTICSEARCH_CONFIG
 from contrib.config import HTTPBIN_CONFIG
@@ -135,8 +136,14 @@ def check_moto(url):
     requests.get(url).raise_for_status()
 
 
+@try_until_timeout(Exception, args={"url": "http://{host}:{port}/health".format(**AZURE_SERVICE_BUS_EMULATOR_CONFIG)})
+def check_azureservicebusemulator(url):
+    requests.get(url).raise_for_status()
+
+
 if __name__ == "__main__":
     check_functions = {
+        "azureservicebusemulator": check_azureservicebusemulator,
         "cassandra": check_cassandra,
         "ddagent": check_agent,
         "elasticsearch": check_elasticsearch,
