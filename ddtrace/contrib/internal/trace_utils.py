@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
@@ -551,24 +552,22 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         dispatch("distributed_context.activated", (context,))
 
 
-def _copy_trace_level_tags(target_span, parent_span):
+def _copy_trace_level_tags(target_span: Span, parent: Span):
     """
     Copies baggage, tags, origin, sampling decision from parent span to target span.
     """
-    for key, value in parent_span.context._baggage.items():
+    for key, value in parent.context._baggage.items():
         target_span.context.set_baggage_item(key, value)
         target_span.set_tag_str(f"baggage.{key}", value)
 
-    if parent_span.context.sampling_priority is not None:
-        target_span.context.sampling_priority = parent_span.context.sampling_priority
+    if parent.context.sampling_priority is not None:
+        target_span.context.sampling_priority = parent.context.sampling_priority
 
-    if parent_span.context._meta.get(_ORIGIN_KEY):
-        target_span.set_tag_str(_ORIGIN_KEY, parent_span.context._meta[_ORIGIN_KEY])
+    if parent.context._meta.get(_ORIGIN_KEY):
+        target_span.set_tag_str(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])
 
-    if parent_span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-        target_span.set_tag_str(
-            SAMPLING_DECISION_TRACE_TAG_KEY, parent_span.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
-        )
+    if parent.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        target_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, parent.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY])
 
 
 def _flatten(

@@ -1,8 +1,8 @@
 from functools import wraps
-import ipaddress
 import os
 import sys
 from typing import Any
+from typing import Callable
 from typing import Mapping
 from typing import Optional
 from typing import Union
@@ -121,18 +121,15 @@ def _default_handle_exception_span(exc, span):
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
-    """
-    Retrieve the top-level ASGI span from the scope.
-    """
     return scope.get("datadog", {}).get("request_spans", [None])[0]
 
 
-async def _blocked_asgi_app(scope, receive, send):
+async def _blocked_asgi_app(scope: Mapping[str, Any], receive: Callable, send: Callable):
     await send({"type": "http.response.start", "status": 403, "headers": []})
     await send({"type": "http.response.body", "body": b""})
 
 
-def _parse_response_cookies(response_headers) -> Mapping[str, Any]:
+def _parse_response_cookies(response_headers: Mapping[str, str]) -> Mapping[str, Any]:
     cookies = {}
     try:
         result = response_headers.get("set-cookie", "").split("=", maxsplit=1)
@@ -144,13 +141,10 @@ def _parse_response_cookies(response_headers) -> Mapping[str, Any]:
     return cookies
 
 
-def _set_sampling_inherited(span: Span, global_root_span: Span):
-    """
-    Set sampling inheritance metrics and tags on a span from its parent.
-    """
+def _inherit_sampling_tags(span: Span, source: Span):
     span.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
-    span.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, global_root_span.service)
-    span.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, global_root_span.resource)
+    span.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)
+    span.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _set_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
@@ -162,6 +156,34 @@ def _set_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
         websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
 
 
+def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
+    client = scope.get("client")
+    if len(client) >= 1:
+        client_ip = client[0]
+        span.set_tag_str(TARGET_HOST, client_ip)
+        try:
+            is_valid_ip(client_ip)
+            span.set_tag_str("network.client.ip", client_ip)
+        except ValueError as e:
+            log.debug("Could not validate client IP address for websocket send message: %s", str(e))
+
+
+def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
+    code = message.get("code")
+    reason = message.get("reason")
+    if code is not None:
+        span.set_metric(websocket.CLOSE_CODE, code)
+    if reason:
+        span.set_tag(websocket.CLOSE_REASON, reason)
+
+
+def _cleanup_previous_receive(scope: Mapping[str, Any]):
+    current_receive_span = scope.get("datadog", {}).get("current_receive_span")
+    if current_receive_span:
+        current_receive_span.finish()
+        scope["datadog"].pop("current_receive_span", None)
+
+
 class TraceMiddleware:
     """
     ASGI application middleware that traces HTTP and websocket requests.
@@ -169,7 +191,7 @@ class TraceMiddleware:
     Provides distributed tracing for ASGI applications, including
     support for websocket connections with configurable message-level tracing.
 
-    When websocket tracing is enabled, the middleware creates spans for:
+    When websocket instrumentation is enabled, the middleware creates spans for:
     - websocket handshake (HTTP upgrade)
     - Individual message receive/send operations
     - Connection close events
@@ -191,7 +213,7 @@ class TraceMiddleware:
         self.handle_exception_span = handle_exception_span
         self.span_modifier = span_modifier
 
-    async def __call__(self, scope: Mapping[str, Any], receive, send):
+    async def __call__(self, scope: Mapping[str, Any], receive: Callable, send: Callable):
         """
         Handle ASGI application calls with tracing.
 
@@ -322,15 +344,15 @@ class TraceMiddleware:
             @wraps(receive)
             async def wrapped_receive():
                 """
-                Wrapped receive function that traces websocket message reception.
+                Wrapped receive function that instruments websocket message reception.
 
-                Intercepts websocket receive operations to create spans for:
+                Intercepts websocket receive operations to create ExecutionContexts for:
                 - Message receive timing and metadata
                 - Message type (text/binary)
                 - Message length measurement
                 - Connection close events
 
-                When websocket tracing is enabled, creates spans for:
+                When websocket instrumentation is enabled, creates ExecutionContexts for:
                 - websocket.receive: For incoming messages
                 - websocket.close: For peer disconnect events
 
@@ -342,7 +364,6 @@ class TraceMiddleware:
                 if not self.integration_config.trace_asgi_websocket_messages:
                     return await receive()
 
-                # Create the span when the handler is invoked (when receive() is called)
                 with core.context_with_data(
                     "asgi.websocket.receive_message",
                     tracer=self.tracer,
@@ -387,7 +408,7 @@ class TraceMiddleware:
                 - Message length measurement
                 - Connection close operations
 
-                When websocket tracing is enabled, creates spans for:
+                When websocket instrumentation is enabled, creates ExecutionContexts for:
                 - websocket.send: For outgoing messages
                 - websocket.close: For application-initiated close events
 
@@ -490,10 +511,7 @@ class TraceMiddleware:
 
                 # Safety mechanism: finish any remaining receive spans to ensure no spans are unfinished
                 if scope["type"] == "websocket" and "datadog" in scope:
-                    current_receive_span = scope["datadog"].get("current_receive_span")
-                    if current_receive_span:
-                        current_receive_span.finish()
-                        scope["datadog"].pop("current_receive_span", None)
+                    _cleanup_previous_receive(scope)
 
     def _handle_websocket_send_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -518,15 +536,7 @@ class TraceMiddleware:
         ) as ctx, ctx.span as send_span:
             # Propagate context from the handshake span (baggage, origin, sampling decision)
             # set tags related to peer.hostname
-            client = scope.get("client")
-            if len(client) >= 1:
-                client_ip = client[0]
-                send_span.set_tag_str(TARGET_HOST, client_ip)
-                try:
-                    ipaddress.ip_address(client_ip)
-                    send_span.set_tag_str("network.client.ip", client_ip)
-                except ValueError as e:
-                    log.debug("Could not validate client IP address for websocket send message: %s", str(e))
+            _set_client_ip_tags(scope, send_span)
 
             send_span.set_link(
                 trace_id=request_span.trace_id,
@@ -557,15 +567,7 @@ class TraceMiddleware:
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
         ) as ctx, ctx.span as close_span:
-            client = scope.get("client")
-            if len(client) >= 1:
-                client_ip = client[0]
-                close_span.set_tag_str(TARGET_HOST, client_ip)
-                try:
-                    ipaddress.ip_address(client_ip)  # validate ip address
-                    close_span.set_tag_str("network.client.ip", client_ip)
-                except ValueError as e:
-                    log.debug("Could not validate client IP address for websocket close message: %s", str(e))
+            _set_client_ip_tags(scope, close_span)
 
             _set_message_tags_on_span(close_span, message)
             # should act like send span (outgoing message) case
@@ -576,18 +578,9 @@ class TraceMiddleware:
             )
             _copy_trace_level_tags(close_span, request_span)
 
-            code = message.get("code")
-            reason = message.get("reason")
-            if code is not None:
-                close_span.set_metric(websocket.CLOSE_CODE, code)
-            if reason:
-                close_span.set_tag(websocket.CLOSE_REASON, reason)
+            _set_websocket_close_tags(close_span, message)
 
-        # Close any receive span at connection close
-        current_receive_span = scope.get("datadog", {}).get("current_receive_span")
-        if current_receive_span:
-            current_receive_span.finish()
-            scope["datadog"].pop("current_receive_span", None)
+        _cleanup_previous_receive(scope)
 
     def _handle_http_response(
         self,
@@ -615,11 +608,7 @@ class TraceMiddleware:
     def _handle_websocket_receive_message(
         self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
     ):
-        # Finish the previous receive span before creating a new one
-        previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
-        if previous_receive_span:
-            previous_receive_span.finish()
-            scope["datadog"].pop("current_receive_span", None)
+        _cleanup_previous_receive(scope)
 
         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -636,7 +625,7 @@ class TraceMiddleware:
         )
 
         if self.integration_config.asgi_websocket_messages_inherit_sampling:
-            _set_sampling_inherited(recv_span, request_span._local_root)
+            _inherit_sampling_tags(recv_span, request_span._local_root)
 
         _copy_trace_level_tags(recv_span, request_span)
 
@@ -645,11 +634,7 @@ class TraceMiddleware:
     def _handle_websocket_disconnect_message(
         self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span
     ):
-        # Clean any existing receive span before handling peer disconnect
-        previous_receive_span = scope.get("datadog", {}).get("current_receive_span")
-        if previous_receive_span:
-            previous_receive_span.finish()
-            scope["datadog"].pop("current_receive_span", None)
+        _cleanup_previous_receive(scope)
 
         # Create the span when the handler is invoked (when receive() is called)
         with core.context_with_data(
@@ -672,16 +657,10 @@ class TraceMiddleware:
             )
 
             if self.integration_config.asgi_websocket_messages_inherit_sampling:
-                _set_sampling_inherited(disconnect_span, request_span._local_root)
+                _inherit_sampling_tags(disconnect_span, request_span._local_root)
 
             _copy_trace_level_tags(disconnect_span, request_span)
-
-            code = message.get("code")
-            reason = message.get("reason")
-            if code is not None:
-                disconnect_span.set_metric(websocket.CLOSE_CODE, code)
-            if reason:
-                disconnect_span.set_tag(websocket.CLOSE_REASON, reason)
+            _set_websocket_close_tags(disconnect_span, message)
 
         # The context system automatically finishes the disconnect_span
         # Only finish the main span if needed

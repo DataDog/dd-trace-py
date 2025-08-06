@@ -73,6 +73,7 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.span_links": "[{\"trace_id\": \"688a926d00000000702bcdb1b1132a94\", \"span_id\": \"20f8e66d3ccd6552\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
+         "network.client.ip": "testclient",
          "out.host": "testclient",
          "span.kind": "producer",
          "websocket.message.type": "text"
@@ -133,6 +134,7 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.span_links": "[{\"trace_id\": \"688a926d00000000702bcdb1b1132a94\", \"span_id\": \"20f8e66d3ccd6552\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
+         "network.client.ip": "testclient",
          "out.host": "testclient",
          "span.kind": "producer",
          "websocket.message.type": "text"
@@ -193,6 +195,7 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.span_links": "[{\"trace_id\": \"688a926d00000000702bcdb1b1132a94\", \"span_id\": \"20f8e66d3ccd6552\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
+         "network.client.ip": "testclient",
          "out.host": "testclient",
          "span.kind": "producer",
          "websocket.message.type": "text"
@@ -253,6 +256,7 @@
          "_dd.base_service": "tests.contrib.fastapi",
          "_dd.span_links": "[{\"trace_id\": \"688a926d00000000702bcdb1b1132a94\", \"span_id\": \"20f8e66d3ccd6552\", \"attributes\": {\"dd.kind\": \"resuming\"}}]",
          "component": "fastapi",
+         "network.client.ip": "testclient",
          "out.host": "testclient",
          "span.kind": "producer",
          "websocket.message.type": "text"
