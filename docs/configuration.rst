@@ -689,6 +689,18 @@ Test Visibility
      version_added:
         v2.18.0:
 
+   DD_CIVISIBILITY_USE_BETA_WRITER:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use an alternative method for collecting and sending test spans.
+        In this mode, the ``CIVisibility`` tracer is kept separate from the global ``ddtrace`` tracer, which helps avoid
+        interference between test and non-test tracer configurations. This mode is currently experimental.
+
+     version_added:
+        v3.12.0:
+
 Agent
 -----
 

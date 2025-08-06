@@ -1,6 +1,5 @@
 import dataclasses
 import errno
-import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
@@ -92,10 +91,10 @@ class AppSecSpanProcessor(SpanProcessor):
         load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-        self._rules: Optional[Dict[str, Any]] = None
+        self._rules: Optional[bytes] = None
         try:
-            with open(self.rule_filename, "r") as f:
-                self._rules = json.load(f)
+            with open(self.rule_filename, "br") as f:
+                self._rules = f.read()
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error(
