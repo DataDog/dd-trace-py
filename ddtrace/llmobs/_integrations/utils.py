@@ -1,6 +1,8 @@
 from dataclasses import dataclass
+import inspect
 import json
 import os
+import pathlib
 import re
 import sys
 import types
@@ -1226,27 +1228,14 @@ def _est_tokens(prompt):
     return est_tokens
 
 
-def _find_instance_name(instance: Any, var_dict: Dict[str, Any]) -> Optional[str]:
-    """
-    Finds the variable name that references the given instance by inspecting the caller's variables.
-    Similar to the approach used in ddtrace/profiling/collector/_lock.py for finding lock variable names.
-    """
-    for name, value in var_dict.items():
-        if name.startswith("__") or isinstance(value, types.ModuleType):
-            continue
-        if value is instance:
-            return name
-    return None
-
-
 def extract_instance_metadata_from_stack(
     instance: Any,
     internal_variable_names: Optional[List[str]] = None,
-    default_variable_name: str = None,
-    default_module_name: str = None,
+    default_variable_name: Optional[str] = None,
+    default_module_name: Optional[str] = None,
     frame_start_offset: int = 2,
     frame_search_depth: int = 6,
-) -> Tuple[str, str]:
+) -> Tuple[Optional[str], Optional[str]]:
     """
     Attempts to find the variable name and module name for an instance by inspecting the call stack.
 
@@ -1261,26 +1250,43 @@ def extract_instance_metadata_from_stack(
     Returns:
         Tuple of (variable_name, module_name)
     """
+    internal_variable_names = set(internal_variable_names or [])
     variable_name = default_variable_name
     module_name = default_module_name
 
-    for frame_depth in range(frame_start_offset, frame_start_offset + frame_search_depth):
+    # Start from the current frame and walk up the stack
+    current_frame = inspect.currentframe()
+    if current_frame is None:
+        return variable_name, module_name
+
+    # Skip the specified number of frames
+    for _ in range(frame_start_offset):
+        current_frame = current_frame.f_back
+        if current_frame is None:
+            return variable_name, module_name
+
+    # Search through the specified depth
+    for _ in range(frame_search_depth):
+        if current_frame is None:
+            break
+
         try:
-            frame = sys._getframe(frame_depth)
-            instance_name = _find_instance_name(instance, frame.f_locals) or _find_instance_name(
-                instance, frame.f_globals
-            )
-            if not instance_name:
-                continue
+            frame_info = inspect.getframeinfo(current_frame)
+            
+            for var_name, var_value in current_frame.f_locals.items():
+                if (var_name.startswith("__") or 
+                    inspect.ismodule(var_value) or 
+                    var_name in internal_variable_names):
+                    continue
+                if var_value is instance:
+                    variable_name = var_name
+                    module_name = inspect.getmodulename(frame_info.filename)
+                    return variable_name, module_name
 
-            if instance_name not in internal_variable_names:
-                variable_name = instance_name
-
-                if hasattr(frame, "f_code") and hasattr(frame.f_code, "co_filename"):
-                    filename = frame.f_code.co_filename
-                    module_name = os.path.splitext(os.path.basename(filename))[0]
-                break
-        except (ValueError, AttributeError):
+        except (ValueError, AttributeError, OSError, TypeError):
+            current_frame = current_frame.f_back
             continue
+
+        current_frame = current_frame.f_back
 
     return variable_name, module_name
