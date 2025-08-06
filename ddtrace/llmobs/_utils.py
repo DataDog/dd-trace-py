@@ -362,38 +362,54 @@ class SpanLinker:
     def __init__(self):
         self._parent_to_children_spans: Dict[str, List[Span]] = {}
 
-    def register_child_span(self, parent: Span, child: Span) -> None:
-        """Registers a child span with its parent span."""
-        self._parent_to_children_spans.setdefault(parent.span_id, []).append(child)
+    def register_span(self, span: Span) -> None:
+        """Registers a span upon span start which involves adding it to the _parent_to_children_spans dict."""
+        parent_id = span.parent_id
+        children = self._parent_to_children_spans.setdefault(parent_id, {})
+        children[span.span_id] = {"span": span, "index": len(children)}
 
     def remove_child_spans(self, parent: Span) -> None:
         """Removes the children spans of the given parent span."""
         self._parent_to_children_spans.pop(parent.span_id, None)
     
-    def on_span_finish(self, span: Span) -> None:
+    def _register_span_metadata(self, span: Span, span_kind: str, formatted_trace_id: str) -> None:
+        """Registers the kind of a span upon submitting the span event."""
+        children = self._parent_to_children_spans.setdefault(span.parent_id, {})
+        children[span.span_id]["kind"] = span_kind
+        children[span.span_id]["llmobs_trace_id"] = formatted_trace_id
+    
+    def add_span_links(self, span: Span, span_kind: str, formatted_trace_id: str) -> None:
         """
         Called when a span finishes. This is used to add span links to the span before it is finished.
         
         Currently, this only works for adding span links between adjacent LLM and tool spans.
         """
-        siblings = self._parent_to_children_spans.get(span.parent_id, [])
+        self._register_span_metadata(span, span_kind, formatted_trace_id)
+        children = self._parent_to_children_spans.get(span.parent_id, {})
+        span_entry = children[span.span_id]
         try:
-            span_index = siblings.index(span)
+            span_index = span_entry["index"]
             if span_index > 0:
-                previous_span = siblings[span_index - 1]
+                previous_child = None
+                for child in children.values():
+                    if child["index"] == span_index - 1:
+                        previous_child = child
+                        break
                 if (
-                    (
-                        previous_span._get_ctx_item(SPAN_KIND) == "llm"
-                        and span._get_ctx_item(SPAN_KIND) == "tool"
-                    ) or (
-                        previous_span._get_ctx_item(SPAN_KIND) == "tool"
-                        and span._get_ctx_item(SPAN_KIND) == "llm"
+                    previous_child is not None and (
+                        (
+                            previous_child["kind"] == "llm"
+                            and span_entry["kind"] == "tool"
+                        ) or (
+                            previous_child["kind"] == "tool"
+                            and span_entry["kind"] == "llm"
+                        )
                     )
                 ):
                     add_span_link(
                         span,
-                        previous_span.span_id,
-                        previous_span.trace_id,
+                        str(previous_child["span"].span_id),
+                        previous_child["llmobs_trace_id"],
                         "output",
                         "input",
                     )

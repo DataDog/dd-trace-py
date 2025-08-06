@@ -233,25 +233,25 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
     def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
         span_links = []
-        if span_kind == "agent":
-            for tool_span_id in self._running_agents.pop(span.span_id, []):
-                span_links.append(
-                    {
-                        "span_id": str(tool_span_id),
-                        "trace_id": format_trace_id(span.trace_id),
-                        "attributes": {"from": "output", "to": "output"},
-                    }
-                )
-        elif span_kind == "tool":
-            ancestor = _get_nearest_llmobs_ancestor(span)
-            if ancestor:
-                span_links.append(
-                    {
-                        "span_id": str(ancestor.span_id),
-                        "trace_id": format_trace_id(ancestor.trace_id),
-                        "attributes": {"from": "input", "to": "input"},
-                    }
-                )
+        # if span_kind == "agent":
+        #     for tool_span_id in self._running_agents.pop(span.span_id, []):
+        #         span_links.append(
+        #             {
+        #                 "span_id": str(tool_span_id),
+        #                 "trace_id": format_trace_id(span.trace_id),
+        #                 "attributes": {"from": "output", "to": "output"},
+        #             }
+        #         )
+        # elif span_kind == "tool":
+        #     ancestor = _get_nearest_llmobs_ancestor(span)
+        #     if ancestor:
+        #         span_links.append(
+        #             {
+        #                 "span_id": str(ancestor.span_id),
+        #                 "trace_id": format_trace_id(ancestor.trace_id),
+        #                 "attributes": {"from": "input", "to": "input"},
+        #             }
+        #         )
         return span_links
 
     def _register_span(self, span: Span, kind: Any) -> None:
