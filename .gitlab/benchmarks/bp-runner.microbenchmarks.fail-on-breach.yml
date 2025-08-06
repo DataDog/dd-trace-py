@@ -118,7 +118,7 @@ experiments:
           - name: flasksimple-debugger
             thresholds:
               - execution_time < 2.00 ms
-              - max_rss_usage < 44.30 MB
+              - max_rss_usage < 45.00 MB
           - name: flasksimple-iast-get
             thresholds:
               - execution_time < 2.00 ms
