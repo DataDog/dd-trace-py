@@ -1,4 +1,5 @@
 from ddtrace.internal import core
+from ddtrace.internal.appsec import prototypes
 from ddtrace.internal.core import events
 
 
@@ -6,10 +7,16 @@ _APPSEC_TO_BE_LOADED = True
 
 
 def set_processor() -> None:
-    """Set the appsec processor to be used by the event hub."""
-    from ddtrace.appsec._processor import AppSecSpanProcessor
+    """Set the appsec processor to be used by the event hub with lazy loading
+    to avoid loading modules if appsec is not enabled.
+    """
 
-    events.security_processor.on(AppSecSpanProcessor)
+    def build_processor() -> prototypes.AppsecSpanProcessorProto:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        return AppSecSpanProcessor()
+
+    events.security_processor.on(build_processor)
 
 
 def load_appsec() -> None:
