@@ -13,9 +13,9 @@ def start():
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
-    from ddtrace.appsec._listeners import load_appsec
+    from ddtrace.appsec._listeners import set_processor
 
-    load_appsec()
+    set_processor()
 
 
 def restart(join=False):

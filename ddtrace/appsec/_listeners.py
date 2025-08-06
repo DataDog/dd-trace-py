@@ -5,16 +5,21 @@ from ddtrace.internal.core import events
 _APPSEC_TO_BE_LOADED = True
 
 
+def set_processor() -> None:
+    """Set the appsec processor to be used by the event hub."""
+    from ddtrace.appsec._processor import AppSecSpanProcessor
+
+    events.security_processor.on(AppSecSpanProcessor)
+
+
 def load_appsec() -> None:
     """Lazily load the appsec module listeners."""
     from ddtrace.appsec._asm_request_context import asm_listen
     from ddtrace.appsec._handlers import listen
-    from ddtrace.appsec._processor import AppSecSpanProcessor
     from ddtrace.appsec._trace_utils import listen as trace_listen
 
     global _APPSEC_TO_BE_LOADED
     if _APPSEC_TO_BE_LOADED:
-        events.security_processor.on(AppSecSpanProcessor)
         listen()
         trace_listen()
         asm_listen()
