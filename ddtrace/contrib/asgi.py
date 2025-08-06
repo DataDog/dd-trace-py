@@ -64,31 +64,25 @@ Configuration
 
    Default: ``'False'``
 
-.. py:data:: ddtrace.config.asgi['trace_asgi_websocket_messages']
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_ENABLED
 
    Indicates whether to trace websocket messages.
 
-   Can also be configured via the ``DD_TRACE_WEBSOCKET_MESSAGES_ENABLED`` environment variable.
-
    Default: ``'False'``
 
-.. py:data:: ddtrace.config.asgi['asgi_websocket_messages_inherit_sampling']
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING
 
    Indicates whether websocket message spans should inherit sampling from the handshake span.
 
-   Can also be configured via the ``DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING`` environment variable.
-
    Default: ``'True'``
 
-.. py:data:: ddtrace.config.asgi['websocket_messages_separate_traces']
+.. envvar:: DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES
 
    Indicates whether websocket message spans should be on their own trace.
 
    If disabled, websocket messages will have the handshake as parent span.
 
    If disabled, ``DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING`` will be ignored.
-
-   Can also be configured via the ``DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES`` environment variable.
 
    Default: ``'True'``
 
