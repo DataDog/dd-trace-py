@@ -63,16 +63,27 @@ class TracerFlareSubscriber(RemoteConfigSubscriber):
                     )
                     continue
                 log.info("Preparing tracer flare")
-                if _prepare_tracer_flare(self.flare, md.content):
+                # Handle both list (unit tests) and dict (system tests) data structures
+                config_data = md.content if isinstance(md.content, list) else [md.content]
+                if _prepare_tracer_flare(self.flare, config_data):
                     self.current_request_start = datetime.now()
             elif product_type == "AGENT_TASK":
                 # Possible edge case where we don't have an existing flare request
                 # In this case we won't have anything to send, so we log and do nothing
                 if self.current_request_start is None:
-                    log.warning("There is no tracer flare job to complete. Skipping new request.")
-                    continue
+                    # If no AGENT_CONFIG was received, start the flare job now with default settings
+                    log.info("Starting tracer flare job for AGENT_TASK without prior AGENT_CONFIG")
+                    # Prepare with default log level (similar to how .NET handles this)
+                    if self.flare.prepare("DEBUG"):
+                        self.current_request_start = datetime.now()
+                    else:
+                        log.warning("Failed to prepare tracer flare. Skipping new request.")
+                        continue
+
                 log.info("Generating and sending tracer flare")
-                if _generate_tracer_flare(self.flare, md.content):
+                # Handle both list (unit tests) and dict (system tests) data structures
+                task_data = md.content if isinstance(md.content, list) else [md.content]
+                if _generate_tracer_flare(self.flare, task_data):
                     self.current_request_start = None
             else:
                 log.warning("Received unexpected product type for tracer flare: {}", product_type)

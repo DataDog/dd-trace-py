@@ -16,10 +16,12 @@ from typing import cast
 from typing import overload
 
 import ddtrace
+from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 
@@ -156,9 +158,8 @@ class Dataset:
 
     @property
     def url(self) -> str:
-        # FIXME: need to use the user's site
-        # also will not work for subdomain orgs
-        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+        # FIXME: will not work for subdomain orgs
+        return f"{_get_base_url()}/llm/datasets/{self._id}"
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
@@ -296,6 +297,11 @@ class Experiment:
             self._id, experiment_evals, convert_tags_dict_to_list(self._tags)
         )
         return experiment_results
+
+    @property
+    def url(self) -> str:
+        # FIXME: will not work for subdomain orgs
+        return f"{_get_base_url()}/llm/experiments/{self._id}"
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -464,3 +470,11 @@ class Experiment:
                 )
                 eval_metrics.append(eval_metric)
         return eval_metrics
+
+
+def _get_base_url() -> str:
+    subdomain = ""
+    if config._dd_site in DD_SITES_NEEDING_APP_SUBDOMAIN:
+        subdomain = "app."
+
+    return f"https://{subdomain}{config._dd_site}"

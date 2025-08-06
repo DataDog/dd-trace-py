@@ -396,6 +396,8 @@ venv = Venv(
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
+                "xmltodict": latest,
+                "django": latest,
             },
         ),
         Venv(
@@ -2630,7 +2632,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2975,8 +2977,20 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": ["==0.3.0", latest],
+                "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
+            name="ray",
+            command="pytest {cmdargs} tests/contrib/ray",
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "ray": ["~=2.48.0", latest],
             },
         ),
         Venv(
@@ -3388,6 +3402,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "gunicorn": latest,
+                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "pytest-randomly": latest,
             },
@@ -3634,6 +3649,18 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
+        ),
+        Venv(
+            name="ai_guard",
+            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+            ],
         ),
     ],
 )

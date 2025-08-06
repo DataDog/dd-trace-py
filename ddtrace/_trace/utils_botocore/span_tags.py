@@ -12,17 +12,59 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.formats import deep_getattr
 
 
 _PAYLOAD_TAGGER = AWSPayloadTagging()
+
+SERVICE_MAP = {
+    "eventbridge": "events",
+    "events": "events",
+    "sqs": "sqs",
+    "sns": "sns",
+    "kinesis": "kinesis",
+    "dynamodb": "dynamodb",
+    "dynamodbdocument": "dynamodb",
+}
+
+
+# Helper to build AWS hostname from service, region and parameters
+def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, Any]] = None) -> Optional[str]:
+    """Return hostname for given AWS service according to Datadog peer hostname rules.
+
+    Only returns hostnames for specific AWS services:
+        - eventbridge/events -> events.<region>.amazonaws.com
+        - sqs               -> sqs.<region>.amazonaws.com
+        - sns               -> sns.<region>.amazonaws.com
+        - kinesis           -> kinesis.<region>.amazonaws.com
+        - dynamodb          -> dynamodb.<region>.amazonaws.com
+        - s3                -> <bucket>.s3.<region>.amazonaws.com (if Bucket param present)
+                              s3.<region>.amazonaws.com          (otherwise)
+
+    Other services return ``None``.
+    """
+
+    if not region:
+        return None
+
+    aws_service = service.lower()
+
+    if aws_service == "s3":
+        bucket = params.get("Bucket") if params else None
+        return f"{bucket}.s3.{region}.amazonaws.com" if bucket else f"s3.{region}.amazonaws.com"
+
+    mapped = SERVICE_MAP.get(aws_service)
+
+    return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
 def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if args:
         # DEV: join is the fastest way of concatenating strings that is compatible
@@ -50,6 +92,13 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     if region_name is not None:
         span.set_tag_str("aws.region", region_name)
         span.set_tag_str("region", region_name)
+
+        # Derive peer hostname only in serverless environments to avoid
+        # unnecessary tag noise in traditional hosts/containers.
+        if in_aws_lambda():
+            hostname = _derive_peer_hostname(endpoint_name, region_name, params)
+            if hostname:
+                span.set_tag_str("peer.service", hostname)
 
 
 def set_botocore_response_metadata_tags(
