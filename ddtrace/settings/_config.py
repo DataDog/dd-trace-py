@@ -320,7 +320,7 @@ class _ConfigItem:
             self._rc_value = value
         else:
             log.warning("Invalid source: %s", source)
-        telemetry_writer.add_configuration(self._name, self.value(), source)
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def get_value_source(self, source: _ConfigSource) -> _JSONType:
         if source == "remote_config":
