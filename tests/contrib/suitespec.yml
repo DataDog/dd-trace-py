@@ -364,6 +364,7 @@ suites:
       - azurite
       - azureservicebusemulator
       - azuresqledge
+      - rabbitmq
   azure_servicebus:
     parallelism: 1
     paths:
