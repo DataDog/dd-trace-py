@@ -29,6 +29,8 @@ if TYPE_CHECKING:  # pragma: no cover
 
 log = get_logger(__name__)
 
+INSTALLED_DEPENDENCIES = {}
+
 # Default set of modules to automatically patch or not
 PATCH_MODULES = {
     "aioredis": True,
@@ -207,13 +209,19 @@ def is_version_compatible(version: str, supported_versions_spec: str) -> bool:
         return False
 
 
-def _get_installed_module_version(imported_module: ModuleType, hooked_module_name: str) -> Union[str, None]:
+def _get_installed_module_version(imported_module: ModuleType, hooked_module_name: str, integration_name: str) -> Union[str, None]:
     "Returns the installed version of a module."
 
     if hasattr(imported_module, "get_versions"):
-        return imported_module.get_versions().get(hooked_module_name)
+        version = imported_module.get_versions().get(hooked_module_name)
+        if version:
+            INSTALLED_DEPENDENCIES[integration_name] = version
+            return version
     elif hasattr(imported_module, "get_version"):
-        return imported_module.get_version()
+        version = imported_module.get_version()
+        if version:
+            INSTALLED_DEPENDENCIES[integration_name] = version
+            return version
     return None
 
 
@@ -238,7 +246,7 @@ def check_module_compatibility(
     "Determines if a module should be patched based on installed version and the integration's supported version range."
 
     # stdlib modules will not have an associated version and should always be patched
-    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name)
+    installed_version = _get_installed_module_version(integration_patch_module, hooked_module_name, integration_name)
     if not installed_version:
         return
 

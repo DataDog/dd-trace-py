@@ -13,6 +13,7 @@ from typing import Type
 from typing import Union
 from typing import cast
 
+from ddtrace._monkey import INSTALLED_DEPENDENCIES
 from ddtrace._trace._limits import MAX_SPAN_META_VALUE_LEN
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_link import SpanLinkKind
@@ -310,6 +311,7 @@ class Span(object):
 
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
+        self._tag_integration_version()
         if finish_time is None:
             self._finish_ns(Time.time_ns())
         else:
@@ -881,3 +883,10 @@ class Span(object):
         return (self._local_root is self) or (
             self._parent is not None and self._parent.service != self.service and self.service is not None
         )
+
+
+    def _tag_integration_version(self) -> None:
+        component = self._meta.get('component', None)
+        if component and component in INSTALLED_DEPENDENCIES:
+            self._meta['_dd.dependency_version'] = INSTALLED_DEPENDENCIES[component]
+            self._meta['_dd.dependency_name'] = component
