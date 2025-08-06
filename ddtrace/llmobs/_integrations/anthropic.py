@@ -155,7 +155,7 @@ class AnthropicIntegration(BaseLLMIntegration):
 
         return input_messages
 
-    def _format_tool_result_content(self, content):
+    def _format_tool_result_content(self, content) -> str:
         if isinstance(content, str):
             return content
         elif isinstance(content, Iterable):
@@ -166,7 +166,7 @@ class AnthropicIntegration(BaseLLMIntegration):
                 elif _get_attr(tool_result_block, "type", None) == "image":
                     # Store a placeholder for potentially enormous binary image data.
                     formatted_content.append("([IMAGE DETECTED])")
-            return formatted_content
+            return ",".join(formatted_content)
         return str(content)
 
     def _extract_output_message(self, response):
