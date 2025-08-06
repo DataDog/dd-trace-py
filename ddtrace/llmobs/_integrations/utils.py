@@ -1245,11 +1245,11 @@ def extract_instance_metadata_from_stack(
     default_variable_name: str = "unknown_variable",
     default_module_name: str = "unknown_module",
     frame_start_offset: int = 2,
-    frame_search_depth: int = 10,
+    frame_search_depth: int = 6,
 ) -> Tuple[str, str]:
     """
     Attempts to find the variable name and module name for an instance by inspecting the call stack.
-    
+
     Args:
         instance: The instance to find the variable name for
         internal_variable_names: List of variable names to skip (e.g., ["instance", "self", "step"])
@@ -1257,18 +1257,17 @@ def extract_instance_metadata_from_stack(
         default_module_name: Default module name to use if module cannot be determined
         frame_start_offset: How many frames to skip from the current frame
         frame_search_depth: Maximum number of frames to search through
-        
+
     Returns:
         Tuple of (variable_name, module_name)
     """
     if internal_variable_names is None:
         internal_variable_names = ["instance", "self", "step"]
-        
+
     variable_name = default_variable_name
     module_name = default_module_name
-    
+
     try:
-        # We need to go deeper in the call stack to find the user's frame
         for frame_depth in range(frame_start_offset, frame_start_offset + frame_search_depth):
             try:
                 frame = sys._getframe(frame_depth)
@@ -1277,21 +1276,18 @@ def extract_instance_metadata_from_stack(
                 )
                 if not instance_name:
                     continue
-                
-                # Skip frames where we find internal variable names (likely ddtrace internal frames)
+
                 if instance_name not in internal_variable_names:
                     variable_name = instance_name
-                    
-                    # Extract module/file name from the frame
+
                     if hasattr(frame, "f_code") and hasattr(frame.f_code, "co_filename"):
                         filename = frame.f_code.co_filename
-                        # Extract just the filename without path and extension
                         module_name = os.path.splitext(os.path.basename(filename))[0]
                     break
             except (ValueError, AttributeError):
                 continue
     except Exception:
-        # If anything goes wrong, we'll just use the defaults
+        # use defaults
         pass
-    
+
     return variable_name, module_name

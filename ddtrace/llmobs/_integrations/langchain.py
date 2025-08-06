@@ -1,6 +1,5 @@
 from collections import defaultdict
 import json
-import sys
 from typing import Any
 from typing import Dict
 from typing import List
@@ -373,10 +372,10 @@ class LangChainIntegration(BaseLLMIntegration):
         Attempts to find the variable name used for the prompt template instance by inspecting
         the caller's frame locals and globals, and returns it in the format:
         {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
-        
+
         Call stack:
         0: _get_prompt_variable_name (this method)
-        1: handle_prompt_template_invoke 
+        1: handle_prompt_template_invoke
         2: traced_base_prompt_template_invoke (ddtrace wrapper)
         3: BasePromptTemplate.invoke (langchain internal)
         4: user code (where we want to find the variable name)
@@ -389,7 +388,7 @@ class LangChainIntegration(BaseLLMIntegration):
             frame_start_offset=2,
             frame_search_depth=10,
         )
-        
+
         # Construct the enhanced format: {integration_name}.{module_name}.{variable_name}
         return f"{self._integration_name}.{module_name}.{variable_name}"
 
@@ -794,8 +793,8 @@ class LangChainIntegration(BaseLLMIntegration):
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
 
-    # on prompt template invoke, store the template on the result so its available to consuming .invoke()
     def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
         template = None
         variables = None
         if hasattr(instance, "template"):
@@ -825,15 +824,15 @@ class LangChainIntegration(BaseLLMIntegration):
             # For now, we'll just log a warning and continue
             log.warning("Could not attach prompt metadata to result object")
 
-    # on llm invoke, take any template from the input prompt value and make it available to llm.generate()
     def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
+        """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
         prompt = args[0]
         template = getattr(prompt, "_dd", None)
         if template:
             object.__setattr__(instance, "_dd", template)
 
-    # on llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span
     def llmobs_set_prompt_tag(self, instance, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
+        """On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span."""
         prompt_value_meta = getattr(instance, "_dd", None)
         if prompt_value_meta is not None and "prompt_template" in prompt_value_meta:
             prompt = prompt_value_meta["prompt_template"]

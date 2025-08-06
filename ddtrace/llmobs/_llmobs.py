@@ -314,7 +314,6 @@ class LLMObs(Service):
                 if parent_prompt is not None:
                     meta["input"]["prompt"] = parent_prompt
 
-
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
