@@ -357,7 +357,6 @@ class SpanAggregator(SpanProcessor):
             else:
                 finished = trace.spans
                 del self._traces[span.trace_id]
-                log.debug("Complete trace: processing remaining %d spans for trace %d", len(finished), span.trace_id)
                 # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
 
