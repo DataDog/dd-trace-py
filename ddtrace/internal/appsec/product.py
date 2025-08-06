@@ -14,6 +14,7 @@ def start():
 
         enable_appsec_rc()
     from ddtrace.appsec._listeners import load_appsec
+
     load_appsec()
 
 
