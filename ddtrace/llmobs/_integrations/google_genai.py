@@ -93,6 +93,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
                 METRICS: extract_generation_metrics_google_genai(response),
             }
+        tools = self._extract_tools(kwargs.get("tools", []))
         )
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
@@ -162,3 +163,14 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata
+
+    def _extract_tools(self, tools) -> List[ToolDefinition]:
+        tool_definitions = []
+        for tool in tools:
+            tool_definition_info = ToolDefinition(
+                name = _get_attr(tool, "name", ""),
+                description = _get_attr(tool, "description", ""),
+                schema = _get_attr(tool, "schema", {}),
+            )
+            tool_definitions.append(tool_definition_info)
+        return tool_definitions
