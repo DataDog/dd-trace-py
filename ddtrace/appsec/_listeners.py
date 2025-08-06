@@ -12,13 +12,14 @@ def load_appsec() -> None:
     from ddtrace.appsec._processor import AppSecSpanProcessor
     from ddtrace.appsec._trace_utils import listen as trace_listen
 
+
     global _APPSEC_TO_BE_LOADED
     if _APPSEC_TO_BE_LOADED:
+        events.security_processor.on(AppSecSpanProcessor)
         listen()
         trace_listen()
         asm_listen()
         _APPSEC_TO_BE_LOADED = False
-        events.security_processor.on(AppSecSpanProcessor)
 
 
 def load_common_appsec_modules():

@@ -144,8 +144,12 @@ def dispatch_with_results(event_id: str, args: Tuple[Any, ...] = ()) -> EventRes
 
 R = TypeVar("R")
 class EventNoArgs(Generic[R]):
+
+    def __init__(self) -> None:
+        self.callback: Callable[[], Optional[R]] = lambda: None
+
     def on(self, callback: Callable[[], R]) -> None:
         self.callback = callback
 
-    def __call__(self) -> R:
+    def __call__(self) -> Optional[R]:
         return self.callback()
