@@ -277,3 +277,25 @@ def agent_from_create_react_agent(langgraph):
     )
 
     yield agent
+
+
+@pytest.fixture
+def custom_agent_with_tool_node(langgraph):
+    from langgraph.prebuilt import ToolNode
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds two numbers together"""
+        return a + b
+
+    def do_a(state: State) -> State:
+        return {"a_list": [1]}
+
+    tool_node = ToolNode(tools=[add])
+    graph_builder = StateGraph(State)
+    graph_builder.add_node("a", do_a)
+    graph_builder.add_node(tool_node)  # no pointers, just to test
+    graph_builder.set_entry_point("a")
+    graph = graph_builder.compile(name="custom_agent_with_tool_node")
+
+    yield graph

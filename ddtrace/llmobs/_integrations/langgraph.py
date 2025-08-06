@@ -3,6 +3,7 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
+from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -36,10 +37,18 @@ logger = get_logger(__name__)
 PREGEL_PUSH = "__pregel_push"  # represents a task queued up by a `Send` command
 PREGEL_TASKS = "__pregel_tasks"  # name of ephemeral channel that pregel `Send` commands write to
 
-EXCLUDED_MODEL_SETTINGS_KEYS = [
-    "model",
-    "model_name",
-    "_type",
+ALLOWED_MODEL_SETTINGS_KEYS = [
+    "max_tokens",
+    "temperature",
+    "top_p",
+    "top_k",
+    "frequency_penalty",
+    "presence_penalty",
+    "stop",
+    "n",
+    "logprobs",
+    "echo",
+    "logit_bias",
 ]
 
 
@@ -59,7 +68,7 @@ class LangGraphIntegration(BaseLLMIntegration):
     ) -> Span:
         span = super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
-        if instance:  # instances are only sent as a kwarg for graph spans, not node spans
+        if instance:
             self._graph_spans_to_graph_instances[span] = instance
 
         return span
@@ -348,12 +357,12 @@ def _get_model_provider(model) -> Optional[str]:
 
 def _get_model_settings(model) -> Dict[str, Any]:
     """Get the model settings from a langchain llm"""
-    invocation_params_fn = _get_attr(model, "_get_invocation_params", None)
-    if invocation_params_fn is None or not callable(invocation_params_fn):
+    model_dict_fn = _get_attr(model, "dict", None)
+    if model_dict_fn is None or not callable(model_dict_fn):
         return {}
 
-    invocation_params: dict = invocation_params_fn()
-    return {key: value for key, value in invocation_params.items() if key not in EXCLUDED_MODEL_SETTINGS_KEYS and value}
+    model_dict: dict = model.dict()
+    return {key: value for key, value in model_dict.items() if key in ALLOWED_MODEL_SETTINGS_KEYS and value}
 
 
 def _get_system_prompt_from_react_agent(system_prompt) -> Optional[str]:
@@ -388,20 +397,14 @@ def _get_tools_from_react_agent(tools):
 
     In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
     """
-    if not isinstance(tools, list) or not tools or isinstance(tools[0], dict):
+    if isinstance(tools, Sequence) and len(tools) > 0 and isinstance(tools[0], dict):
         return []
 
     if _is_tool_node(tools):
         tools_by_name: Dict[str, Any] = _get_attr(tools, "tools_by_name", {})
         tools = list(tools_by_name.values())
 
-    tools_repr = []
-    for tool in tools:
-        tool_repr = _get_tool_repr_from_langchain_base_tool(tool)
-        if tool_repr:
-            tools_repr.append(tool_repr)
-
-    return tools_repr
+    return _extract_tools(tools)
 
 
 def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[Dict[str, Any]]:
@@ -431,8 +434,8 @@ def _get_tools_from_graph(agent) -> list:
     if builder is None:
         return graph_tools
 
-    nodes: Optional[Dict[str, Any]] = _get_attr(builder, "nodes", None)
-    if nodes is None:
+    nodes = _get_attr(builder, "nodes", None)
+    if nodes is None or not isinstance(nodes, dict):
         return graph_tools
 
     for node in nodes.values():
@@ -444,12 +447,19 @@ def _get_tools_from_graph(agent) -> list:
             continue
 
         tools_by_name: Dict[str, Any] = _get_attr(runnable, "tools_by_name", {})
-        for tool in tools_by_name.values():
-            tool_repr = _get_tool_repr_from_langchain_base_tool(tool)
-            if tool_repr:
-                graph_tools.append(tool_repr)
+        graph_tools.extend(_extract_tools(tools_by_name.values()))
 
     return graph_tools
+
+
+def _extract_tools(tools: Iterable[Any]) -> List[Dict[str, Any]]:
+    """Extract the tool representations from a list of tools"""
+    tools_repr = []
+    for tool in tools:
+        tool_repr = _get_tool_repr_from_langchain_base_tool(tool)
+        if tool_repr:
+            tools_repr.append(tool_repr)
+    return tools_repr
 
 
 def _get_trigger_ids_from_finished_tasks(

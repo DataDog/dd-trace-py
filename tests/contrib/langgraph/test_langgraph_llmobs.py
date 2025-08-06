@@ -373,3 +373,34 @@ class TestLangGraphLLMObs:
         }
 
         assert react_agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest
+
+    @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
+    def test_agent_manifest_populates_tools_from_tool_node(self, llmobs_events, custom_agent_with_tool_node):
+        custom_agent_with_tool_node.invoke({"a_list": []})
+
+        agent_span = _find_span_by_name(llmobs_events, "custom_agent_with_tool_node")
+
+        expected_agent_manifest = {
+            "framework": "LangGraph",
+            "max_iterations": 25,
+            "dependencies": ["a_list"],
+            "name": "custom_agent_with_tool_node",
+            "tools": [
+                {
+                    "name": "add",
+                    "description": "Adds two numbers together",
+                    "parameters": {
+                        "a": {
+                            "title": "A",
+                            "type": "integer",
+                        },
+                        "b": {
+                            "title": "B",
+                            "type": "integer",
+                        },
+                    },
+                }
+            ],
+        }
+
+        assert agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest
