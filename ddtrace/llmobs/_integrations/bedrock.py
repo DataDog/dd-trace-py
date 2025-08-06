@@ -310,9 +310,22 @@ class BedrockIntegration(BaseLLMIntegration):
 
                     if delta_content.get("toolUse", {}).get("input"):
                         tool_content_blocks[index] = tool_content_blocks.get(index, {})
-                        tool_content_blocks[index]["input"] = (
-                            tool_content_blocks[index].get("input", "") + delta_content["toolUse"]["input"]
-                        )
+                        current_input = tool_content_blocks[index].get("input", "")
+                        new_input = delta_content["toolUse"]["input"]
+
+                        # Handle case where input could be a list or string
+                        if isinstance(current_input, list):
+                            if isinstance(new_input, list):
+                                tool_content_blocks[index]["input"] = current_input + new_input
+                            else:
+                                tool_content_blocks[index]["input"] = current_input + [new_input]
+                        else:
+                            if isinstance(new_input, list):
+                                tool_content_blocks[index]["input"] = (
+                                    [current_input] + new_input if current_input else new_input
+                                )
+                            else:
+                                tool_content_blocks[index]["input"] = current_input + new_input
 
             if "messageStop" in chunk:
                 messages.append(
