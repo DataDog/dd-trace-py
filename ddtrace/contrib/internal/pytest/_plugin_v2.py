@@ -45,6 +45,7 @@ from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
@@ -224,6 +225,7 @@ def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     return coverage_collector
 
 
+@_catch_and_log_exceptions
 def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not coverage_collector:
         log.debug("No coverage collector available for test %s", test_id)
