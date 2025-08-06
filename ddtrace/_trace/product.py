@@ -174,9 +174,9 @@ def _convert_rc_tags(lib_config, key, dd_config):
         return None
 
     if isinstance(tags[0], dict):
-        pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
+        pairs = [(item["header"], item["tag_name"]) for item in tags]
     else:
-        pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
+        pairs = [t.split(":") for t in tags]
     return {k: v for k, v in pairs}
 
 
