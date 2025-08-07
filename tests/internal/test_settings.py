@@ -658,9 +658,6 @@ def test_remoteconfig_debug_logging():
         mock.call(
             "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
             "dd tags, tracing enablement, and HTTP header tags."
-            "sampling_rules: %s, logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
-            "",
-            True,
             {},
             True,
             {},
