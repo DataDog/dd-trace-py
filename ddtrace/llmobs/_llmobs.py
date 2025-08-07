@@ -247,7 +247,8 @@ class LLMObs(Service):
     def _llmobs_span_event(self, span: Span) -> LLMObsSpanEvent:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
-        self._span_linker.add_span_links(span, span_kind)
+        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+        self._span_linker.add_span_links(span, span_kind, parent_id)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
@@ -359,7 +360,6 @@ class LLMObs(Service):
             )
 
         span._set_ctx_item(ML_APP, ml_app)
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
         llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if llmobs_trace_id is None:
