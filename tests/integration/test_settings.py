@@ -161,7 +161,7 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
             "_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED": "true",
         }
     )
-    out, err, status, _ = ddtrace_run_python_code_in_subprocess(
+    out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
 from tests.internal.test_settings import _base_rc_config
