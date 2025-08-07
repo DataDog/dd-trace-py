@@ -192,7 +192,7 @@ def _apply_config_change(config_name, config_value, dd_config):
             log.debug("Tracing disabled via remote_config. Config: %s Value: %s", config_name, config_value)
         elif config_value is True and dd_config._config["_tracing_enabled"].source() != "remote_config":
             tracer.enabled = True
-            log.debug("Tracing enabled via remote_config. Config %s Value: %s", config_name, config_value)
+            log.debug("Tracing enabled via remote_config. Config: %s Value: %s", config_name, config_value)
     elif config_name == "_trace_http_header_tags":
         dd_config._http = HttpConfig(header_tags=config_value)
         log.debug("Updated HTTP header tags configuration via remote_config: %s", config_value)
