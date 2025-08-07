@@ -48,7 +48,7 @@ ToolResult = TypedDict(
     "ToolResult",
     {
         "name": str,
-        "result": Dict[str, Any],
+        "result": str,
         "tool_id": str,
         "type": str,
     },
