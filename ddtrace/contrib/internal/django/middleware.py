@@ -1,104 +1,158 @@
-from types import FunctionType, ModuleType
-from typing import Any, Dict, cast
+from types import FunctionType
+from typing import Any
+from typing import Dict
+from typing import Tuple
+from typing import Type
+from typing import cast
 
 import ddtrace
-from ddtrace._trace.pin import Pin
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.utils.importlib import func_name
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.internal.core import DynamicExecutionContextWrapper
+from ddtrace.internal.wrapping import is_wrapped
+from ddtrace.internal.wrapping import wrap
 
 
 # PERF: cache the getattr lookup for the Django config
 config_django: IntegrationConfig = cast(IntegrationConfig, ddtrace.config.django)
 
 
-class DjangoMiddlewareWrapperMixin(DynamicExecutionContextWrapper):
-    _resource: str
+def traced_process_request(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    """
+    A wrapper for the `process_request` method of Django middleware.
+    """
+    self: Type[Any] = args[0]
 
-    def __init__(self, f: FunctionType, django: ModuleType, resource: str) -> None:
-        super().__init__(f)
-        self._django: ModuleType = django
-        self._resource: str = resource
+    resource = f"{func_name(self)}.process_request"
 
-    def _context_kwargs(self) -> Dict[str, Any]:
-        pin = Pin.get_from(self._django)
-        tracer = ddtrace.tracer
-        if pin:
-            tracer = pin.tracer or tracer
-
-        return {
-            "span_name": "django.middleware",
-            "resource": self._resource,
-            "tags": {
-                COMPONENT: config_django.integration_name,
-            },
-            "tracer": tracer,
-        }
-
-    @classmethod
-    def maybe_wrap(cls, f: FunctionType, django: ModuleType, resource: str) -> None:
-        """
-        Wrap the middleware process_request method if the configuration allows it.
-        """
-        if not cls.is_wrapped(f):
-            return cls(f, django, resource).wrap()
-
-    def _should_wrap(self) -> bool:
-        # Only wrap if the configuration allows it
-        return config_django.instrument_middleware
+    with core.context_with_data(
+        "django.middleware.process_request",
+        span_name="django.middleware",
+        resource=resource,
+        tags={
+            COMPONENT: config_django.integration_name,
+        },
+    ):
+        return func(*args, **kwargs)
 
 
-class DjangoMiddlewareProcessRequestWrapper(DjangoMiddlewareWrapperMixin):
-    _name: str = "django.middleware.process_request"
+def traced_process_response(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    """
+    A wrapper for the `process_response` method of Django middleware.
+    """
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.process_response"
+
+    with core.context_with_data(
+        "django.middleware.process_response",
+        span_name="django.middleware",
+        resource=resource,
+        tags={
+            COMPONENT: config_django.integration_name,
+        },
+    ):
+        return func(*args, **kwargs)
 
 
-class DjangoMiddlewareProcessResponseWrapper(DjangoMiddlewareWrapperMixin):
-    _name: str = "django.middleware.process_response"
+def traced_process_view(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    """
+    A wrapper for the `process_view` method of Django middleware.
+    """
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.process_view"
+
+    with core.context_with_data(
+        "django.middleware.process_view",
+        span_name="django.middleware",
+        resource=resource,
+        tags={
+            COMPONENT: config_django.integration_name,
+        },
+    ):
+        return func(*args, **kwargs)
 
 
-class DjangoMiddlewareProcessViewWrapper(DjangoMiddlewareWrapperMixin):
-    _name: str = "django.middleware.process_view"
+def traced_process_template_response(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    """
+    A wrapper for the `process_template_response` method of Django middleware.
+    """
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.process_template_response"
+
+    with core.context_with_data(
+        "django.middleware.process_template_response",
+        span_name="django.middleware",
+        resource=resource,
+        tags={
+            COMPONENT: config_django.integration_name,
+        },
+    ):
+        return func(*args, **kwargs)
 
 
-class DjangoMiddlewareProcessTemplateResponseWrapper(DjangoMiddlewareWrapperMixin):
-    _name: str = "django.middleware.process_template_response"
+def traced_middleware_call(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    """
+    A wrapper for the `__call__` method of Django middleware.
+    """
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.__call__"
+
+    with core.context_with_data(
+        "django.middleware.__call__",
+        span_name="django.middleware",
+        resource=resource,
+        tags={
+            COMPONENT: config_django.integration_name,
+        },
+    ):
+        return func(*args, **kwargs)
 
 
-class DjangoMiddlewareCallWrapper(DjangoMiddlewareWrapperMixin):
-    _name: str = "django.middleware.__call__"
+def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.process_exception"
+
+    with core.context_with_data(
+        "django.middleware.process_exception",
+        span_name="django.middleware",
+        resource=resource,
+        tags={COMPONENT: config_django.integration_name},
+    ) as ctx:
+        resp = func(*args, **kwargs)
+
+        ctx.set_item("should_set_traceback", hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
+
+        return resp
 
 
-def wrap_middleware_class(mw: type, mw_path: str, django: ModuleType) -> None:
+def wrap_middleware_class(mw: type, mw_path: str) -> None:
     if hasattr(mw, "process_request"):
         if mw_path == "django.contrib.auth.middleware.AuthenticationMiddleware":
             # TODO: We need special handling for this process_request method
             pass
         else:
-            DjangoMiddlewareProcessRequestWrapper.maybe_wrap(
-                cast(FunctionType, mw.process_request), django, resource=f"{mw_path}.process_request"
-            )
+            if not is_wrapped(mw.process_request, traced_process_request):
+                wrap(mw.process_request, traced_process_request)
 
-    if hasattr(mw, "process_response"):
-        DjangoMiddlewareProcessResponseWrapper.maybe_wrap(
-            cast(FunctionType, mw.process_response), django, resource=f"{mw_path}.process_response"
-        )
+    if hasattr(mw, "process_response") and not is_wrapped(mw.process_response, traced_process_response):
+        wrap(mw.process_response, traced_process_response)
 
-    if hasattr(mw, "process_view"):
-        DjangoMiddlewareProcessViewWrapper.maybe_wrap(
-            cast(FunctionType, mw.process_view), django, resource=f"{mw_path}.process_view"
-        )
+    if hasattr(mw, "process_view") and not is_wrapped(mw.process_view, traced_process_view):
+        wrap(mw.process_view, traced_process_view)
 
-    if hasattr(mw, "process_template_response"):
-        DjangoMiddlewareProcessTemplateResponseWrapper.maybe_wrap(
-            cast(FunctionType, mw.process_template_response),
-            django,
-            resource=f"{mw_path}.process_template_response",
-        )
+    if hasattr(mw, "process_template_response") and not is_wrapped(
+        mw.process_template_response, traced_process_template_response
+    ):
+        wrap(mw.process_template_response, traced_process_template_response)
 
-    if hasattr(mw, "__call__"):
-        DjangoMiddlewareCallWrapper.maybe_wrap(cast(FunctionType, mw.__call__), django, resource=f"{mw_path}.__call__")
+    if hasattr(mw, "__call__") and not is_wrapped(mw.__call__, traced_middleware_call):
+        wrap(mw.__call__, traced_middleware_call)
 
-    # # Do a little extra for `process_exception`
-    # if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
-    #     res = mw_path + ".{0}".format("process_exception")
-    #     trace_utils.wrap(mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res))
+    if hasattr(mw, "process_exception") and not is_wrapped(mw.process_exception, traced_process_exception):
+        wrap(mw.process_exception, traced_process_exception)

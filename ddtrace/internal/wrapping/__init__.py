@@ -269,6 +269,24 @@ def wrap(f, wrapper):
     return wf
 
 
+def is_wrapped(wf: WrappedFunction, wrapper: Wrapper) -> bool:
+    try:
+        inner = cast(FunctionType, wf.__dd_wrapped__)
+
+        # Sanity check
+        assert inner.__name__ == "<wrapped>", "Wrapper has wrapped function"  # nosec
+
+        if wrapper in cast(FunctionType, wf).__code__.co_consts:
+            return True
+
+        # This is not the correct wrapping layer. Try with the next one.
+        inner_wf = cast(WrappedFunction, inner)
+        return is_wrapped(inner_wf, wrapper)
+
+    except AttributeError:
+        return False
+
+
 def unwrap(wf, wrapper):
     # type: (WrappedFunction, Wrapper) -> FunctionType
     """Unwrap a wrapped function.

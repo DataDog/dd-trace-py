@@ -344,21 +344,6 @@ def traced_func(django, name, resource=None, ignored_excs=None):
     return trace_utils.with_traced_module(wrapped)(django)
 
 
-def traced_process_exception(django, name, resource=None):
-    def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config_django.integration_name}
-        with core.context_with_data(
-            "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx.span:
-            resp = func(*args, **kwargs)
-            core.dispatch(
-                "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
-            )
-            return resp
-
-    return trace_utils.with_traced_module(wrapped)(django)
-
-
 @trace_utils.with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """
@@ -413,13 +398,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 
         # Instrument class-based middleware
         elif isclass(mw):
-            wrap_middleware_class(mw, mw_path, django)
-            # Do a little extra for `process_exception`
-            if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
-                res = mw_path + ".{0}".format("process_exception")
-                trace_utils.wrap(
-                    mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res)
-                )
+            wrap_middleware_class(mw, mw_path)
 
     return func(*args, **kwargs)
 
@@ -946,9 +925,9 @@ def _patch(django):
         )
 
     if config_django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)
+        when_imported("django.template.base")(templates.instrument_module)
 
     if django.VERSION < (4, 0, 0):
         when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
@@ -1022,9 +1001,9 @@ def _unpatch(django):
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
     if config.django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        DjangoTemplateWrappingContext.uninstrument_module(django.template.base)
+        templates.uninstrument_module(django.template.base)
 
 
 def unpatch():
