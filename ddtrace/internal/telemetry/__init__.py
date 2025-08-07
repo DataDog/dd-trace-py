@@ -46,8 +46,9 @@ def get_config(
 
     # Default value will be used if no other configuration source is found
     effective_val = default
+    telemetry_name = envs[0]
     if report_telemetry:
-        telemetry_writer.add_configuration(envs[0], default, "default")
+        telemetry_writer.add_configuration(telemetry_name, default, "default")
 
     # 1. Check local stable config first (lowest precedence)
     for env in envs:
@@ -58,7 +59,7 @@ def get_config(
                 val = modifier(val)
 
             if report_telemetry:
-                telemetry_writer.add_configuration(env, val, "local_stable_config")
+                telemetry_writer.add_configuration(telemetry_name, val, "local_stable_config")
             effective_val = val
             # Only match the first config
             break
@@ -73,7 +74,7 @@ def get_config(
 
             if report_telemetry:
                 # OpenTelemetry configurations always report the raw value
-                telemetry_writer.add_configuration(otel_env, raw_val, "env_var")
+                telemetry_writer.add_configuration(telemetry_name, raw_val, "env_var")
             effective_val = val
         else:
             _invalid_otel_config(otel_env)
@@ -86,7 +87,7 @@ def get_config(
                 val = modifier(val)
 
             if report_telemetry:
-                telemetry_writer.add_configuration(env, val, "env_var")
+                telemetry_writer.add_configuration(telemetry_name, val, "env_var")
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
@@ -102,7 +103,7 @@ def get_config(
                 val = modifier(val)
 
             if report_telemetry:
-                telemetry_writer.add_configuration(env, val, "fleet_stable_config", config_id)
+                telemetry_writer.add_configuration(telemetry_name, val, "fleet_stable_config", config_id)
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
