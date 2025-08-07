@@ -131,6 +131,7 @@ typedef struct periodic_thread
 
     PyObject* _target;
     PyObject* _on_shutdown;
+    bool _no_wait_at_start;
 
     PyObject* _ddtrace_profiling_ignore;
 
@@ -159,6 +160,7 @@ static PyMemberDef PeriodicThread_members[] = {
 
     { "name", T_OBJECT_EX, offsetof(PeriodicThread, name), 0, "thread name" },
     { "ident", T_OBJECT_EX, offsetof(PeriodicThread, ident), 0, "thread ID" },
+    { "no_wait_at_start", T_BOOL, offsetof(PeriodicThread, _no_wait_at_start), 0, "do not wait at start" },
 
     { "_ddtrace_profiling_ignore",
       T_OBJECT_EX,
@@ -173,13 +175,20 @@ static PyMemberDef PeriodicThread_members[] = {
 static int
 PeriodicThread_init(PeriodicThread* self, PyObject* args, PyObject* kwargs)
 {
-    static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", NULL };
+    static const char* kwlist[] = { "interval", "target", "name", "on_shutdown", "no_wait_at_start", NULL };
 
     self->name = Py_None;
     self->_on_shutdown = Py_None;
 
-    if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "dO|OO", (char**)kwlist, &self->interval, &self->_target, &self->name, &self->_on_shutdown))
+    if (!PyArg_ParseTupleAndKeywords(args,
+                                     kwargs,
+                                     "dO|OOp",
+                                     (char**)kwlist,
+                                     &self->interval,
+                                     &self->_target,
+                                     &self->name,
+                                     &self->_on_shutdown,
+                                     &self->_no_wait_at_start))
         return -1;
 
     Py_INCREF(self->_target);
@@ -266,6 +275,8 @@ PeriodicThread_start(PeriodicThread* self, PyObject* args)
 
         bool error = false;
         auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
+        if (self->_no_wait_at_start)
+            self->_request->set();
 
         while (!self->_stopping) {
             {
