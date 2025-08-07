@@ -185,9 +185,6 @@ def _send_telemetry(event):
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
         universal_newlines=True,
-        env={
-            "DD_TRACE_ENABLED": "false",
-        },
     )
     # Mimic Popen.__exit__ which was added in Python 3.3
     try:
