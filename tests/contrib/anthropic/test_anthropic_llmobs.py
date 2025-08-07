@@ -29,7 +29,7 @@ WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
 WEATHER_TOOL_RESULT = [
-    {"result": ["The weather is 73f"], "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_result"}
+    {"result": "The weather is 73f", "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_result"}
 ]
 
 EXPECTED_TOOL_DEFINITIONS = [
