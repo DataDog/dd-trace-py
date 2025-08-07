@@ -72,6 +72,9 @@ AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 def _start_appsec_processor() -> Optional[AppsecSpanProcessorProto]:
     try:
+        from ddtrace.internal.appsec.product import set_main_listener
+
+        set_main_listener()
         return events.security_processor()
     except Exception as e:
         # DDAS-001-01

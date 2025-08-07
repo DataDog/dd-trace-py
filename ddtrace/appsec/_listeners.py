@@ -6,7 +6,7 @@ from ddtrace.internal.core import events
 _APPSEC_TO_BE_LOADED = True
 
 
-def set_processor() -> None:
+def set_processor_listener() -> None:
     """Set the appsec processor to be used by the event hub with lazy loading
     to avoid loading modules if appsec is not enabled.
     """
