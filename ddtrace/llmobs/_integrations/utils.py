@@ -62,9 +62,11 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
             except (json.JSONDecodeError, TypeError):
                 arguments = {"value": str(arguments)}
             tool_call_info = ToolCall(
-                tool_id=_get_attr(tool_call, "id", "") or _get_attr(tool_call, "tool_call_id", ""),
+                name=_get_attr(_get_attr(tool_call, "function", {}), "name", "") or _get_attr(tool_call, "name", ""),
                 arguments=arguments,
-                name=_get_attr(_get_attr(tool_call, "function", {}), "name", ""),
+                tool_id=_get_attr(tool_call, "id", "")
+                or _get_attr(tool_call, "tool_call_id", "")
+                or _get_attr(tool_call, "tool_id", ""),
                 type=_get_attr(tool_call, "type", "function"),
             )
             tool_calls.append(tool_call_info)
@@ -73,11 +75,11 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
     if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
         result = _get_attr(message, "content", "")
         tool_result_info = ToolResult(
+            name=_get_attr(message, "name", ""),
+            result=str(result) if result else "",
             tool_id=_get_attr(message, "tool_id", "")
             or _get_attr(message, "tool_call_id", "")
             or _get_attr(message, "id", ""),
-            result=str(result) if result else "",
-            name=_get_attr(message, "name", ""),
             type=_get_attr(message, "type", "tool_result"),
         )
         tool_results.append(tool_result_info)
@@ -392,6 +394,11 @@ def openai_set_meta_tags_from_chat(
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
+    tools = openai_get_tool_definitions(kwargs.get("tools", []))
+    tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
+    if tools:
+        span._set_ctx_item(TOOL_DEFINITIONS, tools)
+
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
         return
@@ -440,10 +447,6 @@ def openai_set_meta_tags_from_chat(
 
         output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    tools = openai_get_tool_definitions(kwargs.get("tools", []))
-    tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
-    if tools:
-        span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
 def get_metadata_from_kwargs(

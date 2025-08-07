@@ -837,13 +837,19 @@ class TestLLMObsOpenaiV1:
                                 "tool_calls": [
                                     {
                                         "name": tool_name,
-                                        "arguments": tool_arguments_str,
+                                        "arguments": json.loads(tool_arguments_str),
                                         "tool_id": tool_call_id,
                                         "type": "function",
                                     }
                                 ],
                             },
-                            {"content": json.dumps(tool_result), "role": "tool", "tool_id": tool_call_id},
+                            {
+                                "content": "",
+                                "role": "tool",
+                                "tool_results": [
+                                    {"result": str(tool_result), "tool_id": tool_call_id, "type": "tool_result"}
+                                ],
+                            },
                             {"content": "Can you summarize the student's academic performance?", "role": "user"},
                         ],
                         output_messages=[
@@ -1339,7 +1345,6 @@ class TestLLMObsOpenaiV1:
                     "max_output_tokens": 100,
                     "user": "ddtrace-test",
                     "temperature": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1383,7 +1388,6 @@ class TestLLMObsOpenaiV1:
                     "stream": True,
                     "temperature": 1.0,
                     "top_p": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1439,7 +1443,6 @@ class TestLLMObsOpenaiV1:
                     "temperature": 0.1,
                     "stream": True,
                     "top_p": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1624,7 +1627,6 @@ class TestLLMObsOpenaiV1:
                     "temperature": 1.0,
                     "max_output_tokens": 100,
                     "top_p": 0.9,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1682,7 +1684,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1709,7 +1710,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1774,7 +1774,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1801,7 +1800,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1871,7 +1869,7 @@ class TestLLMObsOpenaiV1:
         assert mock_llmobs_writer.enqueue.call_count == 1
         span_event = mock_llmobs_writer.enqueue.call_args[0][0]
         assert (
-            span_event["meta"]["input"]["messages"][2]["content"]
+            span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
         )
 
