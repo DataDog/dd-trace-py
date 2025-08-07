@@ -372,13 +372,6 @@ class LangChainIntegration(BaseLLMIntegration):
         Attempts to find the variable name used for the prompt template instance by inspecting
         the caller's frame locals and globals, and returns it in the format:
         {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
-
-        Call stack:
-        0: _get_prompt_variable_name (this method)
-        1: handle_prompt_template_invoke
-        2: traced_base_prompt_template_invoke (ddtrace wrapper)
-        3: BasePromptTemplate.invoke (langchain internal)
-        4: user code (where we want to find the variable name)
         """
         variable_name, module_name = extract_instance_metadata_from_stack(
             instance=instance,
@@ -389,7 +382,6 @@ class LangChainIntegration(BaseLLMIntegration):
             frame_search_depth=10,
         )
 
-        # Construct the enhanced format: {integration_name}.{module_name}.{variable_name}
         return f"{self._integration_name}.{module_name}.{variable_name}"
 
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
@@ -805,7 +797,6 @@ class LangChainIntegration(BaseLLMIntegration):
         if not template or not variables:
             return
 
-        # Try to detect the variable name used for this prompt template instance
         prompt_id = self._get_prompt_variable_name(instance)
 
         prompt = {
@@ -820,8 +811,6 @@ class LangChainIntegration(BaseLLMIntegration):
         try:
             object.__setattr__(result, "_dd", {"prompt_template": prompt})
         except (AttributeError, TypeError):
-            # If we can't set the attribute, try to store it in the instance or use a different approach
-            # For now, we'll just log a warning and continue
             log.warning("Could not attach prompt metadata to result object")
 
     def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
