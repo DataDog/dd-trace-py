@@ -13,7 +13,7 @@
       "_dd.p.dm": "-0",
       "_dd.p.tid": "688a5fb800000000",
       "component": "duckdb",
-      "db.name": "memory",
+      "db.name": ":memory:",
       "db.system": "duckdb",
       "language": "python",
       "runtime-id": "ece652173dad4112bb91cb93a5a0b285",

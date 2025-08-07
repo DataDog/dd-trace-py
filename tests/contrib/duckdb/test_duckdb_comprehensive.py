@@ -47,7 +47,7 @@ class DuckDBComprehensiveTestCase(TracerTestCase):
         assert span.name == "duckdb.query"
         assert span.span_type == "sql"
         assert span.error == 0
-        assert span.get_tag("db.name") == "memory"
+        assert span.get_tag("db.name") == ":memory:"
 
     def test_parameterized_query(self):
         """Test parameterized queries with different parameter styles"""
