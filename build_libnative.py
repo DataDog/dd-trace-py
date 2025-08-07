@@ -55,7 +55,8 @@ def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = 
         install_dedup_headers()
 
         # Add cargo binary folder to PATH
-        cargo_bin = os.environ.get("CARGO_HOME", "~/.cargo") + "/bin"
+        home = os.path.expanduser("~")
+        cargo_bin = os.path.join(os.environ.get("CARGO_HOME", os.path.join(home, ".cargo")), "bin")
         dedup_env = os.environ.copy()
         dedup_env["PATH"] = cargo_bin + os.pathsep + env["PATH"]
 
