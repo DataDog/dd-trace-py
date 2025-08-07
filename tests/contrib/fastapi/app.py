@@ -11,6 +11,9 @@ from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ddtrace import tracer
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+
 
 fake_secret_token = "DataDog"
 
@@ -39,8 +42,22 @@ def get_app():
     @app.websocket("/ws")
     async def websocket(websocket: WebSocket):
         await websocket.accept()
+        root_span = tracer.current_root_span()
+        if root_span:
+            root_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, "-1")
+            root_span.context.set_baggage_item("foo", "bar")
+            root_span.context.sampling_priority = 1
         await websocket.send_json({"test": "Hello WebSocket"})
-        await websocket.close()
+        while True:
+            try:
+                message = await websocket.receive_text()
+                if message == "goodbye":
+                    await websocket.send_text("bye")
+                    await websocket.close()
+                    break
+                await websocket.send_text(f"pong {message.split()[-1]}")
+            except Exception:
+                break
 
     @app.get("/")
     async def read_homepage(sleep: bool = Header(default=False)):  # noqa: B008
