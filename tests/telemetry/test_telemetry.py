@@ -374,7 +374,7 @@ def test_telemetry_multiple_sources_service_name(test_agent_session, run_python_
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
     assert sorted_configs[0]["name"] == "DD_SERVICE"
     assert sorted_configs[0]["value"] == "dd_service"
-    assert sorted_configs[0]["origin"] == "env_var"
+    assert sorted_configs[0]["origin"] == "default"
 
     assert sorted_configs[1]["name"] == "DD_SERVICE"
     assert sorted_configs[1]["value"] == "otel_service"
