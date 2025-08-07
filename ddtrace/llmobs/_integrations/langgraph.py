@@ -409,7 +409,7 @@ def _get_tools_from_react_agent(tools):
 
 def _get_tool_repr_from_langchain_base_tool(tool) -> Optional[Dict[str, Any]]:
     """Get the tool representation from a langchain base tool"""
-    if tool is None:
+    if tool is None or isinstance(tool, dict):
         return None
 
     return {
