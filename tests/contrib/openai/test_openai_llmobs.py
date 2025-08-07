@@ -21,6 +21,29 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
+# Constant for tool definitions used across multiple tests
+EXPECTED_TOOL_DEFINITIONS = [
+    {
+        "name": "extract_student_info",
+        "description": "Get the student information from the body of the input text",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the person"},
+                "major": {"type": "string", "description": "Major subject."},
+                "school": {"type": "string", "description": "The university name."},
+                "grades": {"type": "integer", "description": "GPA of the student."},
+                "clubs": {
+                    "type": "array",
+                    "description": "School clubs for extracurricular activities. ",
+                    "items": {"type": "string", "description": "Name of School Club"},
+                },
+            },
+        },
+    }
+]
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [
@@ -677,26 +700,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[expected_output],
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
-                tool_definitions=[
-                    {
-                        "name": "extract_student_info",
-                        "description": "Get the student information from the body of the input text",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "name": {"type": "string", "description": "Name of the person"},
-                                "major": {"type": "string", "description": "Major subject."},
-                                "school": {"type": "string", "description": "The university name."},
-                                "grades": {"type": "integer", "description": "GPA of the student."},
-                                "clubs": {
-                                    "type": "array",
-                                    "description": "School clubs for extracurricular activities. ",
-                                    "items": {"type": "string", "description": "Name of School Club"},
-                                },
-                            },
-                        },
-                    }
-                ],
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -726,6 +730,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[tool_call_expected_output],
                 metadata={"user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -796,6 +801,26 @@ class TestLLMObsOpenaiV1:
                         ],
                         metadata={"user": "ddtrace-test"},
                         token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                        tool_definitions=[
+                            {
+                                "name": "extract_student_info",
+                                "description": "Get the student information from the body of the input text",
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string", "description": "Name of the person"},
+                                        "major": {"type": "string", "description": "Major subject."},
+                                        "school": {"type": "string", "description": "The university name."},
+                                        "grades": {"type": "integer", "description": "GPA of the student."},
+                                        "clubs": {
+                                            "type": "array",
+                                            "description": "School clubs for extracurricular activities. ",
+                                            "items": {"type": "string", "description": "Name of School Club"},
+                                        },
+                                    },
+                                },
+                            }
+                        ],
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
@@ -872,6 +897,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[tool_call_expected_output],
                 metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
