@@ -1,5 +1,6 @@
 import asyncio
 import os
+import time
 
 import fastapi
 from fastapi.testclient import TestClient
@@ -572,13 +573,125 @@ def test_table_query_snapshot(snapshot_client):
     }
 
 
-@snapshot()
+def _run_websocket_test():
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            with client.websocket_connect("/ws") as websocket:
+                initial_data = websocket.receive_json()
+                assert initial_data == {"test": "Hello WebSocket"}, initial_data
+
+                websocket.send_text("message")
+                try:
+                    response = websocket.receive_text()
+                    assert response == "pong message"
+                except Exception:
+                    raise
+
+                websocket.send_text("goodbye")
+                farewell = websocket.receive_text()
+                assert farewell == "bye"
+    finally:
+        fastapi_unpatch()
+
+
+def _run_websocket_send_only_test():
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            with client.websocket_connect("/ws") as websocket:
+                websocket.send_text("message1")
+                websocket.send_text("message2")
+                websocket.send_text("message3")
+                websocket.send_text("goodbye")
+    finally:
+        fastapi_unpatch()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
 def test_traced_websocket(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_only_sends(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_send_only_test
+
+    _run_websocket_send_only_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+        DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING="false",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length", "meta._dd.p.dm"])
+def test_websocket_tracing_sampling_not_inherited(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.subprocess(
+    env=dict(
+        DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true",
+        DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES="false",
+    )
+)
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_tracing_not_separate_traces(test_spans, snapshot_app):
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_test
+
+    _run_websocket_test()
+
+
+@pytest.mark.snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_long_running_websocket_session(test_spans, snapshot_app):
     client = TestClient(snapshot_app)
-    with override_config("fastapi", dict(_trace_asgi_websocket=True)):
+
+    with override_config("fastapi", dict(trace_asgi_websocket_messages=True)):
         with client.websocket_connect("/ws") as websocket:
             data = websocket.receive_json()
             assert data == {"test": "Hello WebSocket"}
+
+            for i in range(5):
+                websocket.send_text(f"ping {i}")
+                response = websocket.receive_text()
+                assert "pong" in response
+                time.sleep(1)
+
+            websocket.send_text("goodbye")
+            farewell = websocket.receive_text()
+            assert "bye" in farewell
 
 
 def test_dont_trace_websocket_by_default(client, test_spans):
@@ -586,8 +699,54 @@ def test_dont_trace_websocket_by_default(client, test_spans):
     with client.websocket_connect("/ws") as websocket:
         data = websocket.receive_json()
         assert data == {"test": "Hello WebSocket"}
+        websocket.send_text("ping")
         spans = test_spans.pop_traces()
         assert len(spans) <= initial_event_count
+
+
+def _run_websocket_context_propagation_test():
+    """Test that context propagation follows the specified behavior."""
+    import fastapi  # noqa: F401
+    from fastapi.testclient import TestClient
+
+    from ddtrace.contrib.internal.fastapi.patch import patch as fastapi_patch
+    from ddtrace.contrib.internal.fastapi.patch import unpatch as fastapi_unpatch
+    from tests.contrib.fastapi import app
+
+    fastapi_patch()
+    try:
+        application = app.get_app()
+        with TestClient(application) as client:
+            headers = {
+                "baggage": "user.id=123,account.id=456,session.id=789",
+                "x-datadog-origin": "rum",
+                "x-datadog-trace-id": "123456789",
+                "x-datadog-parent-id": "987654321",
+            }
+
+            with client.websocket_connect("/ws", headers=headers) as websocket:
+                initial_data = websocket.receive_json()
+                assert initial_data == {"test": "Hello WebSocket"}
+
+                for i in range(3):
+                    websocket.send_text(f"message {i}")
+                    response = websocket.receive_text()
+                    assert f"pong {i}" in response
+
+                websocket.send_text("goodbye")
+                farewell = websocket.receive_text()
+                assert farewell == "bye"
+    finally:
+        fastapi_unpatch()
+
+
+@pytest.mark.subprocess(env=dict(DD_TRACE_WEBSOCKET_MESSAGES_ENABLED="true"))
+@snapshot(ignores=["meta._dd.span_links", "metrics.websocket.message.length"])
+def test_websocket_context_propagation(snapshot_app):
+    """Test trace context propagation."""
+    from tests.contrib.fastapi.test_fastapi import _run_websocket_context_propagation_test
+
+    _run_websocket_context_propagation_test()
 
 
 # Ignoring span link attributes until values are
