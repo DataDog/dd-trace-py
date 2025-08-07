@@ -1094,3 +1094,39 @@ def test_redact_filename(filename, is_redacted):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
     assert writer._should_redact(filename) == is_redacted
+
+
+def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
+    """Test that telemetry data is submitted for multiple sources with increasing seq_id"""
+
+    telemetry_writer.add_configuration("DD_SERVICE", "unamed_python_service", "default")
+    telemetry_writer.add_configuration("DD_SERVICE", "dd_service", "env_var")
+    telemetry_writer.add_configuration("DD_SERVICE", "monkey", "code")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "remote_config")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "fleet_stable_config")
+
+    telemetry_writer.periodic(force_flush=True)
+
+    configs = test_agent_session.get_configurations(name="DD_SERVICE", remove_seq_id=False, effective=False)
+    assert len(configs) == 5, configs
+
+    sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    assert sorted_configs[0]["value"] == "unamed_python_service"
+    assert sorted_configs[0]["origin"] == "default"
+    assert sorted_configs[0]["seq_id"] == 1
+
+    assert sorted_configs[1]["value"] == "dd_service"
+    assert sorted_configs[1]["origin"] == "env_var"
+    assert sorted_configs[1]["seq_id"] == 2
+
+    assert sorted_configs[2]["value"] == "monkey"
+    assert sorted_configs[2]["origin"] == "code"
+    assert sorted_configs[2]["seq_id"] == 3
+
+    assert sorted_configs[3]["value"] == "baboon"
+    assert sorted_configs[3]["origin"] == "remote_config"
+    assert sorted_configs[3]["seq_id"] == 4
+
+    assert sorted_configs[4]["value"] == "baboon"
+    assert sorted_configs[4]["origin"] == "fleet_stable_config"
+    assert sorted_configs[4]["seq_id"] == 5
