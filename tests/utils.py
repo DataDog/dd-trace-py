@@ -1107,6 +1107,16 @@ class TestAgentClient:
             reqs.append(req)
         return reqs
 
+    def profile_requests(self) -> List[TestAgentRequest]:
+        reqs = []
+        for req in self.requests():
+            if "dd-evp-origin" not in req["headers"] or req["headers"]["dd-evp-origin"] != "dd-trace-py":
+                continue
+            print(req["headers"])
+            print(req["body"])
+            reqs.append(req)
+        return reqs
+
     def clear(self) -> None:
         status, body = self._request("GET", self._url("/test/session/clear"))
         assert status == 200, (

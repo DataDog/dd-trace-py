@@ -11,6 +11,7 @@ from ddtrace.profiling import scheduler
 from ddtrace.profiling.collector import asyncio
 from ddtrace.profiling.collector import stack
 from ddtrace.profiling.collector import threading
+from tests.internal.crashtracker.utils import with_test_agent
 
 
 def test_status():
@@ -270,3 +271,16 @@ def test_stack_v2_failure_telemetry_logging_with_auto():
         message = call_args[0][1]
         assert "Failed to load stack_v2 module" in message
         assert "mock failure message" in message
+
+
+def test_upload_to_agent():
+    with with_test_agent() as client:
+        p = profiler.Profiler()
+        p.start()
+        # make sure the profiler collects a sample
+        time.sleep(1)
+        p.stop()
+
+        requests = client.profile_requests()
+        assert len(requests) > 0
+        body = requests[0]["body"]
