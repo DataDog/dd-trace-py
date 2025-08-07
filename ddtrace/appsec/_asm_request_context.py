@@ -1,6 +1,7 @@
 import functools
 import json
 import re
+import sys
 from types import TracebackType
 from typing import Any
 from typing import Callable
@@ -664,6 +665,17 @@ def _set_headers(span: Span, headers: Any, kind: str, only_asm_enabled: bool = F
             (span._local_root or span).set_tag(_normalize_tag_name(kind, key), value)
 
 
+def _asm_switch_state() -> None:
+    if asm_config._asm_enabled:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        AppSecSpanProcessor.enable()
+    elif "ddtrace.appsec._processor" in sys.modules:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        AppSecSpanProcessor.disable()
+
+
 def asm_listen():
     core.on("flask.finalize_request.post", _set_headers_and_response)
     core.on("flask.wrapped_view", _on_wrapped_view, "callbacks")
@@ -689,3 +701,5 @@ def asm_listen():
 
     core.on("context.ended.django.traced_get_response", _on_context_ended)
     core.on("django.traced_get_response.pre", set_block_request_callable)
+
+    core.on("asm.switch_state", _asm_switch_state)

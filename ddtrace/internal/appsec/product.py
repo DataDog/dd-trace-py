@@ -8,19 +8,15 @@ def post_preload():
     pass
 
 
-def set_main_listener():
-    """Set the main appsec listener to be used by the event hub."""
-    from ddtrace.appsec._listeners import set_processor_listener
-
-    set_processor_listener()
-
-
 def start():
     if config._asm_rc_enabled:
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
-    set_main_listener()
+    if config._asm_enabled:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        AppSecSpanProcessor.enable()
 
 
 def restart(join=False):
@@ -28,6 +24,10 @@ def restart(join=False):
         from ddtrace.appsec._remoteconfiguration import _forksafe_appsec_rc
 
         _forksafe_appsec_rc()
+    if config._asm_enabled:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        AppSecSpanProcessor.enable()
 
 
 def stop(join=False):
