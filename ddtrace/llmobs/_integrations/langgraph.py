@@ -3,7 +3,6 @@ from typing import Dict
 from typing import Iterable
 from typing import List
 from typing import Optional
-from typing import Sequence
 from typing import Set
 from typing import Tuple
 from typing import Union
@@ -135,7 +134,7 @@ class LangGraphIntegration(BaseLLMIntegration):
         if "framework" not in agent_manifest:
             agent_manifest["framework"] = "LangGraph"
         if "max_iterations" not in agent_manifest:
-            agent_manifest["max_iterations"] = _get_attr(config, "max_iterations", 25)
+            agent_manifest["max_iterations"] = _get_attr(config, "recursion_limit", 25)
 
         if (
             "dependencies" not in agent_manifest
@@ -397,9 +396,6 @@ def _get_tools_from_react_agent(tools):
 
     In the case of a Callable (which is dynamic as a function of state and config), we end up returning None.
     """
-    if isinstance(tools, Sequence) and len(tools) > 0 and isinstance(tools[0], dict):
-        return []
-
     if _is_tool_node(tools):
         tools_by_name: Dict[str, Any] = _get_attr(tools, "tools_by_name", {})
         tools = list(tools_by_name.values())

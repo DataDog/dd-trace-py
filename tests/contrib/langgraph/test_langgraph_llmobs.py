@@ -404,3 +404,15 @@ class TestLangGraphLLMObs:
         }
 
         assert agent_span["meta"]["metadata"]["agent_manifest"] == expected_agent_manifest
+
+    @pytest.mark.skipif(LANGGRAPH_VERSION < (0, 3, 22), reason="Agent names are only supported in LangGraph 0.3.22+")
+    def test_agent_manifest_different_recursion_limit(
+        self, llmobs_events, agentic_graph_with_conditional_and_definitive_edges
+    ):
+        agentic_graph_with_conditional_and_definitive_edges.invoke(
+            {"a_list": [], "which": random.choice(["agent_b", "agent_c"])}, {"recursion_limit": 100}
+        )
+
+        agent_span = _find_span_by_name(llmobs_events, "agent")
+
+        assert agent_span["meta"]["metadata"]["agent_manifest"]["max_iterations"] == 100
