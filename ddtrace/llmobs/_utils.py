@@ -366,17 +366,21 @@ class SpanLinker:
         """Removes the children spans of the given parent span."""
         self._parent_to_children_spans.pop(parent.span_id, None)
     
-    def _register_span(self, span: Span, span_kind: str) -> None:
+    def _register_span(self, span: Span, span_kind: str) -> Tuple[Dict[str, any], Dict[str, any]]:
         """
         Registers the span in the _parent_to_children_spans dict.
 
         Currently, this happens when a span is being finished. In the future,
         we may need to register the span when it is started to support different
         span linking use cases.
+
+        Returns the children spans and the span entry for the registered span.
         """
         parent_id = span.parent_id
         children = self._parent_to_children_spans.setdefault(parent_id, {})
-        children[span.span_id] = {"span": span, "index": len(children), "kind": span_kind}
+        span_entry = {"span": span, "index": len(children), "kind": span_kind}
+        children[span.span_id] = span_entry
+        return children, span_entry
     
     def add_span_links(self, span: Span, span_kind: str) -> None:
         """
@@ -384,9 +388,7 @@ class SpanLinker:
         
         Currently, this only works for adding span links between adjacent LLM and tool spans.
         """
-        self._register_span(span, span_kind)
-        children = self._parent_to_children_spans.get(span.parent_id, {})
-        span_entry = children[span.span_id]
+        children, span_entry = self._register_span(span, span_kind)
         try:
             span_index = span_entry["index"]
             if span_index > 0:
