@@ -365,6 +365,8 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
     middlewares.
     """
+    from ddtrace.contrib.internal.django.middleware import wrap_middleware_class
+
     settings_middleware = []
     # Gather all the middleware
     if getattr(django.conf.settings, "MIDDLEWARE", None):
@@ -411,17 +413,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
 
         # Instrument class-based middleware
         elif isclass(mw):
-            for hook in [
-                "process_request",
-                "process_response",
-                "process_view",
-                "process_template_response",
-                "__call__",
-            ]:
-                if hasattr(mw, hook) and not trace_utils.iswrapped(mw, hook):
-                    trace_utils.wrap(
-                        mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
-                    )
+            wrap_middleware_class(mw, mw_path, django)
             # Do a little extra for `process_exception`
             if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
                 res = mw_path + ".{0}".format("process_exception")

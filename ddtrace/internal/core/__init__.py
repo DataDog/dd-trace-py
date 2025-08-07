@@ -105,11 +105,13 @@ import logging
 import sys
 import types
 import typing
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Type
 
+from ddtrace.internal.wrapping.context import WrappingContext
 from ddtrace.vendor.debtcollector import deprecate
 
 from ..utils.deprecations import DDTraceDeprecationWarning
@@ -381,3 +383,160 @@ def get_root_span() -> Optional["Span"]:
     if span is None:
         return None if tracer is None else tracer.current_root_span()
     return span._local_root or span
+
+
+T = typing.TypeVar("T")
+
+
+class _CloseContextMixin(WrappingContext):
+    """Helper mixing to define shared behavior for ExecutionContext WrappingContexts"""
+
+    _name: str
+
+    @classmethod
+    def maybe_wrap(cls, f: types.FunctionType) -> None:
+        if not cls.is_wrapped(f):
+            cls(f).wrap()
+
+    @classmethod
+    def maybe_unwrap(cls, f: types.FunctionType) -> None:
+        if not cls.is_wrapped(f):
+            cls.extract(f).unwrap()
+
+    def _should_create_context(self) -> bool:
+        return True
+
+    def _close_ctx(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> None:
+        try:
+            # Close the context and any open span
+            ctx = self.get("ctx")
+            ctx.__exit__(exc_type, exc_val, exc_tb)
+        except Exception:
+            log.exception("Failed to close %s wrapping context", self._name)
+
+    def __return__(self, value: T) -> T:
+        if self._should_create_context():
+            self._close_ctx(None, None, None)
+        return super().__return__(value)
+
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[types.TracebackType],
+    ) -> None:
+        if self._should_create_context():
+            self._close_ctx(exc_type, exc_val, exc_tb)
+        return super().__exit__(exc_type, exc_val, exc_tb)
+
+
+class StaticExecutionContextWrapper(_CloseContextMixin, WrappingContext):
+    """
+    A WrappingContext that wraps a function with an ExecutionContext with statically defined context arguments.
+
+
+    Example::
+
+        from ddtrace.internal import core
+
+        def my_function():
+            pass
+
+
+        class MyFuncWrapper(core.StaticExecutionContextWrapper):
+            _name: str = "example.my_function"
+            _context_kwargs: Dict[str, Any] = {
+                 "span_name": "my_func",
+                 "tags": {"example": "value"},
+            }
+
+
+        # Wrap the function with a static context
+        MyFuncWrapper.maybe_wrap(my_function)
+
+        my_function()    # will be wrapped
+
+        MyFuncWrapper.maybe_unwrap(my_function)
+
+        my_function()    # will not be wrapped anymore
+
+    """
+
+    _name: str
+    _context_kwargs: Dict[str, Any]
+
+    def __enter__(self) -> "StaticExecutionContextWrapper":
+        super().__enter__()
+
+        if not self._should_create_context():
+            return self
+
+        ctx = context_with_data(
+            self._name,
+            **self._context_kwargs,
+        )
+
+        # Enter the context and store it
+        ctx.__enter__()
+        self.set("ctx", ctx)
+
+        return self
+
+
+class DynamicExecutionContextWrapper(_CloseContextMixin, WrappingContext):
+    """
+    A WrappingContext that wraps a function with an ExecutionContext with dynamically generated context arguments.
+
+
+    Example::
+
+        from ddtrace.internal import core
+
+        def my_function():
+            pass
+
+        class MyFuncWrapper(core.DynamicExecutionContextWrapper):
+            _name: str = "example.my_function"
+
+            # Custom attribute
+            _enabled: bool = True
+
+            def _should_create_context(self) -> bool:
+                return self._enabled
+
+            def _context_kwargs(self) -> Dict[str, Any]:
+                # Could use `self.get_local()`/etc here
+                # e.g.
+                #     local_self = self.get_local("self")
+                return {
+                    "span_name": "my_func",
+                    "tags": {"example": "value"},
+                }
+    """
+
+    _name: str
+
+    def _context_kwargs(self) -> Dict[str, Any]:
+        return {}
+
+    def __enter__(self) -> "DynamicExecutionContextWrapper":
+        super().__enter__()
+
+        if not self._should_create_context():
+            return self
+
+        ctx = context_with_data(
+            self._name,
+            **self._context_kwargs(),
+        )
+
+        # Enter the context and store it
+        ctx.__enter__()
+        self.set("ctx", ctx)
+
+        return self

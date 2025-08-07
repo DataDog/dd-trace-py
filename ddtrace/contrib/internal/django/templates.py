@@ -2,6 +2,8 @@ from types import FunctionType
 from types import ModuleType
 from types import TracebackType
 import typing
+from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Type
 from typing import TypeVar
@@ -28,14 +30,24 @@ log = get_logger(__name__)
 config_django: IntegrationConfig = typing.cast(IntegrationConfig, config.django)
 
 
-class DjangoTemplateWrappingContext(WrappingContext):
+class DjangoTemplateWrappingContext(core.DynamicExecutionContextWrapper):
     """
     A context for wrapping django.template.base:Template.render method.
     """
 
+    _name: str = "django.template.render"
+
     def __init__(self, f: FunctionType, django: ModuleType) -> None:
         super().__init__(f)
         self._django = django
+
+    @classmethod
+    def maybe_wrap(cls, f: FunctionType, django: ModuleType) -> None:
+        """
+        Wrap the django template render method if the configuration allows it.
+        """
+        if not cls.is_wrapped(f):
+            return cls(f, django).wrap()
 
     @classmethod
     def instrument_module(cls, django_template_base: ModuleType) -> None:
@@ -52,7 +64,7 @@ class DjangoTemplateWrappingContext(WrappingContext):
 
         import django
 
-        cls(typing.cast(FunctionType, Template.render), django).wrap()
+        cls.maybe_wrap(typing.cast(FunctionType, Template.render), django)
 
     @classmethod
     def uninstrument_module(cls, django_template_base: ModuleType) -> None:
@@ -61,16 +73,9 @@ class DjangoTemplateWrappingContext(WrappingContext):
         if not Template or not hasattr(Template, "render"):
             return
 
-        if cls.is_wrapped(Template.render):
-            ctx = cls.extract(Template.render)
-            ctx.unwrap()
+        cls.maybe_unwrap(typing.cast(FunctionType, Template.render))
 
-    def __enter__(self) -> "DjangoTemplateWrappingContext":
-        super().__enter__()
-
-        if not config_django.instrument_templates:
-            return self
-
+    def _context_kwargs(self) -> Dict[str, Any]:
         # Get the template instance (self parameter of the render method)
         # Note: instance is a django.template.base.Template
         instance = self.get_local("self")
@@ -96,39 +101,14 @@ class DjangoTemplateWrappingContext(WrappingContext):
         tracer = ddtrace.tracer
         if pin:
             tracer = pin.tracer or tracer
-        ctx = core.context_with_data(
-            "django.template.render",
-            span_name="django.template.render",
-            resource=resource,
-            span_type=http.TEMPLATE,
-            tags=tags,
-            tracer=tracer,
-        )
 
-        # Enter the context and store it
-        ctx.__enter__()
-        self.set("ctx", ctx)
+        return {
+            "span_name": "django.template.render",
+            "resource": resource,
+            "span_type": http.TEMPLATE,
+            "tags": tags,
+            "tracer": tracer,
+        }
 
-        return self
-
-    def _close_ctx(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
-    ) -> None:
-        try:
-            # Close the context and any open span
-            ctx = self.get("ctx")
-            ctx.__exit__(exc_type, exc_val, exc_tb)
-        except Exception:
-            log.exception("Failed to close Django template render wrapping context")
-
-    def __return__(self, value: T) -> T:
-        if config_django.instrument_templates:
-            self._close_ctx(None, None, None)
-        return super().__return__(value)
-
-    def __exit__(
-        self, exc_type: Optional[Type[BaseException]], exc_val: Optional[BaseException], exc_tb: Optional[TracebackType]
-    ) -> None:
-        if config_django.instrument_templates:
-            self._close_ctx(exc_type, exc_val, exc_tb)
-        return super().__exit__(exc_type, exc_val, exc_tb)
+    def _should_create_context(self) -> bool:
+        return config_django.instrument_templates
