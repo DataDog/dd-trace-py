@@ -196,6 +196,8 @@ def gen_build_docs() -> None:
             "scripts/docs/*",
             "releasenotes/*",
             "benchmarks/README.rst",
+            "setup.py",
+            "build_libnative.py",
             ".readthedocs.yml",
         }
     ):
