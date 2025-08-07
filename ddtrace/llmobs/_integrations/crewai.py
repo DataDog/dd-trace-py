@@ -20,6 +20,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
@@ -76,9 +77,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             if span._parent is None:
                 return span
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(method_name, {})
-            is_router_method_name = span.name in getattr(kwargs.get("flow_instance"), "_routers", [])
-            # Need to differentiate between the same routers being stored by both their method name and result
-            span_dict.update({"span_id": str(span.span_id), "is_router_method_name": is_router_method_name})
+            span_dict.update({"span_id": str(span.span_id)})
         return span
 
     def _get_current_ctx(self, pin):
@@ -284,7 +283,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         initial_flow_state = kwargs.pop("_dd.flow_state", {})
         input_dict = {
             "args": [str(arg) for arg in args[2:]],
-            "kwargs": {k: str(v) for k, v in kwargs.items()},
+            "kwargs": {k: safe_json(v) for k, v in kwargs.items()},
             "flow_state": initial_flow_state,
         }
         span_links = (
@@ -300,7 +299,8 @@ class CrewAIIntegration(BaseLLMIntegration):
             )
 
         if span.name in getattr(flow_instance, "_routers", []):
-            # Routers use their result (not method name) to link to the next method, so do the same for spans
+            # For router methods the downstream trigger is the router's result, not the method name.
+            # We store the span info keyed by that result so it can be linked to future listener spans.
             span_dict = self._flow_span_to_method_to_span_dict.get(span._parent, {}).setdefault(str(response), {})
             span_dict.update({"span_id": str(span.span_id), "trace_id": format_trace_id(span.trace_id)})
 
@@ -314,6 +314,14 @@ class CrewAIIntegration(BaseLLMIntegration):
         )
         return
 
+    def llmobs_set_span_links_on_flow(self, flow_span, args, kwargs, flow_instance):
+        if not self.llmobs_enabled:
+            return
+        try:
+            self._llmobs_set_span_link_on_flow(flow_span, args, kwargs, flow_instance)
+        except Exception:
+            pass
+
     def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
         """
         Set span links for the next queued listener method(s) in a CrewAI flow.
@@ -326,11 +334,13 @@ class CrewAIIntegration(BaseLLMIntegration):
                   add span links from trigger spans to listener span
         """
         trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
-        if not self.llmobs_enabled or not trigger_method:
+        if not trigger_method:
             return
         flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
         trigger_span_dict = flow_methods_to_spans.get(trigger_method)
-        if not trigger_span_dict or trigger_span_dict.get("is_router_method_name", False):
+        if not trigger_span_dict or trigger_method in getattr(flow_instance, "_routers", []):
+            # For router methods the downstream trigger is the router's result, not the method name
+            # Skip if trigger_method represents a router method name instead of the router's results
             return
         listeners = getattr(flow_instance, "_listeners", {})
         triggered = False
@@ -358,8 +368,6 @@ class CrewAIIntegration(BaseLLMIntegration):
             triggered = True
             for method in listener_triggers:
                 method_span_dict = flow_methods_to_spans.get(method, {})
-                if not method_span_dict:
-                    continue
                 span_links.append(
                     {
                         "span_id": str(method_span_dict["span_id"]),
@@ -368,10 +376,11 @@ class CrewAIIntegration(BaseLLMIntegration):
                     }
                 )
                 flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
-                updated_links = [
+                # Remove temporary output->output link since the AND has been triggered
+                span_links_minus_tmp_output_links = [
                     link for link in flow_span_span_links if link["span_id"] != str(method_span_dict["span_id"])
                 ]
-                flow_span._set_ctx_item(SPAN_LINKS, updated_links)
+                flow_span._set_ctx_item(SPAN_LINKS, span_links_minus_tmp_output_links)
 
         if triggered is False:
             flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []

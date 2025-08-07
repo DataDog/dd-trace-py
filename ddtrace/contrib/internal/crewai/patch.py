@@ -25,7 +25,7 @@ def _supported_versions() -> Dict[str, str]:
 
 @with_traced_module
 def traced_kickoff(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     result = None
     instance_id = getattr(instance, "id", "")
     planning_enabled = getattr(instance, "planning", False)
@@ -52,7 +52,7 @@ def traced_kickoff(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_task_execute(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     result = None
     span = integration.trace(
         pin,
@@ -79,7 +79,7 @@ def traced_task_execute(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_task_execute_async(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     _ddtrace_ctx = integration._get_current_ctx(pin)
     setattr(instance, "_ddtrace_ctx", _ddtrace_ctx)
     return func(*args, **kwargs)
@@ -87,7 +87,7 @@ def traced_task_execute_async(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_task_get_context(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     span = pin.tracer.current_span()
     result = func(*args, **kwargs)
     integration._llmobs_set_span_link_on_task(span, args, kwargs)
@@ -96,7 +96,7 @@ def traced_task_get_context(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_agent_execute(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     result = None
     span = integration.trace(
         pin, "CrewAI Agent", span_name=getattr(instance, "role", ""), operation="agent", submit_to_llmobs=True
@@ -115,7 +115,7 @@ def traced_agent_execute(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def traced_tool_run(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     result = None
     span = integration.trace(
         pin, "CrewAI Tool", span_name=getattr(instance, "name", ""), operation="tool", submit_to_llmobs=True
@@ -134,7 +134,7 @@ def traced_tool_run(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     span_name = getattr(type(instance), "__name__", "CrewAI Flow")
     with integration.trace(pin, "CrewAI Flow", span_name=span_name, operation="flow", submit_to_llmobs=True) as span:
         result = await func(*args, **kwargs)
@@ -144,7 +144,7 @@ async def traced_flow_kickoff(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     span_name = get_argument_value(args, kwargs, 0, "method_name", optional=True) or "Flow Method"
     with integration.trace(
         pin,
@@ -164,7 +164,7 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
 
 @with_traced_module
 def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
-    integration = crewai._datadog_integration
+    integration: CrewAIIntegration = crewai._datadog_integration
     result = func(*args, **kwargs)
     current_span = pin.tracer.current_span()
     integration._llmobs_set_span_link_on_flow(current_span, args, kwargs, instance)
@@ -178,18 +178,21 @@ def patch():
     crewai._datadog_patch = True
 
     Pin().onto(crewai)
-    integration = CrewAIIntegration(integration_config=config.crewai)
+    integration: CrewAIIntegration = CrewAIIntegration(integration_config=config.crewai)
     crewai._datadog_integration = integration
 
     wrap(crewai, "Crew.kickoff", traced_kickoff(crewai))
-    wrap(crewai, "Crew._get_context", traced_task_get_context(crewai))
-    wrap(crewai, "Task._execute_core", traced_task_execute(crewai))
     wrap(crewai, "Task.execute_async", traced_task_execute_async(crewai))
     wrap(crewai, "Agent.execute_task", traced_agent_execute(crewai))
     wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_run(crewai))
     wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff(crewai))
-    wrap(crewai, "Flow._execute_method", traced_flow_method(crewai))
-    wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods(crewai))
+    try:  # Safely attempt to patch private methods
+        wrap(crewai, "Crew._get_context", traced_task_get_context(crewai))
+        wrap(crewai, "Task._execute_core", traced_task_execute(crewai))
+        wrap(crewai, "Flow._execute_method", traced_flow_method(crewai))
+        wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods(crewai))
+    except AttributeError:
+        pass
 
 
 def unpatch():
