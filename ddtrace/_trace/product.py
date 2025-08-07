@@ -40,17 +40,9 @@ def post_preload():
 
 def start():
     if _config.enabled:
-        from ddtrace.settings._config import config
-
         log.debug(
             "APM Tracing Remote Config enabled for trace sampling rules, log injection, dd tags, "
-            "tracing enablement, and HTTP header tags.\nConfigs on startup: sampling_rules: %s, "
-            "logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
-            config._trace_sampling_rules,
-            config._logs_injection,
-            config.tags,
-            config._tracing_enabled,
-            config._trace_http_header_tags,
+            "tracing enablement, and HTTP header tags."
         )
         if config._trace_methods:
             from ddtrace.internal.tracemethods import _install_trace_methods

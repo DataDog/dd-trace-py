@@ -154,7 +154,7 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
-def test_remoteconfig_sampling_rate_telemetry(test_agent_session, ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
     env.update(
         {
