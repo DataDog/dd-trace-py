@@ -389,9 +389,9 @@ def test_sampling_rule_init_via_env():
     mock_log.error.assert_has_calls(
         [
             mock.call(
-                "Unable to parse DD_TRACE_SAMPLING_RULES=%s: %s",
+                "Unable to parse DD_TRACE_SAMPLING_RULES=%s",
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
-                mock.ANY,
+                exc_info=True,
             )
         ]
     )

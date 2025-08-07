@@ -155,8 +155,8 @@ class DatadogSampler:
         json_rules = []
         try:
             json_rules = json.loads(rules)
-        except JSONDecodeError as e:
-            log.error("Unable to parse DD_TRACE_SAMPLING_RULES=%s: %s", rules, e)
+        except JSONDecodeError:
+            log.error("Unable to parse DD_TRACE_SAMPLING_RULES=%s", rules, exc_info=True)
 
         for rule in json_rules:
             if "sample_rate" not in rule:
@@ -164,8 +164,8 @@ class DatadogSampler:
                 continue
             try:
                 sampling_rules.append(SamplingRule(**rule))
-            except ValueError as e:
-                log.error("Error creating sampling rule %s: %s", rule, e)
+            except ValueError:
+                log.error("Error creating sampling rule %s: %s", rule, exc_info=True)
 
         # Sort the sampling_rules list using a lambda function as the key
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
