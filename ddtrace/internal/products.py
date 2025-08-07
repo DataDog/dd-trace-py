@@ -57,7 +57,7 @@ class ProductManager:
     def _load_products(self) -> None:
         for product_plugin in entry_points(group="ddtrace.products"):
             name = product_plugin.name
-            log.critical("Discovered product plugin '%s'", name)
+            log.debug("Discovered product plugin '%s'", name)
 
             # Load the product protocol object
             try:
