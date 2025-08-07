@@ -355,44 +355,27 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
     @staticmethod
-    def _get_record_optional_fields(record: Union[DatasetRecord, DatasetRecordRaw]) -> Tuple[JSONType, Dict[str, Any]]:
-        expected_output = None
+    def _get_record_json(record: Union[DatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
+        # for now, if a user wants to "erase" the value of expected_output, they are expected to
+        # set expected_output to None, and we serialize that as empty string to indicate this to BE
+        expected_output: JSONType = None
         if "expected_output" in record:
-            expected_output = record["expected_output"]
-            # TODO[gh] this is temporary until BE supports a more well defined update schema
-            # for now, if a user wants to "erase" the value of expected_output, they are expected to
-            # set expected_output to None, and we serialize that as empty string to indicate this to BE
-            if expected_output is None:
-                expected_output = ""
+            expected_output = "" if record["expected_output"] is None else record["expected_output"]
 
-        metadata = None
+        # for now, if a user wants to "erase" the value of metadata, they are expected to
+        # set metadata to None, and we serialize that as an empty map to indicate this to BE
+        metadata: JSONType = None
         if "metadata" in record:
-            metadata = record["metadata"]
-            if metadata is None:
-                metadata = {}
+            metadata = {} if record["metadata"] is None else record["metadata"]
 
-        return expected_output, metadata
-
-    @staticmethod
-    def _get_insert_record_json(record: DatasetRecordRaw) -> JSONType:
-        expected_output, metadata = LLMObsExperimentsClient._get_record_optional_fields(record)
-        rj: JSONType = {
-            "input": cast(Dict[str, JSONType], record["input_data"]),
-            "expected_output": expected_output,
-            "metadata": metadata,
-        }
-
-        return rj
-
-    @staticmethod
-    def _get_update_record_json(record: DatasetRecord) -> JSONType:
-        expected_output, metadata = LLMObsExperimentsClient._get_record_optional_fields(record)
         rj: JSONType = {
             "input": cast(Dict[str, JSONType], record.get("input_data")),
             "expected_output": expected_output,
             "metadata": metadata,
-            "id": record["record_id"],
         }
+
+        if is_update:
+            rj["id"] = record["record_id"]  # type: ignore
 
         return rj
 
@@ -403,8 +386,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         update_records: List[DatasetRecord],
         delete_record_ids: List[str],
     ) -> Tuple[int, List[str]]:
-        irs: JSONType = [self._get_insert_record_json(r) for r in insert_records]
-        urs: JSONType = [self._get_update_record_json(r) for r in update_records]
+        irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
+        urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
