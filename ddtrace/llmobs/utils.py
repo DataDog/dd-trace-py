@@ -51,28 +51,31 @@ ToolDefinition = TypedDict(
     total=False,
 )
 
+
 class Prompt(TypedDict, total=False):
     """
     A Prompt object that contains the information needed to render a prompt.
-    name: str - the name of the prompt template, should be unique per ml_app.
-    version: str - the version of the prompt. SemVer  Defaults to 1.0.0
-    id: str - the id of the prompt set by the user. can substitute for name
-    variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
-    template: Union[str, List[Tuple[str, str]]] -
-        - A list of 2-tuples of (role,template) where role is the role of the prompt and template is the template string
-        - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
-    example_variables: List[str] - a list of variable key names that contain example information
-    constraint_variables: List[str] - a list of variable key names that contain constraint information
-    rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
-    rag_query_variables: List[str] - a list of variable key names that contains query information
+        id: str - the id of the prompt set by the user.
+        name: str - the name of the prompt template, should be unique per ml_app.
+        user_version_tag: str - user tag for the version of the prompt.
+        variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
+        chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
+            - A list of dicts of (role,template) where role is the role of the prompt and template is the template string
+        template: Optional[str]
+            - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
+        tags: Optional[Dict[str, str]]
+            - List of tags to add to the prompt run.
+        rag_context_variables: List[str] - a list of variable key names that contain ground truth context information
+        rag_query_variables: List[str] - a list of variable key names that contains query information
     """
 
     name: Optional[str]
-    version: Optional[str]
-    id: Optional[str]
+    user_version_tag: Optional[str]
+    prompt_id: Optional[str]
     template: Optional[str]
     chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
     variables: Optional[Dict[str, str]]
+    tags: Optional[Dict[str, str]]
     rag_context_variables: Optional[List[str]]
     rag_query_variables: Optional[List[str]]
 

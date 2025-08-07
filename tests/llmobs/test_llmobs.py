@@ -446,13 +446,12 @@ def test_structured_prompt_data_v1(llmobs, llmobs_backend):
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
-            "id": "unnamed_prompt",
+            "prompt_id": "unnamed_prompt",
             "name": "unnamed_prompt",
-            "instance_id": mock.ANY,
             "template": "test {{value}}",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
-            "version": "1.0.0",
+            "user_version_tag": "1.0.0",
         },
     }
 
@@ -474,10 +473,9 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
-            "id": "test",
-            "instance_id": mock.ANY,
+            "prompt_id": "test",
             "name": "test",
-            "version": "1.0.0",
+            "user_version_tag": "1.0.0",
             "chat_template": [{"role": "user", "content": "test {{value}}"}],
             "template": "test {{value}}",
             "variables": {"value": "test"},

@@ -1,9 +1,7 @@
 from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
-from hashlib import sha256
 import json
-from re import compile
 from typing import Any
 from typing import Dict
 from typing import List
@@ -37,18 +35,6 @@ from ddtrace.trace import Span
 
 log = get_logger(__name__)
 
-# SemVer regex from https://semver.org/
-SEMVER_PATTERN_COMPILED = compile(
-    r"^(?P<major>0|[1-9]\d*)\."
-    r"(?P<minor>0|[1-9]\d*)\."
-    r"(?P<patch>0|[1-9]\d*)"
-    r"(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-]"
-    r"[0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-]"
-    r"[0-9a-zA-Z-]*))*))?"
-    r"(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+"
-    r"(?:\.[0-9a-zA-Z-]+)*))?$"
-)
-
 ValidatedPromptDict = Dict[str, Union[str, Dict[str, Any], List[str], List[Dict[str, str]], List[Message]]]
 
 STANDARD_INTEGRATION_SPAN_NAMES = (
@@ -70,7 +56,8 @@ def _validate_prompt(
     # Stage 1: Extract values
     name = prompt.get("name")
     prompt_id = prompt.get("id")
-    version = prompt.get("version")
+    user_version_tag = prompt.get("user_version_tag")
+    tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
@@ -88,7 +75,6 @@ def _validate_prompt(
     # Stage 3: Set defaults
     final_prompt_id = prompt_id or name or DEFAULT_PROMPT_NAME
     final_name = name or prompt_id or DEFAULT_PROMPT_NAME
-    final_version = version or "1.0.0"
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
@@ -99,14 +85,22 @@ def _validate_prompt(
     if not isinstance(final_name, str):
         raise TypeError(f"'name' must be str, got {type(final_name).__name__}.")
 
-    if not isinstance(final_version, str):
-        raise TypeError(f"'version' must be str, got {type(final_version).__name__}.")
+    if not isinstance(user_version_tag, str):
+        raise TypeError(f"'version' must be str, got {type(user_version_tag).__name__}.")
 
     if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
         raise TypeError("'rag_context_variables' must be a List[str].")
 
     if not (isinstance(final_query_variable_keys, list) and all(isinstance(i, str) for i in final_query_variable_keys)):
         raise TypeError("'rag_query_variables' must be a List[str].")
+
+    if tags is not None:
+        if not isinstance(tags, dict):
+            raise TypeError(f"'tags' must be Dict, got {type(tags).__name__}")
+        if not all(isinstance(k, str) for k in tags):
+            raise TypeError("Keys of 'tags' must all be strings.")
+        if not all(isinstance(k, str) for k in tags.values()):
+            raise TypeError("Values of 'tags' must all be strings.")
 
     if template is not None and not isinstance(template, str):
         raise TypeError(f"'template' must be str, got {type(template).__name__}.")
@@ -125,12 +119,6 @@ def _validate_prompt(
             raise TypeError("Keys of 'variables' must all be strings.")
 
     # Stage 5: Transformations
-    # Normalize version to full semver (fill minor/patch if omitted)
-    version_parts = (final_version.split(".") + ["0", "0"])[:3]
-    final_version = ".".join(version_parts)
-    if not SEMVER_PATTERN_COMPILED.match(final_version):
-        log.warning("'version' not semver compatible", version)
-
     # Ensure chat_template is standardized List[dict[role:str, content:str]]
     final_chat_template = None
     if chat_template:
@@ -142,33 +130,23 @@ def _validate_prompt(
     # Stage 6: Produce output
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
-        validated_prompt["id"] = final_prompt_id
+        validated_prompt["prompt_id"] = final_prompt_id
     if final_name:
         validated_prompt["name"] = final_name
-    if final_version:
-        validated_prompt["version"] = final_version
+    if user_version_tag:
+        validated_prompt["user_version_tag"] = user_version_tag
     if variables:
         validated_prompt["variables"] = variables
     if template:
         validated_prompt["template"] = template
     if final_chat_template:
         validated_prompt["chat_template"] = final_chat_template
+    if tags:
+        validated_prompt["tags"] = tags
     if final_ctx_variable_keys:
         validated_prompt[INTERNAL_CONTEXT_VARIABLE_KEYS] = final_ctx_variable_keys
     if final_query_variable_keys:
         validated_prompt[INTERNAL_QUERY_VARIABLE_KEYS] = final_query_variable_keys
-
-    # Stage 7: Hash Generation
-    instance_id_str = (
-        f"[{ml_app}]{final_prompt_id}"
-        f"{final_name}{final_version}{template}{final_chat_template}{variables}"
-        f"{final_ctx_variable_keys}{final_query_variable_keys}"
-    )
-
-    hasher = sha256()
-    hasher.update(instance_id_str.encode("utf-8"))
-    instance_id = hasher.hexdigest()
-    validated_prompt["instance_id"] = instance_id
 
     return validated_prompt
 
@@ -176,10 +154,10 @@ def _validate_prompt(
 def _strict_validate_prompt(prompt: Union[Dict[str, Any], Prompt]):
     """
     Validate prompt dictionary under strict validation mode. Ensures that :
-    - 'id' is mandatory
+    - 'prompt_id' is mandatory
     - 'template' or 'chat_template' is mandatory
     """
-    prompt_id = prompt.get("id")
+    prompt_id = prompt.get("prompt_id")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
 
@@ -187,7 +165,7 @@ def _strict_validate_prompt(prompt: Union[Dict[str, Any], Prompt]):
         raise ValueError("'id' must be provided")
 
     if template is None and chat_template is None:
-        raise ValueError("Either 'template' or 'chat_template' must be provided.")
+        raise ValueError("One of 'template' or 'chat_template' must be provided to annotate a prompt.")
 
     if template and chat_template:
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")

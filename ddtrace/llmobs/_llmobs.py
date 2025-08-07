@@ -1865,12 +1865,13 @@ class LLMObs(Service):
     @classmethod
     def prompt_context(
         cls,
-        name: Optional[str] = None,
-        version: str = "1.0.0",
         prompt_id: Optional[str] = None,
+        name: Optional[str] = None,
         template: Optional[str] = None,
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]] = None,
         variables: Optional[Dict[str, Any]] = None,
+        user_version_tag: Optional[str] = None,
+        tags: Optional[Dict[str, str]] = None,
         rag_context_variable_keys: Optional[List[str]] = None,
         rag_query_variable_keys: Optional[List[str]] = None,
     ) -> AnnotationContext:
@@ -1879,11 +1880,12 @@ class LLMObs(Service):
         """
         prompt = Prompt(
             name=name,
-            version=version,
-            id=prompt_id,
+            user_version_tag=user_version_tag,
+            prompt_id=prompt_id,
             template=template,
             chat_template=chat_template,
             variables=variables,
+            tags=tags,
             rag_context_variables=rag_context_variable_keys,
             rag_query_variables=rag_query_variable_keys,
         )
