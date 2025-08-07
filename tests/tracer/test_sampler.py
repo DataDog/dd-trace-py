@@ -377,8 +377,8 @@ def test_sampling_rule_init_via_env():
     mock_log.error.assert_has_calls(
         [
             mock.call(
-                "No sample_rate provided for sampling rule: %s",
-                mock.ANY,
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "xyz", "name": "abc"},
             )
         ]
     )
@@ -389,8 +389,9 @@ def test_sampling_rule_init_via_env():
     mock_log.error.assert_has_calls(
         [
             mock.call(
-                "Unable to parse DD_TRACE_SAMPLING_RULES=%s",
+                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
                 '["sample_rate":1.0,"service":"xyz","name":"abc"]',
+                [],
                 exc_info=True,
             )
         ]
@@ -407,8 +408,8 @@ def test_sampling_rule_init_via_env():
     mock_log.error.assert_has_calls(
         [
             mock.call(
-                "No sample_rate provided for sampling rule: %s",
-                mock.ANY,
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "my-service", "name": "my-name"},
             )
         ]
     )
