@@ -658,9 +658,6 @@ def test_remoteconfig_debug_logging():
         mock.call(
             "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
             "dd tags, tracing enablement, and HTTP header tags."
-            {},
-            True,
-            {},
         ),
         # Tracer configurations are only updated once (calls with duplicate values should be ignored)
         mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
