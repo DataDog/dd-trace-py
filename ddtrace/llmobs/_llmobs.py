@@ -973,7 +973,6 @@ class LLMObs(Service):
 
     def _activate_llmobs_span(self, span: Span) -> None:
         """Propagate the llmobs parent span's ID as the new span's parent ID and activate the new span."""
-        self._span_linker.register_span(span)
         llmobs_parent = self._llmobs_context_provider.active()
         if llmobs_parent:
             span._set_ctx_item(PARENT_ID_KEY, str(llmobs_parent.span_id))

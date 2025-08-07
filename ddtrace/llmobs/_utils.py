@@ -362,20 +362,21 @@ class SpanLinker:
     def __init__(self):
         self._parent_to_children_spans: Dict[str, List[Span]] = {}
 
-    def register_span(self, span: Span) -> None:
-        """Registers a span upon span start which involves adding it to the _parent_to_children_spans dict."""
-        parent_id = span.parent_id
-        children = self._parent_to_children_spans.setdefault(parent_id, {})
-        children[span.span_id] = {"span": span, "index": len(children)}
-
     def remove_child_spans(self, parent: Span) -> None:
         """Removes the children spans of the given parent span."""
         self._parent_to_children_spans.pop(parent.span_id, None)
     
-    def _register_span_metadata(self, span: Span, span_kind: str) -> None:
-        """Registers the kind of a span upon submitting the span event."""
-        children = self._parent_to_children_spans.setdefault(span.parent_id, {})
-        children[span.span_id]["kind"] = span_kind
+    def _register_span(self, span: Span, span_kind: str) -> None:
+        """
+        Registers the span in the _parent_to_children_spans dict.
+
+        Currently, this happens when a span is being finished. In the future,
+        we may need to register the span when it is started to support different
+        span linking use cases.
+        """
+        parent_id = span.parent_id
+        children = self._parent_to_children_spans.setdefault(parent_id, {})
+        children[span.span_id] = {"span": span, "index": len(children), "kind": span_kind}
     
     def add_span_links(self, span: Span, span_kind: str) -> None:
         """
@@ -383,7 +384,7 @@ class SpanLinker:
         
         Currently, this only works for adding span links between adjacent LLM and tool spans.
         """
-        self._register_span_metadata(span, span_kind)
+        self._register_span(span, span_kind)
         children = self._parent_to_children_spans.get(span.parent_id, {})
         span_entry = children[span.span_id]
         try:
