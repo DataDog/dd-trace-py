@@ -372,19 +372,18 @@ class SpanLinker:
         """Removes the children spans of the given parent span."""
         self._parent_to_children_spans.pop(parent.span_id, None)
     
-    def _register_span_metadata(self, span: Span, span_kind: str, formatted_trace_id: str) -> None:
+    def _register_span_metadata(self, span: Span, span_kind: str) -> None:
         """Registers the kind of a span upon submitting the span event."""
         children = self._parent_to_children_spans.setdefault(span.parent_id, {})
         children[span.span_id]["kind"] = span_kind
-        children[span.span_id]["llmobs_trace_id"] = formatted_trace_id
     
-    def add_span_links(self, span: Span, span_kind: str, formatted_trace_id: str) -> None:
+    def add_span_links(self, span: Span, span_kind: str) -> None:
         """
         Called when a span finishes. This is used to add span links to the span before it is finished.
         
         Currently, this only works for adding span links between adjacent LLM and tool spans.
         """
-        self._register_span_metadata(span, span_kind, formatted_trace_id)
+        self._register_span_metadata(span, span_kind)
         children = self._parent_to_children_spans.get(span.parent_id, {})
         span_entry = children[span.span_id]
         try:
@@ -409,7 +408,7 @@ class SpanLinker:
                     add_span_link(
                         span,
                         str(previous_child["span"].span_id),
-                        previous_child["llmobs_trace_id"],
+                        format_trace_id(previous_child["span"].trace_id),
                         "output",
                         "input",
                     )
