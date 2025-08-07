@@ -797,7 +797,7 @@ class LangChainIntegration(BaseLLMIntegration):
         """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
         template = None
         variables = None
-        if hasattr(instance, "template"):
+        if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
         if isinstance(args[0], dict):
             variables = args[0]
@@ -826,8 +826,11 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
         """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
-        prompt = args[0]
-        template = getattr(prompt, "_dd", None)
+        template = None
+        if len(args) > 0:
+            template = getattr(args[0], "_dd", None)
+        elif "input" in kwargs:
+            template = getattr(kwargs["input"], "_dd", None)
         if template:
             object.__setattr__(instance, "_dd", template)
 
