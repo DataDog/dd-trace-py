@@ -962,6 +962,7 @@ def listen():
         "django.traced_get_response",
         "django.cache",
         "django.middleware.__call__",
+        "django.middleware.func",
         "django.middleware.process_exception",
         "django.middleware.process_request",
         "django.middleware.process_response",
@@ -993,6 +994,7 @@ def listen():
 
     for name in (
         "django.middleware.__call__",
+        "django.middleware.func",
         "django.middleware.process_exception",
         "django.middleware.process_request",
         "django.middleware.process_response",

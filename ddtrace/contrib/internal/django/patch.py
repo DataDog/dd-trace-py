@@ -6,6 +6,7 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+
 from collections.abc import Iterable
 import functools
 from inspect import getmro
@@ -361,7 +362,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
     middlewares.
     """
-    from ddtrace.contrib.internal.django.middleware import wrap_middleware_class
+    from ddtrace.contrib.internal.django.middleware import wrap_middleware
 
     settings_middleware = []
     # Gather all the middleware
@@ -374,42 +375,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     # Each middleware can either be a function or a class
     for mw_path in settings_middleware:
         mw = django.utils.module_loading.import_string(mw_path)
-
-        # Instrument function-based middleware
-        if isfunction(mw) and not trace_utils.iswrapped(mw):
-            split = mw_path.split(".")
-            if len(split) < 2:
-                continue
-            base = ".".join(split[:-1])
-            attr = split[-1]
-
-            # DEV: We need to have a closure over `mw_path` for the resource name or else
-            # all function based middleware will share the same resource name
-            def _wrapper(resource):
-                # Function-based middleware is a factory which returns a handler function for
-                # requests.
-                # So instead of tracing the factory, we want to trace its returned value.
-                # We wrap the factory to return a traced version of the handler function.
-                def wrapped_factory(func, instance, args, kwargs):
-                    # r is the middleware handler function returned from the factory
-                    r = func(*args, **kwargs)
-                    if r:
-                        return wrapt.FunctionWrapper(
-                            r,
-                            traced_func(django, "django.middleware", resource=resource),
-                        )
-                    # If r is an empty middleware function (i.e. returns None), don't wrap since
-                    # NoneType cannot be called
-                    else:
-                        return r
-
-                return wrapped_factory
-
-            trace_utils.wrap(base, attr, _wrapper(resource=mw_path))
-
-        # Instrument class-based middleware
-        elif isclass(mw):
-            wrap_middleware_class(mw, mw_path)
+        wrap_middleware(mw, mw_path)
 
     return func(*args, **kwargs)
 

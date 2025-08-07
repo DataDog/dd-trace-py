@@ -1,3 +1,4 @@
+from inspect import isfunction
 from types import FunctionType
 from typing import Any
 from typing import Dict
@@ -9,9 +10,9 @@ import ddtrace
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import wrap
+from ddtrace.settings.integration import IntegrationConfig
 
 
 # PERF: cache the getattr lookup for the Django config
@@ -131,6 +132,30 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
         return resp
 
 
+def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    middleware = func(*args, **kwargs)
+
+    if isfunction(middleware):
+        # DEV: func_name(func) in traced_middleware_factory is not reliable, we'll get "<wrapped>"
+        resource = func_name(middleware)
+
+        def traced_middleware_func(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+            with core.context_with_data(
+                "django.middleware.func",
+                span_name="django.middleware",
+                resource=resource,
+                tags={
+                    COMPONENT: config_django.integration_name,
+                },
+            ):
+                return func(*args, **kwargs)
+
+        if not is_wrapped(middleware, traced_middleware_func):
+            return wrap(middleware, traced_middleware_func)
+
+    return middleware
+
+
 def wrap_middleware_class(mw: type, mw_path: str) -> None:
     if hasattr(mw, "process_request"):
         if mw_path == "django.contrib.auth.middleware.AuthenticationMiddleware":
@@ -156,3 +181,17 @@ def wrap_middleware_class(mw: type, mw_path: str) -> None:
 
     if hasattr(mw, "process_exception") and not is_wrapped(mw.process_exception, traced_process_exception):
         wrap(mw.process_exception, traced_process_exception)
+
+
+def wrap_middleware(mw: Any, mw_path: str) -> None:
+    """
+    Wraps a Django middleware class or function.
+
+    :param mw: The middleware to wrap.
+    :param mw_path: The import path of the middleware.
+    """
+    if isinstance(mw, type):
+        wrap_middleware_class(mw, mw_path)
+    elif isfunction(mw):
+        if not is_wrapped(mw, traced_middleware_factory):
+            wrap(mw, traced_middleware_factory)

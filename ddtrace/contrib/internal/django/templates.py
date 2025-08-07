@@ -67,7 +67,10 @@ def traced_render(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) 
     if template_name:
         resource = template_name
     else:
-        resource = "{0}.{1}".format(func_name(instance), func.__dd_wrapped__.__name__)
+        if hasattr(func, "__dd_wrapped__"):
+            resource = "{0}.{1}".format(func_name(instance), func.__dd_wrapped__.__name__)
+        else:
+            resource = "{0}.{1}".format(func_name(instance), func.__name__)
 
     # Build tags
     tags = {COMPONENT: config_django.integration_name}
