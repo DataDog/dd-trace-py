@@ -388,31 +388,28 @@ class SpanLinker:
         Currently, this only works for adding span links between adjacent LLM and tool spans.
         """
         children, span_entry = self._register_span(span, span_kind, parent_id)
-        try:
-            span_index = span_entry["index"]
-            if span_index > 0:
-                previous_child = None
-                for child in children.values():
-                    if child["index"] == span_index - 1:
-                        previous_child = child
-                        break
-                if (
-                    previous_child is not None and (
-                        (
-                            previous_child["kind"] == "llm"
-                            and span_entry["kind"] == "tool"
-                        ) or (
-                            previous_child["kind"] == "tool"
-                            and span_entry["kind"] == "llm"
-                        )
+        span_index = span_entry["index"]
+        if span_index > 0:
+            previous_child = None
+            for child in children.values():
+                if child["index"] == span_index - 1:
+                    previous_child = child
+                    break
+            if (
+                previous_child is not None and (
+                    (
+                        previous_child["kind"] == "llm"
+                        and span_entry["kind"] == "tool"
+                    ) or (
+                        previous_child["kind"] == "tool"
+                        and span_entry["kind"] == "llm"
                     )
-                ):
-                    add_span_link(
-                        span,
-                        str(previous_child["span"].span_id),
-                        format_trace_id(previous_child["span"].trace_id),
-                        "output",
-                        "input",
-                    )
-        except ValueError:
-            return
+                )
+            ):
+                add_span_link(
+                    span,
+                    str(previous_child["span"].span_id),
+                    format_trace_id(previous_child["span"].trace_id),
+                    "output",
+                    "input",
+                )
