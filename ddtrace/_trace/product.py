@@ -171,7 +171,7 @@ def _convert_rc_tags(lib_config, key, dd_config):
 
 
 def _convert_optional_bool(lib_config, key):
-    if key not in lib_config:
+    if lib_config.get(key) is None:
         return None
     return asbool(lib_config[key])
 
