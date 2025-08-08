@@ -1,10 +1,7 @@
 interactions:
 - request:
-    body: '{"data": {"type": "datasets", "id": "4d9db36e-386d-4dfb-8cf7-4057c264d0a7",
-      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
-      of Sweden?"}, "expected_output": null, "metadata": null}], "update_records":
-      [], "delete_records": ["0b4e31828728437abe4013d80d444041", "15a332d7bdf448bba8c875b82ce7b933",
-      "13c3bb74-a894-4527-b6fb-dde755ce40e2"]}}}'
+    body: '{"data": {"type": "datasets", "attributes": {"type": "soft", "dataset_ids":
+      ["cfdb514f-92b0-404f-9b3f-020f82b0cd51"]}}}'
     headers:
       Accept:
       - '*/*'
@@ -14,26 +11,27 @@ interactions:
       Connection:
       - keep-alive
       Content-Length:
-      - '366'
+      - '119'
       ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
       - python-requests/2.32.3
     method: POST
-    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/4d9db36e-386d-4dfb-8cf7-4057c264d0a7/batch_update
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/delete
   response:
     body:
-      string: '{"data":[]}'
+      string: '{"data":[{"id":"cfdb514f-92b0-404f-9b3f-020f82b0cd51","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-08T20:49:45.077961Z","current_version":2,"deleted_at":"2025-08-08T20:50:07.174644Z","description":"A
+        test dataset","name":"test-dataset-test_dataset_delete_after_append[test_dataset_records0]","updated_at":"2025-08-08T20:50:03.656733Z"}}]}'
     headers:
       content-length:
-      - '11'
+      - '402'
       content-security-policy:
       - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
       content-type:
       - application/vnd.api+json
       date:
-      - Fri, 08 Aug 2025 07:10:04 GMT
+      - Fri, 08 Aug 2025 20:50:07 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
