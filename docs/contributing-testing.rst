@@ -238,3 +238,14 @@ Using ``@flaky`` comes with the responsibility of maintaining the test suite's c
 of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
 finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
 suite's coverage meaningfully broad while skipping tests.
+
+
+How do I enable debug logs for just a specific part of the library?
+-------------------------------------------------------------------
+
+Enabling debug logs for the whole library with ``DD_TRACE_DEBUG=1`` is often too
+noisy. Log levels for hierarchies of loggers can be controlled with internal
+environment variables. For example, to enable debug logs just for
+``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
+will set the ``DEBUG`` log level for any logger whose name is prefixed with
+``ddtrace.debugging``.
