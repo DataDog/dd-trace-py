@@ -329,7 +329,9 @@ class LLMObs(Service):
                 if user_llmobs_span is None:
                     return None
                 if not isinstance(user_llmobs_span, LLMObsSpan):
-                    raise TypeError("User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span))
+                    raise TypeError(
+                        "User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span)
+                    )
                 llmobs_span = user_llmobs_span
             except Exception as e:
                 log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
