@@ -45,6 +45,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -355,7 +356,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
     @staticmethod
-    def _get_record_json(record: Union[DatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
+    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output, they are expected to
         # set expected_output to None, and we serialize that as empty string to indicate this to BE
         expected_output: JSONType = None
@@ -383,7 +384,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         self,
         dataset_id: str,
         insert_records: List[DatasetRecordRaw],
-        update_records: List[DatasetRecord],
+        update_records: List[UpdatableDatasetRecord],
         delete_record_ids: List[str],
     ) -> Tuple[int, List[str]]:
         irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
