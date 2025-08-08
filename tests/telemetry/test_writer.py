@@ -998,29 +998,28 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
-    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
-    assert configurations["OTEL_PROPAGATORS"] == {
-        "name": "OTEL_PROPAGATORS",
+    assert configurations["DD_TRACE_DEBUG"] == {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": "debug"}
+    assert configurations["DD_TRACE_PROPAGATION_STYLE"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE",
         "origin": "env_var",
         "value": "tracecontext",
     }
-    assert configurations["OTEL_TRACES_SAMPLER"] == {
-        "name": "OTEL_TRACES_SAMPLER",
+    assert configurations["DD_TRACE_SAMPLING_RULES"] == {
+        "name": "DD_TRACE_SAMPLING_RULES",
         "origin": "env_var",
         "value": "always_on",
     }
-    assert configurations["OTEL_TRACES_EXPORTER"] == {
-        "name": "OTEL_TRACES_EXPORTER",
+    assert configurations["DD_TRACE_ENABLED"] == {
+        "name": "DD_TRACE_ENABLED",
         "origin": "env_var",
         "value": "none",
     }
-    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
-    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
-        "name": "OTEL_RESOURCE_ATTRIBUTES",
+    assert configurations["DD_TAGS"] == {
+        "name": "DD_TAGS",
         "origin": "env_var",
         "value": "team=apm,component=web",
     }
-    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+    assert configurations["DD_TRACE_OTEL_ENABLED"] == {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": "true"}
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
