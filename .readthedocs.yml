@@ -9,5 +9,6 @@ build:
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - install -t $HOME/.asdf/bin hatch
     - hatch -q
+    - export CARGO_HOME=$(asdf where rust)
     - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
     - mv docs/_build $READTHEDOCS_OUTPUT
