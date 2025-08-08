@@ -319,7 +319,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         try:
             self._llmobs_set_span_link_on_flow(flow_span, args, kwargs, flow_instance)
-        except Exception:
+        except (KeyError, AttributeError):
             pass
 
     def _llmobs_set_span_link_on_flow(self, flow_span, args, kwargs, flow_instance):
