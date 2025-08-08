@@ -8,6 +8,7 @@ build:
 
 commands:
   - |
+    git fetch --unshallow || true
     rustc --version
     RUST_VERSION=`rustc --version | cut -d' ' -f2`
     echo "Resolved RUST_VERSION=$RUST_VERSION"
