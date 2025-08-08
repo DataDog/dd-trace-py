@@ -3,10 +3,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.86.0"
+    rust: "1.86"
   commands:
-    - export PATH=/home/docs/.asdf/installs/rust/1.86.0/bin:$PATH
-    - echo $PATH
+    - export PATH=/home/docs/.asdf/installs/rust/$(rustc --version | awk '{print $2}')/bin:$PATH
     - git fetch --unshallow || true
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - install -t $HOME/.asdf/bin hatch
