@@ -4,7 +4,6 @@ from celery import current_app
 from celery import registry
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.celery import constants as c
@@ -20,6 +19,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
@@ -60,7 +60,7 @@ def trace_prerun(*args, **kwargs):
     span.set_tag_str(COMPONENT, config.celery.integration_name)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
     attach_span(task, task_id, span)
     if config.celery["distributed_tracing"]:
         attach_span_context(task, task_id, span)
@@ -130,7 +130,7 @@ def trace_before_publish(*args, **kwargs):
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
     span.set_tag_str(c.TASK_TAG_KEY, c.TASK_APPLY_ASYNC)
     span.set_tag_str("celery.id", task_id)
     set_tags_from_context(span, kwargs)

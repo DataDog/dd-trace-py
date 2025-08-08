@@ -6,9 +6,9 @@ from typing import Optional  # noqa:F401
 
 from ddtrace import config
 from ddtrace._trace.sampler import RateSampler
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
@@ -71,7 +71,7 @@ class BaseLLMIntegration:
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
             span._set_ctx_item(INTEGRATION, self._integration_name)

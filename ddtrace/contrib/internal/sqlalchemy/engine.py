@@ -18,7 +18,6 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
@@ -26,6 +25,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net as netx
 from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.trace import Pin
@@ -99,7 +99,7 @@ class EngineTracer(object):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
 
         if not _set_tags_from_url(span, conn.engine.url):
             _set_tags_from_cursor(span, self.vendor, cursor)

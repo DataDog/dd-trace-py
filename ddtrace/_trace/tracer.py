@@ -26,7 +26,6 @@ from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import APPSEC
-from ddtrace.constants import _HOSTNAME_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import PID
 from ddtrace.constants import VERSION_KEY
@@ -36,6 +35,7 @@ from ddtrace.internal import debug
 from ddtrace.internal import forksafe
 from ddtrace.internal import hostname
 from ddtrace.internal.atexit import register_on_exit_signal
+from ddtrace.internal.constants import HOSTNAME_KEY
 from ddtrace.internal.constants import LOG_ATTR_ENV
 from ddtrace.internal.constants import LOG_ATTR_SERVICE
 from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
@@ -571,7 +571,7 @@ class Tracer(object):
                 on_finish=[self._on_span_finish],
             )
             if config._report_hostname:
-                span.set_tag_str(_HOSTNAME_KEY, hostname.get_hostname())
+                span.set_tag_str(HOSTNAME_KEY, hostname.get_hostname())
 
         if not span._parent:
             span.set_tag_str("runtime-id", get_runtime_id())

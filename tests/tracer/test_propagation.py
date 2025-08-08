@@ -14,15 +14,15 @@ from ddtrace.appsec._trace_utils import _asm_manual_keep
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.constants import USER_KEEP
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_IGNORE
-from ddtrace.internal.constants import _PROPAGATION_BEHAVIOR_RESTART
-from ddtrace.internal.constants import _PROPAGATION_STYLE_BAGGAGE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_NONE
-from ddtrace.internal.constants import _PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.internal.constants import LAST_DD_PARENT_ID_KEY
+from ddtrace.internal.constants import PROPAGATION_BEHAVIOR_IGNORE
+from ddtrace.internal.constants import PROPAGATION_BEHAVIOR_RESTART
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_MULTI
 from ddtrace.internal.constants import PROPAGATION_STYLE_B3_SINGLE
+from ddtrace.internal.constants import PROPAGATION_STYLE_BAGGAGE
 from ddtrace.internal.constants import PROPAGATION_STYLE_DATADOG
+from ddtrace.internal.constants import PROPAGATION_STYLE_NONE
+from ddtrace.internal.constants import PROPAGATION_STYLE_W3C_TRACECONTEXT
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import _HTTP_BAGGAGE_PREFIX
 from ddtrace.propagation.http import _HTTP_HEADER_B3_FLAGS
@@ -158,7 +158,7 @@ def test_inject_128bit_trace_id_b3_single_header():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_inject_128bit_trace_id_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
@@ -812,7 +812,7 @@ def test_extract_128bit_trace_ids_b3_single_header():
 
 
 @pytest.mark.subprocess(
-    env=dict(DD_TRACE_PROPAGATION_STYLE=_PROPAGATION_STYLE_W3C_TRACECONTEXT),
+    env=dict(DD_TRACE_PROPAGATION_STYLE=PROPAGATION_STYLE_W3C_TRACECONTEXT),
 )
 def test_extract_128bit_trace_ids_tracecontext():
     from ddtrace.propagation.http import HTTPPropagator
@@ -1497,7 +1497,7 @@ def test_extract_tracestate(caplog, ts_string, expected_tuple, expected_logging,
     ],
 )
 def test_extract_tracecontext(headers, expected_context):
-    overrides = {"_propagation_style_extract": [_PROPAGATION_STYLE_W3C_TRACECONTEXT]}
+    overrides = {"_propagation_style_extract": [PROPAGATION_STYLE_W3C_TRACECONTEXT]}
     with override_global_config(overrides):
         context = HTTPPropagator.extract(headers)
         assert context == Context(**expected_context)
@@ -1967,7 +1967,7 @@ EXTRACT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         None,
         ALL_HEADERS,
@@ -2008,7 +2008,7 @@ EXTRACT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         None,
         {get_wsgi_header(name): value for name, value in ALL_HEADERS.items()},
@@ -2120,7 +2120,7 @@ EXTRACT_FIXTURES = [
     (
         # name, styles, headers, expected_context,
         "none_style",
-        [_PROPAGATION_STYLE_NONE],
+        [PROPAGATION_STYLE_NONE],
         None,
         ALL_HEADERS,
         {
@@ -2149,7 +2149,7 @@ EXTRACT_FIXTURES = [
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
             PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         None,
         B3_HEADERS_VALID,
@@ -2191,7 +2191,7 @@ EXTRACT_FIXTURES = [
         [
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_B3_SINGLE,
         ],
         None,
@@ -2211,7 +2211,7 @@ EXTRACT_FIXTURES = [
     # testing that tracestate is not added when tracecontext style comes later and does not match first style's trace-id
     (
         "no_additional_tracestate_support_when_present_but_trace_ids_do_not_match",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_W3C_TRACECONTEXT],
         None,
         {**DATADOG_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION},
         {
@@ -2247,7 +2247,7 @@ EXTRACT_FIXTURES = [
     ),
     (
         "datadog_tracecontext_conflicting_span_ids",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_W3C_TRACECONTEXT],
         None,
         {
             HTTP_HEADER_TRACE_ID: "9291375655657946024",
@@ -2264,7 +2264,7 @@ EXTRACT_FIXTURES = [
     (
         "valid_datadog_default_w_restart_behavior",
         None,
-        _PROPAGATION_BEHAVIOR_RESTART,
+        PROPAGATION_BEHAVIOR_RESTART,
         DATADOG_HEADERS_VALID,
         {
             "trace_id": None,
@@ -2285,7 +2285,7 @@ EXTRACT_FIXTURES = [
     (
         "valid_datadog_tracecontext_and_baggage_default_w_restart_behavior",
         None,
-        _PROPAGATION_BEHAVIOR_RESTART,
+        PROPAGATION_BEHAVIOR_RESTART,
         {**DATADOG_BAGGAGE_HEADERS_VALID, **TRACECONTEXT_HEADERS_VALID},
         {
             "trace_id": None,
@@ -2308,7 +2308,7 @@ EXTRACT_FIXTURES = [
     (
         "valid_all_headers_default_style_w_restart_behavior",
         None,
-        _PROPAGATION_BEHAVIOR_RESTART,
+        PROPAGATION_BEHAVIOR_RESTART,
         ALL_HEADERS,
         {
             "trace_id": None,
@@ -2328,8 +2328,8 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_trace_context_datadog_style_w_restart_behavior",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT, PROPAGATION_STYLE_DATADOG],
-        _PROPAGATION_BEHAVIOR_RESTART,
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT, PROPAGATION_STYLE_DATADOG],
+        PROPAGATION_BEHAVIOR_RESTART,
         ALL_HEADERS,
         {
             "trace_id": None,
@@ -2349,8 +2349,8 @@ EXTRACT_FIXTURES = [
     ),
     (
         "valid_all_headers_all_styles_w_restart_behavior",
-        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE, _PROPAGATION_STYLE_W3C_TRACECONTEXT],
-        _PROPAGATION_BEHAVIOR_RESTART,
+        [PROPAGATION_STYLE_B3_MULTI, PROPAGATION_STYLE_B3_SINGLE, PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        PROPAGATION_BEHAVIOR_RESTART,
         ALL_HEADERS,
         {
             "trace_id": None,
@@ -2371,7 +2371,7 @@ EXTRACT_FIXTURES = [
     (
         "valid_all_headers_and_baggage_trace_context_datadog_style_w_restart_behavior",
         None,
-        _PROPAGATION_BEHAVIOR_RESTART,
+        PROPAGATION_BEHAVIOR_RESTART,
         {**ALL_HEADERS, **DATADOG_BAGGAGE_HEADERS_VALID},
         {
             "trace_id": None,
@@ -2408,7 +2408,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
         # tracecontext propagation sets additional meta data that
         # can't be tested correctly via test_propagation_extract_w_config. It is tested separately
         "valid_tracecontext_simple",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         None,
         TRACECONTEXT_HEADERS_VALID_BASIC,
         {
@@ -2425,7 +2425,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
     ),
     (
         "valid_tracecontext_rum_no_sampling_decision",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         None,
         TRACECONTEXT_HEADERS_VALID_RUM_NO_SAMPLING_DECISION,
         {
@@ -2440,7 +2440,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
     ),
     (
         "none_and_other_prop_style_still_extracts",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_NONE],
         None,
         ALL_HEADERS,
         {
@@ -2456,14 +2456,14 @@ EXTRACT_FIXTURES_ENV_ONLY = [
     (
         "valid_datadog_default_w_ignore_behavior",
         None,
-        _PROPAGATION_BEHAVIOR_IGNORE,
+        PROPAGATION_BEHAVIOR_IGNORE,
         DATADOG_HEADERS_VALID,
         CONTEXT_EMPTY,
     ),
     (
         # name, styles, headers, expected_context,
         "none_and_other_prop_style_still_extracts",
-        [PROPAGATION_STYLE_DATADOG, _PROPAGATION_STYLE_NONE],
+        [PROPAGATION_STYLE_DATADOG, PROPAGATION_STYLE_NONE],
         None,
         ALL_HEADERS,
         {
@@ -2621,7 +2621,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
     (
         "all_headers_all_styles_tracecontext_t_id_match_no_span_link",
         [
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_B3_MULTI,
         ],
         ALL_HEADERS,
@@ -2645,7 +2645,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
     (
         "all_headers_all_styles_do_not_create_span_link_for_context_w_out_span_id",
         [
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_SINGLE,
             PROPAGATION_STYLE_B3_MULTI,
@@ -2678,7 +2678,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
     (
         "all_headers_all_styles_tracecontext_primary_only_datadog_t_id_diff",
         [
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_SINGLE,
             PROPAGATION_STYLE_B3_MULTI,
@@ -2712,7 +2712,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         "all_headers_all_styles_datadog_primary_only_datadog_t_id_diff",
         [
             PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_B3_SINGLE,
             PROPAGATION_STYLE_B3_MULTI,
         ],
@@ -2756,7 +2756,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         [
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
             PROPAGATION_STYLE_B3_SINGLE,
         ],
         ALL_HEADERS_CHAOTIC_1,
@@ -3039,7 +3039,7 @@ INJECT_FIXTURES = [
     # None style
     (
         "none_propagation_style_does_not_modify_header",
-        [_PROPAGATION_STYLE_NONE],
+        [PROPAGATION_STYLE_NONE],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
             "span_id": VALID_DATADOG_CONTEXT["span_id"],
@@ -3049,7 +3049,7 @@ INJECT_FIXTURES = [
     # if another propagation style is specified in addition to none, we should inject those headers
     (
         "none_propgagtion_with_valid_datadog_style",
-        [_PROPAGATION_STYLE_NONE, PROPAGATION_STYLE_DATADOG],
+        [PROPAGATION_STYLE_NONE, PROPAGATION_STYLE_DATADOG],
         VALID_DATADOG_CONTEXT,
         {
             HTTP_HEADER_TRACE_ID: "13088165645273925489",
@@ -3061,7 +3061,7 @@ INJECT_FIXTURES = [
     # tracecontext
     (
         "valid_tracecontext",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
@@ -3077,7 +3077,7 @@ INJECT_FIXTURES = [
     ),
     (
         "only_traceparent",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
@@ -3092,7 +3092,7 @@ INJECT_FIXTURES = [
     ),
     (
         "only_tracestate",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "meta": {
                 "tracestate": "dd=s:2;o:rum",
@@ -3105,7 +3105,7 @@ INJECT_FIXTURES = [
     ),
     (
         "no_context_traceparent",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
@@ -3122,7 +3122,7 @@ INJECT_FIXTURES = [
     ),
     (
         "tracestate_additional_list_members",
-        [_PROPAGATION_STYLE_W3C_TRACECONTEXT],
+        [PROPAGATION_STYLE_W3C_TRACECONTEXT],
         {
             "trace_id": TRACE_ID,
             "span_id": 67667974448284343,
@@ -3144,8 +3144,8 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
-            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_BAGGAGE,
         ],
         {
             "trace_id": 13088165645273925489,
@@ -3174,7 +3174,7 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         VALID_USER_KEEP_CONTEXT,
         {
@@ -3195,7 +3195,7 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         VALID_AUTO_REJECT_CONTEXT,
         {
@@ -3216,7 +3216,7 @@ INJECT_FIXTURES = [
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
@@ -3235,7 +3235,7 @@ INJECT_FIXTURES = [
     (
         "only_baggage",
         [
-            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_BAGGAGE,
         ],
         {
             "baggage": {"foo": "bar"},
@@ -3248,7 +3248,7 @@ INJECT_FIXTURES = [
         "baggage_and_datadog",
         [
             PROPAGATION_STYLE_DATADOG,
-            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_BAGGAGE,
         ],
         {
             "trace_id": VALID_DATADOG_CONTEXT["trace_id"],
@@ -3264,11 +3264,11 @@ INJECT_FIXTURES = [
     (
         "baggage_order_first",
         [
-            _PROPAGATION_STYLE_BAGGAGE,
+            PROPAGATION_STYLE_BAGGAGE,
             PROPAGATION_STYLE_DATADOG,
             PROPAGATION_STYLE_B3_MULTI,
             PROPAGATION_STYLE_B3_SINGLE,
-            _PROPAGATION_STYLE_W3C_TRACECONTEXT,
+            PROPAGATION_STYLE_W3C_TRACECONTEXT,
         ],
         {
             "baggage": {"foo": "bar"},

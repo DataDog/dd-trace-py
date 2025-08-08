@@ -12,7 +12,6 @@ from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.compat import get_resolver
 from ddtrace.contrib.internal.django.compat import user_is_authenticated
@@ -20,6 +19,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import user as _user
 from ddtrace.internal import compat
 from ddtrace.internal import core
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.http import parse_form_multipart
@@ -254,7 +254,7 @@ def _before_request_tags(pin, span, request):
     #      has explicitly set it during the request lifetime
     span.service = trace_utils.int_service(pin, config.django)
     span.span_type = SpanTypes.WEB
-    span._metrics[_SPAN_MEASURED_KEY] = 1
+    span._metrics[SPAN_MEASURED_KEY] = 1
 
     span.set_tag_str("django.request.class", func_name(request))
 

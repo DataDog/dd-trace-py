@@ -1,7 +1,7 @@
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 
 
 def assert_web_and_inferred_aws_api_gateway_span_data(
@@ -68,4 +68,4 @@ def assert_web_and_inferred_aws_api_gateway_span_data(
     if is_distributed:
         assert aws_gateway_span.trace_id == distributed_trace_id
         assert aws_gateway_span.parent_id == distributed_parent_id
-        assert aws_gateway_span.get_metric(_SAMPLING_PRIORITY_KEY) == distributed_sampling_priority
+        assert aws_gateway_span.get_metric(SAMPLING_PRIORITY_KEY) == distributed_sampling_priority

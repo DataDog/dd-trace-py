@@ -6,7 +6,6 @@ import asyncpg
 import wrapt
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -18,6 +17,7 @@ from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -122,7 +122,7 @@ async def _traced_query(pin, method, query, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
         span.set_tags(pin.tags)
 
         # dispatch DBM

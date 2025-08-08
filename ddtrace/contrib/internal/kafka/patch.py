@@ -7,7 +7,6 @@ from typing import Dict
 import confluent_kafka
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -17,6 +16,7 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import MESSAGING_DESTINATION_NAME
 from ddtrace.internal.constants import MESSAGING_SYSTEM
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_messaging_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -206,7 +206,7 @@ def traced_produce(func, instance, args, kwargs):
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
 
@@ -303,7 +303,7 @@ def _instrument_message(messages, pin, start_ns, instance, err):
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())
