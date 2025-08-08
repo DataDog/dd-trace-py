@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    LLM Observability: add ability to drop spans in SpanProcessor by returning ``None`` for a span.
