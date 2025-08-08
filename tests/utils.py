@@ -42,6 +42,8 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -177,8 +179,6 @@ def override_global_config(values):
 
     asm_config_keys = asm_config._asm_config_keys
 
-    subscriptions = ddtrace.config._subscriptions
-    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
@@ -206,7 +206,6 @@ def override_global_config(values):
             setattr(asm_config, key, value)
 
         ddtrace.config._reset()
-        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
@@ -572,7 +571,7 @@ class DummyWriterMixin:
         return traces
 
 
-class DummyWriter(DummyWriterMixin, AgentWriter):
+class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self, *args, **kwargs):
@@ -587,7 +586,15 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        AgentWriter.__init__(self, *args, **kwargs)
+        if dd_config._trace_writer_native:
+            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+            kwargs["stats_opt_out"] = asm_config._apm_opt_out
+            self._inner_writer = NativeWriter(*args, **kwargs)
+        else:
+            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
+                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
+            self._inner_writer = AgentWriter(*args, **kwargs)
+
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
@@ -596,7 +603,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             if self._trace_flush_enabled:
-                AgentWriter.write(self, spans=spans)
+                self._inner_writer.write(spans=spans)
             else:
                 self.msgpack_encoder.put(spans)
                 self.msgpack_encoder.encode()
@@ -609,6 +616,53 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
 
     def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        return self._inner_writer.flush_queue(raise_exc)
+
+    def before_fork(self) -> None:
+        return self._inner_writer.before_fork()
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        return self._inner_writer.set_test_session_token(token)
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        self._inner_writer.stop(timeout=timeout)
+
+    @property
+    def interval(self) -> float:
+        return self._inner_writer._interval
+
+    @interval.setter
+    def interval(
+        self,
+        value: float,
+    ) -> None:
+        self._inner_writer.interval = value
+
+    def _start_service(self, *args, **kwargs) -> None:
+        self._inner_writer._start_service(*args, **kwargs)
+
+    def join(
+        self,
+        timeout: Optional[float],
+    ) -> None:
+        self._inner_writer.join(timeout=timeout)
+
+    def periodic(self):
+        self._inner_writer.periodic()
+
+    def _stop_service(
+        self,
+        timeout: Optional[float] = None,
+    ) -> None:
+        self._inner_writer._stop_service(timeout=timeout)
+
+    def on_shutdown(self):
+        self._inner_writer.on_shutdown()
+
+    def __getattr__(self, name: str):
+        return self._inner_writer.__getattribute__(name)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -1170,7 +1224,10 @@ def snapshot_context(
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
+            if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                tracer._span_aggregator.writer.set_test_session_token(token)
+            else:
+                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1210,7 +1267,10 @@ def snapshot_context(
             # Force a flush so all traces are submitted.
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                    tracer._span_aggregator.writer.set_test_session_token(None)
+                else:
+                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1423,12 +1483,9 @@ def flush_test_tracer_spans(writer):
         [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
-        headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
+        writer._send_payload(encoded_traces, n_traces, client)
     except Exception:
         return
-
-    assert response.status == 200, response.body
 
 
 def add_dd_env_variables_to_headers(headers):
