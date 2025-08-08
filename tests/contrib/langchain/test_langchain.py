@@ -482,12 +482,12 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         pass
 
 
-@snapshot(
+@pytest.mark.snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
     ),
-    token_override="tests.contrib.langchain.test_langchain.test_streamed_chain",
+    token="tests.contrib.langchain.test_langchain.test_streamed_chain",
 )
 async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
@@ -509,12 +509,12 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         pass
 
 
-@snapshot(
+@pytest.mark.snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
     ),
-    token_override="tests.contrib.langchain.test_langchain.test_streamed_chat",
+    token="tests.contrib.langchain.test_langchain.test_streamed_chat",
 )
 async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
@@ -531,7 +531,7 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
         pass
 
 
-@snapshot(
+@pytest.mark.snapshot(
     ignores=IGNORE_FIELDS,
     token_override="tests.contrib.langchain.test_langchain.test_streamed_llm",
 )
