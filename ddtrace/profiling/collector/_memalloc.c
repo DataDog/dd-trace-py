@@ -15,8 +15,7 @@
 typedef struct
 {
     PyMemAllocatorEx pymem_allocator_obj;
-    /* The domain we are tracking */
-    PyMemAllocatorDomain domain;
+    PyMemAllocatorEx pymem_allocator_mem;
     /* The maximum number of frames collected in stack traces */
     uint16_t max_nframe;
 
@@ -34,9 +33,16 @@ static PyObject* object_string = NULL;
 static bool memalloc_enabled = false;
 
 static void
-memalloc_free(void* ctx, void* ptr)
+memalloc_free(void* ctx, void* ptr, PyMemAllocatorDomain domain)
 {
-    PyMemAllocatorEx* alloc = (PyMemAllocatorEx*)ctx;
+    memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    PyMemAllocatorEx* alloc;
+    
+    if (domain == PYMEM_DOMAIN_OBJ) {
+        alloc = &memalloc_ctx->pymem_allocator_obj;
+    } else {
+        alloc = &memalloc_ctx->pymem_allocator_mem;
+    }
 
     if (ptr == NULL)
         return;
@@ -47,47 +53,98 @@ memalloc_free(void* ctx, void* ptr)
 }
 
 static void*
-memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize)
+memalloc_alloc(int use_calloc, void* ctx, size_t nelem, size_t elsize, PyMemAllocatorDomain domain)
 {
     void* ptr;
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
+    PyMemAllocatorEx* alloc;
+    
+    if (domain == PYMEM_DOMAIN_OBJ) {
+        alloc = &memalloc_ctx->pymem_allocator_obj;
+    } else {
+        alloc = &memalloc_ctx->pymem_allocator_mem;
+    }
 
     if (use_calloc)
-        ptr = memalloc_ctx->pymem_allocator_obj.calloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem, elsize);
+        ptr = alloc->calloc(alloc->ctx, nelem, elsize);
     else
-        ptr = memalloc_ctx->pymem_allocator_obj.malloc(memalloc_ctx->pymem_allocator_obj.ctx, nelem * elsize);
+        ptr = alloc->malloc(alloc->ctx, nelem * elsize);
 
     if (ptr) {
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, memalloc_ctx->domain);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr, nelem * elsize, domain);
     }
 
     return ptr;
 }
 
 static void*
-memalloc_malloc(void* ctx, size_t size)
-{
-    return memalloc_alloc(0, ctx, 1, size);
-}
-
-static void*
-memalloc_calloc(void* ctx, size_t nelem, size_t elsize)
-{
-    return memalloc_alloc(1, ctx, nelem, elsize);
-}
-
-static void*
-memalloc_realloc(void* ctx, void* ptr, size_t new_size)
+memalloc_realloc(void* ctx, void* ptr, size_t new_size, PyMemAllocatorDomain domain)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
-    void* ptr2 = memalloc_ctx->pymem_allocator_obj.realloc(memalloc_ctx->pymem_allocator_obj.ctx, ptr, new_size);
+    PyMemAllocatorEx* alloc;
+    
+    if (domain == PYMEM_DOMAIN_OBJ) {
+        alloc = &memalloc_ctx->pymem_allocator_obj;
+    } else {
+        alloc = &memalloc_ctx->pymem_allocator_mem;
+    }
+    
+    void* ptr2 = alloc->realloc(alloc->ctx, ptr, new_size);
 
     if (ptr2) {
         memalloc_heap_untrack(ptr);
-        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, memalloc_ctx->domain);
+        memalloc_heap_track(memalloc_ctx->max_nframe, ptr2, new_size, domain);
     }
 
     return ptr2;
+}
+
+static void*
+memalloc_malloc_obj(void* ctx, size_t size)
+{
+    return memalloc_alloc(0, ctx, 1, size, PYMEM_DOMAIN_OBJ);
+}
+
+static void*
+memalloc_calloc_obj(void* ctx, size_t nelem, size_t elsize)
+{
+    return memalloc_alloc(1, ctx, nelem, elsize, PYMEM_DOMAIN_OBJ);
+}
+
+static void*
+memalloc_realloc_obj(void* ctx, void* ptr, size_t new_size)
+{
+    return memalloc_realloc(ctx, ptr, new_size, PYMEM_DOMAIN_OBJ);
+}
+
+static void
+memalloc_free_obj(void* ctx, void* ptr)
+{
+    memalloc_free(ctx, ptr, PYMEM_DOMAIN_OBJ);
+}
+
+static void*
+memalloc_malloc_mem(void* ctx, size_t size)
+{
+    return memalloc_alloc(0, ctx, 1, size, PYMEM_DOMAIN_MEM);
+}
+
+static void*
+memalloc_calloc_mem(void* ctx, size_t nelem, size_t elsize)
+{
+    return memalloc_alloc(1, ctx, nelem, elsize, PYMEM_DOMAIN_MEM);
+}
+
+static void*
+memalloc_realloc_mem(void* ctx, void* ptr, size_t new_size)
+{
+    return memalloc_realloc(ctx, ptr, new_size, PYMEM_DOMAIN_MEM);
+}
+
+static void
+memalloc_free_mem(void* ctx, void* ptr)
+{
+    memalloc_free(ctx, ptr, PYMEM_DOMAIN_MEM);
 }
 
 PyDoc_STRVAR(memalloc_start__doc__,
@@ -147,19 +204,29 @@ memalloc_start(PyObject* Py_UNUSED(module), PyObject* args)
 
     memalloc_heap_tracker_init((uint32_t)heap_sample_size);
 
-    PyMemAllocatorEx alloc;
+    PyMemAllocatorEx alloc_obj;
 
-    alloc.malloc = memalloc_malloc;
-    alloc.calloc = memalloc_calloc;
-    alloc.realloc = memalloc_realloc;
-    alloc.free = memalloc_free;
+    alloc_obj.malloc = memalloc_malloc_obj;
+    alloc_obj.calloc = memalloc_calloc_obj;
+    alloc_obj.realloc = memalloc_realloc_obj;
+    alloc_obj.free = memalloc_free_obj;
 
-    alloc.ctx = &global_memalloc_ctx;
-
-    global_memalloc_ctx.domain = PYMEM_DOMAIN_OBJ;
+    alloc_obj.ctx = &global_memalloc_ctx;
 
     PyMem_GetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
-    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc);
+    PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &alloc_obj);
+
+    PyMemAllocatorEx alloc_mem;
+
+    alloc_mem.malloc = memalloc_malloc_mem;
+    alloc_mem.calloc = memalloc_calloc_mem;
+    alloc_mem.realloc = memalloc_realloc_mem;
+    alloc_mem.free = memalloc_free_mem;
+
+    alloc_mem.ctx = &global_memalloc_ctx;
+
+    PyMem_GetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx.pymem_allocator_mem);
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &alloc_mem);
 
     memalloc_enabled = true;
 
@@ -186,6 +253,7 @@ memalloc_stop(PyObject* Py_UNUSED(module), PyObject* Py_UNUSED(args))
      * NB: We're assuming here that this is not called concurrently with iter_events
      * or memalloc_heap. The higher-level collector deals with this. */
     PyMem_SetAllocator(PYMEM_DOMAIN_OBJ, &global_memalloc_ctx.pymem_allocator_obj);
+    PyMem_SetAllocator(PYMEM_DOMAIN_MEM, &global_memalloc_ctx.pymem_allocator_mem);
 
     memalloc_heap_tracker_deinit();
 

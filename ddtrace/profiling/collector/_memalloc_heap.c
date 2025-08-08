@@ -355,7 +355,7 @@ memalloc_heap_track(uint16_t max_nframe, void* ptr, size_t size, PyMemAllocatorD
 PyObject*
 memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
 {
-    PyObject* tb_and_info = PyTuple_New(4);
+    PyObject* tb_and_info = PyTuple_New(5);
     if (tb_and_info == NULL) {
         return NULL;
     }
@@ -378,6 +378,7 @@ memalloc_sample_to_tuple(traceback_t* tb, bool is_live)
     PyTuple_SET_ITEM(tb_and_info, 1, PyLong_FromSize_t(in_use_size));
     PyTuple_SET_ITEM(tb_and_info, 2, PyLong_FromSize_t(alloc_size));
     PyTuple_SET_ITEM(tb_and_info, 3, PyLong_FromSize_t(tb->count));
+    PyTuple_SET_ITEM(tb_and_info, 4, PyLong_FromLong(tb->domain));
 
     return tb_and_info;
 }
