@@ -6,6 +6,8 @@ import typing as t
 
 from cassandra.cluster import Cluster
 from cassandra.cluster import NoHostAvailable
+from contrib.config import AZURE_EVENTHUBSEMULATOR_CONFIG
+from contrib.config import AZURE_SERVICEBUSEMULATOR_CONFIG
 from contrib.config import CASSANDRA_CONFIG
 from contrib.config import ELASTICSEARCH_CONFIG
 from contrib.config import HTTPBIN_CONFIG
@@ -135,6 +137,26 @@ def check_moto(url):
     requests.get(url).raise_for_status()
 
 
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/health".format(**AZURE_EVENTHUBSEMULATOR_CONFIG)},
+)
+def check_azureeventhubsemulator(url):
+    requests.get(url).raise_for_status()
+
+
+@try_until_timeout(
+    Exception,
+    tries=120,
+    timeout=1,
+    args={"url": "http://{host}:{port}/health".format(**AZURE_SERVICEBUSEMULATOR_CONFIG)},
+)
+def check_azureservicebusemulator(url):
+    requests.get(url).raise_for_status()
+
+
 if __name__ == "__main__":
     check_functions = {
         "cassandra": check_cassandra,
@@ -148,6 +170,8 @@ if __name__ == "__main__":
         "rabbitmq": check_rabbitmq,
         "testagent": check_agent,
         "vertica": check_vertica,
+        "azureeventhubsemulator": check_azureeventhubsemulator,
+        "azureservicebusemulator": check_azureservicebusemulator,
     }
     if len(sys.argv) >= 2:
         for service in sys.argv[1:]:
