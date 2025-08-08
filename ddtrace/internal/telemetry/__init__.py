@@ -74,7 +74,7 @@ def get_config(
 
             if report_telemetry:
                 # OpenTelemetry configurations always report the raw value
-                telemetry_writer.add_configuration(telemetry_name, raw_val, "env_var")
+                telemetry_writer.add_configuration(telemetry_name, raw_val, "otel_env_var")
             effective_val = val
         else:
             _invalid_otel_config(otel_env)

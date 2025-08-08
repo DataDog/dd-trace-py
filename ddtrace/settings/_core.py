@@ -20,6 +20,7 @@ class ValueSource(str, Enum):
     CODE = "code"
     DEFAULT = "default"
     UNKNOWN = "unknown"
+    OTEL_ENV_VAR = "otel_env_var"
 
 
 class DDConfig(Env):
@@ -57,6 +58,8 @@ class DDConfig(Env):
 
             if env_name in self.fleet_source:
                 value_source = ValueSource.FLEET_STABLE_CONFIG
+            elif env_name in self.env_source and env_name.upper().startswith("OTEL_"):
+                value_source = ValueSource.OTEL_ENV_VAR
             elif env_name in self.env_source:
                 value_source = ValueSource.ENV_VAR
             elif env_name in self.local_source:
@@ -75,5 +78,5 @@ class DDConfig(Env):
             else:
                 self.config_id = None
 
-    def value_source(self, env_name: str) -> ValueSource:
+    def value_source(self, env_name: str) -> str:
         return self._value_source.get(env_name, ValueSource.UNKNOWN)

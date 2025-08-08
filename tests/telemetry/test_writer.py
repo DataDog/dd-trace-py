@@ -998,28 +998,37 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
-    assert configurations["DD_TRACE_DEBUG"] == {"name": "DD_TRACE_DEBUG", "origin": "env_var", "value": "debug"}
-    assert configurations["DD_TRACE_PROPAGATION_STYLE"] == {
-        "name": "DD_TRACE_PROPAGATION_STYLE",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_DEBUG"] == {"name": "DD_TRACE_DEBUG", "origin": "otel_env_var", "value": "debug"}
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_INJECT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_INJECT",
+        "origin": "otel_env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+        "origin": "otel_env_var",
         "value": "tracecontext",
     }
     assert configurations["DD_TRACE_SAMPLING_RULES"] == {
         "name": "DD_TRACE_SAMPLING_RULES",
-        "origin": "env_var",
+        "origin": "otel_env_var",
         "value": "always_on",
     }
     assert configurations["DD_TRACE_ENABLED"] == {
         "name": "DD_TRACE_ENABLED",
-        "origin": "env_var",
+        "origin": "otel_env_var",
         "value": "none",
     }
     assert configurations["DD_TAGS"] == {
         "name": "DD_TAGS",
-        "origin": "env_var",
+        "origin": "otel_env_var",
         "value": "team=apm,component=web",
     }
-    assert configurations["DD_TRACE_OTEL_ENABLED"] == {"name": "DD_TRACE_OTEL_ENABLED", "origin": "env_var", "value": "true"}
+    assert configurations["DD_TRACE_OTEL_ENABLED"] == {
+        "name": "DD_TRACE_OTEL_ENABLED",
+        "origin": "otel_env_var",
+        "value": "true",
+    }
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
@@ -1099,6 +1108,7 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     """Test that telemetry data is submitted for multiple sources with increasing seq_id"""
 
     telemetry_writer.add_configuration("DD_SERVICE", "unamed_python_service", "default")
+    telemetry_writer.add_configuration("DD_SERVICE", "otel_service", "otel_env_var")
     telemetry_writer.add_configuration("DD_SERVICE", "dd_service", "env_var")
     telemetry_writer.add_configuration("DD_SERVICE", "monkey", "code")
     telemetry_writer.add_configuration("DD_SERVICE", "baboon", "remote_config")
@@ -1107,25 +1117,29 @@ def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_s
     telemetry_writer.periodic(force_flush=True)
 
     configs = test_agent_session.get_configurations(name="DD_SERVICE", remove_seq_id=False, effective=False)
-    assert len(configs) == 5, configs
+    assert len(configs) == 6, configs
 
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
     assert sorted_configs[0]["value"] == "unamed_python_service"
     assert sorted_configs[0]["origin"] == "default"
     assert sorted_configs[0]["seq_id"] == 1
 
-    assert sorted_configs[1]["value"] == "dd_service"
-    assert sorted_configs[1]["origin"] == "env_var"
+    assert sorted_configs[1]["value"] == "otel_service"
+    assert sorted_configs[1]["origin"] == "otel_env_var"
     assert sorted_configs[1]["seq_id"] == 2
 
-    assert sorted_configs[2]["value"] == "monkey"
-    assert sorted_configs[2]["origin"] == "code"
+    assert sorted_configs[2]["value"] == "dd_service"
+    assert sorted_configs[2]["origin"] == "env_var"
     assert sorted_configs[2]["seq_id"] == 3
 
-    assert sorted_configs[3]["value"] == "baboon"
-    assert sorted_configs[3]["origin"] == "remote_config"
+    assert sorted_configs[3]["value"] == "monkey"
+    assert sorted_configs[3]["origin"] == "code"
     assert sorted_configs[3]["seq_id"] == 4
 
     assert sorted_configs[4]["value"] == "baboon"
-    assert sorted_configs[4]["origin"] == "fleet_stable_config"
+    assert sorted_configs[4]["origin"] == "remote_config"
     assert sorted_configs[4]["seq_id"] == 5
+
+    assert sorted_configs[5]["value"] == "baboon"
+    assert sorted_configs[5]["origin"] == "fleet_stable_config"
+    assert sorted_configs[5]["seq_id"] == 6

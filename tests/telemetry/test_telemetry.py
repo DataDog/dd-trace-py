@@ -376,7 +376,7 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     assert sorted_configs[0]["origin"] == "default"
 
     assert sorted_configs[1]["value"] == "none"
-    assert sorted_configs[1]["origin"] == "env_var"
+    assert sorted_configs[1]["origin"] == "otel_env_var"
 
     assert sorted_configs[2]["value"] is False
     assert sorted_configs[2]["origin"] == "env_var"
