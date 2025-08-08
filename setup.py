@@ -899,7 +899,7 @@ if not IS_PYSTON:
             CMakeExtension("ddtrace.appsec._iast._taint_tracking._native", source_dir=IAST_DIR, optional=False)
         )
 
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
         native_features.append("crashtracker")
         native_features.append("profiling")
         ext_modules.append(
