@@ -1,6 +1,7 @@
 import asyncio
 import os
 from textwrap import dedent
+from typing import Optional
 
 import pytest
 
@@ -166,6 +167,26 @@ class TestLLMIOProcessing:
             llmobs.annotate(llm_span, input_data="value", output_data="value")
         assert llmobs_events[0]["meta"]["input"] == {"messages": [{"content": "value", "role": ""}]}
         assert llmobs_events[0]["meta"]["output"] == {"messages": [{"content": "value", "role": ""}]}
+
+    def _omit_span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
+        if span.get_tag("omit_span") == "true":
+            return None
+        return span
+
+    @pytest.mark.parametrize("llmobs_enable_opts", [dict(span_processor=_omit_span_processor)])
+    def test_processor_omit_span(self, llmobs, llmobs_enable_opts, llmobs_events):
+        """Test that a processor that returns None omits the span from being sent."""
+        # Create a span that should be omitted
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, input_data="omit me", output_data="response", tags={"omit_span": "true"})
+
+        # Create a span that should be kept
+        with llmobs.llm() as llm_span:
+            llmobs.annotate(llm_span, input_data="keep me", output_data="response", tags={"omit_span": "false"})
+
+        # Only the second span should be in the events
+        assert len(llmobs_events) == 1
+        assert llmobs_events[0]["meta"]["input"]["messages"][0]["content"] == "keep me"
 
     def test_ddtrace_run_register_processor(self, ddtrace_run_python_code_in_subprocess, llmobs_backend):
         """Users using ddtrace-run can register a processor to be called on each LLMObs span."""

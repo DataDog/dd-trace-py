@@ -620,7 +620,9 @@ def test_rc_default_products_registered():
     ],
 )
 def test_trace_sampling_rules_conversion(rc_rules, expected_config_rules, expected_sampling_rules):
-    trace_sampling_rules = _convert_rc_trace_sampling_rules(rc_rules, None)
+    trace_sampling_rules = _convert_rc_trace_sampling_rules(
+        {"tracing_sampling_rate": None, "tracing_sampling_rules": rc_rules}
+    )
 
     assert trace_sampling_rules == expected_config_rules
     if trace_sampling_rules is not None:

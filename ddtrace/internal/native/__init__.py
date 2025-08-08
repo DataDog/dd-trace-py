@@ -3,9 +3,18 @@ from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+from ._native import AgentError  # noqa: F401
+from ._native import BuilderError  # noqa: F401
 from ._native import DDSketch  # noqa: F401
+from ._native import DeserializationError  # noqa: F401
+from ._native import IoError  # noqa: F401
+from ._native import NetworkError  # noqa: F401
 from ._native import PyConfigurator
 from ._native import PyTracerMetadata  # noqa: F401
+from ._native import RequestError  # noqa: F401
+from ._native import SerializationError  # noqa: F401
+from ._native import TraceExporter  # noqa: F401
+from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 
 
