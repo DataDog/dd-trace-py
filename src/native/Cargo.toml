@@ -24,10 +24,10 @@ datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "
     "cbindgen",
 ] }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
-pyo3 = { version = "0.24", features = ["extension-module", "anyhow"] }
+pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
 
 [build-dependencies]
-pyo3-build-config = "0.24"
+pyo3-build-config = "0.25"
 build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0", features = [
     "cbindgen",
 ] }
