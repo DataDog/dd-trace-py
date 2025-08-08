@@ -847,7 +847,12 @@ class TestLLMObsOpenaiV1:
                                 "content": "",
                                 "role": "tool",
                                 "tool_results": [
-                                    {"result": str(tool_result), "tool_id": tool_call_id, "type": "tool_result"}
+                                    {
+                                        "name": "",
+                                        "result": json.dumps(tool_result),
+                                        "tool_id": tool_call_id,
+                                        "type": "tool_result",
+                                    }
                                 ],
                             },
                             {"content": "Can you summarize the student's academic performance?", "role": "user"},

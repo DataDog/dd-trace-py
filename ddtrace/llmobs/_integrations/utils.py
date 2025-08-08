@@ -394,10 +394,11 @@ def openai_set_meta_tags_from_chat(
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
-    tools = openai_get_tool_definitions(kwargs.get("tools", []))
-    tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
-    if tools:
-        span._set_ctx_item(TOOL_DEFINITIONS, tools)
+    if kwargs.get("tools") or kwargs.get("functions"):
+        tools = openai_get_tool_definitions(kwargs.get("tools", []))
+        tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
+        if tools:
+            span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
     if span.error or not messages:
         span._set_ctx_item(OUTPUT_MESSAGES, [{"content": ""}])
