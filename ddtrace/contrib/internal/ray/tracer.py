@@ -18,6 +18,11 @@ RAY_JOB_ID_TAG_KEY = "ray.job_id"
 DEFAULT_SERVICE_NAME = "unspecified-ray-job"
 DEFAULT_SPAN_NAME = "ray.job"
 
+FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] '
+              '[dd.service=%(dd.service)s dd.env=%(dd.env)s '
+              'dd.version=%(dd.version)s '
+              'dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] '
+              '- %(message)s')
 
 class RayTraceFilter(TraceFilter):
     def process_trace(self, trace):
@@ -30,6 +35,8 @@ class RayTraceFilter(TraceFilter):
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+                # span.ray_job_submission_id = None  # TODO: Add job submission id
+
         return trace
 
 
@@ -37,7 +44,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):  # pyright: ignore[reportPr
         def add_fields(self, log_record, record, message_dict):
             super(CustomJsonFormatter, self).add_fields(log_record, record, message_dict)
 
-            log_record['service'] = os.environ.get("DD_SERVICE", "unspecified-ray-job")
+            # log_record['ray_job_submission_id'] = None  # TODO: Add job submission id
 
 
 def setup_tracing() -> None:
@@ -47,7 +54,7 @@ def setup_tracing() -> None:
     for name in logging.root.manager.loggerDict.keys():
         logger = logging.getLogger(name)
         if name.startswith("ray"):
-            log_handler = logging.StreamHandler()
-            formatter = CustomJsonFormatter()
-            log_handler.setFormatter(formatter)
-            logger.addHandler(log_handler)
+            stream_handler = logging.StreamHandler()
+            json_formatter = CustomJsonFormatter(format=FORMAT)
+            stream_handler.setFormatter(json_formatter)
+            logger.addHandler(stream_handler)
