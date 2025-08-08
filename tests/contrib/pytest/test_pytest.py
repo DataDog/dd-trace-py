@@ -2525,7 +2525,7 @@ def test_inner_2():
             fd.write(
                 """def test_outer_1():
                 assert True
-                
+
 def test_outer_2():
                 assert True"""
             )
@@ -2537,7 +2537,7 @@ def test_outer_2():
             fd.write(
                 """def test_inner_1():
                 assert True
-                
+
 def test_inner_2():
                 assert True"""
             )
