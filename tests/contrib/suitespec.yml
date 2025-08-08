@@ -349,7 +349,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
