@@ -372,14 +372,14 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     assert len(configs) == 4, configs
 
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
-    assert sorted_configs[0]["value"] == True
+    assert sorted_configs[0]["value"] is True
     assert sorted_configs[0]["origin"] == "default"
 
     assert sorted_configs[1]["value"] == "none"
     assert sorted_configs[1]["origin"] == "env_var"
 
-    assert sorted_configs[2]["value"] == False
+    assert sorted_configs[2]["value"] is False
     assert sorted_configs[2]["origin"] == "env_var"
 
-    assert sorted_configs[3]["value"] == True
+    assert sorted_configs[3]["value"] is True
     assert sorted_configs[3]["origin"] == "code"
