@@ -21,6 +21,29 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
+# Constant for tool definitions used across multiple tests
+EXPECTED_TOOL_DEFINITIONS = [
+    {
+        "name": "extract_student_info",
+        "description": "Get the student information from the body of the input text",
+        "schema": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "description": "Name of the person"},
+                "major": {"type": "string", "description": "Major subject."},
+                "school": {"type": "string", "description": "The university name."},
+                "grades": {"type": "integer", "description": "GPA of the student."},
+                "clubs": {
+                    "type": "array",
+                    "description": "School clubs for extracurricular activities. ",
+                    "items": {"type": "string", "description": "Name of School Club"},
+                },
+            },
+        },
+    }
+]
+
+
 @pytest.mark.parametrize(
     "ddtrace_global_config",
     [
@@ -677,6 +700,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[expected_output],
                 metadata={"function_call": "auto", "user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -706,6 +730,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[tool_call_expected_output],
                 metadata={"user": "ddtrace-test"},
                 token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -776,6 +801,26 @@ class TestLLMObsOpenaiV1:
                         ],
                         metadata={"user": "ddtrace-test"},
                         token_metrics={"input_tokens": 157, "output_tokens": 57, "total_tokens": 214},
+                        tool_definitions=[
+                            {
+                                "name": "extract_student_info",
+                                "description": "Get the student information from the body of the input text",
+                                "schema": {
+                                    "type": "object",
+                                    "properties": {
+                                        "name": {"type": "string", "description": "Name of the person"},
+                                        "major": {"type": "string", "description": "Major subject."},
+                                        "school": {"type": "string", "description": "The university name."},
+                                        "grades": {"type": "integer", "description": "GPA of the student."},
+                                        "clubs": {
+                                            "type": "array",
+                                            "description": "School clubs for extracurricular activities. ",
+                                            "items": {"type": "string", "description": "Name of School Club"},
+                                        },
+                                    },
+                                },
+                            }
+                        ],
                         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
                     )
                 ),
@@ -792,13 +837,24 @@ class TestLLMObsOpenaiV1:
                                 "tool_calls": [
                                     {
                                         "name": tool_name,
-                                        "arguments": tool_arguments_str,
+                                        "arguments": json.loads(tool_arguments_str),
                                         "tool_id": tool_call_id,
                                         "type": "function",
                                     }
                                 ],
                             },
-                            {"content": json.dumps(tool_result), "role": "tool", "tool_id": tool_call_id},
+                            {
+                                "content": "",
+                                "role": "tool",
+                                "tool_results": [
+                                    {
+                                        "name": "",
+                                        "result": json.dumps(tool_result),
+                                        "tool_id": tool_call_id,
+                                        "type": "tool_result",
+                                    }
+                                ],
+                            },
                             {"content": "Can you summarize the student's academic performance?", "role": "user"},
                         ],
                         output_messages=[
@@ -852,6 +908,7 @@ class TestLLMObsOpenaiV1:
                 output_messages=[tool_call_expected_output],
                 metadata={"user": "ddtrace-test", "stream": True, "stream_options": {"include_usage": True}},
                 token_metrics={"input_tokens": 166, "output_tokens": 43, "total_tokens": 209},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1293,7 +1350,6 @@ class TestLLMObsOpenaiV1:
                     "max_output_tokens": 100,
                     "user": "ddtrace-test",
                     "temperature": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1337,7 +1393,6 @@ class TestLLMObsOpenaiV1:
                     "stream": True,
                     "temperature": 1.0,
                     "top_p": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1393,7 +1448,6 @@ class TestLLMObsOpenaiV1:
                     "temperature": 0.1,
                     "stream": True,
                     "top_p": 1.0,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1426,25 +1480,6 @@ class TestLLMObsOpenaiV1:
                 input_messages=[{"role": "user", "content": input_messages}],
                 output_messages=response_tool_function_expected_output,
                 metadata={
-                    "tools": [
-                        {
-                            "type": "function",
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "location": {
-                                        "type": "string",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location", "unit"],
-                            },
-                            "strict": True,
-                        }
-                    ],
                     "tool_choice": "auto",
                     "temperature": 1.0,
                     "top_p": 1.0,
@@ -1458,6 +1493,23 @@ class TestLLMObsOpenaiV1:
                     "total_tokens": 98,
                     "cache_read_input_tokens": 0,
                 },
+                tool_definitions=[
+                    {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                },
+                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                            },
+                            "required": ["location", "unit"],
+                        },
+                    }
+                ],
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
             )
         )
@@ -1493,25 +1545,6 @@ class TestLLMObsOpenaiV1:
                 metadata={
                     "temperature": 1.0,
                     "top_p": 1.0,
-                    "tools": [
-                        {
-                            "type": "function",
-                            "name": "get_current_weather",
-                            "description": "Get the current weather in a given location",
-                            "parameters": {
-                                "type": "object",
-                                "properties": {
-                                    "location": {
-                                        "type": "string",
-                                        "description": "The city and state, e.g. San Francisco, CA",
-                                    },
-                                    "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
-                                },
-                                "required": ["location", "unit"],
-                            },
-                            "strict": True,
-                        }
-                    ],
                     "user": "ddtrace-test",
                     "stream": True,
                     "tool_choice": "auto",
@@ -1519,6 +1552,23 @@ class TestLLMObsOpenaiV1:
                     "text": {"format": {"type": "text"}},
                     "reasoning_tokens": 0,
                 },
+                tool_definitions=[
+                    {
+                        "name": "get_current_weather",
+                        "description": "Get the current weather in a given location",
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "location": {
+                                    "type": "string",
+                                    "description": "The city and state, e.g. San Francisco, CA",
+                                },
+                                "unit": {"type": "string", "enum": ["celsius", "fahrenheit"]},
+                            },
+                            "required": ["location", "unit"],
+                        },
+                    }
+                ],
                 token_metrics={
                     "input_tokens": 75,
                     "output_tokens": 23,
@@ -1582,7 +1632,6 @@ class TestLLMObsOpenaiV1:
                     "temperature": 1.0,
                     "max_output_tokens": 100,
                     "top_p": 0.9,
-                    "tools": [],
                     "tool_choice": "auto",
                     "truncation": "disabled",
                     "text": {"format": {"type": "text"}},
@@ -1640,7 +1689,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1667,7 +1715,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1732,7 +1779,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1759,7 +1805,6 @@ class TestLLMObsOpenaiV1:
                             "max_output_tokens": 100,
                             "temperature": 0.1,
                             "top_p": 1.0,
-                            "tools": [],
                             "tool_choice": "auto",
                             "truncation": "disabled",
                             "text": {"format": {"type": "text"}},
@@ -1829,7 +1874,7 @@ class TestLLMObsOpenaiV1:
         assert mock_llmobs_writer.enqueue.call_count == 1
         span_event = mock_llmobs_writer.enqueue.call_args[0][0]
         assert (
-            span_event["meta"]["input"]["messages"][2]["content"]
+            span_event["meta"]["input"]["messages"][2]["tool_results"][0]["result"]
             == '{"temperature": "72°F", "conditions": "sunny", "humidity": "65%"}'
         )
 
