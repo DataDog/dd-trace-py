@@ -532,6 +532,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_VERSION", "origin": "default", "value": None},
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
+        {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},
         {"name": "_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", "origin": "default", "value": False},
         {"name": "instrumentation_source", "origin": "code", "value": "manual"},
         {"name": "python_build_gnu_type", "origin": "unknown", "value": sysconfig.get_config_var("BUILD_GNU_TYPE")},

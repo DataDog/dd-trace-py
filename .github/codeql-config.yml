@@ -1,3 +1,4 @@
 name: "CodeQL config"
 paths-ignore:
-  - 'tests/appsec/iast_packages/packages/**'
+  - "tests/appsec/iast_packages/packages/**"
+  - "tests/appsec/contrib_appsec/**"
