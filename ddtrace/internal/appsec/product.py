@@ -14,9 +14,9 @@ def start():
 
         enable_appsec_rc()
     if config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._listeners import load_appsec
 
-        AppSecSpanProcessor.enable()
+        load_appsec()
 
 
 def restart(join=False):
@@ -24,10 +24,6 @@ def restart(join=False):
         from ddtrace.appsec._remoteconfiguration import _forksafe_appsec_rc
 
         _forksafe_appsec_rc()
-    if config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        AppSecSpanProcessor.enable()
 
 
 def stop(join=False):
