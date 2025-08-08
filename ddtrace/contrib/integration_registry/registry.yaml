@@ -495,7 +495,7 @@ integrations:
   tested_versions_by_dependency:
     langchain:
       min: 0.1.20
-      max: 0.3.18
+      max: 0.3.27
 
 - integration_name: langgraph
   is_external_package: true
@@ -506,10 +506,10 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.4.3
+      max: 0.6.1
     langgraph-checkpoint:
       min: 1.0.12
-      max: 2.0.25
+      max: 2.1.1
 
 - integration_name: litellm
   is_external_package: true
