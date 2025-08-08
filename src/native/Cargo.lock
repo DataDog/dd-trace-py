@@ -219,16 +219,6 @@ dependencies = [
 
 [[package]]
 name = "build_common"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=72d13e3#72d13e3c636b01b70b6b09b184c4972f117d38c2"
-dependencies = [
- "cbindgen",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "build_common"
 version = "20.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
@@ -617,7 +607,7 @@ version = "20.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
- "build_common 20.0.0",
+ "build_common",
  "datadog-profiling",
  "ddcommon",
  "ddcommon-ffi",
@@ -721,7 +711,7 @@ version = "20.0.0"
 source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
- "build_common 20.0.0",
+ "build_common",
  "chrono",
  "crossbeam-queue",
  "ddcommon",
@@ -758,7 +748,7 @@ name = "ddtrace-native"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "build_common 19.1.0",
+ "build_common",
  "data-pipeline",
  "datadog-crashtracker",
  "datadog-ddsketch",

@@ -28,7 +28,7 @@ pyo3 = { version = "0.24", features = ["extension-module", "anyhow"] }
 
 [build-dependencies]
 pyo3-build-config = "0.24"
-build_common = { git = "https://github.com/DataDog/libdatadog", rev = "72d13e3", features = [
+build_common = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0", features = [
     "cbindgen",
 ] }
 
