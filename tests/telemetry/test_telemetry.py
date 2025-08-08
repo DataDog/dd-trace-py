@@ -359,7 +359,7 @@ def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subpr
     """Test that a config is submitted for multiple sources with increasing seq_id"""
 
     env = os.environ.copy()
-    env["OTEL_TRACES_EXPORTER"] = "false"
+    env["OTEL_TRACES_EXPORTER"] = "none"
     env["DD_TRACE_ENABLED"] = "false"
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
