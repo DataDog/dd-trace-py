@@ -2,11 +2,13 @@ import time
 
 import pytest
 
+from ddtrace import config
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import AUTO_REJECT
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import tracer as ddtracer
 from tests.integration.utils import AGENT_VERSION
 from tests.integration.utils import parametrize_with_all_encodings
@@ -29,7 +31,9 @@ def _turn_tracer_into_dummy(tracer):
     tracer._span_aggregator.writer.traces = []
     tracer._span_aggregator.writer.json_encoder = JSONEncoder()
     tracer._span_aggregator.writer.msgpack_encoder = Encoder(4 << 20, 4 << 20)
-    tracer._span_aggregator.writer.write = monkeypatched_write.__get__(tracer._span_aggregator.writer, AgentWriter)
+    tracer._span_aggregator.writer.write = monkeypatched_write.__get__(
+        tracer._span_aggregator.writer, NativeWriter if config._trace_writer_native else AgentWriter
+    )
 
 
 def _prime_tracer_with_priority_sample_rate_from_agent(t, service):
