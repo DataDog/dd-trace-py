@@ -2,15 +2,14 @@ import pytest
 
 
 def _global_sampling_rule():
-    from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace.trace import tracer
 
     for rule in tracer._sampler.rules:
         if (
-            rule.service == SamplingRule.NO_RULE
-            and rule.name == SamplingRule.NO_RULE
-            and rule.resource == SamplingRule.NO_RULE
-            and rule.tags == SamplingRule.NO_RULE
+            rule.service is None
+            and rule.name is None
+            and rule.resource is None
+            and not rule.tags
             and rule.provenance == "default"
         ):
             return rule

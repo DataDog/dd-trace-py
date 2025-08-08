@@ -12,9 +12,9 @@ from ddtrace.internal.utils.cache import cached
 from ddtrace.internal.utils.http import normalize_header_name
 from ddtrace.internal.utils.http import redact_url
 from ddtrace.internal.utils.http import strip_query_string
-from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
+from ddtrace.settings.integration import IntegrationConfig
 
 
 log = get_logger(__name__)
@@ -128,7 +128,9 @@ def set_user(
             span.set_tag_str(user.SESSION_ID, session_id)
 
         if (may_block or mode == "auto") and asm_config._asm_enabled:
-            exc = core.dispatch_with_results("set_user_for_asm", [tracer, user_id, mode]).block_user.exception
+            exc = core.dispatch_with_results(
+                "set_user_for_asm", [tracer, user_id, mode, session_id]
+            ).block_user.exception
             if exc:
                 raise exc
 

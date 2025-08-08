@@ -1,3 +1,4 @@
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
@@ -30,6 +31,35 @@ Prompt = TypedDict(
             str
         ],  # a list of variable key names that contain ground truth context information
         "rag_query_variables": List[str],  # a list of variable key names that contains query information
+    },
+    total=False,
+)
+ToolCall = TypedDict(
+    "ToolCall",
+    {
+        "name": str,
+        "arguments": Dict[str, Any],
+        "tool_id": str,
+        "type": str,
+    },
+    total=False,
+)
+ToolResult = TypedDict(
+    "ToolResult",
+    {
+        "name": str,
+        "result": str,
+        "tool_id": str,
+        "type": str,
+    },
+    total=False,
+)
+ToolDefinition = TypedDict(
+    "ToolDefinition",
+    {
+        "name": str,
+        "description": str,
+        "schema": Dict[str, Any],
     },
     total=False,
 )

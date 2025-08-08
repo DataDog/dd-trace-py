@@ -1,0 +1,47 @@
+[[
+  {
+    "name": "mcp.request",
+    "service": "tests.contrib.mcp",
+    "resource": "client_tool_call",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "688292c500000000",
+      "language": "python",
+      "runtime-id": "f2643d1b0fd34373994f7c636929f3e4"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 17393
+    },
+    "duration": 3055000,
+    "start": 1753387717815119000
+  },
+     {
+       "name": "mcp.request",
+       "service": "tests.contrib.mcp",
+       "resource": "server_tool_call",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.tid": "688292c500000000",
+         "runtime-id": "f2643d1b0fd34373994f7c636929f3e4"
+       },
+       "metrics": {
+         "_dd.measured": 1,
+         "_dd.top_level": 1,
+         "process_id": 17393
+       },
+       "duration": 399000,
+       "start": 1753387717816913000
+     }]]

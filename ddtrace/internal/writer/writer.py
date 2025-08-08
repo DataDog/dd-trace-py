@@ -21,9 +21,6 @@ from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
-from ...internal.utils.formats import parse_tags_str
-from ...internal.utils.http import Response
-from ...internal.utils.time import StopWatch
 from .. import compat
 from .. import periodic
 from .. import service
@@ -31,11 +28,19 @@ from .._encoding import BufferFull
 from .._encoding import BufferItemTooLarge
 from ..agent import get_connection
 from ..constants import _HTTPLIB_NO_TRACE_REQUEST
+from ..dogstatsd import get_dogstatsd_client
 from ..encoding import JSONEncoderV2
 from ..logger import get_logger
+from ..serverless import has_aws_lambda_agent_extension
+from ..serverless import in_aws_lambda
 from ..serverless import in_azure_function
 from ..serverless import in_gcp_function
+from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
+from ..utils.formats import parse_tags_str
+from ..utils.http import Response
+from ..utils.http import verify_url
+from ..utils.time import StopWatch
 from .writer_client import WRITER_CLIENTS
 from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
@@ -79,9 +84,10 @@ def _human_size(nbytes: float) -> str:
 
 
 class TraceWriter(metaclass=abc.ABCMeta):
+    # TODO: `appsec_enabled` is used by ASM to dynamically enable ASM at runtime.
+    #       Find an alternative way to do this without having to pass the parameter/recreating the writer
     @abc.abstractmethod
-    def recreate(self):
-        # type: () -> TraceWriter
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "TraceWriter":
         pass
 
     @abc.abstractmethod
@@ -106,8 +112,7 @@ class LogWriter(TraceWriter):
         self.encoder = JSONEncoderV2()
         self.out = out
 
-    def recreate(self):
-        # type: () -> LogWriter
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "LogWriter":
         """Create a new instance of :class:`LogWriter` using the same settings from this instance
 
         :rtype: :class:`LogWriter`
@@ -243,7 +248,13 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                 self._conn = get_connection(self._intake_url(client), self._timeout)
                 setattr(self._conn, _HTTPLIB_NO_TRACE_REQUEST, no_trace)
             try:
-                log.debug("Sending request: %s %s %s", self.HTTP_METHOD, client.ENDPOINT, headers)
+                log.debug(
+                    "Sending request: Method=%s Endpoint=%s Headers=%s PayloadSize=%s",
+                    self.HTTP_METHOD,
+                    client.ENDPOINT,
+                    headers,
+                    _human_size(len(data)),
+                )
                 self._conn.request(
                     self.HTTP_METHOD,
                     client.ENDPOINT,
@@ -251,13 +262,20 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     headers,
                 )
                 resp = self._conn.getresponse()
-                log.debug("Got response: %s %s", resp.status, resp.reason)
                 t = sw.elapsed()
                 if t >= self.interval:
                     log_level = logging.WARNING
                 else:
                     log_level = logging.DEBUG
-                log.log(log_level, "sent %s in %.5fs to %s", _human_size(len(data)), t, self._intake_endpoint(client))
+                log.log(
+                    log_level,
+                    "Got response: %d %s sent %s in %.5fs to %s",
+                    resp.status,
+                    resp.reason,
+                    _human_size(len(data)),
+                    t,
+                    self._intake_endpoint(client),
+                )
             except Exception:
                 # Always reset the connection when an exception occurs
                 self._reset_connection()
@@ -373,13 +391,28 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
     def _flush_queue_with_client(self, client: WriterClientBase, raise_exc: bool = False) -> None:
         n_traces = len(client.encoder)
         try:
-            encoded, n_traces = client.encoder.encode()
-
-            if encoded is None:
+            if not (encoded_traces := client.encoder.encode()):
                 return
 
-            # Should gzip the payload if intake accepts it
-            if self._intake_accepts_gzip:
+        except Exception:
+            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
+            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
+            self._metrics_dist("encoder.dropped.traces", n_traces)
+            return
+
+        for payload in encoded_traces:
+            encoded_data, n_traces = payload
+            self._flush_single_payload(encoded_data, n_traces, client=client, raise_exc=raise_exc)
+
+    def _flush_single_payload(
+        self, encoded: Optional[bytes], n_traces: int, client: WriterClientBase, raise_exc: bool = False
+    ) -> None:
+        if encoded is None:
+            return
+
+        # Should gzip the payload if intake accepts it
+        if self._intake_accepts_gzip:
+            try:
                 original_size = len(encoded)
                 # Replace the value to send with the gzipped the value
                 encoded = gzip.compress(encoded, compresslevel=6)
@@ -387,12 +420,10 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
                 # And add the header
                 self._headers["Content-Encoding"] = "gzip"
-
-        except Exception:
-            # FIXME(munir): if client.encoder raises an Exception n_traces may not be accurate due to race conditions
-            log.error("failed to encode trace with encoder %r", client.encoder, exc_info=True)
-            self._metrics_dist("encoder.dropped.traces", n_traces)
-            return
+            except Exception:
+                log.error("failed to compress traces with encoder %r", client.encoder, exc_info=True)
+                self._metrics_dist("encoder.dropped.traces", n_traces)
+                return
 
         try:
             self._send_payload_with_backoff(encoded, n_traces, client)
@@ -561,8 +592,19 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             report_metrics=report_metrics,
         )
 
-    def recreate(self) -> HTTPWriter:
-        new_instance = self.__class__(
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> HTTPWriter:
+        # Ensure AppSec metadata is encoded by setting the API version to v0.4.
+        try:
+            # Stop the writer to ensure it is not running while we reconfigure it.
+            self.stop()
+        except ServiceStatusError:
+            # Writers like AgentWriter may not start until the first trace is encoded.
+            # Stopping them before that will raise a ServiceStatusError.
+            pass
+
+        api_version = "v0.4" if appsec_enabled else self._api_version
+
+        return self.__class__(
             intake_url=self.intake_url,
             processing_interval=self._interval,
             buffer_size=self._buffer_size,
@@ -570,12 +612,11 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             timeout=self._timeout,
             dogstatsd=self.dogstatsd,
             sync_mode=self._sync_mode,
-            api_version=self._api_version,
+            api_version=api_version,
             headers=self._headers,
             report_metrics=self._report_metrics,
             response_callback=self._response_cb,
         )
-        return new_instance
 
     @property
     def _agent_endpoint(self):
@@ -640,3 +681,61 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
 
     def set_test_session_token(self, token: Optional[str]) -> None:
         self._headers["X-Datadog-Test-Session-Token"] = token or ""
+
+
+def _use_log_writer() -> bool:
+    """Returns whether the LogWriter should be used in the environment by
+    default.
+
+    The LogWriter is required by default in AWS Lambdas when the Datadog Agent extension
+    is not available in the Lambda.
+    """
+    if (
+        os.environ.get("DD_AGENT_HOST")
+        or os.environ.get("DATADOG_TRACE_AGENT_HOSTNAME")
+        or os.environ.get("DD_TRACE_AGENT_URL")
+    ):
+        # If one of these variables are set, we definitely have an agent
+        return False
+    elif in_aws_lambda() and has_aws_lambda_agent_extension():
+        # If the Agent Lambda extension is available then an AgentWriter is used.
+        return False
+    elif in_gcp_function() or in_azure_function():
+        return False
+    else:
+        return in_aws_lambda()
+
+
+def _use_sync_mode() -> bool:
+    """Returns, if an `AgentWriter` is to be used, whether it should be run
+     in synchronous mode by default.
+
+    There are only two cases in which this is desirable:
+
+    - AWS Lambdas can have the Datadog agent installed via an extension.
+      When it's available traces must be sent synchronously to ensure all
+      are received before the Lambda terminates.
+    - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
+      Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
+    """
+    return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
+
+
+def create_trace_writer(response_callback: Optional[Callable[[AgentResponse], None]] = None) -> TraceWriter:
+    if _use_log_writer():
+        return LogWriter()
+
+    verify_url(agent_config.trace_agent_url)
+
+    headers: Dict[str, str] = {}
+    if config._trace_compute_stats or asm_config._apm_opt_out:
+        headers["Datadog-Client-Computed-Stats"] = "yes"
+
+    return AgentWriter(
+        intake_url=agent_config.trace_agent_url,
+        dogstatsd=get_dogstatsd_client(agent_config.dogstatsd_url),
+        sync_mode=_use_sync_mode(),
+        headers=headers,
+        report_metrics=not asm_config._apm_opt_out,
+        response_callback=response_callback,
+    )

@@ -91,7 +91,8 @@ def _supported_versions() -> Dict[str, str]:
 def patch(tracer=None):
     if getattr(ddtrace_api, "__datadog_patch", False):
         return
-    _STUB_TO_REAL[ddtrace_api.tracer] = tracer
+    if tracer is not None:
+        _STUB_TO_REAL[ddtrace_api.tracer] = tracer
 
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.start_span).wrap()
     DDTraceAPIWrappingContextBase(ddtrace_api.Tracer.trace).wrap()

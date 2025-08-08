@@ -85,6 +85,7 @@ def _expected_llmobs_llm_span_event(
     error_message=None,
     error_stack=None,
     span_links=False,
+    tool_definitions=None,
 ):
     """
     Helper function to create an expected LLM span event.
@@ -101,6 +102,7 @@ def _expected_llmobs_llm_span_event(
     error_message: error message
     error_stack: error stack
     span_links: whether there are span links present on this span.
+    tool_definitions: list of tool definitions that were available to the LLM
     """
     span_event = _llmobs_base_span_event(
         span, span_kind, tags, session_id, error, error_message, error_stack, span_links
@@ -142,6 +144,8 @@ def _expected_llmobs_llm_span_event(
         meta_dict.update({"model_name": model_name})
     if model_provider is not None:
         meta_dict.update({"model_provider": model_provider})
+    if tool_definitions is not None:
+        meta_dict["tool_definitions"] = tool_definitions
     meta_dict.update({"metadata": metadata or {}})
     span_event["meta"].update(meta_dict)
     if token_metrics is not None:
@@ -442,7 +446,7 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 900_000,
+                        "content": "A" * 2_000_000,
                         "role": "assistant",
                     },
                 ]
@@ -473,14 +477,14 @@ def _oversized_llm_event():
                         "role": "system",
                         "content": "You are an evil dark lord looking for his one ring to rule them all",
                     },
-                    {"role": "user", "content": "A" * 700_000},
+                    {"role": "user", "content": "A" * 2_600_000},
                 ],
                 "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 700_000,
+                        "content": "A" * 2_600_000,
                         "role": "assistant",
                     },
                 ]
@@ -503,8 +507,8 @@ def _oversized_workflow_event():
         "status": "ok",
         "meta": {
             "span.kind": "workflow",
-            "input": {"value": "A" * 700_000},
-            "output": {"value": "A" * 700_000},
+            "input": {"value": "A" * 2_600_000},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -523,8 +527,8 @@ def _oversized_retrieval_event():
         "status": "ok",
         "meta": {
             "span.kind": "retrieval",
-            "input": {"documents": {"content": "A" * 700_000}},
-            "output": {"value": "A" * 700_000},
+            "input": {"documents": {"content": "A" * 2_600_000}},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }

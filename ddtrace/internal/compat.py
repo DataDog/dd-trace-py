@@ -45,15 +45,6 @@ def is_integer(obj: Any) -> bool:
     return isinstance(obj, int) and not isinstance(obj, bool)
 
 
-def to_unicode(s: Union[str, bytes, bytearray]) -> str:
-    """Return a unicode string for the given bytes or string instance."""
-    if isinstance(s, str):
-        return s
-    if hasattr(s, "decode"):
-        return s.decode("utf-8", errors="ignore")
-    return str(s)
-
-
 def maybe_stringify(obj: Any) -> Optional[str]:
     if obj is not None:
         return str(obj)

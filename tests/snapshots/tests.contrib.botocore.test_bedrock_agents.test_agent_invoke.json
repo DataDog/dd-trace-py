@@ -11,17 +11,17 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6839c69b00000000",
+      "_dd.p.tid": "687f8f1800000000",
       "language": "python",
-      "runtime-id": "72271555685b4bd29febadb2333f5e86"
+      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
     },
     "metrics": {
       "_dd.measured": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 98606
+      "process_id": 25551
     },
-    "duration": 3038000,
-    "start": 1748616859280266000
+    "duration": 3801000,
+    "start": 1753190168427516000
   }]]

@@ -1,7 +1,6 @@
 import base64
 import contextlib
 from contextlib import contextmanager
-import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
 import inspect
@@ -30,7 +29,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
@@ -179,8 +177,6 @@ def override_global_config(values):
 
     asm_config_keys = asm_config._asm_config_keys
 
-    subscriptions = ddtrace.config._subscriptions
-    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
@@ -208,7 +204,6 @@ def override_global_config(values):
             setattr(asm_config, key, value)
 
         ddtrace.config._reset()
-        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
@@ -609,7 +604,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
 
 
@@ -1202,7 +1197,7 @@ def snapshot_context(
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
-                pytest.fail(to_unicode(r.read()), pytrace=False)
+                pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
         try:
             yield SnapshotTest(
                 tracer=tracer,
@@ -1240,7 +1235,7 @@ def snapshot_context(
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         r = conn.getresponse()
-        result = to_unicode(r.read())
+        result = r.read().decode("utf-8", errors="ignore")
         if r.status != 200:
             lowered = result.lower()
             if "received unmatched traces" not in lowered:
@@ -1419,7 +1414,10 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces, _ = client.encoder.encode()
+        if not (encoded_traces := client.encoder.encode()):
+            return
+
+        [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
         headers = writer._get_finalized_headers(n_traces, client)
@@ -1448,43 +1446,6 @@ def get_128_bit_trace_id_from_headers(headers):
     return _DatadogMultiHeader._put_together_trace_id(
         meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
     )
-
-
-def _get_skipped_item(item, skip_reason):
-    if not inspect.isfunction(item) and not inspect.isclass(item):
-        raise ValueError(f"Unexpected skipped object: {item}")
-
-    if not hasattr(item, "pytestmark"):
-        item.pytestmark = []
-
-    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
-
-    return item
-
-
-def _should_skip(until: int, condition=None):
-    until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
-        return True
-    return condition is not None and condition
-
-
-def flaky(until: int, condition: bool = None, reason: str = None):
-    return skip_if_until(until, condition=condition, reason=reason)
-
-
-def skip_if_until(until: int, condition=None, reason=None):
-    """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(until=until, condition=condition)
-
-    def decorator(function_or_class):
-        if not skip:
-            return function_or_class
-
-        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
 
 
 def _build_env(env=None, file_path=FILE_PATH):

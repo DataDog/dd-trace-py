@@ -1,11 +1,15 @@
 import functools
 import inspect
+from typing import List
+
+import azure.functions as azure_functions
 
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cloud_faas_operation
+from ddtrace.propagation.http import HTTPPropagator
 
 
 def create_context(context_name, pin, resource=None, headers=None):
@@ -59,3 +63,13 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
                     core.dispatch(*post_dispatch(ctx, res))
 
     return wrapper
+
+
+def message_list_has_single_context(msg_list: List[azure_functions.ServiceBusMessage]):
+    first_context = HTTPPropagator.extract(msg_list[0].application_properties)
+    for message in msg_list[1:]:
+        context = HTTPPropagator.extract(message.application_properties)
+        if first_context != context:
+            return False
+
+    return True

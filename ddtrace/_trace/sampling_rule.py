@@ -1,9 +1,9 @@
-import re
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
+from typing import Dict
 from typing import Optional
 from typing import Tuple
 
+from ddtrace._trace.span import Span
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
 from ddtrace.internal.constants import SAMPLING_KNUTH_FACTOR
@@ -11,9 +11,6 @@ from ddtrace.internal.glob_matching import GlobMatcher
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.cache import cachedmethod
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -23,15 +20,13 @@ class SamplingRule(object):
     Definition of a sampling rule used by :class:`DatadogSampler` for applying a sample rate on a span
     """
 
-    NO_RULE = object()
-
     def __init__(
         self,
         sample_rate: float,
-        service: Any = NO_RULE,
-        name: Any = NO_RULE,
-        resource: Any = NO_RULE,
-        tags: Any = NO_RULE,
+        service: Optional[str] = None,
+        name: Optional[str] = None,
+        resource: Optional[str] = None,
+        tags: Optional[Dict[str, Any]] = None,
         provenance: str = "default",
     ) -> None:
         """
@@ -64,16 +59,13 @@ class SamplingRule(object):
             number of characters, and "?" meaning any one character. If all tags specified in a SamplingRule are
             matches with a given span, that span is considered to have matching tags with the rule.
         """
-        self.sample_rate = float(min(1, max(0, sample_rate)))
+        self.sample_rate = min(1.0, max(0.0, float(sample_rate)))
         # since span.py converts None to 'None' for tags, and does not accept 'None' for metrics
         # we can just create a GlobMatcher for 'None' and it will match properly
-        self._tag_value_matchers = (
-            {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags != SamplingRule.NO_RULE else {}
-        )
-        self.tags = tags
-        self.service = self.choose_matcher(service)
-        self.name = self.choose_matcher(name)
-        self.resource = self.choose_matcher(resource)
+        self.tags = {k: GlobMatcher(str(v)) for k, v in tags.items()} if tags else {}
+        self.service = GlobMatcher(service) if service is not None else None
+        self.name = GlobMatcher(name) if name is not None else None
+        self.resource = GlobMatcher(resource) if resource else None
         self.provenance = provenance
 
     @property
@@ -85,49 +77,16 @@ class SamplingRule(object):
         self._sample_rate = sample_rate
         self._sampling_id_threshold = sample_rate * MAX_UINT_64BITS
 
-    def _pattern_matches(self, prop, pattern):
-        # If the rule is not set, then assume it matches
-        # DEV: Having no rule and being `None` are different things
-        #   e.g. ignoring `span.service` vs `span.service == None`
-        if pattern is self.NO_RULE:
-            return True
-        if isinstance(pattern, GlobMatcher):
-            return pattern.match(str(prop))
-
-        # If the pattern is callable (e.g. a function) then call it passing the prop
-        #   The expected return value is a boolean so cast the response in case it isn't
-        if callable(pattern):
-            try:
-                return bool(pattern(prop))
-            except Exception:
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                # Their function failed to validate, assume it is a False
-                return False
-
-        # The pattern is a regular expression and the prop is a string
-        if isinstance(pattern, re.Pattern):
-            try:
-                return bool(pattern.match(str(prop)))
-            except (ValueError, TypeError):
-                # This is to guard us against the casting to a string (shouldn't happen, but still)
-                log.warning("%r pattern %r failed with %r", self, pattern, prop, exc_info=True)
-                return False
-
-        # Exact match on the values
-        return prop == pattern
-
     @cachedmethod()
-    def _matches(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
-        # self._matches exists to maintain legacy pattern values such as regex and functions
+    def name_match(self, key: Tuple[Optional[str], str, Optional[str]]) -> bool:
         service, name, resource = key
-        for prop, pattern in [(service, self.service), (name, self.name), (resource, self.resource)]:
-            if not self._pattern_matches(prop, pattern):
+        for prop, pattern in ((service, self.service), (name, self.name), (resource, self.resource)):
+            # perf: If a pattern is not matched we can skip the rest of the checks and return False
+            if pattern is not None and not pattern.match(str(prop)):
                 return False
-        else:
-            return True
+        return True
 
-    def matches(self, span):
-        # type: (Span) -> bool
+    def matches(self, span: Span) -> bool:
         """
         Return if this span matches this rule
 
@@ -136,47 +95,38 @@ class SamplingRule(object):
         :returns: Whether this span matches or not
         :rtype: :obj:`bool`
         """
-        tags_match = self.tags_match(span)
-        return tags_match and self._matches((span.service, span.name, span.resource))
+        return self.tags_match(span) and self.name_match((span.service, span.name, span.resource))
 
-    def tags_match(self, span):
-        # type: (Span) -> bool
-        tag_match = True
-        if self._tag_value_matchers:
-            tag_match = self.check_tags(span.get_tags(), span.get_metrics())
-        return tag_match
+    def tags_match(self, span: Span) -> bool:
+        if not self.tags:
+            return True
 
-    def check_tags(self, meta, metrics):
-        if meta is None and metrics is None:
+        meta = span._meta or {}
+        metrics = span._metrics or {}
+        if not meta and not metrics:
             return False
 
-        tag_match = False
-        for tag_key in self._tag_value_matchers.keys():
-            value = meta.get(tag_key)
-            # it's because we're not checking metrics first before continuing
+        for tag_key, pattern in self.tags.items():
+            value = meta.get(tag_key, metrics.get(tag_key))
             if value is None:
-                value = metrics.get(tag_key)
-                if value is None:
-                    continue
-                # Floats: Matching floating point values with a non-zero decimal part is not supported.
-                # For floating point values with a non-zero decimal part, any all * pattern always returns true.
-                # Other patterns always return false.
-                if isinstance(value, float):
-                    if not value.is_integer():
-                        if all(c == "*" for c in self._tag_value_matchers[tag_key].pattern):
-                            tag_match = True
-                            continue
-                        else:
-                            return False
-                    else:
-                        value = int(value)
-
-            tag_match = self._tag_value_matchers[tag_key].match(str(value))
-            # if we don't match with all specified tags for a rule, it's not a match
-            if tag_match is False:
+                # If the tag is not present, we failed the match
+                # (Metrics and meta do not support the value None)
                 return False
 
-        return tag_match
+            if isinstance(value, float):
+                # Floats: Convert floats that represent integers to int for matching. This is because
+                # SamplingRules only support integers for matfching or glob patterns.
+                if value.is_integer():
+                    value = int(value)
+                elif set(pattern.pattern) - {"?", "*"}:
+                    # Only match floats to patterns that only contain wildcards (ex: * or ?*)
+                    # This is because we do not want to match floats to patterns like `23.*`.
+                    return False
+
+            if not pattern.match(str(value)):
+                return False
+
+        return True
 
     def sample(self, span):
         """
@@ -194,47 +144,20 @@ class SamplingRule(object):
 
         return ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self._sampling_id_threshold
 
-    def _no_rule_or_self(self, val):
-        if val is self.NO_RULE:
-            return "NO_RULE"
-        elif val is None:
-            return "None"
-        elif type(val) == GlobMatcher:
-            return val.pattern
-        else:
-            return val
-
-    def choose_matcher(self, prop):
-        # We currently support the ability to pass in a function, a regular expression, or a string
-        # If a string is passed in we create a GlobMatcher to handle the matching
-        if callable(prop) or isinstance(prop, re.Pattern):
-            log.error(
-                "Using methods or regular expressions for SamplingRule matching is not supported: %s ."
-                "Please move to passing in a string for Glob matching.",
-                str(prop),
-            )
-            return "None"
-        # Name and Resource will never be None, but service can be, since we str()
-        #  whatever we pass into the GlobMatcher, we can just use its matching
-        elif prop is None:
-            prop = "None"
-        else:
-            return GlobMatcher(prop) if prop != SamplingRule.NO_RULE else SamplingRule.NO_RULE
-
     def __repr__(self):
-        return "{}(sample_rate={!r}, service={!r}, name={!r}, resource={!r}, tags={!r}, provenance={!r})".format(
-            self.__class__.__name__,
-            self.sample_rate,
-            self._no_rule_or_self(self.service),
-            self._no_rule_or_self(self.name),
-            self._no_rule_or_self(self.resource),
-            self._no_rule_or_self(self.tags),
-            self.provenance,
+        return (
+            f"SamplingRule(sample_rate={self.sample_rate}, service={self.service}, "
+            f"name={self.name}, resource={self.resource}, tags={self.tags}, provenance={self.provenance})"
         )
-
-    __str__ = __repr__
 
     def __eq__(self, other: Any) -> bool:
         if not isinstance(other, SamplingRule):
             return False
-        return str(self) == str(other)
+        return (
+            self.sample_rate == other.sample_rate
+            and self.service == other.service
+            and self.name == other.name
+            and self.resource == other.resource
+            and self.tags == other.tags
+            and self.provenance == other.provenance
+        )

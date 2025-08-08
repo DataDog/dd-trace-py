@@ -21,6 +21,8 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.span import Span
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -32,6 +34,7 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 import ddtrace.internal.utils.wrappers
@@ -42,7 +45,7 @@ from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.settings import IntegrationConfig  # noqa:F401
+    from ddtrace.settings.integration import IntegrationConfig  # noqa:F401
     from ddtrace.trace import Span  # noqa:F401
     from ddtrace.trace import Tracer  # noqa:F401
 
@@ -547,6 +550,24 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         core.dispatch("http.activate_distributed_headers", (request_headers, context))
 
         dispatch("distributed_context.activated", (context,))
+
+
+def _copy_trace_level_tags(target_span: Span, parent: Span):
+    """
+    Copies baggage, tags, origin, sampling decision from parent span to target span.
+    """
+    for key, value in parent.context._baggage.items():
+        target_span.context.set_baggage_item(key, value)
+        target_span.set_tag_str(f"baggage.{key}", value)
+
+    if parent.context.sampling_priority is not None:
+        target_span.context.sampling_priority = parent.context.sampling_priority
+
+    if parent.context._meta.get(_ORIGIN_KEY):
+        target_span.set_tag_str(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])
+
+    if parent.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        target_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, parent.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY])
 
 
 def _flatten(

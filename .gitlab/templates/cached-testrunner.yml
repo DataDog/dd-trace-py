@@ -2,10 +2,7 @@
   extends: .testrunner
   variables:
     PIP_CACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/pip'
-    SCCACHE_DIR: '${{CI_PROJECT_DIR}}/.cache/sccache'
-    DD_CMAKE_INCREMENTAL_BUILD: '1'
-    DD_SETUP_CACHE_DOWNLOADS: '1'
-    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv'
+    EXT_CACHE_VENV: '${{CI_PROJECT_DIR}}/.cache/ext_cache_venv${{PYTHON_VERSION}}'
   before_script: |
     ulimit -c unlimited
     pyenv global 3.12 3.8 3.9 3.10 3.11 3.13
@@ -28,13 +25,13 @@
     deactivate
     $SHELL scripts/save-ext-cache.sh
   cache:
-    # Share pip/sccache between jobs of the same Python version
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
+    # Share pip between jobs of the same Python version
+    - key: v2-build_base_venvs-${{PYTHON_VERSION}}-cache-{current_month}
       paths:
         - .cache
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
+    - key: v2-build_base_venvs-${{PYTHON_VERSION}}-ext-{current_month}
       paths:
         - .ext_cache
-    - key: v1-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
+    - key: v2-build_base_venvs-${{PYTHON_VERSION}}-download-cache-{current_month}
       paths:
         - .download_cache

@@ -1,3 +1,4 @@
+import csv
 from dataclasses import dataclass
 from dataclasses import field
 import inspect
@@ -43,11 +44,15 @@ from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
+from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
+from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
+from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
+from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -73,13 +78,15 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import SPAN_START_WHILE_DISABLED_WARNING
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._context import LLMObsContextProvider
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
+from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
-from ddtrace.llmobs._experiment import NonNoneJSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
@@ -111,11 +118,13 @@ SUPPORTED_LLMOBS_INTEGRATIONS = {
     "openai": "openai",
     "langchain": "langchain",
     "google_generativeai": "google_generativeai",
+    "google_genai": "google_genai",
     "vertexai": "vertexai",
     "langgraph": "langgraph",
     "litellm": "litellm",
     "crewai": "crewai",
     "openai_agents": "openai_agents",
+    "mcp": "mcp",
     "pydantic_ai": "pydantic_ai",
     # requests frameworks for distributed injection/extraction
     "requests": "requests",
@@ -167,7 +176,7 @@ class LLMObs(Service):
     _instance = None  # type: LLMObs
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
-    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", "")
+    _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
 
     def __init__(
         self,
@@ -244,12 +253,20 @@ class LLMObs(Service):
             raise KeyError("Span kind not found in span context")
 
         llmobs_span = LLMObsSpan()
+        _dd_attrs = {
+            "span_id": str(span.span_id),
+            "trace_id": format_trace_id(span.trace_id),
+            "apm_trace_id": format_trace_id(span.trace_id),
+        }
 
         meta: Dict[str, Any] = {"span.kind": span_kind, "input": {}, "output": {}}
         if span_kind in ("llm", "embedding") and span._get_ctx_item(MODEL_NAME) is not None:
             meta["model_name"] = span._get_ctx_item(MODEL_NAME)
             meta["model_provider"] = (span._get_ctx_item(MODEL_PROVIDER) or "custom").lower()
-        meta["metadata"] = span._get_ctx_item(METADATA) or {}
+        metadata = span._get_ctx_item(METADATA) or {}
+        if span_kind == "agent" and span._get_ctx_item(AGENT_MANIFEST) is not None:
+            metadata["agent_manifest"] = span._get_ctx_item(AGENT_MANIFEST)
+        meta["metadata"] = metadata
 
         input_type: Literal["value", "messages", ""] = ""
         output_type: Literal["value", "messages", ""] = ""
@@ -258,6 +275,12 @@ class LLMObs(Service):
             llmobs_span.input = [
                 {"content": safe_json(span._get_ctx_item(INPUT_VALUE), ensure_ascii=False), "role": ""}
             ]
+
+        if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
+            _dd_attrs["scope"] = "experiments"
+            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+            if span_kind == "experiment" and expected_output:
+                meta["expected_output"] = expected_output
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -287,6 +310,8 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
+        if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
+            meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
             meta.update(
                 {
@@ -354,11 +379,7 @@ class LLMObs(Service):
             "meta": meta,
             "metrics": metrics,
             "tags": [],
-            "_dd": {
-                "span_id": str(span.span_id),
-                "trace_id": format_trace_id(span.trace_id),
-                "apm_trace_id": format_trace_id(span.trace_id),
-            },
+            "_dd": _dd_attrs,
         }
         session_id = _get_session_id(span)
         if session_id is not None:
@@ -505,11 +526,15 @@ class LLMObs(Service):
         config._dd_site = site or config._dd_site
         config._dd_api_key = api_key or config._dd_api_key
         cls._app_key = app_key or cls._app_key
-        cls._project_name = project_name or cls._project_name
+        cls._project_name = project_name or cls._project_name or DEFAULT_PROJECT_NAME
         config.env = env or config.env
         config.service = service or config.service
         config._llmobs_ml_app = ml_app or config._llmobs_ml_app
         config._llmobs_instrumented_proxy_urls = instrumented_proxy_urls or config._llmobs_instrumented_proxy_urls
+
+        # FIXME: workaround to prevent noisy logs when using the experiments feature
+        if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
+            ddtrace.tracer.enabled = False
 
         error = None
         start_ns = time.time_ns()
@@ -567,6 +592,15 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+
+            llmobs_info = {
+                "llmobs_enabled": cls.enabled,
+                "llmobs_ml_app": config._llmobs_ml_app,
+                "integrations_enabled": integrations_enabled,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled,
+            }
+            log.debug("LLMObs configurations: %s", llmobs_info)
+
         finally:
             telemetry.record_llmobs_enabled(
                 error,
@@ -585,53 +619,99 @@ class LLMObs(Service):
 
     @classmethod
     def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
-        return cls._instance._dne_client.dataset_create_with_records(name, description, records)
+        ds = cls._instance._dne_client.dataset_create(name, description)
+        for r in records:
+            ds.append(r)
+        if len(records) > 0:
+            ds.push()
+        return ds
+
+    @classmethod
+    def create_dataset_from_csv(
+        cls,
+        csv_path: str,
+        dataset_name: str,
+        input_data_columns: List[str],
+        expected_output_columns: List[str],
+        metadata_columns: List[str] = [],
+        csv_delimiter: str = ",",
+        description="",
+    ) -> Dataset:
+        ds = cls._instance._dne_client.dataset_create(dataset_name, description)
+
+        # Store the original field size limit to restore it later
+        original_field_size_limit = csv.field_size_limit()
+
+        csv.field_size_limit(EXPERIMENT_CSV_FIELD_MAX_SIZE)  # 10mb
+
+        try:
+            with open(csv_path, mode="r") as csvfile:
+                content = csvfile.readline().strip()
+                if not content:
+                    raise ValueError("CSV file appears to be empty or header is missing.")
+
+                csvfile.seek(0)
+
+                rows = csv.DictReader(csvfile, delimiter=csv_delimiter)
+
+                if rows.fieldnames is None:
+                    raise ValueError("CSV file appears to be empty or header is missing.")
+
+                header_columns = rows.fieldnames
+                missing_input_columns = [col for col in input_data_columns if col not in header_columns]
+                missing_output_columns = [col for col in expected_output_columns if col not in header_columns]
+                missing_metadata_columns = [col for col in metadata_columns if col not in metadata_columns]
+
+                if any(col not in header_columns for col in input_data_columns):
+                    raise ValueError(f"Input columns not found in CSV header: {missing_input_columns}")
+                if any(col not in header_columns for col in expected_output_columns):
+                    raise ValueError(f"Expected output columns not found in CSV header: {missing_output_columns}")
+                if any(col not in header_columns for col in metadata_columns):
+                    raise ValueError(f"Metadata columns not found in CSV header: {missing_metadata_columns}")
+
+                for row in rows:
+                    ds.append(
+                        DatasetRecord(
+                            input_data={col: row[col] for col in input_data_columns},
+                            expected_output={col: row[col] for col in expected_output_columns},
+                            metadata={col: row[col] for col in metadata_columns},
+                            record_id="",
+                        )
+                    )
+
+        finally:
+            # Always restore the original field size limit
+            csv.field_size_limit(original_field_size_limit)
+
+        if len(ds) > 0:
+            ds.push()
+        return ds
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
-    def _create_experiment(
-        self,
-        name: str,
-        dataset_id: str,
-        project_name: str,
-        dataset_version: int = 0,
-        exp_config: Optional[Dict[str, JSONType]] = None,
-        tags: Optional[List[str]] = None,
-        description: Optional[str] = None,
-    ) -> Tuple[str, str]:
-        project_id = self._dne_client.project_get(project_name)
-        if not project_id:
-            project_id = self._dne_client.project_create(project_name)
-        experiment_id, experiment_run_name = self._dne_client.experiment_create(
-            name, dataset_id, project_id, dataset_version, exp_config, tags, description
-        )
-        return experiment_id, experiment_run_name
-
     @classmethod
     def experiment(
         cls,
         name: str,
-        task: Callable[[Dict[str, NonNoneJSONType], Optional[Dict[str, JSONType]]], JSONType],
+        task: Callable[[DatasetRecordInputType, Optional[ExperimentConfigType]], JSONType],
         dataset: Dataset,
-        evaluators: List[Callable[[NonNoneJSONType, JSONType, JSONType], JSONType]],
+        evaluators: List[Callable[[DatasetRecordInputType, JSONType, JSONType], JSONType]],
         description: str = "",
-        project_name: Optional[str] = None,
-        tags: Optional[List[str]] = None,
+        tags: Optional[Dict[str, str]] = None,
+        config: Optional[ExperimentConfigType] = None,
     ) -> Experiment:
         """Initializes an Experiment to run a task on a Dataset and evaluators.
 
         :param name: The name of the experiment.
-        :param task: The task function to run. Must accept a parameter ``input_data`` and optionally ``config``.
+        :param task: The task function to run. Must accept parameters ``input_data`` and ``config``.
         :param dataset: The dataset to run the experiment on, created with LLMObs.pull/create_dataset().
         :param evaluators: A list of evaluator functions to evaluate the task output.
                            Must accept parameters ``input_data``, ``output_data``, and ``expected_output``.
         :param description: A description of the experiment.
-        :param project_name: The name of the project to associate with the experiment. If not provided, defaults to the
-                             configured value set via environment variable `DD_LLMOBS_PROJECT_NAME`
-                             or `LLMObs.enable(project_name=...)`.
-        :param tags: A list of string tags to associate with the experiment.
+        :param tags: A dictionary of string key-value tag pairs to associate with the experiment.
+        :param config: A configuration dictionary describing the experiment.
         """
         if not callable(task):
             raise TypeError("task must be a callable function.")
@@ -649,16 +729,15 @@ class LLMObs(Service):
             required_params = ("input_data", "output_data", "expected_output")
             if not all(param in params for param in required_params):
                 raise TypeError("Evaluator function must have parameters {}.".format(required_params))
-        if project_name is None:
-            project_name = cls._project_name
         return Experiment(
             name,
             task,
             dataset,
             evaluators,
-            project_name=project_name,
+            project_name=cls._project_name,
             tags=tags,
             description=description,
+            config=config,
             _llmobs_instance=cls._instance,
         )
 
@@ -845,7 +924,8 @@ class LLMObs(Service):
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
         patch(raise_errors=True, **integrations_to_patch)
-        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
+        llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
+        log.debug("Patched LLM integrations: %s", llm_patched_modules)
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
