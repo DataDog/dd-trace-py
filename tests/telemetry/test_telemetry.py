@@ -355,35 +355,31 @@ def test_installed_excepthook():
     assert sys.excepthook.__name__ != "_telemetry_excepthook"
 
 
-def test_telemetry_multiple_sources_service_name(test_agent_session, run_python_code_in_subprocess):
-    """Test that service name config is submitted for multiple sources with increasing seq_id"""
+def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):
+    """Test that a config is submitted for multiple sources with increasing seq_id"""
 
     env = os.environ.copy()
-    env["DD_SERVICE"] = "dd_service"
-    env["OTEL_SERVICE_NAME"] = "otel_service"
+    env["OTEL_TRACES_EXPORTER"] = "false"
+    env["DD_TRACE_ENABLED"] = "false"
     env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
 
     _, err, status, _ = run_python_code_in_subprocess(
-        "from ddtrace import config; config.service = 'dd_service'", env=env
+        "from ddtrace import config; config._tracing_enabled = True, env=env
     )
     assert status == 0, err
 
-    configs = test_agent_session.get_configurations(name="DD_SERVICE", remove_seq_id=False, effective=False)
+    configs = test_agent_session.get_configurations(name="DD_TRACE_ENABLED", remove_seq_id=False, effective=False)
     assert len(configs) == 4, configs
 
     sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
-    assert sorted_configs[0]["name"] == "DD_SERVICE"
-    assert sorted_configs[0]["value"] == "dd_service"
+    assert sorted_configs[0]["value"] == True
     assert sorted_configs[0]["origin"] == "default"
 
-    assert sorted_configs[1]["name"] == "DD_SERVICE"
-    assert sorted_configs[1]["value"] == "otel_service"
+    assert sorted_configs[1]["value"] == False
     assert sorted_configs[1]["origin"] == "env_var"
 
-    assert sorted_configs[2]["name"] == "DD_SERVICE"
-    assert sorted_configs[2]["value"] == "dd_service"
+    assert sorted_configs[2]["value"] == False
     assert sorted_configs[2]["origin"] == "env_var"
 
-    assert sorted_configs[3]["name"] == "DD_SERVICE"
-    assert sorted_configs[3]["value"] == "dd_service"
+    assert sorted_configs[3]["value"] == True
     assert sorted_configs[3]["origin"] == "code"
