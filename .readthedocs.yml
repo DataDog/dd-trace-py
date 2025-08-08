@@ -6,9 +6,7 @@ build:
     python: "3.10"
     rust: "1.86"
   commands:
-    - rustc --version
-    - export RUST_VERSION=`rustc --version | cut -d ' ' -f2`
-    - export PATH="/home/docs/.asdf/installs/rust/$RUST_VERSION/bin:$PATH"
+    - export PATH="/home/docs/.asdf/installs/rust/1.86.0/bin:$PATH"
     - git fetch --unshallow || true
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - install -t $HOME/.asdf/bin hatch
