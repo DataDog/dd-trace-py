@@ -6,9 +6,10 @@ build:
     python: "3.10"
     rust: "1.86"
 
-  commands:
-    - |
-        RUST_VERSION=`rustc --version | cut -d' ' -f2`
-        echo "Resolved RUST_VERSION=$RUST_VERSION"
-        export PATH="/home/docs/.asdf/installs/rust/$RUST_VERSION/bin:$PATH"
-        rustc --version
+commands:
+  - |
+    rustc --version
+    RUST_VERSION=`rustc --version | cut -d' ' -f2`
+    echo "Resolved RUST_VERSION=$RUST_VERSION"
+    export PATH="/home/docs/.asdf/installs/rust/$RUST_VERSION/bin:$PATH"
+    rustc --version
