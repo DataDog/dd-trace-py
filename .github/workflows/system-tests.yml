@@ -260,8 +260,7 @@ jobs:
 
 
   parametric:
-    runs-on:
-      group: "APM Larger Runners"
+    runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
     steps:
