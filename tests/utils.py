@@ -177,8 +177,6 @@ def override_global_config(values):
 
     asm_config_keys = asm_config._asm_config_keys
 
-    subscriptions = ddtrace.config._subscriptions
-    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
@@ -206,7 +204,6 @@ def override_global_config(values):
             setattr(asm_config, key, value)
 
         ddtrace.config._reset()
-        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
