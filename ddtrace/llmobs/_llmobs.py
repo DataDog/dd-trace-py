@@ -585,6 +585,15 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+
+            llmobs_info = {
+                "llmobs_enabled": cls.enabled,
+                "llmobs_ml_app": config._llmobs_ml_app,
+                "integrations_enabled": integrations_enabled,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled,
+            }
+            log.debug("LLMObs configurations: %s", llmobs_info)
+
         finally:
             telemetry.record_llmobs_enabled(
                 error,
@@ -602,7 +611,9 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+    def create_dataset(cls, name: str, description: str, records: Optional[List[DatasetRecord]] = None) -> Dataset:
+        if records is None:
+            records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
@@ -616,11 +627,15 @@ class LLMObs(Service):
         csv_path: str,
         dataset_name: str,
         input_data_columns: List[str],
-        expected_output_columns: List[str],
-        metadata_columns: List[str] = [],
+        expected_output_columns: Optional[List[str]] = None,
+        metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
         description="",
     ) -> Dataset:
+        if expected_output_columns is None:
+            expected_output_columns = []
+        if metadata_columns is None:
+            metadata_columns = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
@@ -906,7 +921,8 @@ class LLMObs(Service):
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
         patch(raise_errors=True, **integrations_to_patch)
-        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
+        llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
+        log.debug("Patched LLM integrations: %s", llm_patched_modules)
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:

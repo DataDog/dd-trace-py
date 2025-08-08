@@ -1402,7 +1402,7 @@ def strip_aspect(orig_function: Optional[Callable], flag_added_args: int, *args:
     return result
 
 
-def _strip_lstrip_aspect(candidate_text, result):
+def _strip_lstrip_aspect(candidate_text, result) -> None:
     ranges_new: List[TaintRange] = []
     ranges = get_ranges(candidate_text)
     start_pos = candidate_text.index(result)

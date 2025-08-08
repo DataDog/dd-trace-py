@@ -75,9 +75,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Check if the traced operation is from the given provider."""
         base_url = None
         if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
-            base_url = self._client._base_url
+            base_url = getattr(self._client, "_base_url", None)
         else:
-            base_url = self._openai.api_base
+            base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
@@ -153,9 +153,9 @@ class OpenAIIntegration(BaseLLMIntegration):
 
         # in the streamed responses case, `resp` is a list with `usage` being stored in the first element
         if resp and isinstance(resp, list) and _get_attr(resp[0], "usage", None):
-            token_usage = resp[0].get("usage", {})
-        elif resp and getattr(resp, "usage", None):
-            token_usage = resp.usage
+            token_usage = _get_attr(resp[0], "usage", {})
+        elif resp and _get_attr(resp, "usage", None):
+            token_usage = _get_attr(resp, "usage", {})
         if token_usage is not None:
             prompt_tokens = _get_attr(token_usage, "prompt_tokens", 0)
             completion_tokens = _get_attr(token_usage, "completion_tokens", 0)

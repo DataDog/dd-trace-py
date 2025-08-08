@@ -119,7 +119,8 @@ def _default_span_processors_factory(
 
         span_processors.append(AppSecIastSpanProcessor())
 
-    if config._trace_compute_stats:
+    # When using the NativeWriter stats are computed by the native code.
+    if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
         from ddtrace.internal.processor.stats import SpanStatsProcessorV06
@@ -264,6 +265,8 @@ class Tracer(object):
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            self._span_aggregator.writer.before_fork()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -627,9 +630,7 @@ class Tracer(object):
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.

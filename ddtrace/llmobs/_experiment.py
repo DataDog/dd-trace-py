@@ -15,11 +15,15 @@ from typing import Union
 from typing import cast
 from typing import overload
 
+from typing_extensions import NotRequired
+
 import ddtrace
+from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
 
@@ -42,6 +46,13 @@ class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
+
+
+class UpdatableDatasetRecord(TypedDict):
+    input_data: NotRequired[DatasetRecordInputType]
+    expected_output: NotRequired[JSONType]
+    metadata: NotRequired[Dict[str, Any]]
+    record_id: str
 
 
 class DatasetRecord(DatasetRecordRaw):
@@ -85,7 +96,7 @@ class Dataset:
     _version: int
     _dne_client: "LLMObsExperimentsClient"
     _new_records: List[DatasetRecordRaw]
-    _updated_record_ids: List[str]
+    _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: List[str]
 
     def __init__(
@@ -104,7 +115,7 @@ class Dataset:
         self._dne_client = _dne_client
         self._records = records
         self._new_records = []
-        self._updated_record_ids = []
+        self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
     def push(self) -> None:
@@ -123,7 +134,7 @@ class Dataset:
                 )
             )
 
-        updated_records = [r for r in self._records if "record_id" in r and r["record_id"] in self._updated_record_ids]
+        updated_records = list(self._updated_record_ids_to_new_fields.values())
         new_version, new_record_ids = self._dne_client.dataset_batch_update(
             self._id, self._new_records, updated_records, self._deleted_record_ids
         )
@@ -136,12 +147,21 @@ class Dataset:
         self._version = new_version if new_version != -1 else self._version + 1
         self._new_records = []
         self._deleted_record_ids = []
-        self._updated_record_ids = []
+        self._updated_record_ids_to_new_fields = {}
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
+        if all(k not in record for k in ("input_data", "expected_output", "metadata")):
+            raise ValueError(
+                "invalid update, record should contain at least one of "
+                "input_data, expected_output, or metadata to update"
+            )
         record_id = self._records[index]["record_id"]
-        self._updated_record_ids.append(record_id)
-        self._records[index] = {**record, "record_id": record_id}
+        self._updated_record_ids_to_new_fields[record_id] = {
+            **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
+            **record,
+            "record_id": record_id,
+        }
+        self._records[index] = {**self._records[index], **record, "record_id": record_id}
 
     def append(self, record: DatasetRecordRaw) -> None:
         r: DatasetRecord = {**record, "record_id": ""}
@@ -154,11 +174,13 @@ class Dataset:
         self._deleted_record_ids.append(record_id)
         del self._records[index]
 
+        if record_id in self._updated_record_ids_to_new_fields:
+            del self._updated_record_ids_to_new_fields[record_id]
+
     @property
     def url(self) -> str:
-        # FIXME: need to use the user's site
-        # also will not work for subdomain orgs
-        return f"https://app.datadoghq.com/llm/datasets/{self._id}"
+        # FIXME: will not work for subdomain orgs
+        return f"{_get_base_url()}/llm/datasets/{self._id}"
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
@@ -299,9 +321,8 @@ class Experiment:
 
     @property
     def url(self) -> str:
-        # FIXME: need to use the user's site
-        # also will not work for subdomain orgs
-        return f"https://app.datadoghq.com/llm/experiments/{self._id}"
+        # FIXME: will not work for subdomain orgs
+        return f"{_get_base_url()}/llm/experiments/{self._id}"
 
     def _process_record(self, idx_record: Tuple[int, DatasetRecord]) -> Optional[TaskResult]:
         if not self._llmobs_instance or not self._llmobs_instance.enabled:
@@ -470,3 +491,11 @@ class Experiment:
                 )
                 eval_metrics.append(eval_metric)
         return eval_metrics
+
+
+def _get_base_url() -> str:
+    subdomain = ""
+    if config._dd_site in DD_SITES_NEEDING_APP_SUBDOMAIN:
+        subdomain = "app."
+
+    return f"https://{subdomain}{config._dd_site}"

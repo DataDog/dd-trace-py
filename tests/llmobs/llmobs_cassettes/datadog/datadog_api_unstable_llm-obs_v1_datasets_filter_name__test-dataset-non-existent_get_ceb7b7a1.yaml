@@ -4,15 +4,15 @@ interactions:
     headers:
       Accept:
       - '*/*'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Accept-Encoding
       : - identity
       Connection:
       - keep-alive
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Length
       : - '0'
-      ? !!python/object/new:multidict._multidict.istr
+      ? !!python/object/apply:multidict._multidict.istr
       - Content-Type
       : - application/json
       User-Agent:
@@ -30,7 +30,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Wed, 16 Jul 2025 20:06:28 GMT
+      - Wed, 06 Aug 2025 20:51:15 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:
