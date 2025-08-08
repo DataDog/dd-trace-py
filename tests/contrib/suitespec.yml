@@ -365,7 +365,7 @@ suites:
       - azurite
       - azureeventhubsemulator
   azure_functions:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
