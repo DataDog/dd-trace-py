@@ -5,12 +5,13 @@ build:
   tools:
     python: "3.10"
     rust: "1.86"
-
-commands:
-  - |
-    git fetch --unshallow || true
-    rustc --version
-    RUST_VERSION=`rustc --version | cut -d' ' -f2`
-    echo "Resolved RUST_VERSION=$RUST_VERSION"
-    export PATH="/home/docs/.asdf/installs/rust/$RUST_VERSION/bin:$PATH"
-    rustc --version
+  commands:
+    - rustc --version
+    - export RUST_VERSION=$(rustc --version | cut -d ' ' -f2)
+    - export PATH="/home/docs/.asdf/installs/rust/$RUST_VERSION/bin:$PATH""
+    - git fetch --unshallow || true
+    - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
+    - install -t $HOME/.asdf/bin hatch
+    - hatch -q
+    - hatch -v run docs:sphinx-build -W -b html docs docs/_build/html
+    - mv docs/_build $READTHEDOCS_OUTPUT
