@@ -60,8 +60,7 @@ def _get_tags_from_env():
     return filtered_git_url, commit_sha, main_package
 
 
-def _get_tags_from_package(main_package):
-    # type: (str) -> typing.Tuple[str, str]
+def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
     """
     Extracts git metadata from python package's medatada field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
@@ -70,10 +69,7 @@ def _get_tags_from_package(main_package):
     if not main_package:
         return "", ""
     try:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
+        import importlib.metadata as importlib_metadata
 
         source_code_link = ""
         for val in importlib_metadata.metadata(main_package).get_all("Project-URL") or []:
