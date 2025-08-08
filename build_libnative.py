@@ -57,7 +57,6 @@ def build_crate(crate_dir: Path, release: bool, features: Optional[List[str]] = 
         # Add cargo binary folder to PATH
         home = os.path.expanduser("~")
         cargo_bin = os.path.join(home, ".cargo", "bin")
-
         dedup_env = os.environ.copy()
         dedup_env["PATH"] = cargo_bin + os.pathsep + env["PATH"]
 
