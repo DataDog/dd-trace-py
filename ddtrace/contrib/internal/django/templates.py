@@ -14,7 +14,7 @@ from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.internal.wrapping import is_wrapped
+from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.settings.integration import IntegrationConfig
@@ -41,7 +41,7 @@ def instrument_module(django_template_base: ModuleType) -> None:
     if not Template or not hasattr(Template, "render"):
         return
 
-    if not is_wrapped(Template.render, traced_render):
+    if not is_wrapped_with(Template.render, traced_render):
         wrap(Template.render, traced_render)
 
 
@@ -67,10 +67,7 @@ def traced_render(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) 
     if template_name:
         resource = template_name
     else:
-        if hasattr(func, "__dd_wrapped__"):
-            resource = "{0}.{1}".format(func_name(instance), func.__dd_wrapped__.__name__)
-        else:
-            resource = "{0}.{1}".format(func_name(instance), func.__name__)
+        resource = f"{func_name(instance)}.render"
 
     # Build tags
     tags = {COMPONENT: config_django.integration_name}
