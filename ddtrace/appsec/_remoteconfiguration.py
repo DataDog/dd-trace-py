@@ -166,14 +166,16 @@ def disable_asm(local_tracer: Tracer):
 
         AppSecSpanProcessor.disable()
 
+        asm_config._asm_enabled = False
         local_tracer.configure(appsec_enabled=False)
 
 
 def enable_asm(local_tracer: Tracer):
     if not asm_config._asm_enabled:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
+        from ddtrace.appsec._listeners import load_appsec
 
-        AppSecSpanProcessor.enable()
+        asm_config._asm_enabled = True
+        load_appsec()
         local_tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
 
 
