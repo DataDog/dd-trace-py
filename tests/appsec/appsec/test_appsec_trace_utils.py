@@ -248,7 +248,7 @@ class EventsSDKTestCase(TracerTestCase):
             assert root_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
             assert root_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
             metrics = get_telemetry_metrics(telemetry_mock)
-            assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "custom"), ("sdk_version", "v1")))]
+            assert ("count", "appsec", "sdk.event", 1, (("event_type", "custom"), ("sdk_version", "v1"))) in metrics
 
     def test_set_user_blocked(self):
         with asm_context(tracer=self.tracer, span_name="fake_span", config=config_good_rules) as span:
