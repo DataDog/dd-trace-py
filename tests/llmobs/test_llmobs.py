@@ -1,6 +1,7 @@
 import asyncio
 import os
 from textwrap import dedent
+from typing import Optional
 
 import pytest
 

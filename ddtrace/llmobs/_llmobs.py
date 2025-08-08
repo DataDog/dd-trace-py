@@ -514,8 +514,8 @@ class LLMObs(Service):
         :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
-        :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and returns an
-            LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
+        :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
+            returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
