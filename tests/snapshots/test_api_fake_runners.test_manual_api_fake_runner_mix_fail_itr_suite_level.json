@@ -517,7 +517,7 @@
       "_sampling_priority_v1": 1,
       "process_id": 32216,
       "test.code_coverage.lines_pct": 79.79,
-      "test.itr.tests_skipping.count": 1
+      "test.itr.tests_skipping.count": 7
     },
     "duration": 25941084,
     "start": 1733391663023824379
