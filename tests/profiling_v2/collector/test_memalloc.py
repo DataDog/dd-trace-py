@@ -10,9 +10,6 @@ from ddtrace.profiling.collector import memalloc
 from tests.profiling.collector import pprof_utils
 
 
-PY_313_OR_ABOVE = sys.version_info[:2] >= (3, 13)
-
-
 def _allocate_1k():
     return [object() for _ in range(1000)]
 
@@ -168,26 +165,77 @@ def test_heap_profiler_large_heap_overhead():
 # one, two, three, and four exist to give us distinct things
 # we can find in the profile without depending on something
 # like the line number at which an allocation happens
-# Python 3.13 changed bytearray to use an allocation domain that we don't
-# currently profile, so we use None instead of bytearray to test.
 def one(size):
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return bytearray(size)
 
 
 def two(size):
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return bytearray(size)
 
 
 def three(size):
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return bytearray(size)
 
 
 def four(size):
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return bytearray(size)
 
 
 def _create_allocation(size):
-    return (None,) * size if PY_313_OR_ABOVE else bytearray(size)
+    return bytearray(size)
+
+
+def test_mem_domain_allocations():
+    mc = memalloc.MemoryCollector(heap_sample_size=256)
+
+    with mc:
+        obj_allocations = []
+        for i in range(100):
+            obj_allocations.append([i] * 10)
+
+        mem_allocations = []
+        for i in range(100):
+            mem_allocations.append(bytearray(256))
+
+        samples = mc.test_snapshot()
+
+        obj_domain_found = False
+        mem_domain_found = False
+        bytearray_samples = []
+        list_samples = []
+
+        for sample in samples:
+            assert sample.size > 0, f"Invalid sample size: {sample.size}"
+            assert sample.count > 0, f"Invalid sample count: {sample.count}"
+            assert sample.in_use_size >= 0, f"Invalid in_use_size: {sample.in_use_size}"
+            assert sample.alloc_size >= 0, f"Invalid alloc_size: {sample.alloc_size}"
+            assert hasattr(sample, "domain"), "MemorySample should have a domain attribute"
+
+            for frame in sample.frames:
+                if frame.function_name == "test_mem_domain_allocations":
+                    # PYMEM_DOMAIN_MEM = 1, PYMEM_DOMAIN_OBJ = 2
+                    if sample.domain == 1:
+                        mem_domain_found = True
+                        bytearray_samples.append(sample)
+                    elif sample.domain == 2:
+                        obj_domain_found = True
+                        list_samples.append(sample)
+                    break
+
+        assert obj_domain_found, "Should have found object domain allocations (lists)"
+        assert mem_domain_found, "Should have found mem domain allocations (bytearrays)"
+
+        print(f"Found {len(list_samples)} list samples and {len(bytearray_samples)} bytearray samples")
+
+        for sample in bytearray_samples:
+            assert sample.domain == 1, f"Bytearray sample should be in PYMEM_DOMAIN_MEM (1), got {sample.domain}"
+            assert sample.size > 0, f"Bytearray sample size {sample.size} should be positive"
+
+        for sample in list_samples:
+            assert sample.domain == 2, f"List sample should be in PYMEM_DOMAIN_OBJ (2), got {sample.domain}"
+
+        del obj_allocations
+        del mem_allocations
 
 
 class HeapInfo:
@@ -199,7 +247,7 @@ class HeapInfo:
 def get_heap_info(heap, funcs):
     got = {}
     for event in heap:
-        (frames, _), in_use_size, alloc_size, count = event
+        (frames, _), in_use_size, alloc_size, count, domain = event
 
         in_use = in_use_size > 0
         size = in_use_size if in_use_size > 0 else alloc_size
@@ -797,3 +845,55 @@ def test_memory_collector_thread_lifecycle():
         assert (
             worker_samples > 0
         ), "Thread lifecycle test: Should capture allocations even as threads are created/destroyed"
+
+
+def test_memory_collector_diverse_python_types():
+    import array
+
+    mc = memalloc.MemoryCollector(heap_sample_size=128)
+
+    with mc:
+        bytes_data = bytes(1024)
+        bytearray_data = bytearray(1024)
+        array_data = array.array("i", range(500))
+
+        dict_data = {i: f"value_{i}" for i in range(100)}
+        set_data = {i for i in range(200)}
+        tuple_data = tuple(range(300))
+        string_data = "x" * 5000
+
+        nested_lists = [[[i] * 10 for i in range(10)] for _ in range(10)]
+
+        samples = mc.test_snapshot()
+
+        assert len(samples) > 0, "Should capture samples for various Python types"
+
+        allocation_sources = set()
+        memory_domain_count = 0
+        object_domain_count = 0
+
+        for sample in samples:
+            assert sample.size > 0, f"Invalid sample size: {sample.size}"
+            assert sample.count > 0, f"Invalid sample count: {sample.count}"
+            assert hasattr(sample, "domain"), "MemorySample should have a domain attribute"
+
+            # PYMEM_DOMAIN_MEM = 1, PYMEM_DOMAIN_OBJ = 2
+            if sample.domain == 1:
+                memory_domain_count += 1
+            elif sample.domain == 2:
+                object_domain_count += 1
+
+            for frame in sample.frames:
+                if frame.function_name == "test_memory_collector_diverse_python_types":
+                    allocation_sources.add(frame.lineno)
+
+        assert (
+            len(allocation_sources) >= 3
+        ), f"Expected allocations from multiple sources, got {len(allocation_sources)}"
+
+        assert memory_domain_count > 0, "Should capture memory domain allocations"
+        assert object_domain_count > 0, "Should capture object domain allocations"
+
+        del bytes_data, bytearray_data, array_data
+        del dict_data, set_data, tuple_data, string_data
+        del nested_lists

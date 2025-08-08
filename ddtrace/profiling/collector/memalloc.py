@@ -23,7 +23,7 @@ LOG = logging.getLogger(__name__)
 
 MemorySample = namedtuple(
     "MemorySample",
-    ("frames", "size", "count", "in_use_size", "alloc_size", "thread_id"),
+    ("frames", "size", "count", "in_use_size", "alloc_size", "thread_id", "domain"),
 )
 
 
@@ -89,7 +89,7 @@ class MemoryCollector(collector.PeriodicCollector):
             return tuple()
 
         for event in events:
-            (frames, thread_id), in_use_size, alloc_size, count = event
+            (frames, thread_id), in_use_size, alloc_size, count, domain = event
 
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 handle = ddup.SampleHandle()
@@ -126,12 +126,12 @@ class MemoryCollector(collector.PeriodicCollector):
 
         samples = []
         for event in events:
-            (frames, thread_id), in_use_size, alloc_size, count = event
+            (frames, thread_id), in_use_size, alloc_size, count, domain = event
 
             if not self.ignore_profiler or thread_id not in thread_id_ignore_set:
                 size = in_use_size if in_use_size > 0 else alloc_size
 
-                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, thread_id))
+                samples.append(MemorySample(frames, size, count, in_use_size, alloc_size, thread_id, domain))
 
         return tuple(samples)
 
