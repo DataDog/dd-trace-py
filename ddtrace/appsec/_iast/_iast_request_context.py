@@ -77,7 +77,7 @@ def _create_and_attach_iast_report_to_span(
 
 def _iast_end_request(ctx=None, span=None, *args, **kwargs):
     try:
-        move_to_root = base._move_iast_data_to_root_span()
+        move_to_root = asm_config._iast_use_root_span
         if move_to_root:
             req_span = core.get_root_span()
         else:

@@ -80,7 +80,7 @@ def rasp(endpoint: str):
                         res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
@@ -108,7 +108,7 @@ def rasp(endpoint: str):
                     res.append(f"Url: {r.text}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "sql_injection":
         res = ["sql_injection endpoint"]
@@ -121,7 +121,7 @@ def rasp(endpoint: str):
                     res.append(f"Url: {list(cursor)}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "shell_injection":
         res = ["shell_injection endpoint"]
@@ -130,12 +130,12 @@ def rasp(endpoint: str):
                 cmd = query_params[param]
                 try:
                     if param.startswith("cmdsys"):
-                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                        res.append(f"cmd stdout: {os.system(f'ls {cmd}')}")
                     else:
-                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                        res.append(f"cmd stdout: {subprocess.run(f'ls {cmd}', shell=True)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
     elif endpoint == "command_injection":
         res = ["command_injection endpoint"]
@@ -143,7 +143,7 @@ def rasp(endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                    res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'])}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):
@@ -152,9 +152,9 @@ def rasp(endpoint: str):
                     res.append(f"cmd stdout: {subprocess.run(cmd)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return "<\\br>\n".join(res)
-    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+    tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
     return f"Unknown endpoint: {endpoint}"
 
 
@@ -250,3 +250,13 @@ def login_user_sdk():
         login(user_id, username)
         return "OK"
     return "login failure", 401
+
+
+@app.before_request
+def service_renaming():
+    if request.headers.get("x-rename-service", "false") == "true":
+        service_name = "sub-service"
+        root_span = tracer.current_root_span()
+        if root_span is not None:
+            root_span.service = service_name
+            root_span.set_tag("scope", service_name)
