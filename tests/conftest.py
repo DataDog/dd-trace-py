@@ -116,7 +116,7 @@ def pytest_configure(config):
 
 @pytest.fixture
 def use_global_tracer():
-    yield True
+    yield False
 
 
 @pytest.fixture
@@ -137,16 +137,9 @@ def enable_crashtracking(auto_enable_crashtracking):
 @pytest.fixture
 def tracer(use_global_tracer):
     if use_global_tracer:
-        yield ddtrace.tracer
+        return ddtrace.tracer
     else:
-        # from ddtrace.internal import core
-        # original_tracer = ddtrace.tracer
-        # ddtrace.tracer = DummyTracer()
-        # core.tracer = ddtrace.tracer
-        # yield ddtrace.tracer
-        # ddtrace.tracer = original_tracer
-        # core.tracer = ddtrace.tracer
-        yield DummyTracer()
+        return DummyTracer()
 
 
 @pytest.fixture
