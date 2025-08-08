@@ -367,6 +367,9 @@ def patch():
         _patch_graph_modules(langgraph)
 
     try:
+        # langgraph.prebuilt imports langgraph.graph, causing circular import errors
+        # catch this error and patch it on the *second* attempt, since we run import
+        # hooks for both langgraph.graph and langgraph.prebuilt.
         from langgraph import prebuilt
 
         prebuilt_patched = getattr(prebuilt, "_datadog_patch", False)
