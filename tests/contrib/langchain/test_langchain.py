@@ -9,6 +9,7 @@ import pytest
 
 from ddtrace.internal.utils.version import parse_version
 from tests.contrib.langchain.utils import get_request_vcr
+from tests.utils import snapshot
 
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
@@ -36,13 +37,13 @@ def request_vcr():
     yield get_request_vcr()
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_sync(langchain_openai, openai_completion):
     llm = langchain_openai.OpenAI()
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_completion_multiple):
     llm = langchain_openai.OpenAI()
     llm.generate(
@@ -54,13 +55,13 @@ def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_completion_mu
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_llm_async(langchain_openai, openai_completion):
     llm = langchain_openai.OpenAI()
     await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
@@ -71,7 +72,7 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
 
 
 @pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
-@pytest.mark.snapshot
+@snapshot
 def test_cohere_llm_sync_0_2(langchain_cohere, request_vcr):
     llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
     with request_vcr.use_cassette("cohere_completion_sync_0_2.yaml"):
@@ -80,7 +81,7 @@ def test_cohere_llm_sync_0_2(langchain_cohere, request_vcr):
 
 @pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Compatible with langchain>=0.3 only")
-@pytest.mark.snapshot
+@snapshot
 def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
     with request_vcr.use_cassette("cohere_completion_sync_latest.yaml"):
         llm = langchain_cohere.llms.Cohere(
@@ -95,7 +96,7 @@ def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
     LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
     reason="Requires separate cassette for langchain v0.1, Python 3.9",
 )
-@pytest.mark.snapshot
+@snapshot
 def test_ai21_llm_sync(langchain_community, request_vcr):
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
@@ -104,14 +105,14 @@ def test_ai21_llm_sync(langchain_community, request_vcr):
         llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, openai_chat_completion):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
     chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_openai, openai_chat_completion):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
     await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
@@ -119,7 +120,7 @@ async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_open
 
 # TODO: come back and clean this one up... seems like we tag 4 responses
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completion_multiple):
     chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
     chat.generate(
@@ -136,7 +137,7 @@ def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completio
     )
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=IGNORE_FIELDS,
     variants={
         "0_2": LANGCHAIN_VERSION < (0, 3),
@@ -175,7 +176,7 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
     LANGCHAIN_VERSION < (0, 3), reason="Bug in langchain: https://github.com/langchain-ai/langgraph/issues/136"
 )
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
+@snapshot(
     ignores=IGNORE_FIELDS
     + [
         # async batch requests can result in a non-deterministic order
@@ -202,14 +203,14 @@ async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
         )
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_openai_embedding_query(langchain_openai, openai_embedding):
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
         embeddings = langchain_openai.OpenAIEmbeddings()
         embeddings.embed_query("this is a test query.")
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_fake_embedding_query(langchain_community):
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
@@ -217,7 +218,7 @@ def test_fake_embedding_query(langchain_community):
     embeddings.embed_query(text="foo")
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_fake_embedding_document(langchain_community):
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
@@ -225,7 +226,7 @@ def test_fake_embedding_document(langchain_community):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
     """
     Test that calling a similarity search on a Pinecone vectorstore with langchain will
@@ -246,7 +247,7 @@ def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
             vectorstore.similarity_search("Who was Alan Turing?", 1)
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_simple(langchain_core, langchain_openai, openai_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -257,7 +258,7 @@ def test_lcel_chain_simple(langchain_core, langchain_openai, openai_completion):
     chain.invoke({"input": "how can langsmith help with testing?"})
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_chat_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
         "Tell me a short joke about {topic} in the style of {style}"
@@ -286,7 +287,7 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_chat_co
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 async def test_lcel_chain_simple_async(langchain_core, langchain_openai, openai_completion):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
@@ -297,7 +298,7 @@ async def test_lcel_chain_simple_async(langchain_core, langchain_openai, openai_
     await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completion):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
@@ -311,7 +312,7 @@ def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completi
     chain.batch(inputs=["chickens"])
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=IGNORE_FIELDS,
     variants={
         "0_2": LANGCHAIN_VERSION < (0, 3),
@@ -339,7 +340,7 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, openai_url):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_chat_completion):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
@@ -353,7 +354,7 @@ async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_c
     await chain.abatch(inputs=["chickens"])
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_lcel_chain_non_dict_input(langchain_core):
     """
     Tests that non-dict inputs (specifically also non-string) are stringified properly
@@ -365,7 +366,7 @@ def test_lcel_chain_non_dict_input(langchain_core):
     sequence.invoke(1)
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_completion_tools):
     import langchain_core.tools
 
@@ -384,7 +385,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_co
     llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_vcr):
     import langchain_core.tools
 
@@ -404,7 +405,7 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, request_
         llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-@pytest.mark.snapshot
+@snapshot
 def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
@@ -419,7 +420,7 @@ def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, requ
             retriever.invoke("What was the message of the last test query?")
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
@@ -445,7 +446,7 @@ def test_streamed_chain(langchain_core, langchain_openai, streamed_response_resp
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
@@ -465,7 +466,7 @@ def test_streamed_chat(langchain_openai, streamed_response_responder):
         pass
 
 
-@pytest.mark.snapshot(ignores=IGNORE_FIELDS)
+@snapshot(ignores=IGNORE_FIELDS)
 def test_streamed_llm(langchain_openai, streamed_response_responder):
     client = streamed_response_responder(
         module="openai",
@@ -481,12 +482,12 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
     ),
-    token="tests.contrib.langchain.test_langchain.test_streamed_chain",
+    token_override="tests.contrib.langchain.test_langchain.test_streamed_chain",
 )
 async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
@@ -508,12 +509,12 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=(
         ["meta.langchain.request.openai-chat.parameters.n", "meta.langchain.request.openai-chat.parameters.temperature"]
         + IGNORE_FIELDS
     ),
-    token="tests.contrib.langchain.test_langchain.test_streamed_chat",
+    token_override="tests.contrib.langchain.test_langchain.test_streamed_chat",
 )
 async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
@@ -530,9 +531,9 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=IGNORE_FIELDS,
-    token="tests.contrib.langchain.test_langchain.test_streamed_llm",
+    token_override="tests.contrib.langchain.test_langchain.test_streamed_llm",
 )
 async def test_astreamed_llm(langchain_openai, async_streamed_response_responder):
     client = async_streamed_response_responder(
@@ -549,7 +550,7 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     ignores=(
         IGNORE_FIELDS
         + [
@@ -607,10 +608,10 @@ async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core,
         pass
 
 
-@pytest.mark.snapshot(
+@snapshot(
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
-    token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
+    token_override="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
 def test_base_tool_invoke(langchain_core):
     """
@@ -639,10 +640,10 @@ def test_base_tool_invoke(langchain_core):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
+@snapshot(
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description"],
-    token="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
+    token_override="tests.contrib.langchain.test_langchain.test_base_tool_invoke",
 )
 async def test_base_tool_ainvoke(langchain_core):
     """
@@ -672,7 +673,7 @@ async def test_base_tool_ainvoke(langchain_core):
 
 
 @pytest.mark.asyncio
-@pytest.mark.snapshot(
+@snapshot(
     # tool description is generated differently is some langchain_core versions
     ignores=["meta.langchain.request.tool.description", "meta.langchain.request.config"],
 )
