@@ -79,7 +79,7 @@ def test_app_started_event_configuration_override_asm(
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace.auto", env=env)
     assert status == 0, stderr
 
-    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True)
+    configuration = test_agent_session.get_configurations(name=env_var, remove_seq_id=True, effective=True)
     assert len(configuration) == 1, configuration
     assert configuration[0] == {"name": env_var, "origin": "env_var", "value": expected_value}
 
@@ -300,6 +300,7 @@ import ddtrace.settings.exception_replay
         ignores=["DD_TRACE_AGENT_URL", "DD_AGENT_PORT", "DD_TRACE_AGENT_PORT"], remove_seq_id=True, effective=True
     )
     assert configurations
+    configurations.sort(key=lambda x: x["name"])
 
     expected = [
         {"name": "DD_AGENT_HOST", "origin": "default", "value": None},
@@ -994,32 +995,40 @@ def test_otel_config_telemetry(test_agent_session, run_python_code_in_subprocess
     _, stderr, status, _ = run_python_code_in_subprocess("import ddtrace", env=env)
     assert status == 0, stderr
 
-    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True)}
+    configurations = {c["name"]: c for c in test_agent_session.get_configurations(remove_seq_id=True, effective=True)}
 
     assert configurations["DD_SERVICE"] == {"name": "DD_SERVICE", "origin": "env_var", "value": "dd_service"}
-    assert configurations["OTEL_LOG_LEVEL"] == {"name": "OTEL_LOG_LEVEL", "origin": "env_var", "value": "debug"}
-    assert configurations["OTEL_PROPAGATORS"] == {
-        "name": "OTEL_PROPAGATORS",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_DEBUG"] == {"name": "DD_TRACE_DEBUG", "origin": "otel_env_var", "value": "debug"}
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_INJECT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_INJECT",
+        "origin": "otel_env_var",
         "value": "tracecontext",
     }
-    assert configurations["OTEL_TRACES_SAMPLER"] == {
-        "name": "OTEL_TRACES_SAMPLER",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_PROPAGATION_STYLE_EXTRACT"] == {
+        "name": "DD_TRACE_PROPAGATION_STYLE_EXTRACT",
+        "origin": "otel_env_var",
+        "value": "tracecontext",
+    }
+    assert configurations["DD_TRACE_SAMPLING_RULES"] == {
+        "name": "DD_TRACE_SAMPLING_RULES",
+        "origin": "otel_env_var",
         "value": "always_on",
     }
-    assert configurations["OTEL_TRACES_EXPORTER"] == {
-        "name": "OTEL_TRACES_EXPORTER",
-        "origin": "env_var",
+    assert configurations["DD_TRACE_ENABLED"] == {
+        "name": "DD_TRACE_ENABLED",
+        "origin": "otel_env_var",
         "value": "none",
     }
-    assert configurations["OTEL_LOGS_EXPORTER"] == {"name": "OTEL_LOGS_EXPORTER", "origin": "env_var", "value": "otlp"}
-    assert configurations["OTEL_RESOURCE_ATTRIBUTES"] == {
-        "name": "OTEL_RESOURCE_ATTRIBUTES",
-        "origin": "env_var",
+    assert configurations["DD_TAGS"] == {
+        "name": "DD_TAGS",
+        "origin": "otel_env_var",
         "value": "team=apm,component=web",
     }
-    assert configurations["OTEL_SDK_DISABLED"] == {"name": "OTEL_SDK_DISABLED", "origin": "env_var", "value": "true"}
+    assert configurations["DD_TRACE_OTEL_ENABLED"] == {
+        "name": "DD_TRACE_OTEL_ENABLED",
+        "origin": "otel_env_var",
+        "value": "true",
+    }
 
     env_hiding_metrics = test_agent_session.get_metrics("otel.env.hiding")
     tags = [m["tags"] for m in env_hiding_metrics]
@@ -1093,3 +1102,44 @@ def test_redact_filename(filename, is_redacted):
     """Test file redaction logic"""
     writer = TelemetryWriter(is_periodic=False)
     assert writer._should_redact(filename) == is_redacted
+
+
+def test_telemetry_writer_multiple_sources_config(telemetry_writer, test_agent_session):
+    """Test that telemetry data is submitted for multiple sources with increasing seq_id"""
+
+    telemetry_writer.add_configuration("DD_SERVICE", "unamed_python_service", "default")
+    telemetry_writer.add_configuration("DD_SERVICE", "otel_service", "otel_env_var")
+    telemetry_writer.add_configuration("DD_SERVICE", "dd_service", "env_var")
+    telemetry_writer.add_configuration("DD_SERVICE", "monkey", "code")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "remote_config")
+    telemetry_writer.add_configuration("DD_SERVICE", "baboon", "fleet_stable_config")
+
+    telemetry_writer.periodic(force_flush=True)
+
+    configs = test_agent_session.get_configurations(name="DD_SERVICE", remove_seq_id=False, effective=False)
+    assert len(configs) == 6, configs
+
+    sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    assert sorted_configs[0]["value"] == "unamed_python_service"
+    assert sorted_configs[0]["origin"] == "default"
+    assert sorted_configs[0]["seq_id"] == 1
+
+    assert sorted_configs[1]["value"] == "otel_service"
+    assert sorted_configs[1]["origin"] == "otel_env_var"
+    assert sorted_configs[1]["seq_id"] == 2
+
+    assert sorted_configs[2]["value"] == "dd_service"
+    assert sorted_configs[2]["origin"] == "env_var"
+    assert sorted_configs[2]["seq_id"] == 3
+
+    assert sorted_configs[3]["value"] == "monkey"
+    assert sorted_configs[3]["origin"] == "code"
+    assert sorted_configs[3]["seq_id"] == 4
+
+    assert sorted_configs[4]["value"] == "baboon"
+    assert sorted_configs[4]["origin"] == "remote_config"
+    assert sorted_configs[4]["seq_id"] == 5
+
+    assert sorted_configs[5]["value"] == "baboon"
+    assert sorted_configs[5]["origin"] == "fleet_stable_config"
+    assert sorted_configs[5]["seq_id"] == 6
