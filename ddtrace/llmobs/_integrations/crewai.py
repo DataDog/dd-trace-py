@@ -280,16 +280,22 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
         flow_instance = kwargs.pop("_dd.instance", None)
-        initial_flow_state = kwargs.pop("_dd.flow_state", {})
+        state_value = kwargs.pop("_dd.flow_state", {})
+        initial_flow_state = {}
+        if isinstance(state_value, dict):
+            initial_flow_state = state_value
+        elif hasattr(state_value, "model_dump"):
+            initial_flow_state = state_value.model_dump()
+
         input_dict = {
-            "args": [str(arg) for arg in args[2:]],
+            "args": [safe_json(arg) for arg in args[2:]],
             "kwargs": {k: safe_json(v) for k, v in kwargs.items()},
             "flow_state": initial_flow_state,
         }
         span_links = (
             self._flow_span_to_method_to_span_dict.get(span._parent, {}).get(span.name, {}).get("span_links", [])
         )
-        if span.name in getattr(flow_instance, "_start_methods", []):
+        if span.name in getattr(flow_instance, "_start_methods", []) and span._parent is not None:
             span_links.append(
                 {
                     "span_id": str(span._parent.span_id),
@@ -327,11 +333,12 @@ class CrewAIIntegration(BaseLLMIntegration):
         Set span links for the next queued listener method(s) in a CrewAI flow.
 
         Notes:
-            - Router methods passed by name are skipped (span links are based on router results)
-            - AND conditions:
-                - temporary output->output span links added by default for all trigger methods
-                - once all trigger methods have run for the listener, remove temporary output->output links and
-                  add span links from trigger spans to listener span
+        - trigger_method is either a method name or router result, which trigger normal/router listeners respectively.
+          We skip if trigger_method is a router method name because we use the router result to link triggered listeners
+        - AND conditions:
+            - temporary output->output span links added by default for all trigger methods
+            - once all trigger methods have run for the listener, remove temporary output->output links and
+              add span links from trigger spans to listener span
         """
         trigger_method = get_argument_value(args, kwargs, 0, "trigger_method", optional=True)
         if not trigger_method:
@@ -339,7 +346,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         flow_methods_to_spans = self._flow_span_to_method_to_span_dict.get(flow_span, {})
         trigger_span_dict = flow_methods_to_spans.get(trigger_method)
         if not trigger_span_dict or trigger_method in getattr(flow_instance, "_routers", []):
-            # For router methods the downstream trigger is the router's result, not the method name
+            # For router methods the downstream trigger listens for the router's result, not the router method name
             # Skip if trigger_method represents a router method name instead of the router's results
             return
         listeners = getattr(flow_instance, "_listeners", {})
@@ -348,7 +355,6 @@ class CrewAIIntegration(BaseLLMIntegration):
             if trigger_method not in listener_triggers:
                 continue
             span_dict = flow_methods_to_spans.setdefault(listener_name, {})
-            span_dict["trace_id"] = format_trace_id(flow_span.trace_id)
             span_links = span_dict.setdefault("span_links", [])
             if condition_type != "AND":
                 triggered = True

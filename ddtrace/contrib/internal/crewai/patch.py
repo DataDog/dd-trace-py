@@ -7,6 +7,7 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
 from ddtrace.trace import Pin
@@ -14,6 +15,9 @@ from ddtrace.trace import Pin
 
 def get_version() -> str:
     return getattr(crewai, "__version__", "")
+
+
+logger = get_logger(__name__)
 
 
 config._add("crewai", {})
@@ -154,7 +158,7 @@ async def traced_flow_method(crewai, pin, func, instance, args, kwargs):
         submit_to_llmobs=True,
         flow_instance=instance,
     ) as span:
-        initial_flow_state = {**getattr(instance, "state", {})}
+        initial_flow_state = getattr(instance, "state", {})
         result = await func(*args, **kwargs)
         kwargs["_dd.instance"] = instance
         kwargs["_dd.flow_state"] = initial_flow_state
@@ -167,7 +171,7 @@ def patched_find_triggered_methods(crewai, pin, func, instance, args, kwargs):
     integration: CrewAIIntegration = crewai._datadog_integration
     result = func(*args, **kwargs)
     current_span = pin.tracer.current_span()
-    integration._llmobs_set_span_link_on_flow(current_span, args, kwargs, instance)
+    integration.llmobs_set_span_links_on_flow(current_span, args, kwargs, instance)
     return result
 
 
@@ -186,13 +190,13 @@ def patch():
     wrap(crewai, "Agent.execute_task", traced_agent_execute(crewai))
     wrap(crewai.tools.structured_tool, "CrewStructuredTool.invoke", traced_tool_run(crewai))
     wrap(crewai, "Flow.kickoff_async", traced_flow_kickoff(crewai))
-    try:  # Safely attempt to patch private methods
+    try:
         wrap(crewai, "Crew._get_context", traced_task_get_context(crewai))
         wrap(crewai, "Task._execute_core", traced_task_execute(crewai))
         wrap(crewai, "Flow._execute_method", traced_flow_method(crewai))
         wrap(crewai, "Flow._find_triggered_methods", patched_find_triggered_methods(crewai))
     except AttributeError:
-        pass
+        logger.warning("Failed to patch internal CrewAI methods.")
 
 
 def unpatch():
@@ -202,13 +206,16 @@ def unpatch():
     crewai._datadog_patch = False
 
     unwrap(crewai.Crew, "kickoff")
-    unwrap(crewai.Crew, "_get_context")
-    unwrap(crewai.Task, "_execute_core")
     unwrap(crewai.Task, "execute_async")
     unwrap(crewai.Agent, "execute_task")
     unwrap(crewai.tools.structured_tool.CrewStructuredTool, "invoke")
     unwrap(crewai.Flow, "kickoff_async")
-    unwrap(crewai.Flow, "_execute_method")
-    unwrap(crewai.Flow, "_find_triggered_methods")
+    try:
+        unwrap(crewai.Crew, "_get_context")
+        unwrap(crewai.Task, "_execute_core")
+        unwrap(crewai.Flow, "_execute_method")
+        unwrap(crewai.Flow, "_find_triggered_methods")
+    except AttributeError:
+        pass
 
     delattr(crewai, "_datadog_integration")

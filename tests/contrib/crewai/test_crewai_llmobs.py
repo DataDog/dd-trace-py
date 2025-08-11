@@ -1,7 +1,15 @@
+import json
+
+import crewai
 import mock
 
+from ddtrace.internal.utils.version import parse_version
+from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+
+CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
 
 
 AGENT_TO_EXPECTED_AGENT_MANIFEST = {
@@ -65,7 +73,7 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     },
 }
 
-expected_span_args = {
+EXPECTED_SPAN_ARGS = {
     "input_value": mock.ANY,
     "output_value": mock.ANY,
     "metadata": mock.ANY,
@@ -88,7 +96,7 @@ def _assert_basic_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 5
     for llmobs_span, span, kind in zip(llmobs_events, spans, ("workflow", "task", "agent", "task", "agent")):
-        extra_args = expected_agent_span_args(llmobs_span["name"]) if kind == "agent" else expected_span_args
+        extra_args = expected_agent_span_args(llmobs_span["name"]) if kind == "agent" else EXPECTED_SPAN_ARGS
         assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **extra_args)
 
 
@@ -109,8 +117,8 @@ def _assert_basic_crew_links(llmobs_events):
 def _assert_tool_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 4
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
     assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
         spans[2], span_kind="agent", **expected_agent_span_args(llmobs_events[2]["name"])
     )
@@ -138,8 +146,8 @@ def _assert_tool_crew_links(llmobs_events):
 def _assert_async_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 6
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
     assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
         spans[2], span_kind="agent", **expected_agent_span_args(llmobs_events[2]["name"])
     )
@@ -151,7 +159,7 @@ def _assert_async_crew_events(llmobs_events, spans):
         metadata=mock.ANY,
         tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
     )
-    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **expected_span_args)
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **EXPECTED_SPAN_ARGS)
     assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
         spans[5], span_kind="agent", **expected_agent_span_args(llmobs_events[5]["name"])
     )
@@ -200,7 +208,7 @@ def _assert_hierarchical_crew_events(llmobs_events, spans):
                 tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
             )
             continue
-        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **expected_span_args)
+        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **EXPECTED_SPAN_ARGS)
 
 
 def _assert_hierarchical_crew_links(llmobs_events):
@@ -227,9 +235,23 @@ def _assert_hierarchical_crew_links(llmobs_events):
 def _assert_simple_flow_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 3
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1]["meta"]["output"]["value"] == "New York City"
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    if CREWAI_VERSION >= (0, 119, 0):  # Tracking I/O and state management only available CrewAI >=0.119.0
+        input_val = json.loads(llmobs_events[0]["meta"]["input"]["value"])
+        assert input_val == {"continent": "North America"}
+        assert llmobs_events[0]["meta"]["output"]["value"] == fun_fact_text
+        input_val = json.loads(llmobs_events[1]["meta"]["input"]["value"])
+        assert input_val["args"] == []
+        assert input_val["kwargs"] == {}
+        assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
+        input_val = json.loads(llmobs_events[2]["meta"]["input"]["value"])
+        assert input_val["args"] == ["New York City"]
+        assert input_val["kwargs"] == {}
+        assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
+        assert llmobs_events[2]["meta"]["output"]["value"] == fun_fact_text
 
 
 def _assert_simple_flow_links(llmobs_events):
@@ -242,12 +264,12 @@ def _assert_simple_flow_links(llmobs_events):
 def _assert_complex_flow_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 6
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **expected_span_args)
-    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **expected_span_args)
-    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **expected_span_args)
-    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(spans[5], span_kind="task", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(spans[5], span_kind="task", **EXPECTED_SPAN_ARGS)
 
 
 def _assert_complex_flow_links(llmobs_events):
@@ -268,10 +290,10 @@ def _assert_complex_flow_links(llmobs_events):
 def _assert_router_flow_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 4
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **expected_span_args)
-    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **EXPECTED_SPAN_ARGS)
 
 
 def _assert_router_flow_links(llmobs_events):
