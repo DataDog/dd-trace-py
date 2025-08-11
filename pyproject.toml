@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "setuptools_scm[toml]>=4",
-    "Cython",
+    "cython",
     "cmake>=3.24.2,<3.28; python_version>='3.8'",
     "setuptools-rust<2",
     "patchelf>=0.17.0.0; sys_platform == 'linux'",
