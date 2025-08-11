@@ -1,3 +1,5 @@
+import json
+
 from typing import Any
 from typing import Dict
 from typing import List
@@ -13,8 +15,6 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import ToolCall
 from ddtrace.llmobs.utils import ToolResult
-from ddtrace.llmobs.utils import ToolDefinition
-
 
 
 # Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
@@ -189,10 +189,10 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     function_call = _get_attr(part, "function_call", None)
     if function_call:
         tool_call_info = ToolCall(
-            name = _get_attr(function_call, "name", ""),
-            arguments = _get_attr(function_call, "args", {}),
-            tool_id = _get_attr(function_call, "id", ""),
-            type = "function_call",
+            name=_get_attr(function_call, "name", ""),
+            arguments=_get_attr(function_call, "args", {}),
+            tool_id=_get_attr(function_call, "id", "") if _get_attr(function_call, "id", "") else "",
+            type="function_call",
         )
         message["tool_calls"] = [tool_call_info]
         return message
@@ -200,15 +200,11 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
     function_response = _get_attr(part, "function_response", None)
     if function_response:
         result = _get_attr(function_response, "response", "")
-        try:
-            result = json.loads(result)
-        except (json.JSONDecodeError, TypeError):
-            result = {"value": str(result)}
         tool_result_info = ToolResult(
-            name = _get_attr(function_response, "name", ""),
-            result = result,
-            tool_id = _get_attr(function_response, "id", ""),
-            type = "function_response",
+            name=_get_attr(function_response, "name", ""),
+            result=result if isinstance(result, str) else json.dumps(result),
+            tool_id=_get_attr(function_response, "id", "") if _get_attr(function_response, "id", "") else "",
+            type="function_response",
         )
         message["tool_results"] = [tool_result_info]
         return message

@@ -3,6 +3,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+try:
+    from google.genai import types as genai_types
+except ImportError:
+    genai_types = None
+
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -13,6 +18,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -22,6 +28,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import ToolDefinition
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
@@ -40,7 +47,6 @@ GENERATE_METADATA_PARAMS = [
     "response_mime_type",
     "safety_settings",
     "automatic_function_calling",
-    "tools",
 ]
 
 EMBED_METADATA_PARAMS = [
@@ -93,8 +99,10 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 OUTPUT_MESSAGES: self._extract_output_messages(response),
                 METRICS: extract_generation_metrics_google_genai(response),
             }
-        tools = self._extract_tools(kwargs.get("tools", []))
         )
+        tools = self._extract_tools(config)
+        if tools:
+            span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
         config = kwargs.get("config")
@@ -164,13 +172,50 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metadata[param] = _get_attr(config, param, None)
         return metadata
 
-    def _extract_tools(self, tools) -> List[ToolDefinition]:
+    def _extract_tools(self, config) -> List[ToolDefinition]:
         tool_definitions = []
+        if _get_attr(config, "tools", None):
+            tools = _get_attr(config, "tools", [])
+        else:
+            tools = []
         for tool in tools:
-            tool_definition_info = ToolDefinition(
-                name = _get_attr(tool, "name", ""),
-                description = _get_attr(tool, "description", ""),
-                schema = _get_attr(tool, "schema", {}),
-            )
-            tool_definitions.append(tool_definition_info)
+            # check if it's a Python function (automatic function calling)
+            if callable(tool):
+                if genai_types is not None:
+                    try:
+                        # even though the api_option is set to GEMINI_API, this method does not actually 
+                        # make a client call, and the fields we are extracting do not vary based on client
+                        function_declaration = genai_types.FunctionDeclaration.from_callable_with_api_option(
+                            callable=tool, api_option="GEMINI_API"
+                        )
+                        schema = _get_attr(function_declaration, "parameters", {})
+                        try:
+                            schema = schema.model_dump(exclude_none=True)
+                        except AttributeError:
+                            schema = repr(schema)
+                        tool_definition_info = ToolDefinition(
+                            name=_get_attr(function_declaration, "name", ""),
+                            description=_get_attr(function_declaration, "description", ""),
+                            schema=schema,
+                        )
+                        tool_definitions.append(tool_definition_info)
+                        continue
+                    except Exception:
+                        continue
+                else:
+                    continue
+
+            # check if it's a Google GenAI tool object with function_declarations
+            for function_declaration in _get_attr(tool, "function_declarations", []):
+                schema = _get_attr(function_declaration, "parameters", {})
+                try:
+                    schema = schema.model_dump()
+                except AttributeError:
+                    schema = repr(schema)
+                tool_definition_info = ToolDefinition(
+                    name=_get_attr(function_declaration, "name", ""),
+                    description=_get_attr(function_declaration, "description", ""),
+                    schema=schema,
+                )
+                tool_definitions.append(tool_definition_info)
         return tool_definitions
