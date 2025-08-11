@@ -3,7 +3,6 @@ from types import FunctionType
 from typing import Any
 from typing import Dict
 from typing import Tuple
-from typing import Type
 from typing import cast
 
 import ddtrace
@@ -31,7 +30,7 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
     event_name: str = f"django.middleware.{hook}"
 
     def wrapped_middleware(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
-        self: Type[Any] = cast(Type[Any], args[0])
+        self = args[0]
         resource = f"{func_name(self)}.{hook}"
 
         with core.context_with_data(
@@ -50,7 +49,7 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
 
 
 def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
-    self: Type[Any] = args[0]
+    self = args[0]
 
     resource = f"{func_name(self)}.process_exception"
 
@@ -70,7 +69,7 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
 
 
 def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
-    self: Type[Any] = args[0]
+    self = args[0]
 
     resource = f"{func_name(self)}.process_request"
 
