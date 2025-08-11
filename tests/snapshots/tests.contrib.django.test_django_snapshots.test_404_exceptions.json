@@ -102,7 +102,7 @@
            {
              "name": "django.middleware",
              "service": "django",
-             "resource": "django.middleware.csrf.CsrfViewssMiddleware.__call__",
+             "resource": "django.middleware.csrf.CsrfViewMiddleware.__call__",
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
