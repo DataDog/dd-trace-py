@@ -90,9 +90,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      - run: pip install cibuildwheel==2.23.3
-        if: matrix.os != 'ubuntu-24.04-arm'
-
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'ubuntu-24.04-arm'
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
