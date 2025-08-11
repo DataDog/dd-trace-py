@@ -183,7 +183,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             if callable(tool):
                 if genai_types is not None:
                     try:
-                        # even though the api_option is set to GEMINI_API, this method does not actually 
+                        # even though the api_option is set to GEMINI_API, this method does not actually
                         # make a client call, and the fields we are extracting do not vary based on client
                         function_declaration = genai_types.FunctionDeclaration.from_callable_with_api_option(
                             callable=tool, api_option="GEMINI_API"
