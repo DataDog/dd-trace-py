@@ -50,6 +50,34 @@ jobs:
       fail-fast: false
       matrix:
         include: ${{ fromJson(needs.build-wheels-matrix.outputs.include) }}
+    env:
+      CIBW_SKIP: ${{ inputs.cibw_skip }}
+      CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
+      CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
+      CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
+      CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+      CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
+      # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
+      # `platform.mac_ver()` reports incorrect MacOS version at 11.0
+      # See: https://stackoverflow.com/a/65402241
+      CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
+      CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+        mkdir ./tempwheelhouse &&
+        unzip -l {wheel} | grep '\.so' &&
+        auditwheel repair -w ./tempwheelhouse {wheel} &&
+        for w in ./tempwheelhouse/*.whl; do
+          python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
+          mv $w {dest_dir}
+        done &&
+        rm -rf ./tempwheelhouse
+      CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
+        zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
+        MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
+      CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
+        choco install -y 7zip &&
+        7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
+        move "{wheel}" "{dest_dir}"
+      CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
 
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -71,50 +99,26 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels
-        run: |
-          if [[ "${{ matrix.os }}" == "ubuntu-24.04-arm" ]]; then
-            pipx run cibuildwheel==2.23.3 --only ${{ matrix.only }}
-          else
-            cibuildwheel --only ${{ matrix.only }}
-          fi
+      - name: Build wheels (linux arm64)
+        if: matrix.os == 'ubuntu-24.04-arm'
+        run: pipx run cibuildwheel==2.23.3 --only ${{ matrix.only }}
         env:
-          CIBW_SKIP: ${{ inputs.cibw_skip }}
-          CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-          CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
           CIBW_BEFORE_ALL: |
             if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
-              if [[ "${{ matrix.os }}" == "ubuntu-24.04-arm" ]]; then
-                curl -sSf https://sh.rustup.rs | sh -s -- -y;
-              else
-                yum install -y libatomic.i686
-                curl -sSf https://sh.rustup.rs | sh -s -- -y;
-              fi
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
             fi
-          CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
-          CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
-          CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
-          # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
-          # `platform.mac_ver()` reports incorrect MacOS version at 11.0
-          # See: https://stackoverflow.com/a/65402241
-          CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
-            mkdir ./tempwheelhouse &&
-            unzip -l {wheel} | grep '\.so' &&
-            auditwheel repair -w ./tempwheelhouse {wheel} &&
-            for w in ./tempwheelhouse/*.whl; do
-              python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
-              mv $w {dest_dir}
-            done &&
-            rm -rf ./tempwheelhouse
-          CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-            zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
-            MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
-          CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
-            choco install -y 7zip &&
-            7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
-            move "{wheel}" "{dest_dir}"
-          CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
+
+      - name: Build wheels
+        if: matrix.os != 'ubuntu-24.04-arm'
+        uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
+        with:
+          only: ${{ matrix.only }}
+        env:
+          CIBW_BEFORE_ALL: |
+            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
+              yum install -y libatomic.i686
+              curl -sSf https://sh.rustup.rs | sh -s -- -y;
+            fi
           # DEV: Uncomment to debug MacOS
           # CIBW_BUILD_VERBOSITY_MACOS: 3
 
