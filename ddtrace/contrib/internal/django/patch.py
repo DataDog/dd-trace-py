@@ -10,8 +10,6 @@ specific Django apps like Django Rest Framework (DRF).
 from collections.abc import Iterable
 import functools
 from inspect import getmro
-from inspect import isclass
-from inspect import isfunction
 from inspect import unwrap
 import os
 from typing import Dict
@@ -95,6 +93,8 @@ config._add(
         ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
+        # DEV: Used only for testing purposes, do not use in production
+        _tracer=None,
     ),
 )
 

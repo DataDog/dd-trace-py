@@ -11,7 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.contrib.django",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "654a694400000000",
+      "_dd.p.tid": "6899f09c00000000",
       "component": "django",
       "django.request.class": "django.core.handlers.wsgi.WSGIRequest",
       "django.response.class": "django.http.response.HttpResponseNotFound",
@@ -22,7 +22,7 @@
       "http.status_code": "404",
       "http.url": "http://testserver/404-view/",
       "language": "python",
-      "runtime-id": "5f1251d265904185ae371a48d5cfc7f4",
+      "runtime-id": "16b082d868b2438bac7b22c8ad6b5b6a",
       "span.kind": "server"
     },
     "metrics": {
@@ -30,10 +30,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 19970
+      "process_id": 426
     },
-    "duration": 2888584,
-    "start": 1692647428228986425
+    "duration": 43099875,
+    "start": 1754919068260329212
   },
      {
        "name": "django.middleware",
@@ -46,11 +46,10 @@
        "error": 0,
        "meta": {
          "_dd.base_service": "tests.contrib.django",
-         "_dd.p.tid": "654a694400000000",
          "component": "django"
        },
-       "duration": 2305125,
-       "start": 1692647428229099259
+       "duration": 19280792,
+       "start": 1754919068283642295
      },
         {
           "name": "django.middleware",
@@ -63,11 +62,10 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.django",
-            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
-          "duration": 46250,
-          "start": 1692647428229140217
+          "duration": 589459,
+          "start": 1754919068283708878
         },
         {
           "name": "django.middleware",
@@ -80,11 +78,10 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.django",
-            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
-          "duration": 2135875,
-          "start": 1692647428229213342
+          "duration": 18461917,
+          "start": 1754919068284386378
         },
            {
              "name": "django.middleware",
@@ -97,11 +94,10 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django",
-               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
-             "duration": 82875,
-             "start": 1692647428229244217
+             "duration": 935417,
+             "start": 1754919068284434378
            },
            {
              "name": "django.middleware",
@@ -114,11 +110,10 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django",
-               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
-             "duration": 1904292,
-             "start": 1692647428229384925
+             "duration": 17366250,
+             "start": 1754919068285410378
            },
               {
                 "name": "django.middleware",
@@ -131,11 +126,10 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django",
-                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
-                "duration": 28708,
-                "start": 1692647428229447717
+                "duration": 28958,
+                "start": 1754919068285453170
               },
               {
                 "name": "django.middleware",
@@ -148,11 +142,10 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django",
-                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
-                "duration": 1744084,
-                "start": 1692647428229497425
+                "duration": 17203375,
+                "start": 1754919068285515295
               },
                  {
                    "name": "django.middleware",
@@ -165,11 +158,10 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "tests.contrib.django",
-                     "_dd.p.tid": "654a694400000000",
                      "component": "django"
                    },
-                   "duration": 27458,
-                   "start": 1692647428229527134
+                   "duration": 34250,
+                   "start": 1754919068285579170
                  },
                  {
                    "name": "django.middleware",
@@ -182,11 +174,10 @@
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "tests.contrib.django",
-                     "_dd.p.tid": "654a694400000000",
                      "component": "django"
                    },
-                   "duration": 1656625,
-                   "start": 1692647428229573425
+                   "duration": 17054625,
+                   "start": 1754919068285651128
                  },
                     {
                       "name": "django.middleware",
@@ -199,11 +190,10 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "tests.contrib.django",
-                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
-                      "duration": 61625,
-                      "start": 1692647428229601842
+                      "duration": 3262083,
+                      "start": 1754919068285718545
                     },
                     {
                       "name": "django.middleware",
@@ -216,11 +206,10 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "tests.contrib.django",
-                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
-                      "duration": 1491250,
-                      "start": 1692647428229684884
+                      "duration": 13610625,
+                      "start": 1754919068289030087
                     },
                        {
                          "name": "django.middleware",
@@ -233,11 +222,10 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "tests.contrib.django",
-                           "_dd.p.tid": "654a694400000000",
                            "component": "django"
                          },
-                         "duration": 1406958,
-                         "start": 1692647428229713884
+                         "duration": 13486666,
+                         "start": 1754919068289078337
                        },
                           {
                             "name": "django.middleware",
@@ -250,11 +238,10 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "tests.contrib.django",
-                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
-                            "duration": 20791,
-                            "start": 1692647428229740384
+                            "duration": 25000,
+                            "start": 1754919068289120878
                           },
                           {
                             "name": "django.middleware",
@@ -267,11 +254,10 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "tests.contrib.django",
-                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
-                            "duration": 1275542,
-                            "start": 1692647428229779467
+                            "duration": 13292667,
+                            "start": 1754919068289181878
                           },
                              {
                                "name": "django.middleware",
@@ -284,11 +270,10 @@
                                "error": 0,
                                "meta": {
                                  "_dd.base_service": "tests.contrib.django",
-                                 "_dd.p.tid": "654a694400000000",
                                  "component": "django"
                                },
-                               "duration": 1238416,
-                               "start": 1692647428229805509
+                               "duration": 13238833,
+                               "start": 1754919068289222545
                              },
                                 {
                                   "name": "django.middleware",
@@ -301,11 +286,10 @@
                                   "error": 0,
                                   "meta": {
                                     "_dd.base_service": "tests.contrib.django",
-                                    "_dd.p.tid": "654a694400000000",
                                     "component": "django"
                                   },
-                                  "duration": 1200209,
-                                  "start": 1692647428229831800
+                                  "duration": 13171708,
+                                  "start": 1754919068289275420
                                 },
                                    {
                                      "name": "django.middleware",
@@ -318,11 +302,10 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 29042,
-                                     "start": 1692647428230015550
+                                     "duration": 27250,
+                                     "start": 1754919068289382587
                                    },
                                    {
                                      "name": "django.middleware",
@@ -335,11 +318,10 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 20375,
-                                     "start": 1692647428230063800
+                                     "duration": 16875,
+                                     "start": 1754919068289445837
                                    },
                                    {
                                      "name": "django.view",
@@ -352,11 +334,10 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 37083,
-                                     "start": 1692647428230115884
+                                     "duration": 50916,
+                                     "start": 1754919068289518587
                                    },
                                    {
                                      "name": "django.middleware",
@@ -369,16 +350,15 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 17250,
-                                     "start": 1692647428230177550
+                                     "duration": 18042,
+                                     "start": 1754919068289626503
                                    },
                                    {
                                      "name": "django.middleware",
                                      "service": "django",
-                                     "resource": "django.middleware.csrf.CsrfViewMiddleware.process_request",
+                                     "resource": "django.views.decorators.csrf._EnsureCsrfToken.process_request",
                                      "trace_id": 0,
                                      "span_id": 28,
                                      "parent_id": 23,
@@ -386,16 +366,15 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 26291,
-                                     "start": 1692647428230298384
+                                     "duration": 31167,
+                                     "start": 1754919068291222503
                                    },
                                    {
                                      "name": "django.middleware",
                                      "service": "django",
-                                     "resource": "django.middleware.csrf.CsrfViewMiddleware.process_view",
+                                     "resource": "django.views.decorators.csrf._EnsureCsrfToken.process_view",
                                      "trace_id": 0,
                                      "span_id": 29,
                                      "parent_id": 23,
@@ -403,11 +382,10 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 19250,
-                                     "start": 1692647428230344217
+                                     "duration": 40458,
+                                     "start": 1754919068291315545
                                    },
                                    {
                                      "name": "django.template.render",
@@ -420,17 +398,16 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django",
                                        "django.template.engine.class": "django.template.engine.Engine"
                                      },
-                                     "duration": 163041,
-                                     "start": 1692647428230744509
+                                     "duration": 113167,
+                                     "start": 1754919068301511295
                                    },
                                    {
                                      "name": "django.middleware",
                                      "service": "django",
-                                     "resource": "django.middleware.csrf.CsrfViewMiddleware.process_response",
+                                     "resource": "django.views.decorators.csrf._EnsureCsrfToken.process_response",
                                      "trace_id": 0,
                                      "span_id": 31,
                                      "parent_id": 23,
@@ -438,11 +415,10 @@
                                      "error": 0,
                                      "meta": {
                                        "_dd.base_service": "tests.contrib.django",
-                                       "_dd.p.tid": "654a694400000000",
                                        "component": "django"
                                      },
-                                     "duration": 32584,
-                                     "start": 1692647428230982800
+                                     "duration": 23208,
+                                     "start": 1754919068302406170
                                    },
                           {
                             "name": "django.middleware",
@@ -455,11 +431,10 @@
                             "error": 0,
                             "meta": {
                               "_dd.base_service": "tests.contrib.django",
-                              "_dd.p.tid": "654a694400000000",
                               "component": "django"
                             },
-                            "duration": 33667,
-                            "start": 1692647428231073175
+                            "duration": 42000,
+                            "start": 1754919068302509003
                           },
                        {
                          "name": "django.middleware",
@@ -472,11 +447,10 @@
                          "error": 0,
                          "meta": {
                            "_dd.base_service": "tests.contrib.django",
-                           "_dd.p.tid": "654a694400000000",
                            "component": "django"
                          },
-                         "duration": 25875,
-                         "start": 1692647428231138634
+                         "duration": 28916,
+                         "start": 1754919068302598462
                        },
                     {
                       "name": "django.middleware",
@@ -489,11 +463,10 @@
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "tests.contrib.django",
-                        "_dd.p.tid": "654a694400000000",
                         "component": "django"
                       },
-                      "duration": 24500,
-                      "start": 1692647428231194259
+                      "duration": 20791,
+                      "start": 1754919068302672212
                     },
               {
                 "name": "django.middleware",
@@ -506,11 +479,10 @@
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "tests.contrib.django",
-                  "_dd.p.tid": "654a694400000000",
                   "component": "django"
                 },
-                "duration": 19500,
-                "start": 1692647428231258425
+                "duration": 15708,
+                "start": 1754919068302748337
               },
            {
              "name": "django.middleware",
@@ -523,11 +495,10 @@
              "error": 0,
              "meta": {
                "_dd.base_service": "tests.contrib.django",
-               "_dd.p.tid": "654a694400000000",
                "component": "django"
              },
-             "duration": 30125,
-             "start": 1692647428231307217
+             "duration": 28833,
+             "start": 1754919068302806337
            },
         {
           "name": "django.middleware",
@@ -540,9 +511,8 @@
           "error": 0,
           "meta": {
             "_dd.base_service": "tests.contrib.django",
-            "_dd.p.tid": "654a694400000000",
             "component": "django"
           },
-          "duration": 26375,
-          "start": 1692647428231367175
+          "duration": 32042,
+          "start": 1754919068302877545
         }]]

@@ -34,6 +34,8 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
             tags={
                 COMPONENT: config_django.integration_name,
             },
+            # TODO: Migrate all tests to snapshot tests and remove this
+            tracer=config_django._tracer,
         ):
             return func(*args, **kwargs)
 
@@ -50,6 +52,8 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
         span_name="django.middleware",
         resource=resource,
         tags={COMPONENT: config_django.integration_name},
+        # TODO: Migrate all tests to snapshot tests and remove this
+        tracer=config_django._tracer,
     ) as ctx:
         resp = func(*args, **kwargs)
 
@@ -75,6 +79,8 @@ def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict
                 tags={
                     COMPONENT: config_django.integration_name,
                 },
+                # TODO: Migrate all tests to snapshot tests and remove this
+                tracer=config_django._tracer,
             ):
                 return func(*args, **kwargs)
 
