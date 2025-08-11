@@ -351,7 +351,7 @@ suites:
     runner: riot
     snapshot: true
   azure_eventhub:
-    parallelism: 2
+    parallelism: 1
     paths:
       - '@bootstrap'
       - '@core'
@@ -365,7 +365,7 @@ suites:
       - azurite
       - azureeventhubsemulator
   azure_functions:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
