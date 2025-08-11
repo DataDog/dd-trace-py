@@ -70,7 +70,7 @@ memalloc_realloc(void* ctx, void* ptr, size_t new_size)
 {
     memalloc_context_t* memalloc_ctx = (memalloc_context_t*)ctx;
     PyMemAllocatorEx* alloc = &memalloc_ctx->pymem_allocator;
-    
+
     void* ptr2 = alloc->realloc(alloc->ctx, ptr, new_size);
 
     if (ptr2) {
