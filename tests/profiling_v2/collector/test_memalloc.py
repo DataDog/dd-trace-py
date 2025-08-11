@@ -1,6 +1,5 @@
 import inspect
 import os
-import sys
 import threading
 
 import pytest
