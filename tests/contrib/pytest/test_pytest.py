@@ -1427,8 +1427,8 @@ class PytestTestCase(PytestTestCaseBase):
         """Test that running pytest on a test package will generate a test module span."""
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
-        test_a = self.testdir.makepyfile(
-            """
+        self.testdir.makepyfile(
+            test_a="""
         def test_ok():
             assert True
         """
