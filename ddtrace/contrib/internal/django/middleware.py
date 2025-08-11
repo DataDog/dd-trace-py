@@ -81,7 +81,7 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
         tags={COMPONENT: config_django.integration_name},
         # TODO: Migrate all tests to snapshot tests and remove this
         tracer=config_django._tracer,
-    ) as ctx:
+    ):
         try:
             return func(*args, **kwargs)
         finally:

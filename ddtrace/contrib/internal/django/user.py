@@ -2,6 +2,7 @@ from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
+
 log = get_logger(__name__)
 
 
