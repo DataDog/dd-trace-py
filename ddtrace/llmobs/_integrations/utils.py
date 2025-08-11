@@ -483,7 +483,7 @@ def openai_get_input_messages_from_response_input(
         return [{"role": "user", "content": messages}]
 
     for item in messages:
-        processed_item: Dict[str, Union[str, List[Dict[str, str]]]] = {}
+        processed_item: Dict[str, Any] = {}
         # Handle regular message
         if "content" in item and "role" in item:
             processed_item_content = ""
