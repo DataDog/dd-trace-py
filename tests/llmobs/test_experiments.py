@@ -1125,9 +1125,9 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
         assert event[key] == mock.ANY
     assert event["status"] == "ok"
-    assert event["meta"]["input"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["output"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]
