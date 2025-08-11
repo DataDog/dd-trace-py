@@ -1,0 +1,139 @@
+interactions:
+- request:
+    body: '{"messages":[{"content":"You are a helpful assistant who talks with a Boston
+      accent but is also very nice. You speak in full sentences with at least 15 words.","role":"system"},{"content":"What
+      is 2 + 2?","role":"user"}],"model":"gpt-4o-mini","stream":false,"temperature":0.5,"tools":[{"type":"function","function":{"name":"add","description":"Adds
+      two numbers together","parameters":{"properties":{"a":{"type":"integer"},"b":{"type":"integer"}},"required":["a","b"],"type":"object"}}}]}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '487'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.95.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.95.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - traceparent
+      : - 00-687555cd0000000058a0b13b60fee9d7-c1056909942ed2bb-01
+      ? !!python/object/apply:multidict._multidict.istr
+      - tracestate
+      : - dd=p:c1056909942ed2bb;s:1;t.dm:-0;t.llmobs_parent_id:11541966843787300659;t.llmobs_trace_id:138848950540669451443110373367120993769;t.tid:687555cd00000000
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-parent-id
+      : - '13908638514065363643'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-sampling-priority
+      : - '1'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-tags
+      : - _dd.p.llmobs_parent_id=11541966843787300659,_dd.p.llmobs_trace_id=138848950540669451443110373367120993769,_dd.p.dm=-0,_dd.p.tid=687555cd00000000
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-datadog-trace-id
+      : - '6386299140199868887'
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-BtIppe9VewYEAWxxrBbQHs5vCiFM7\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1752520141,\n  \"model\": \"gpt-4o-mini-2024-07-18\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Well, lemme tell ya, 2 plus 2 equals
+        4. It's a simple math problem, but it's always good to double-check, ya know?\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        82,\n    \"completion_tokens\": 34,\n    \"total_tokens\": 116,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 95f34fe69b22c999-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Mon, 14 Jul 2025 19:09:05 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=nQcWI7klUTkySPbvOVyExPOdWd8fubZ7BlmbHWH4o6c-1752520145-1.0.1.1-zwgB_atrDoAAP8XCqMJyce5Tf6Q7Fh.yB_DNq.qSC2JNwKK.lNMc7SFOKdUTzHfIC.GAWES_2nMNFAquw6Pqn.iILvidDG8QEoAv6NMnzB0;
+        path=/; expires=Mon, 14-Jul-25 19:39:05 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=HrKs7a.adjkWIFGDqH_ouE4jUCP6sk2IS.DZHA4yj10-1752520145334-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '3408'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      x-envoy-upstream-service-time:
+      - '3411'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999959'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_c5fc1fc5b5af6373f829e952ecc6f730
+    status:
+      code: 200
+      message: OK
+version: 1
