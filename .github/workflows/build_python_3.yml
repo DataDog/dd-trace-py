@@ -63,7 +63,6 @@ jobs:
           fi
           curl -sSf https://sh.rustup.rs | sh -s -- -y;
         fi
-      CIBW_BEFORE_BUILD: pip install Cython
       CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
       # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
       # `platform.mac_ver()` reports incorrect MacOS version at 11.0
