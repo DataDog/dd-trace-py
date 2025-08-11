@@ -189,8 +189,13 @@ def override_global_config(values):
             setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
+    if asm_config._asm_enabled:
+        from ddtrace.appsec._listeners import load_appsec
+
+        load_appsec()
     try:
         core.dispatch("test.config.override")
+        core.dispatch("asm.switch_state")
         yield
     finally:
         # Reset all to their original values
