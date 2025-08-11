@@ -175,10 +175,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _extract_tools(self, config) -> List[ToolDefinition]:
         tool_definitions = []
-        if _get_attr(config, "tools", None):
-            tools = _get_attr(config, "tools", [])
-        else:
-            tools = []
+        tools = _get_attr(config, "tools", [])
         for tool in tools:
             # check if it's a Python function (automatic function calling)
             if callable(tool) and genai_types is not None:
