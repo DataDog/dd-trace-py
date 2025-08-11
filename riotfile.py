@@ -361,7 +361,16 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
-                Venv(pys=select_pys()),
+                Venv(
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.13")),
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ]
+                ),
                 # This test variant ensures tracer tests are compatible with both 64bit trace ids.
                 # 128bit trace ids are tested by the default case above.
                 Venv(
