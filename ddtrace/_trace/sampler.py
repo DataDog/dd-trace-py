@@ -41,7 +41,6 @@ class RateSampler:
         """sample_rate is clamped between 0 and 1 inclusive"""
         sample_rate = min(1, max(0, sample_rate))
         self.set_sample_rate(sample_rate)
-        log.debug("initialized RateSampler, sample %s%% of traces", 100 * sample_rate)
 
     def set_sample_rate(self, sample_rate: float) -> None:
         self.sample_rate = float(sample_rate)
@@ -50,6 +49,9 @@ class RateSampler:
     def sample(self, span: Span) -> bool:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
+
+    def __repr__(self):
+        return f"RateSampler(sample_rate={self.sample_rate})"
 
 
 class DatadogSampler:
@@ -77,6 +79,11 @@ class DatadogSampler:
         "_agent_based_samplers",
     )
     _default_key = "service:,env:"
+
+    SAMPLE_DEBUG_MESSAGE = (
+        "Sampling decision applied to %s: sampled=%s sample_rate=%s sampling_mechanism=%s "
+        "matched_trace_sampling_rule=%s agent_sampled=%s"
+    )
 
     def __init__(
         self,
@@ -123,6 +130,7 @@ class DatadogSampler:
         samplers: Dict[str, RateSampler] = {}
         for key, sample_rate in rate_by_service.items():
             samplers[key] = RateSampler(sample_rate)
+        log.debug("Updated DatadogSampler with %d service based sampling rates (provided by the agent)", len(samplers))
         self._agent_based_samplers = samplers
 
     def __str__(self):
@@ -139,38 +147,25 @@ class DatadogSampler:
 
     def set_sampling_rules(self, rules: str) -> None:
         """Sets the trace sampling rules from a JSON string"""
-        if not rules:
-            self.rules = []
-            return
-
         sampling_rules = []
-        json_rules = []
         try:
             json_rules = json.loads(rules)
-        except JSONDecodeError:
-            if config._raise:
-                raise ValueError("Unable to parse DD_TRACE_SAMPLING_RULES={}".format(rules))
-        for rule in json_rules:
-            if "sample_rate" not in rule:
-                if config._raise:
-                    raise KeyError("No sample_rate provided for sampling rule: {}".format(json.dumps(rule)))
-                continue
-            try:
+            for rule in json_rules:
+                if "sample_rate" not in rule:
+                    log.error("No sample_rate provided for sampling rule: %s. Skipping.", rule)
+                    continue
                 sampling_rules.append(SamplingRule(**rule))
-            except ValueError as e:
-                if config._raise:
-                    raise ValueError("Error creating sampling rule {}: {}".format(json.dumps(rule), e))
-
-        # Sort the sampling_rules list using a lambda function as the key
+        except (JSONDecodeError, ValueError):
+            log.error("Failed to apply all sampling rules. Rules=%s, Applied=%s", rules, sampling_rules, exc_info=True)
         self.rules = sorted(sampling_rules, key=lambda rule: PROVENANCE_ORDER.index(rule.provenance))
 
     def sample(self, span: Span) -> bool:
         span._update_tags_from_context()
         matched_rule = _get_highest_precedence_rule_matching(span, self.rules)
         # Default sampling
-        agent_service_based = False
         sampled = True
         sample_rate = 1.0
+        agent_sampler = None
         if matched_rule:
             # Rules based sampling (set via env_var or remote config)
             sampled = matched_rule.sample(span)
@@ -179,9 +174,9 @@ class DatadogSampler:
             key = self._key(span.service, span.get_tag(ENV_KEY))
             if key in self._agent_based_samplers:
                 # Agent service based sampling
-                agent_service_based = True
-                sampled = self._agent_based_samplers[key].sample(span)
-                sample_rate = self._agent_based_samplers[key].sample_rate
+                agent_sampler = self._agent_based_samplers[key]
+                sampled = agent_sampler.sample(span)
+                sample_rate = agent_sampler.sample_rate
 
         if matched_rule or self._rate_limit_always_on:
             # Avoid rate limiting when trace sample rules and/or sample rates are NOT provided
@@ -191,12 +186,21 @@ class DatadogSampler:
                 sampled = self.limiter.is_allowed()
                 span.set_metric(_SAMPLING_LIMIT_DECISION, self.limiter.effective_rate)
 
-        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_service_based)
+        sampling_mechanism = self._get_sampling_mechanism(matched_rule, agent_sampler is not None)
         _set_sampling_tags(
             span,
             sampled,
             sample_rate,
             sampling_mechanism,
+        )
+        log.debug(
+            self.SAMPLE_DEBUG_MESSAGE,
+            span,
+            sampled,
+            sample_rate,
+            sampling_mechanism,
+            matched_rule,
+            agent_sampler is not None,
         )
         return sampled
 

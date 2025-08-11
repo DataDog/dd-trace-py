@@ -121,7 +121,7 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.28.0
+        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.29.1
         ports:
             - "127.0.0.1:9126:8126"
         volumes:
@@ -174,7 +174,7 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:8b69a2610342b333f8832422ffc4f3a9327bed13@sha256:c2d067947ffdb305fc7dc7ff1f8eb7035cfa110bd1199917dd2519eadd166402
+        image: ghcr.io/datadog/dd-trace-py/testrunner:280be7679757b720503a284a69da36995b6ef48d@sha256:68865857c710d5703ddf9190ff33eb1ea47974e8332d04e2e115ef3b52513def
         command: bash
         environment:
           DD_FAST_BUILD: "1"
@@ -182,11 +182,11 @@ services:
           CARGO_BUILD_JOBS: "12"
         network_mode: host
         userns_mode: host
-        working_dir: /root/project/
+        working_dir: /home/bits/project/
         volumes:
           - ddagent:/tmp/ddagent
-          - ./:/root/project
-          - ./.riot:/root/project/.riot
+          - ./:/home/bits/project
+          - ./.riot:/home/bits/project/.riot
 
     localstack:
         image: localstack/localstack:1.4.0

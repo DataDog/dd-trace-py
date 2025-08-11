@@ -1,0 +1,7 @@
+---
+other:
+  - |
+    profiling: removed redundant sampling code from memory profile, improving overhead and accuracy.
+    Sizes and counts of objects allocated since the last profile are now reported more accurately.
+    ENV: DD_PROFILING_MAX_EVENTS is deprecated and does nothing. Use DD_PROFILING_HEAP_SAMPLE_SIZE
+    to control sampling frequency of the memory profiler.

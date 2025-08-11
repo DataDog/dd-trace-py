@@ -8,7 +8,7 @@ variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
-  GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
 
 .benchmarks:
@@ -64,6 +64,9 @@ baseline:detect:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   stage: build
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
@@ -74,7 +77,8 @@ baseline:detect:
 
     if [ -z ${GH_TOKEN} ]
     then
-      aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+      # Use dd-octo-sts to get GitHub token
+      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
       gh auth login --with-token < token
       rm token
     fi

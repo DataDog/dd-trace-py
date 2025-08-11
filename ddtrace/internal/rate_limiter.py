@@ -163,8 +163,6 @@ class RateLimiter(object):
             self.effective_rate,
         )
 
-    __str__ = __repr__
-
 
 class RateLimitExceeded(Exception):
     pass
