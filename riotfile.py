@@ -421,6 +421,17 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                     },
                 ),
+                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
+                # and NativeWriter.
+                Venv(
+                    name="integration-snapshot-native-writer",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                        "_DD_TRACE_WRITER_NATIVE": "1",
+                    },
+                    pys=MAX_PYTHON_VERSION,
+                ),
             ],
         ),
         Venv(
@@ -2886,7 +2897,12 @@ venv = Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
-            pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
+            pkgs={
+                "pytest-asyncio": latest,
+                "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
+                "langchain_openai": latest,
+                "langchain_core": latest,
+            },
         ),
         Venv(
             name="mcp",
@@ -2977,7 +2993,7 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": ["==0.3.0", latest],
+                "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -3649,6 +3665,18 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
+        ),
+        Venv(
+            name="ai_guard",
+            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+            ],
         ),
     ],
 )

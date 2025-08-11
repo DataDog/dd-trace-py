@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    CI Visibility: This introduces an alternative method for collecting and sending test spans. In this mode, the
+    ``CIVisibility`` tracer is kept separate from the global ``ddtrace`` tracer, which helps avoid interference between
+    test and non-test tracer configurations. This mode is currently experimental, and can be enabled by setting the
+    environment variable ``DD_CIVISIBILITY_USE_BETA_WRITER`` to ``true``.

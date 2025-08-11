@@ -174,7 +174,7 @@ services:
         # build:
         #  context: ./docker
         #  dockerfile: Dockerfile
-        image: ghcr.io/datadog/dd-trace-py/testrunner:ae4c189ebf8e539f39905f21c7918cc19de69d13@sha256:9476c426c677d39a58c170ed3167e4d630ed4f067a8a2be2fb96d843795d2ac2
+        image: ghcr.io/datadog/dd-trace-py/testrunner:280be7679757b720503a284a69da36995b6ef48d@sha256:68865857c710d5703ddf9190ff33eb1ea47974e8332d04e2e115ef3b52513def
         command: bash
         environment:
           DD_FAST_BUILD: "1"

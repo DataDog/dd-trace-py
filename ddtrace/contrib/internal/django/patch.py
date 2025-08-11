@@ -6,7 +6,6 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
-
 from collections.abc import Iterable
 import functools
 from inspect import getmro
@@ -41,6 +40,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -80,7 +80,18 @@ config._add(
         ),
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
-        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        trace_asgi_websocket_messages=_get_config(
+            "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            modifier=asbool,
+        ),
+        asgi_websocket_messages_inherit_sampling=asbool(
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+        )
+        and asbool(_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        websocket_messages_separate_traces=asbool(
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+        ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
     ),
@@ -656,17 +667,17 @@ def _instrument_view(django, view, path=None):
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
-        from_args = False
-        view = kwargs.pop("view", None)
-        path = kwargs.pop("path", None)
-        if view is None:
+        view_from_args = False
+        view = kwargs.get("view", None)
+        path = kwargs.get("route", None)
+        if view is None and len(args) > 1:
             view = args[1]
-            from_args = True
-        if path is None:
+            view_from_args = True
+        if path is None and args:
             path = args[0]
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
-        if from_args:
+        if view_from_args:
             args = list(args)
             args[1] = instrument_view(django, view, path=path)
             args = tuple(args)

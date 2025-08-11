@@ -10,6 +10,7 @@ from ddtrace.appsec._capabilities import _appsec_rc_capabilities
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import DEFAULT
 from ddtrace.appsec._constants import PRODUCTS
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.appsec._remoteconfiguration import _appsec_callback
 from ddtrace.appsec._remoteconfiguration import _preprocess_results_appsec_1click_activation
 from ddtrace.appsec._remoteconfiguration import disable_appsec_rc
@@ -60,16 +61,16 @@ def test_rc_activate_is_active_and_get_processor_tags(tracer, remote_config_work
     with override_global_config(dict(_remote_config_enabled=True)):
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
         _appsec_callback([rc_config], tracer)
-        assert tracer._appsec_processor
+        assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
         rc_config = build_payload("ASM_FEATURES", None, "config")
         _appsec_callback([rc_config], tracer)
         result = _set_and_get_appsec_tags(tracer)
         assert result is None
-        assert tracer._appsec_processor is None
+        assert AppSecSpanProcessor._instance is None
         rc_config = build_payload("ASM_FEATURES", {"asm": {"enabled": True}}, "config")
         _appsec_callback([rc_config], tracer)
-        assert tracer._appsec_processor
+        assert AppSecSpanProcessor._instance
         assert _set_and_get_appsec_tags(tracer)
 
 
@@ -138,7 +139,7 @@ def test_rc_capabilities(rc_enabled, appsec_enabled, capability, tracer):
     with override_env(env):
         with override_global_config(dict(_remote_config_enabled=rc_enabled)):
             tracer.configure(**config)
-            assert _appsec_rc_capabilities(test_tracer=tracer) == capability
+            assert _appsec_rc_capabilities() == capability
 
 
 @pytest.mark.parametrize(
@@ -158,7 +159,7 @@ def test_rc_activation_capabilities(tracer, remote_config_worker, env_rules, exp
 
         _appsec_callback(rc_configs, test_tracer=tracer)
 
-        assert _appsec_rc_capabilities(test_tracer=tracer) == expected
+        assert _appsec_rc_capabilities() == expected
 
 
 def test_rc_activation_validate_products(tracer, remote_config_worker):
@@ -475,8 +476,7 @@ def test_load_new_configurations_remove_config_and_dispatch_applied_configs_erro
 
 
 def test_rc_activation_ip_blocking_data(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
-        tracer.configure(appsec_enabled=True)
+    with override_global_config({"_asm_enabled": True}):
         rc_config = {
             "rules_data": [
                 {
@@ -533,8 +533,7 @@ def test_rc_activation_ip_blocking_data_expired(tracer, remote_config_worker):
 
 
 def test_rc_activation_ip_blocking_data_not_expired(tracer, remote_config_worker):
-    with override_env({APPSEC.ENV: "true"}), override_global_config({}):
-        tracer.configure(appsec_enabled=True)
+    with override_global_config({"_asm_enabled": True}):
         rc_config = {
             "rules_data": [
                 {

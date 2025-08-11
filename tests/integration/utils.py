@@ -57,6 +57,12 @@ def skip_if_testagent(f):
     )(f)
 
 
+def skip_if_native_writer(f):
+    from ddtrace import config
+
+    return pytest.mark.skipif(config._trace_writer_native, reason="Test incompatible with the native writer")(f)
+
+
 def import_ddtrace_in_subprocess(env):
     p = subprocess.Popen(
         [sys.executable, "-c", "import ddtrace"],

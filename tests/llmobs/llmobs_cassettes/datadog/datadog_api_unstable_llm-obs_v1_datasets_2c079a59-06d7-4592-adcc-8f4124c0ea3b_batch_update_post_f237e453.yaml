@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "2c079a59-06d7-4592-adcc-8f4124c0ea3b",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": {"difficulty":
+      "easy"}}], "update_records": [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '289'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/2c079a59-06d7-4592-adcc-8f4124c0ea3b/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"371eb8d2-f5f3-44e6-a8bb-64169a656a7b","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-06T20:51:38.394638367Z","dataset_id":"2c079a59-06d7-4592-adcc-8f4124c0ea3b","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"metadata":{"difficulty":"easy"},"updated_at":"2025-08-06T20:51:38.394638367Z","version":1}}]}'
+    headers:
+      content-length:
+      - '422'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 06 Aug 2025 20:51:38 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1
