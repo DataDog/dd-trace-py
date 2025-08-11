@@ -75,9 +75,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Check if the traced operation is from the given provider."""
         base_url = None
         if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
-            base_url = self._client._base_url
+            base_url = getattr(self._client, "_base_url", None)
         else:
-            base_url = self._openai.api_base
+            base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False
