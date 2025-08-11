@@ -1427,11 +1427,12 @@ class PytestTestCase(PytestTestCaseBase):
         """Test that running pytest on a test package will generate a test module span."""
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
-        with open("test_a.py", "w+") as fd:
-            fd.write(
-                """def test_ok():
-                assert True"""
-            )
+        test_a = self.testdir.makepyfile(
+            """
+        def test_ok():
+            assert True
+        """
+        )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
@@ -1456,15 +1457,23 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_ok():
+                    assert True
+                """
+                )
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
         os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
-                """def test_not_ok():
-                assert 0"""
+                textwrap.dedent(
+                    """
+                def test_not_ok():
+                    assert 0
+                """
+                )
             )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
@@ -1494,12 +1503,20 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                "def test_ok():\n\tassert True\n"
-                "class TestClassOuter:\n"
-                "\tclass TestClassInner:\n"
-                "\t\tdef test_class_inner(self):\n\t\t\tassert True\n"
-                "\tdef test_class_outer(self):\n\t\tassert True\n"
-                "def test_after_class():\n\tassert True"
+                textwrap.dedent(
+                    """
+                def test_ok():
+                    assert True
+                class TestClassOuter:
+                    class TestClassInner:
+                        def test_class_inner(self):
+                            assert True
+                    def test_class_outer(self):
+                        assert True
+                def test_after_class():
+                    assert True"
+                """
+                )
             )
         self.testdir.chdir()
         rec = self.inline_run("--ddtrace")
@@ -1519,15 +1536,23 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_a_dir))
         with open("test_a.py", "w+") as fd:
             fd.write(
-                """def test_not_ok():
-                assert 0"""
+                textwrap.dedent(
+                    """
+                def test_not_ok():
+                    assert 0
+                """
+                )
             )
         package_b_dir = self.testdir.mkpydir("test_package_b")
         os.chdir(str(package_b_dir))
         with open("test_b.py", "w+") as fd:
             fd.write(
-                """def test_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
         self.inline_run("--ignore=test_package_a", "--ddtrace")
@@ -2061,8 +2086,12 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         with open("test_inner_class_abc.py", "w+") as fd:
             fd.write(
@@ -2155,8 +2184,12 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2164,8 +2197,12 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
 
@@ -2247,8 +2284,12 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2256,8 +2297,12 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                assert True
+                """
+                )
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2306,8 +2351,12 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2315,8 +2364,12 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2373,8 +2426,12 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2382,8 +2439,12 @@ class PytestTestCase(PytestTestCaseBase):
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2450,11 +2511,15 @@ class PytestTestCase(PytestTestCaseBase):
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_1():
-                assert True
+                textwrap.dedent(
+                    """
+                def test_outer_1():
+                    assert True
 
-def test_outer_2():
-                assert True"""
+                def test_outer_2():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2462,11 +2527,15 @@ def test_outer_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_1():
-                assert True
+                textwrap.dedent(
+                    """
+                def test_inner_1():
+                    assert True
 
-def test_inner_2():
-                assert True"""
+                def test_inner_2():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
 
@@ -2523,11 +2592,15 @@ def test_inner_2():
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_1():
-                assert True
+                textwrap.dedent(
+                    """
+                def test_outer_1():
+                    assert True
 
-def test_outer_2():
-                assert True"""
+                def test_outer_2():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2535,11 +2608,15 @@ def test_outer_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_1():
-                assert True
+                textwrap.dedent(
+                    """
+                def test_inner_1():
+                    assert True
 
-def test_inner_2():
-                assert True"""
+                def test_inner_2():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
 
@@ -2592,8 +2669,12 @@ def test_inner_2():
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2601,8 +2682,12 @@ def test_inner_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
         with mock.patch(
@@ -2651,8 +2736,12 @@ def test_inner_2():
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2660,8 +2749,12 @@ def test_inner_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
         with mock.patch("ddtrace.internal.ci_visibility.recorder.CIVisibility._fetch_tests_to_skip"):
@@ -2696,8 +2789,12 @@ def test_inner_2():
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2705,8 +2802,12 @@ def test_inner_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                """
+                )
             )
         self.testdir.chdir()
 
@@ -2760,8 +2861,12 @@ def test_inner_2():
         os.chdir(str(package_outer_dir))
         with open("test_outer_abc.py", "w+") as fd:
             fd.write(
-                """def test_outer_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_outer_ok():
+                    assert True
+                """
+                )
             )
         os.mkdir("test_inner_package")
         os.chdir("test_inner_package")
@@ -2769,8 +2874,12 @@ def test_inner_2():
             pass
         with open("test_inner_abc.py", "w+") as fd:
             fd.write(
-                """def test_inner_ok():
-                assert True"""
+                textwrap.dedent(
+                    """
+                def test_inner_ok():
+                    assert True
+                    """
+                )
             )
         self.testdir.chdir()
 
