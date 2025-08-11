@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+
 try:
     from google.genai import types as genai_types
 except ImportError:

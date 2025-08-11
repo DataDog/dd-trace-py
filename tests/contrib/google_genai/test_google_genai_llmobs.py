@@ -332,7 +332,7 @@ def expected_llmobs_tool_response_span_event(span):
                 "tool_results": [
                     {
                         "name": "get_current_weather",
-                        "result": '{"result": {"location": "Boston", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny with light breeze"}}',
+                        "result": '{"result": {"location": "Boston", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny with light breeze"}}',  # noqa: E501
                         "tool_id": "",
                         "type": "function_response",
                     }
