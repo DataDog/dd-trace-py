@@ -674,7 +674,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
             view = args[1]
             view_from_args = True
         if path is None and args:
-            path = args[0] 
+            path = args[0]
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
         if view_from_args:
