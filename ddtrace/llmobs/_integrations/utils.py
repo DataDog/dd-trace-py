@@ -386,9 +386,9 @@ def openai_set_meta_tags_from_chat(
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
 
         if extracted_tool_calls:
-            processed_message["tool_calls"] = [dict(tool_call) for tool_call in extracted_tool_calls]
+            processed_message["tool_calls"] = extracted_tool_calls
         if extracted_tool_results:
-            processed_message["tool_results"] = [dict(tool_result) for tool_result in extracted_tool_results]
+            processed_message["tool_results"] = extracted_tool_results
             processed_message["content"] = ""  # set content to empty string to avoid duplication
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
@@ -512,7 +512,7 @@ def openai_get_input_messages_from_response_input(
             processed_item.update(
                 {
                     "role": "user",
-                    "tool_calls": [dict(tool_call_info)],
+                    "tool_calls": [tool_call_info],
                 }
             )
         elif "call_id" in item and "output" in item:
@@ -530,7 +530,7 @@ def openai_get_input_messages_from_response_input(
             processed_item.update(
                 {
                     "role": "user",
-                    "tool_results": [dict(tool_result_info)],
+                    "tool_results": [tool_result_info],
                 }
             )
         if processed_item:
