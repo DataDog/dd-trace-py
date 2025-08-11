@@ -7,13 +7,20 @@ from typing import Type
 from typing import cast
 
 import ddtrace
+from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
+from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.integration import IntegrationConfig
+
+
+log = get_logger(__name__)
 
 
 # PERF: cache the getattr lookup for the Django config
@@ -62,6 +69,52 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
         return resp
 
 
+def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    self: Type[Any] = args[0]
+
+    resource = f"{func_name(self)}.process_request"
+
+    with core.context_with_data(
+        "django.middleware.process_request",
+        span_name="django.middleware",
+        resource=resource,
+        tags={COMPONENT: config_django.integration_name},
+        # TODO: Migrate all tests to snapshot tests and remove this
+        tracer=config_django._tracer,
+    ) as ctx:
+        try:
+            return func(*args, **kwargs)
+        finally:
+            mode = asm_config._user_event_mode
+            if mode == "disabled":
+                return
+            try:
+                request = get_argument_value(args, kwargs, 0, "request")
+                if request:
+                    if hasattr(request, "user") and hasattr(request.user, "_setup"):
+                        request.user._setup()
+                        request_user = request.user._wrapped
+                    else:
+                        request_user = request.user
+                    if hasattr(request, "session") and hasattr(request.session, "session_key"):
+                        session_key = request.session.session_key
+                    else:
+                        session_key = None
+                    core.dispatch(
+                        "django.process_request",
+                        (
+                            request_user,
+                            session_key,
+                            mode,
+                            kwargs,
+                            _DjangoUserInfoRetriever(request_user, credentials=kwargs),
+                            config_django,
+                        ),
+                    )
+            except Exception:
+                log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
+
+
 def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     middleware = func(*args, **kwargs)
 
@@ -105,8 +158,11 @@ def wrap_middleware_class(mw: type, mw_path: str) -> None:
 
     if hasattr(mw, "process_request"):
         if mw_path == "django.contrib.auth.middleware.AuthenticationMiddleware":
-            # TODO: We need special handling for this process_request method
-            pass
+            if not is_wrapped_with(mw.process_request, traced_auth_middleware_process_request):
+                wrap(
+                    mw.process_request,
+                    traced_auth_middleware_process_request,
+                )
         else:
             fn = cast(FunctionType, mw.process_request)
             if not is_wrapped(fn):

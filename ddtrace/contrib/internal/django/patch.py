@@ -19,10 +19,10 @@ import wrapt
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
+from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
@@ -667,82 +667,6 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
 
-class _DjangoUserInfoRetriever(_UserInfoRetriever):
-    def __init__(self, user, credentials=None):
-        super(_DjangoUserInfoRetriever, self).__init__(user)
-
-        self.credentials = credentials if credentials else {}
-        if self.credentials and not user:
-            self._try_load_user()
-
-    def _try_load_user(self):
-        self.user_model = None
-
-        try:
-            from django.contrib.auth import get_user_model
-        except ImportError:
-            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
-            return
-
-        try:
-            self.user_model = get_user_model()
-            if not self.user_model:
-                return
-        except Exception:
-            log.debug("user_exist: Could not get the user model", exc_info=True)
-            return
-
-        login_field = asm_config._user_model_login_field
-        login_field_value = self.credentials.get(login_field, None) if login_field else None
-
-        if not login_field or not login_field_value:
-            # Try to get the username from the credentials
-            for possible_login_field in self.possible_login_fields:
-                if possible_login_field in self.credentials:
-                    login_field = possible_login_field
-                    login_field_value = self.credentials[login_field]
-                    break
-            else:
-                # Could not get what the login field, so we can't check if the user exists
-                log.debug("try_load_user_model: could not get the login field from the credentials")
-                return
-
-        try:
-            self.user = self.user_model.objects.get(**{login_field: login_field_value})
-        except self.user_model.DoesNotExist:
-            log.debug("try_load_user_model: could not load user model", exc_info=True)
-
-    def user_exists(self):
-        return self.user is not None
-
-    def get_username(self):
-        if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.USERNAME_FIELD, None)
-
-        return super(_DjangoUserInfoRetriever, self).get_username()
-
-    def get_name(self):
-        if not asm_config._user_model_name_field:
-            if hasattr(self.user, "get_full_name"):
-                try:
-                    return self.user.get_full_name()
-                except Exception:
-                    log.debug("User model get_full_name member produced an exception: ", exc_info=True)
-
-            if hasattr(self.user, "first_name") and hasattr(self.user, "last_name"):
-                return "%s %s" % (self.user.first_name, self.user.last_name)
-
-        return super(_DjangoUserInfoRetriever, self).get_name()
-
-    def get_user_email(self):
-        if hasattr(self.user, "EMAIL_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.EMAIL_FIELD, None)
-
-        return super(_DjangoUserInfoRetriever, self).get_user_email()
-
-
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
@@ -774,58 +698,6 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
     return result_user
-
-
-@trace_utils.with_traced_module
-def traced_process_request(django, pin, func, instance, args, kwargs):
-    tags = {COMPONENT: config_django.integration_name}
-    with core.context_with_data(
-        "django.func.wrapped",
-        span_name="django.middleware",
-        resource="django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
-        tags=tags,
-        pin=pin,
-    ) as ctx, ctx.span:
-        core.dispatch(
-            "django.func.wrapped",
-            (
-                args,
-                kwargs,
-                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
-                ctx,
-                None,
-            ),
-        )
-        func(*args, **kwargs)
-        mode = asm_config._user_event_mode
-        if mode == "disabled":
-            return
-        try:
-            request = get_argument_value(args, kwargs, 0, "request")
-            if request:
-                if hasattr(request, "user") and hasattr(request.user, "_setup"):
-                    request.user._setup()
-                    request_user = request.user._wrapped
-                else:
-                    request_user = request.user
-                if hasattr(request, "session") and hasattr(request.session, "session_key"):
-                    session_key = request.session.session_key
-                else:
-                    session_key = None
-                core.dispatch(
-                    "django.process_request",
-                    (
-                        request_user,
-                        session_key,
-                        mode,
-                        kwargs,
-                        pin,
-                        _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                        config_django,
-                    ),
-                )
-        except Exception:
-            log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
 @trace_utils.with_traced_module
@@ -888,10 +760,6 @@ def _patch(django):
     def _(m):
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
-
-    @when_imported("django.contrib.auth.middleware")
-    def _(m):
-        trace_utils.wrap(m, "AuthenticationMiddleware.process_request", traced_process_request(django))
 
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
