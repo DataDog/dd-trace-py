@@ -9,24 +9,24 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.azure_eventhub",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6896440500000000",
+      "_dd.p.tid": "689a357500000000",
       "component": "azure_eventhub",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhub",
       "network.destination.name": "localhost",
-      "runtime-id": "00d3696220df40bda1ae5eb2dcf72ce4",
+      "runtime-id": "fdde607064fb40d586a2f322d3eb6a59",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 37905
+      "process_id": 18109
     },
-    "duration": 536007584,
-    "start": 1754678277583863961
+    "duration": 523056750,
+    "start": 1754936693715538795
   }]]

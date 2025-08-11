@@ -9,26 +9,26 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.azure_eventhub",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6896440300000000",
+      "_dd.p.tid": "689a357000000000",
       "component": "azure_eventhub",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhub",
       "network.destination.name": "localhost",
-      "runtime-id": "00d3696220df40bda1ae5eb2dcf72ce4",
+      "runtime-id": "bf83f06f00264a1b9e7cc8d5218af1c0",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 37905
+      "process_id": 18099
     },
-    "duration": 539119875,
-    "start": 1754678275423199502
+    "duration": 523400375,
+    "start": 1754936688576403126
   }],
 [
   {
@@ -41,26 +41,26 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.azure_eventhub",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6896440300000000",
+      "_dd.p.tid": "689a357100000000",
       "component": "azure_eventhub",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhub",
       "network.destination.name": "localhost",
-      "runtime-id": "00d3696220df40bda1ae5eb2dcf72ce4",
+      "runtime-id": "bf83f06f00264a1b9e7cc8d5218af1c0",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 37905
+      "process_id": 18099
     },
-    "duration": 5335958,
-    "start": 1754678275963172919
+    "duration": 3938875,
+    "start": 1754936689107538043
   }],
 [
   {
@@ -73,26 +73,26 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.azure_eventhub",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6896440300000000",
+      "_dd.p.tid": "689a357100000000",
       "component": "azure_eventhub",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhub",
       "network.destination.name": "localhost",
-      "runtime-id": "00d3696220df40bda1ae5eb2dcf72ce4",
+      "runtime-id": "bf83f06f00264a1b9e7cc8d5218af1c0",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 37905
+      "process_id": 18099
     },
-    "duration": 4592042,
-    "start": 1754678275969213335
+    "duration": 3017375,
+    "start": 1754936689111752210
   }],
 [
   {
@@ -105,24 +105,24 @@
     "type": "worker",
     "error": 0,
     "meta": {
-      "_dd.base_service": "tests.contrib.azure_eventhub",
+      "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6896440300000000",
+      "_dd.p.tid": "689a357100000000",
       "component": "azure_eventhub",
       "language": "python",
       "messaging.destination.name": "eh1",
       "messaging.operation": "send",
       "messaging.system": "eventhub",
       "network.destination.name": "localhost",
-      "runtime-id": "00d3696220df40bda1ae5eb2dcf72ce4",
+      "runtime-id": "bf83f06f00264a1b9e7cc8d5218af1c0",
       "span.kind": "producer"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "process_id": 37905
+      "process_id": 18099
     },
-    "duration": 4049583,
-    "start": 1754678275974286669
+    "duration": 2877333,
+    "start": 1754936689114996960
   }]]
