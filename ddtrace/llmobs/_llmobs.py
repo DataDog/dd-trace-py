@@ -623,11 +623,11 @@ class LLMObs(Service):
     def create_dataset(cls, name: str, description: str, records: Optional[List[DatasetRecord]] = None) -> Dataset:
         if records is None:
             records = []
-        
+
         # Check if dataset already exists using a direct API call
         if cls._instance._dne_client._check_dataset_exists(name):
             raise ValueError(f"Dataset '{name}' already exists. Use pull_dataset() to load an existing dataset.")
-        
+
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
@@ -650,11 +650,13 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-        
+
         # Check if dataset already exists using a direct API call
         if cls._instance._dne_client._check_dataset_exists(dataset_name):
-            raise ValueError(f"Dataset '{dataset_name}' already exists. Use pull_dataset() to load an existing dataset.")
-        
+            raise ValueError(
+                f"Dataset '{dataset_name}' already exists. Use pull_dataset() to load an existing dataset."
+            )
+
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later

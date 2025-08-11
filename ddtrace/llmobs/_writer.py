@@ -360,10 +360,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         resp = self.request("GET", path)
         if resp.status != 200:
             raise ValueError(f"Failed to check dataset existence {name}: {resp.status}")
-        
+
         response_data = resp.get_json()
         data = response_data["data"]
-        
+
         # Check if any dataset in the response has the exact name we're looking for
         for dataset in data:
             if dataset.get("attributes", {}).get("name") == name:
