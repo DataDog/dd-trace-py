@@ -157,7 +157,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
             # only trace sample if we haven't already sampled
             if root_ctx and root_ctx.sampling_priority is None:
-                self.sampler.sample(trace[0])
+                self.sampler.sample(trace[0]._local_root)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces.
             if self._compute_stats_enabled and not self.apm_opt_out:
