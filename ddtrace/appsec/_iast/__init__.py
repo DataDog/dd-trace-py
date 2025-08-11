@@ -26,7 +26,7 @@ def wrapped_function(wrapped, instance, args, kwargs):
         evidence_value=evidence,
     )
     return wrapped(*args, **kwargs)
-"""  # noqa: RST201, RST213, RST210
+"""
 import os
 import sys
 import types

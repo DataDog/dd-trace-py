@@ -109,7 +109,7 @@ def serialize(
                 ": ".join(
                     (
                         serialize(_, level - 1, maxsize, maxlen, maxfields)
-                        for _ in (k, v if not (_isinstance(k, str) and redact(k)) else REDACTED_PLACEHOLDER)
+                        for _ in (k, v if not (_isinstance(k, (str, bytes)) and redact(k)) else REDACTED_PLACEHOLDER)
                     )
                 )
                 for k, v in islice(value.items(), maxsize)
@@ -279,7 +279,7 @@ def capture_value(
                         maxfields=maxfields,
                         stopping_cond=cond,
                     )
-                    if not (_isinstance(k, str) and redact(k))
+                    if not (_isinstance(k, (str, bytes)) and redact(k))
                     else redacted_value(v),
                 )
                 for k, v in takewhile(lambda _: not cond(_), islice(value.items(), maxsize))

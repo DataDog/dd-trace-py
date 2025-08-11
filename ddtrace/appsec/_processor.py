@@ -1,11 +1,11 @@
 import dataclasses
 import errno
-import json
 from json.decoder import JSONDecodeError
 import os
 import os.path
 from typing import TYPE_CHECKING
 from typing import Any
+from typing import ClassVar
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -81,21 +81,33 @@ class AppSecSpanProcessor(SpanProcessor):
     obfuscation_parameter_value_regexp: bytes = dataclasses.field(init=False)
     _addresses_to_keep: Set[str] = dataclasses.field(default_factory=set)
     _rate_limiter: RateLimiter = dataclasses.field(default_factory=_get_rate_limiter)
+    _instance: ClassVar[Optional["AppSecSpanProcessor"]] = None
+
+    @classmethod
+    def enable(cls) -> None:
+        """Enable the AppSec span processor."""
+        if cls._instance is None:
+            instance = cls._instance = cls()
+            instance.register()
+
+    @classmethod
+    def disable(cls) -> None:
+        """Disable the AppSec span processor."""
+        if cls._instance is not None:
+            cls._instance.unregister()
+            cls._instance = None
 
     @property
     def enabled(self):
         return self._ddwaf is not None
 
     def __post_init__(self) -> None:
-        from ddtrace.appsec._listeners import load_appsec
-
-        load_appsec()
         self.obfuscation_parameter_key_regexp = asm_config._asm_obfuscation_parameter_key_regexp.encode()
         self.obfuscation_parameter_value_regexp = asm_config._asm_obfuscation_parameter_value_regexp.encode()
-        self._rules: Optional[Dict[str, Any]] = None
+        self._rules: Optional[bytes] = None
         try:
-            with open(self.rule_filename, "r") as f:
-                self._rules = json.load(f)
+            with open(self.rule_filename, "br") as f:
+                self._rules = f.read()
         except EnvironmentError as err:
             if err.errno == errno.ENOENT:
                 log.error(
@@ -291,7 +303,6 @@ class AppSecSpanProcessor(SpanProcessor):
         except Exception:
             log.debug("appsec::processor::waf::run", exc_info=True)
             waf_results = Binding_error
-
         _asm_request_context.set_waf_info(lambda: self._ddwaf.info)
         root_span = span._local_root or span
         if waf_results.return_code < 0:
@@ -375,3 +386,23 @@ class AppSecSpanProcessor(SpanProcessor):
             _asm_request_context.call_waf_callback_no_instrumentation()
             self._ddwaf._at_request_end()
             _asm_request_context.end_context(span)
+
+    @classmethod
+    def _reset(cls) -> None:
+        """Reset the AppSec span processor."""
+        cls.disable()
+        if asm_config._asm_enabled:
+            cls.enable()
+
+
+def waf_update(
+    removals: Sequence[Tuple[str, str]],
+    updates: Sequence[Tuple[str, str, PayloadType]],
+) -> None:
+    """Update the WAF rules with the provided removals and updates."""
+    if AppSecSpanProcessor._instance is not None:
+        AppSecSpanProcessor._instance._update_rules(removals, updates)
+
+
+core.on("test.config.override", AppSecSpanProcessor._reset)
+core.on("waf.update", waf_update)
