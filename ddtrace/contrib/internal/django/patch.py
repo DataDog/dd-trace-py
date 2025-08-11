@@ -669,7 +669,7 @@ def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     try:
         view_from_args = False
         view = kwargs.get("view", None)
-        path = kwargs.get("path", kwargs.get("route", None))
+        path = kwargs.get("route", None)
         if view is None and len(args) > 1:
             view = args[1]
             view_from_args = True
