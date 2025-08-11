@@ -1514,7 +1514,7 @@ class PytestTestCase(PytestTestCaseBase):
                     def test_class_outer(self):
                         assert True
                 def test_after_class():
-                    assert True"
+                    assert True
                 """
                 )
             )
