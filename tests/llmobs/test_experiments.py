@@ -88,6 +88,51 @@ def test_dataset_create_delete(llmobs):
     llmobs._delete_dataset(dataset_id=dataset._id)
 
 
+def test_dataset_create_duplicate_name_error(llmobs):
+    """Test that create_dataset raises an error when trying to create a dataset with a name that already exists."""
+    # Create a dataset first
+    dataset = llmobs.create_dataset(name="test-dataset-duplicate", description="A test dataset for duplicate name testing")
+    assert dataset._id is not None
+    
+    try:
+        # Try to create another dataset with the same name - this should raise an error
+        with pytest.raises(ValueError, match="Dataset 'test-dataset-duplicate' already exists. Use pull_dataset\\(\\) to load an existing dataset."):
+            llmobs.create_dataset(name="test-dataset-duplicate", description="Another dataset with same name")
+    finally:
+        # Clean up
+        llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_create_from_csv_duplicate_name_error(llmobs):
+    """Test that create_dataset_from_csv raises an error when trying to create a dataset with a name that already exists."""
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    
+    # Create a dataset first
+    dataset = llmobs.create_dataset_from_csv(
+        csv_path=csv_path,
+        dataset_name="test-dataset-csv-duplicate",
+        description="A test dataset for CSV duplicate name testing",
+        input_data_columns=["in0", "in1", "in2"],
+        expected_output_columns=["out0", "out1"],
+    )
+    assert dataset._id is not None
+    
+    try:
+        # Try to create another dataset with the same name - this should raise an error
+        with pytest.raises(ValueError, match="Dataset 'test-dataset-csv-duplicate' already exists. Use pull_dataset\\(\\) to load an existing dataset."):
+            llmobs.create_dataset_from_csv(
+                csv_path=csv_path,
+                dataset_name="test-dataset-csv-duplicate",
+                description="Another CSV dataset with same name",
+                input_data_columns=["in0", "in1", "in2"],
+                expected_output_columns=["out0", "out1"],
+            )
+    finally:
+        # Clean up
+        llmobs._delete_dataset(dataset_id=dataset._id)
+
+
 def test_dataset_url_diff_site(llmobs, test_dataset_one_record):
     with override_global_config(dict(_dd_site="us3.datadoghq.com")):
         dataset = test_dataset_one_record

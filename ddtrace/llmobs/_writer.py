@@ -355,6 +355,21 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
+    def _check_dataset_exists(self, name: str) -> bool:
+        path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
+        resp = self.request("GET", path)
+        if resp.status != 200:
+            raise ValueError(f"Failed to check dataset existence {name}: {resp.status}")
+        
+        response_data = resp.get_json()
+        data = response_data["data"]
+        
+        # Check if any dataset in the response has the exact name we're looking for
+        for dataset in data:
+            if dataset.get("attributes", {}).get("name") == name:
+                return True
+        return False
+
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output, they are expected to
