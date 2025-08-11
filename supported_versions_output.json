@@ -149,8 +149,8 @@
     {
         "dependency": "celery",
         "integration": "celery",
-        "minimum_tracer_supported": "5.3.6",
-        "max_tracer_supported": "5.4.0",
+        "minimum_tracer_supported": "5.5.3",
+        "max_tracer_supported": "5.5.3",
         "auto-instrumented": true
     },
     {
