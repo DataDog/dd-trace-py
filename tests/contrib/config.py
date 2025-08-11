@@ -9,12 +9,12 @@ import os
 # NOTE: defaults may be duplicated in the .env file; update both or
 # simply write down a function that parses the .env file
 
-AZURE_EVENTHUBSEMULATOR_CONFIG = {
+AZURE_EVENT_HUBS_EMULATOR_CONFIG = {
     "host": "127.0.0.1",
     "port": 5300,
 }
 
-AZURE_SERVICEBUSEMULATOR_CONFIG = {
+AZURE_SERVICE_BUS_EMULATOR_CONFIG = {
     "host": "127.0.0.1",
     "port": 5300,
 }
