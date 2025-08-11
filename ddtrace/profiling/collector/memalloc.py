@@ -30,13 +30,17 @@ MemorySample = namedtuple(
 class MemoryCollector(collector.PeriodicCollector):
     """Memory allocation collector."""
 
+    _DEFAULT_INTERVAL = 0.5
+
     def __init__(
         self,
+        _interval: float = _DEFAULT_INTERVAL,
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
     ):
         super().__init__()
+        self._interval: float = _interval
         # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
         self.max_nframe: int = max_nframe if max_nframe is not None else config.max_frames
         self.heap_sample_size: int = heap_sample_size if heap_sample_size is not None else config.heap.sample_size
