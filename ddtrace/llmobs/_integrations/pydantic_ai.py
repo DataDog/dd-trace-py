@@ -25,6 +25,8 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
+from ddtrace.internal import core
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 
 
 # in some cases, PydanticAI uses a different provider name than what we expect
@@ -71,7 +73,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         span_kind = span._get_ctx_item(SPAN_KIND)
-        span_links = self._get_span_links(span, span_kind)
 
         if span_kind == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
@@ -81,7 +82,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
-                SPAN_LINKS: span_links,
                 MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
             }
@@ -142,6 +142,11 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # depending on the version, the output may be a ToolReturnPart or the raw response
             output_content = getattr(response, "content", "") or response
             span._set_ctx_item(OUTPUT_VALUE, output_content)
+        
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (tool_name, tool_input, "function", span),
+        )
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
@@ -230,29 +235,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
         }
-
-    def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
-        span_links = []
-        if span_kind == "agent":
-            for tool_span_id in self._running_agents.pop(span.span_id, []):
-                span_links.append(
-                    {
-                        "span_id": str(tool_span_id),
-                        "trace_id": format_trace_id(span.trace_id),
-                        "attributes": {"from": "output", "to": "output"},
-                    }
-                )
-        elif span_kind == "tool":
-            ancestor = _get_nearest_llmobs_ancestor(span)
-            if ancestor:
-                span_links.append(
-                    {
-                        "span_id": str(ancestor.span_id),
-                        "trace_id": format_trace_id(ancestor.trace_id),
-                        "attributes": {"from": "input", "to": "input"},
-                    }
-                )
-        return span_links
 
     def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":
