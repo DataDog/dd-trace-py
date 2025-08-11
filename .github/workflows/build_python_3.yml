@@ -56,6 +56,13 @@ jobs:
       CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
       CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
       CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
+      CIBW_BEFORE_ALL_LINUX: |
+        if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
+          if command -v yum &> /dev/null; then
+            yum install -y libatomic.i686
+          fi
+          curl -sSf https://sh.rustup.rs | sh -s -- -y;
+        fi
       CIBW_ENVIRONMENT_LINUX: PATH=$HOME/.cargo/bin:$PATH CMAKE_BUILD_PARALLEL_LEVEL=24 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
       # SYSTEM_VERSION_COMPAT is a workaround for versioning issue, a.k.a.
       # `platform.mac_ver()` reports incorrect MacOS version at 11.0
@@ -95,28 +102,10 @@ jobs:
         with:
           platforms: all
 
-      - name: Build wheels (linux arm64)
-        if: matrix.os == 'ubuntu-24.04-arm'
-        run: pipx run cibuildwheel==2.23.3 --only ${{ matrix.only }}
-        env:
-          CIBW_BEFORE_ALL: |
-            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
-              curl -sSf https://sh.rustup.rs | sh -s -- -y;
-            fi
-
       - name: Build wheels
-        if: matrix.os != 'ubuntu-24.04-arm'
         uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
         with:
           only: ${{ matrix.only }}
-        env:
-          CIBW_BEFORE_ALL: |
-            if [[ "$(uname -m)-$(uname -i)-$(uname -o | tr '[:upper:]' '[:lower:]')-$(ldd --version 2>&1 | head -n 1 | awk '{print $1}')" != "i686-unknown-linux-musl" ]]; then
-              yum install -y libatomic.i686
-              curl -sSf https://sh.rustup.rs | sh -s -- -y;
-            fi
-          # DEV: Uncomment to debug MacOS
-          # CIBW_BUILD_VERBOSITY_MACOS: 3
 
       - if: runner.os != 'Windows'
         run: |
