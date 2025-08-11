@@ -1427,12 +1427,15 @@ class PytestTestCase(PytestTestCaseBase):
         """Test that running pytest on a test package will generate a test module span."""
         package_a_dir = self.testdir.mkpydir("test_package_a")
         os.chdir(str(package_a_dir))
-        self.testdir.makepyfile(
-            test_a="""
-        def test_ok():
-            assert True
-        """
-        )
+        with open("test_a.py", "w+") as fd:
+            fd.write(
+                textwrap.dedent(
+                    """
+                def test_ok():
+                    assert True
+                """
+                )
+            )
         self.testdir.chdir()
         self.inline_run("--ddtrace")
         spans = self.pop_spans()
@@ -2300,7 +2303,7 @@ class PytestTestCase(PytestTestCaseBase):
                 textwrap.dedent(
                     """
                 def test_inner_ok():
-                assert True
+                    assert True
                 """
                 )
             )
