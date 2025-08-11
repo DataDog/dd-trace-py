@@ -19,7 +19,7 @@ boto3,botocore *,1.34.49,1.38.26,True
 botocore,botocore *,1.34.49,1.38.26,True
 bottle,bottle,0.12.25,0.13.2,True
 cassandra-driver,cassandra,3.24.0,3.28.0,True
-celery,celery,5.3.6,5.4.0,True
+celery,celery,5.5.3,5.5.3,True
 cherrypy,cherrypy,17.0.0,18.10.0,False
 python-consul,consul,1.1.0,1.1.0,True
 crewai,crewai *,0.102.0,0.121.1,True
