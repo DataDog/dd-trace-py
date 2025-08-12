@@ -138,7 +138,7 @@ integrations:
   - azure-eventhub
   tested_versions_by_dependency:
     azure-eventhub:
-      min: 5.15.0
+      min: 5.12.2
       max: 5.15.0
 
 - integration_name: azure_functions

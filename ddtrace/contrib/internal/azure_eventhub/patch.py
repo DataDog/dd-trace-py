@@ -32,7 +32,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"azure.eventhub": ">=5.15.0"}  # TODO: determine minimum version
+    return {"azure.eventhub": ">=5.12.0"}
 
 
 def patch():

@@ -103,10 +103,10 @@
     {
         "dependency": "azure-eventhub",
         "integration": "azure_eventhub",
-        "minimum_tracer_supported": "5.15.0",
+        "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "azure-functions",
