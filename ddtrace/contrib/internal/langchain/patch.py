@@ -197,6 +197,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     integration.record_instance(instance, span)
     integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+
     chat_completions = None
     try:
         chat_completions = await func(*args, **kwargs)
@@ -533,6 +534,57 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
     return tool_output
 
 
+@with_traced_module
+def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    prompt = func(*args, **kwargs)
+    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
+
+
+@with_traced_module
+async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
+    integration: LangChainIntegration = langchain._datadog_integration
+    prompt = await func(*args, **kwargs)
+    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
+    return prompt
+
+
+@with_traced_module
+def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
+    """
+    Wrapper for BaseLLM.invoke() method to handle prompt template metadata transfer.
+
+    BaseLLM.invoke() wraps BaseLLM.generate(), converting .invoke()'s input (often a PromptValue
+    with templating information) into a string.
+    While most tagging happens in the .generate() wrapper, we need to enter here to capture
+    that templating information before it is consumed.
+    """
+    integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return func(*args, **kwargs)
+
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = func(*args, **kwargs)
+    return response
+
+
+@with_traced_module
+async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
+    """
+    Wrapper for BaseLLM.ainvoke() method to handle prompt template metadata transfer.
+
+    BaseLLM.ainvoke() wraps BaseLLM.agenerate(), converting .ainvoke()'s input (often a PromptValue
+    with templating information) into a string.
+    While most tagging happens in the .agenerate() wrapper, we need to enter here to capture
+    that templating information before it is consumed.
+    """
+    integration: LangChainIntegration = langchain._datadog_integration
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = await func(*args, **kwargs)
+    return response
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -725,51 +777,3 @@ def unpatch():
     core.dispatch("langchain.unpatch", tuple())
 
     delattr(langchain, "_datadog_integration")
-
-
-@with_traced_module
-def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain._datadog_integration
-    prompt = func(*args, **kwargs)
-    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
-    return prompt
-
-
-@with_traced_module
-async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
-    integration: LangChainIntegration = langchain._datadog_integration
-    prompt = await func(*args, **kwargs)
-    integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
-    return prompt
-
-
-@with_traced_module
-def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
-    """
-    Wrapper for BaseLLM.invoke() method to handle prompt template metadata transfer.
-
-    BaseLLM.invoke() wraps BaseLLM.generate(), converting .invoke()'s input (often a PromptValue
-    with templating information) into a string.
-    While most tagging happens in the .generate() wrapper, we need to enter here to capture
-    that templating information before it is consumed.
-    """
-    integration: LangChainIntegration = langchain._datadog_integration
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = func(*args, **kwargs)
-    return response
-
-
-@with_traced_module
-async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
-    """
-    Wrapper for BaseLLM.ainvoke() method to handle prompt template metadata transfer.
-
-    BaseLLM.ainvoke() wraps BaseLLM.agenerate(), converting .ainvoke()'s input (often a PromptValue
-    with templating information) into a string.
-    While most tagging happens in the .agenerate() wrapper, we need to enter here to capture
-    that templating information before it is consumed.
-    """
-    integration: LangChainIntegration = langchain._datadog_integration
-    integration.handle_llm_invoke(instance, args, kwargs)
-    response = await func(*args, **kwargs)
-    return response

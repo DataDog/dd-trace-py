@@ -790,8 +790,10 @@ class LangChainIntegration(BaseLLMIntegration):
         template, variables = None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
-        if isinstance(args[0], dict):
+        if args and len(args) > 0 and isinstance(args[0], dict):
             variables = args[0]
+        elif "input" in kwargs:
+            variables = kwargs["input"]
 
         if not template or not variables:
             return
@@ -810,7 +812,7 @@ class LangChainIntegration(BaseLLMIntegration):
         try:
             object.__setattr__(result, "_dd", {"prompt_template": prompt})
         except (AttributeError, TypeError):
-            log.warning("Could not attach prompt metadata to result object")
+            log.warning("Could not attach prompt metadata to resulting prompt")
 
     def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
         """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
