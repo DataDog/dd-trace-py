@@ -193,6 +193,7 @@ class Contrib_TestClass_For_Threats:
         def parse(path: str) -> str:
             import re
 
+            # django substitutions to make a url path from route
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
             path = re.sub(r"<int:param_int>", "123", path)
@@ -209,7 +210,8 @@ class Contrib_TestClass_For_Threats:
             assert collection
             for ep in collection.values():
                 assert ep.method
-                assert ep.path
+                # path could be empty, but must be a string
+                assert isinstance(ep.path,str)
                 assert ep.resource_name
                 assert ep.operation_name
                 if ep.method not in ("GET", "*", "POST"):
