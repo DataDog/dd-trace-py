@@ -176,6 +176,19 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
             metadata[param] = _get_attr(config, param, None)
         return metadata
 
+    def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
+        schema = _get_attr(function_declaration, "parameters", {}) or {}
+        try:
+            schema = schema.model_dump(exclude_none=True)
+        except AttributeError:
+            schema = {"value": repr(schema)}
+
+        return ToolDefinition(
+            name=_get_attr(function_declaration, "name", "") or "",
+            description=_get_attr(function_declaration, "description", "") or "",
+            schema=schema,
+        )
+
     def _extract_tools(self, config) -> List[ToolDefinition]:
         tool_definitions = []
         tools = _get_attr(config, "tools", []) or []
@@ -184,29 +197,11 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 function_declaration = FunctionDeclaration.from_callable_with_api_option(
                     callable=tool, api_option="GEMINI_API"
                 )
-                schema = _get_attr(function_declaration, "parameters", {})
-                try:
-                    schema = schema.model_dump(exclude_none=True)
-                except AttributeError:
-                    schema = {"value": repr(schema)}
-                tool_definition_info = ToolDefinition(
-                    name=_get_attr(function_declaration, "name", ""),
-                    description=_get_attr(function_declaration, "description", ""),
-                    schema=schema,
-                )
+                tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
                 tool_definitions.append(tool_definition_info)
             else:
                 function_declarations = _get_attr(tool, "function_declarations", []) or []
                 for function_declaration in function_declarations:
-                    schema = _get_attr(function_declaration, "parameters", {})
-                    try:
-                        schema = schema.model_dump()
-                    except AttributeError:
-                        schema = {"value": repr(schema)}
-                    tool_definition_info = ToolDefinition(
-                        name=_get_attr(function_declaration, "name", ""),
-                        description=_get_attr(function_declaration, "description", ""),
-                        schema=schema,
-                    )
+                    tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
                     tool_definitions.append(tool_definition_info)
         return tool_definitions
