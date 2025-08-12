@@ -106,7 +106,7 @@
         "minimum_tracer_supported": "5.12.2",
         "max_tracer_supported": "5.15.0",
         "pinned": "true",
-        "auto-instrumented": false
+        "auto-instrumented": true
     },
     {
         "dependency": "azure-functions",

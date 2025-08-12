@@ -88,9 +88,6 @@ class EventHandler:
     def wait_for_events(self, timeout: int):
         return self._all_events_received.wait(timeout=timeout)
 
-    def set_expected_event_count(self, count: int):
-        self._expected_event_count = count
-
 
 class EventHandlerAsync:
     def __init__(self, expected_event_count: int):
@@ -215,15 +212,11 @@ def run_test(
     assert len(eventhub_event_handler.received_events) == len(events)
     if distributed_tracing_enabled:
         assert all(
-            key in normalize_properties(event)
-            for event in eventhub_event_handler.received_events
-            for key in TRACE_CONTEXT_KEYS
+            key in normalize_properties(e) for e in eventhub_event_handler.received_events for key in TRACE_CONTEXT_KEYS
         )
     else:
         assert not any(
-            key in normalize_properties(event)
-            for event in eventhub_event_handler.received_events
-            for key in TRACE_CONTEXT_KEYS
+            key in normalize_properties(e) for e in eventhub_event_handler.received_events for key in TRACE_CONTEXT_KEYS
         )
 
 
@@ -247,14 +240,14 @@ async def run_test_async(
 
     if distributed_tracing_enabled:
         assert all(
-            key in normalize_properties(event)
-            for event in eventhub_event_handler_async.received_events
+            key in normalize_properties(e)
+            for e in eventhub_event_handler_async.received_events
             for key in TRACE_CONTEXT_KEYS
         )
     else:
         assert not any(
-            key in normalize_properties(event)
-            for event in eventhub_event_handler_async.received_events
+            key in normalize_properties(e)
+            for e in eventhub_event_handler_async.received_events
             for key in TRACE_CONTEXT_KEYS
         )
 
