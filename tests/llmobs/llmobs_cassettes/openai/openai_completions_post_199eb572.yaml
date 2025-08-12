@@ -1,0 +1,141 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["What is the best way to
+      teach a baby multiple languages?", "How many times has Spongebob failed his
+      road test?"], "frequency_penalty": 0, "logprobs": null, "max_tokens": 256, "n":
+      1, "presence_penalty": 0, "seed": null, "temperature": 0.7, "top_p": 1}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '299'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.61.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.61.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-C3owvvpKI6HA0vzB9XGSxOohzwHiK\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755026869,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\n1. Start early: Introducing
+        multiple languages to a baby from a young age is the best way to teach them.
+        Babies have a natural ability to absorb languages, and the earlier they are
+        exposed, the easier it will be for them to learn.\\n\\n2. Speak to them in
+        different languages: If you are a bilingual parent, make sure to speak to
+        your baby in both languages on a regular basis. This will help them become
+        familiar with the sounds and rhythms of each language.\\n\\n3. Use everyday
+        objects and activities: Incorporate the use of different languages in your
+        daily routines. For example, label objects in the house with their names in
+        different languages, or sing songs and read books in different languages.\\n\\n4.
+        Interactive activities: Engage your baby in interactive activities such as
+        games, songs, and stories in different languages. This will make learning
+        more fun and engaging for them.\\n\\n5. Exposure to native speakers: If possible,
+        expose your baby to native speakers of the languages you want them to learn.
+        This will help them develop a more natural and authentic accent.\\n\\n6. Be
+        consistent: Consistency is key when teaching a baby multiple languages. Stick
+        to a routine and make sure to use the same words and phrases in each language
+        to avoid confusion.\\n\\n7. Use technology:\",\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"length\"\n    },\n    {\n      \"text\":
+        \"\\n\\nSpongebob has failed his road test at least three times in the episode
+        \\\"Boating School.\\\"\",\n      \"index\": 1,\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        23,\n    \"completion_tokens\": 277,\n    \"total_tokens\": 300\n  }\n}\n"
+    headers:
+      CF-RAY:
+      - 96e25f4dac706fce-IAD
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 12 Aug 2025 19:27:51 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - _cfuvid=GwAreGk8kSs3H99ccAKstUy3sAjMQ121GCAqbB8Dq0o-1755026871833-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-model:
+      - gpt-3.5-turbo-instruct:20230824-v2
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '2330'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-769c5f49f9-5p6fp
+      x-envoy-upstream-service-time:
+      - '2373'
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3498'
+      x-ratelimit-remaining-tokens:
+      - '89971'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 18ms
+      x-request-id:
+      - req_f8875d82c4454b6aa08682eb93933a2b
+    status:
+      code: 200
+      message: OK
+version: 1

@@ -30,14 +30,14 @@ IGNORE_FIELDS = [
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_sync(langchain_openai, openai_completion):
-    llm = langchain_openai.OpenAI()
+def test_openai_llm_sync(langchain_openai, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_completion_multiple):
-    llm = langchain_openai.OpenAI()
+def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
     llm.generate(
         prompts=[
             "What is the best way to teach a baby multiple languages?",
@@ -48,16 +48,16 @@ def test_openai_llm_sync_multiple_prompts(langchain_openai, openai_completion_mu
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_openai_llm_async(langchain_openai, openai_completion):
-    llm = langchain_openai.OpenAI()
+async def test_openai_llm_async(langchain_openai, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
     await llm.agenerate(["Which team won the 2019 NBA finals?"])
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
+def test_openai_llm_error(langchain, langchain_openai, openai_url):
     import openai  # Imported here because the os env OPENAI_API_KEY needs to be set via langchain fixture before import
 
-    llm = langchain_openai.OpenAI()
+    llm = langchain_openai.OpenAI(base_url=openai_url)
 
     with pytest.raises(openai.BadRequestError):
         llm.generate([12345, 123456])
@@ -99,23 +99,23 @@ def test_cohere_llm_sync_latest(langchain_cohere, cohere_url):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, openai_chat_completion):
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
+def test_openai_chat_model_sync_call_langchain_openai(langchain_openai, openai_url):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
     chat.invoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_openai, openai_chat_completion):
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1)
+async def test_openai_chat_model_sync_call_langchain_openai_async(langchain_openai, openai_url):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, n=1, base_url=openai_url)
     await chat.ainvoke(input=[langchain.schema.HumanMessage(content="When do you use 'whom' instead of 'who'?")])
 
 
 # TODO: come back and clean this one up... seems like we tag 4 responses
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Requires at least LangChain 0.3")
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completion_multiple):
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+def test_openai_chat_model_sync_generate(langchain_openai, openai_url):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat.generate(
         [
             [
@@ -193,9 +193,9 @@ async def test_openai_chat_model_async_generate(langchain_openai, openai_url):
 
 
 @pytest.mark.snapshot
-def test_openai_embedding_query(langchain_openai, openai_embedding):
+def test_openai_embedding_query(langchain_openai, openai_url):
     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-        embeddings = langchain_openai.OpenAIEmbeddings()
+        embeddings = langchain_openai.OpenAIEmbeddings(base_url=openai_url)
         embeddings.embed_query("this is a test query.")
 
 
@@ -237,24 +237,24 @@ def test_fake_embedding_document(langchain_community):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_chain_simple(langchain_core, langchain_openai, openai_completion):
+def test_lcel_chain_simple(langchain_core, langchain_openai, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.OpenAI()
+    llm = langchain_openai.OpenAI(base_url=openai_url)
 
     chain = prompt | llm
     chain.invoke({"input": "how can langsmith help with testing?"})
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_chat_completion):
+def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template(
         "Tell me a short joke about {topic} in the style of {style}"
     )
 
-    chat_openai = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
-    openai = langchain_openai.OpenAI()
+    chat_openai = langchain_openai.ChatOpenAI(temperature=0.7, n=1, base_url=openai_url)
+    openai = langchain_openai.OpenAI(base_url=openai_url)
 
     model = chat_openai.configurable_alternatives(
         langchain_core.runnables.ConfigurableField(id="model"),
@@ -277,25 +277,25 @@ def test_lcel_chain_complicated(langchain_core, langchain_openai, openai_chat_co
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_lcel_chain_simple_async(langchain_core, langchain_openai, openai_completion):
+async def test_lcel_chain_simple_async(langchain_core, langchain_openai, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.OpenAI()
+    llm = langchain_openai.OpenAI(base_url=openai_url)
 
     chain = prompt | llm
     await chain.ainvoke({"input": "how can langsmith help with testing?"})
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_chain_batch(langchain_core, langchain_openai, openai_chat_completion):
+def test_lcel_chain_batch(langchain_core, langchain_openai, openai_url):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
     with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
+    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1, base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     chain.batch(inputs=["chickens"])
@@ -330,14 +330,14 @@ def test_lcel_chain_nested(langchain_core, langchain_openai, openai_url):
 
 @pytest.mark.asyncio
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_chat_completion):
+async def test_lcel_chain_batch_async(langchain_core, langchain_openai, openai_url):
     """
     Test that invoking a chain with a batch of inputs will result in a 4-span trace,
     with a root RunnableSequence span, then 3 LangChain ChatOpenAI spans underneath
     """
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1)
+    model = langchain_openai.ChatOpenAI(temperature=0.7, n=1, base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
     await chain.abatch(inputs=["chickens"])
@@ -356,7 +356,7 @@ def test_lcel_chain_non_dict_input(langchain_core):
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_completion_tools):
+def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_url):
     import langchain_core.tools
 
     @langchain_core.tools.tool
@@ -369,7 +369,7 @@ def test_lcel_with_tools_openai(langchain_core, langchain_openai, openai_chat_co
         """
         return a + b
 
-    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, n=1)
+    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, n=1, base_url=openai_url)
     llm_with_tools = llm.bind_tools([add])
     llm_with_tools.invoke("What is the sum of 1 and 2?")
 
@@ -424,19 +424,11 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropi
         + IGNORE_FIELDS
     )
 )
-def test_streamed_chain(langchain_core, langchain_openai, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
+def test_streamed_chain(langchain_core, langchain_openai, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.ChatOpenAI(client=client)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = prompt | llm | parser
@@ -450,31 +442,16 @@ def test_streamed_chain(langchain_core, langchain_openai, streamed_response_resp
         + IGNORE_FIELDS
     )
 )
-def test_streamed_chat(langchain_openai, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-    model = langchain_openai.ChatOpenAI(client=client)
+def test_streamed_chat(langchain_openai, openai_url):
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
     for _ in model.stream(input="how can langsmith help with testing?"):
         pass
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
-def test_streamed_llm(langchain_openai, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["completions"],
-        file="lcel_openai_llm_streamed_response.txt",
-    )
-
-    llm = langchain_openai.OpenAI(client=client)
+def test_streamed_llm(langchain_openai, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
 
     for _ in llm.stream(input="How do I write technical documentation?"):
         pass
@@ -487,19 +464,11 @@ def test_streamed_llm(langchain_openai, streamed_response_responder):
     ),
     token="tests.contrib.langchain.test_langchain.test_streamed_chain",
 )
-async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_response_responder):
-    client = async_streamed_response_responder(
-        module="openai",
-        client_class_key="AsyncOpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
+async def test_astreamed_chain(langchain_core, langchain_openai, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.ChatOpenAI(async_client=client)
+    llm = langchain_openai.ChatOpenAI(base_url=openai_url)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = prompt | llm | parser
@@ -514,16 +483,8 @@ async def test_astreamed_chain(langchain_core, langchain_openai, async_streamed_
     ),
     token="tests.contrib.langchain.test_langchain.test_streamed_chat",
 )
-async def test_astreamed_chat(langchain_openai, async_streamed_response_responder):
-    client = async_streamed_response_responder(
-        module="openai",
-        client_class_key="AsyncOpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
-    model = langchain_openai.ChatOpenAI(async_client=client)
+async def test_astreamed_chat(langchain_openai, openai_url):
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
 
     async for _ in model.astream(input="how can langsmith help with testing?"):
         pass
@@ -533,16 +494,8 @@ async def test_astreamed_chat(langchain_openai, async_streamed_response_responde
     ignores=IGNORE_FIELDS,
     token="tests.contrib.langchain.test_langchain.test_streamed_llm",
 )
-async def test_astreamed_llm(langchain_openai, async_streamed_response_responder):
-    client = async_streamed_response_responder(
-        module="openai",
-        client_class_key="AsyncOpenAI",
-        http_client_key="http_client",
-        endpoint_path=["completions"],
-        file="lcel_openai_llm_streamed_response.txt",
-    )
-
-    llm = langchain_openai.OpenAI(async_client=client)
+async def test_astreamed_llm(langchain_openai, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
 
     async for _ in llm.astream(input="How do I write technical documentation?"):
         pass
@@ -558,16 +511,8 @@ async def test_astreamed_llm(langchain_openai, async_streamed_response_responder
         ]
     )
 )
-def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response_json_output_parser.txt",
-    )
-
-    model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, client=client, n=1, temperature=0.7)
+def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai, openai_url):
+    model = langchain_openai.ChatOpenAI(model="gpt-4o", max_tokens=50, base_url=openai_url, n=1, temperature=0.7)
     parser = langchain_core.output_parsers.JsonOutputParser()
 
     chain = model | parser
@@ -588,16 +533,8 @@ def test_streamed_json_output_parser(langchain, langchain_core, langchain_openai
 
 # until we fully support `astream_events`, we do not need a snapshot here
 # this is just a regression test to make sure we don't throw
-async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core, async_streamed_response_responder):
-    client = async_streamed_response_responder(
-        module="openai",
-        client_class_key="AsyncOpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
-    model = langchain_openai.ChatOpenAI(async_client=client)
+async def test_astreamed_events_does_not_throw(langchain_openai, langchain_core, openai_url):
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = model | parser

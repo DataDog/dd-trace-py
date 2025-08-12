@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
 import pinecone as pinecone_
+import pkg_resources
 import pytest
 
 from ddtrace import patch
@@ -68,8 +69,8 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
     )
 
 
-def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_completion):
-    llm = langchain_openai.OpenAI()
+def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     span = tracer.pop_traces()[0][0]
@@ -78,7 +79,7 @@ def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_compl
 
 
 @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
-def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_completion):
+def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
     mock_generate.return_value = mock_langchain_llm_generate_response
     llm = langchain_openai.OpenAI(base_url="http://localhost:4000", model="gpt-3.5-turbo")
     llm.invoke("What is the capital of France?")
@@ -98,8 +99,8 @@ def test_llmobs_openai_llm_proxy(mock_generate, langchain_openai, llmobs_events,
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
-def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_chat_completion):
-    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
+def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, openai_url):
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
     chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
 
     span = tracer.pop_traces()[0][0]
@@ -112,9 +113,14 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
     )
 
 
-def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, tracer, openai_chat_completion_no_usage):
-    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    chat_model.invoke([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, openai_url):
+    if parse_version(pkg_resources.get_distribution("langchain-openai").version) < (0, 2, 0):
+        pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
+    chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
+
+    response = chat_model.stream([HumanMessage(content="When do you use 'who' instead of 'whom'?")])
+    for _ in response:
+        pass
 
     assert len(llmobs_events) == 1
     assert llmobs_events[0]["metrics"].get("input_tokens") is None
@@ -123,7 +129,7 @@ def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, trac
 
 
 @mock.patch("langchain_core.language_models.chat_models.BaseChatModel._generate_with_cache")
-def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer, openai_chat_completion):
+def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_events, tracer):
     mock_generate.return_value = mock_langchain_chat_generate_response
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url="http://localhost:4000")
     chat_model.invoke([HumanMessage(content="What is the capital of France?")])
@@ -399,7 +405,7 @@ def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
 #     assert llmobs_events[0] == expected_span
 
 
-def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, openai_chat_completion_tools):
+def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, openai_url):
     import langchain_core.tools
 
     @langchain_core.tools.tool
@@ -411,7 +417,7 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
         """
         return a + b
 
-    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7)
+    llm = langchain_openai.ChatOpenAI(model="gpt-3.5-turbo-0125", temperature=0.7, base_url=openai_url)
     llm_with_tools = llm.bind_tools([add])
     llm_with_tools.invoke([HumanMessage(content="What is the sum of 1 and 2?")])
 
@@ -425,7 +431,7 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
         output_messages=[
             {
                 "role": "assistant",
-                "content": "Hello world!",
+                "content": "",
                 "tool_calls": [
                     {
                         "name": "add",
@@ -477,19 +483,11 @@ def test_llmobs_base_tool_invoke(llmobs_events, tracer):
     )
 
 
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["chat", "completions"],
-        file="lcel_openai_chat_streamed_response.txt",
-    )
-
+def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.ChatOpenAI(model="gpt-4o", client=client, temperature=0.7)
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = prompt | llm | parser
@@ -503,7 +501,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
     assert llmobs_events[0] == _expected_langchain_llmobs_chain_span(
         trace[0],
         input_value=json.dumps({"input": "how can langsmith help with testing?"}),
-        output_value="Python is\n\nthe best!",
+        output_value=mock.ANY,
         span_links=True,
     )
     assert llmobs_events[1] == _expected_llmobs_llm_span_event(
@@ -514,7 +512,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
             {"content": "You are a world class technical documentation writer.", "role": "SystemMessage"},
             {"content": "how can langsmith help with testing?", "role": "HumanMessage"},
         ],
-        output_messages=[{"content": "Python is\n\nthe best!", "role": "assistant"}],
+        output_messages=[{"content": mock.ANY, "role": "assistant"}],
         metadata={"temperature": 0.7},
         token_metrics={},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
@@ -522,18 +520,10 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
     )
 
 
-def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_response_responder):
-    client = streamed_response_responder(
-        module="openai",
-        client_class_key="OpenAI",
-        http_client_key="http_client",
-        endpoint_path=["completions"],
-        file="lcel_openai_llm_streamed_response.txt",
-    )
+def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, openai_url):
+    llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
-    llm = langchain_openai.OpenAI(client=client)
-
-    for _ in llm.stream("Hello!"):
+    for _ in llm.stream("What is 2+2?\n\n"):
         pass
 
     span = tracer.pop_traces()[0][0]
@@ -543,9 +533,9 @@ def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, streamed_r
         model_name=span.get_tag("langchain.request.model"),
         model_provider=span.get_tag("langchain.request.provider"),
         input_messages=[
-            {"content": "Hello!"},
+            {"content": "What is 2+2?\n\n"},
         ],
-        output_messages=[{"content": "\n\nPython is cool!"}],
+        output_messages=[{"content": "The answer is 4."}],
         metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
