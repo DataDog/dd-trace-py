@@ -555,7 +555,7 @@ async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, ar
     """
     integration: LangChainIntegration = langchain._datadog_integration
     if integration.llmobs_enabled is False:
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
 
     prompt = await func(*args, **kwargs)
     integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
@@ -589,7 +589,7 @@ async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
     """
     integration: LangChainIntegration = langchain._datadog_integration
     if integration.llmobs_enabled is False:
-        return func(*args, **kwargs)
+        return await func(*args, **kwargs)
 
     integration.handle_llm_invoke(instance, args, kwargs)
     response = await func(*args, **kwargs)
