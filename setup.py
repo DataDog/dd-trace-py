@@ -486,18 +486,64 @@ class CustomBuildExt(build_ext):
 
     @staticmethod
     def try_strip_symbols(so_file):
-        pass
-        # if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
-        #     try:
-        #         subprocess.run(["strip", "-g", so_file], check=True)
-        #     except subprocess.CalledProcessError as e:
-        #         print(
-        #             "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-        #         )
-        #     except Exception as e:
-        #         print(
-        #             "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-        #         )
+        if COMPILE_MODE.lower() == "debug":
+            return
+
+        if CURRENT_OS == "Linux":
+            objcopy = shutil.which("objcopy")
+            strip = shutil.which("strip")
+
+            if not objcopy:
+                print("WARNING: objcopy not found, skipping symbol stripping", file=sys.stderr)
+                return
+
+            if not strip:
+                print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
+                return
+
+            # Try removing the .llvmbc section from the .so file
+            subprocess.run([objcopy, "--remove-section", ".llvmbc", so_file], check=False)
+
+            # Then keep the debug symbols in a separate file
+            debug_out = f"{so_file}.debug"
+            subprocess.run([objcopy, "--only-keep-debug", so_file, debug_out], check=True)
+
+            # Strip the debug symbols from the .so file
+            subprocess.run([strip, "-S", so_file], check=True)
+
+            # Link the debug symbols to the .so file
+            subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
+
+        elif CURRENT_OS == "Darwin":
+            dsymutil = shutil.which("dsymutil")
+            strip = shutil.which("strip")
+            llvm_objcopy = shutil.which("llvm-objcopy")
+
+            if dsymutil:
+                # 1) Emit dSYM
+                subprocess.run([dsymutil, so_file, "-o", so_file.with_suffix(".dSYM")], check=False)
+
+            if strip:
+                # Strip DWARF + local symbols
+                subprocess.run([strip, "-S", "-x", so_file], check=True)
+            else:
+                print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
+
+            # optionally prune embedded LLVM bitcode sections
+            if llvm_objcopy:
+                subprocess.run(
+                    [
+                        llvm_objcopy,
+                        "--remove-section",
+                        "__LLVM,__bitcode",
+                        "--remove-section",
+                        "__LLVM,__cmdline",
+                        so_file,
+                    ],
+                    check=False,
+                )
+            else:
+                print("INFO: llvm-objcopy not found, skipping symbol stripping", file=sys.stderr)
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
