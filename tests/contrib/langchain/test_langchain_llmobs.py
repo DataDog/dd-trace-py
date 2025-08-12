@@ -14,7 +14,6 @@ from ddtrace import patch
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs
 from ddtrace.trace import Span
-from tests.contrib.langchain.utils import get_request_vcr
 from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
@@ -207,14 +206,13 @@ def test_llmobs_chain_nested(langchain_core, langchain_openai, openai_url, llmob
 
 
 @pytest.mark.skipif(sys.version_info >= (3, 11), reason="Python <3.11 required")
-def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer):
+def test_llmobs_chain_batch(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_template("Tell me a short joke about {topic}")
     output_parser = langchain_core.output_parsers.StrOutputParser()
-    model = langchain_openai.ChatOpenAI()
+    model = langchain_openai.ChatOpenAI(base_url=openai_url)
     chain = {"topic": langchain_core.runnables.RunnablePassthrough()} | prompt | model | output_parser
 
-    with get_request_vcr().use_cassette("lcel_openai_chain_batch.yaml"):
-        chain.batch(inputs=["chickens", "pigs"])
+    chain.batch(inputs=["chickens", "pigs"])
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
     trace = tracer.pop_traces()[0]
@@ -300,10 +298,10 @@ def test_llmobs_chain_schema_io(langchain_core, langchain_openai, openai_url, ll
     )
 
 
-def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer):
-    chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15)
-    with get_request_vcr().use_cassette("anthropic_chat_completion_sync.yaml"):
-        chat.invoke("When do you use 'whom' instead of 'who'?")
+# TODO: fix this test it only selectively works for certain langchain versions
+def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer, anthropic_url):
+    chat = langchain_anthropic.ChatAnthropic(temperature=0, model="claude-3-opus-20240229", max_tokens=15, base_url=anthropic_url)
+    chat.invoke("When do you use 'whom' instead of 'who'?")
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
@@ -315,13 +313,11 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer)
     )
 
 
-def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer):
+def test_llmobs_embedding_query(langchain_openai, llmobs_events, tracer, openai_url):
     if langchain_openai is None:
         pytest.skip("langchain_openai not installed which is required for this test.")
-    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings()
-    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-        with get_request_vcr().use_cassette("openai_embedding_query.yaml"):
-            embedding_model.embed_query("hello world")
+    embedding_model = langchain_openai.embeddings.OpenAIEmbeddings(base_url=openai_url)
+    embedding_model.embed_query("hello world")
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(
@@ -355,6 +351,7 @@ def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
     )
 
 
+#  TODO: come back to this test
 def test_llmobs_similarity_search(langchain_openai, langchain_pinecone, llmobs_events, tracer):
     import pinecone
 
@@ -577,12 +574,12 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
     )
 
     openai_env_config = dict(
-        OPENAI_API_KEY="testing",
+        OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 
     anthropic_env_config = dict(
-        ANTHROPIC_API_KEY="testing",
+        ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "testing"),
         DD_API_KEY="<not-a-real-key>",
     )
 
@@ -627,6 +624,8 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             model_kwargs={"maxTokenCount": 50, "temperature": 0},
         )
         messages = [HumanMessage(content="summarize the plot to the lord of the rings in a dozen words")]
+
+        #  TODO: come back to this test
         with get_request_vcr().use_cassette("bedrock_amazon_chat_invoke.yaml"):
             chat.invoke(messages)
 
@@ -638,30 +637,28 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             model_kwargs={"temperature": 0.0, "topP": 0.9, "stopSequences": [], "maxTokenCount": 50},
         )
 
+        #  TODO: come back to this test
         with get_request_vcr().use_cassette("bedrock_amazon_invoke.yaml"):
             llm.invoke("can you explain what Datadog is to someone not in the tech industry?")
 
     @staticmethod
     def _call_openai_llm(OpenAI):
-        llm = OpenAI()
-        with get_request_vcr().use_cassette("openai_completion_sync.yaml"):
-            llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
+        llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
+        llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
-        embedding = OpenAIEmbeddings()
+        embedding = OpenAIEmbeddings(base_url="http://localhost:9126/vcr/openai")
         with mock.patch("langchain_openai.embeddings.base.tiktoken.encoding_for_model") as mock_encoding_for_model:
             mock_encoding = mock.MagicMock()
             mock_encoding_for_model.return_value = mock_encoding
             mock_encoding.encode.return_value = [0.0] * 1536
-            with get_request_vcr().use_cassette("openai_embedding_query_integration.yaml"):
-                embedding.embed_query("hello world")
+            embedding.embed_query("hello world")
 
     @staticmethod
     def _call_anthropic_chat(Anthropic):
-        llm = Anthropic(model="claude-3-opus-20240229", max_tokens=15)
-        with get_request_vcr().use_cassette("anthropic_chat_completion_sync.yaml"):
-            llm.invoke("When do you use 'whom' instead of 'who'?")
+        llm = Anthropic(model="claude-3-opus-20240229", max_tokens=15, base_url="http://localhost:9126/vcr/anthropic")
+        llm.invoke("When do you use 'whom' instead of 'who'?")
 
     @run_in_subprocess(env_overrides=bedrock_env_config)
     def test_llmobs_with_chat_model_bedrock_enabled(self):

@@ -8,7 +8,6 @@ import mock
 import pytest
 
 from ddtrace.internal.utils.version import parse_version
-from tests.contrib.langchain.utils import get_request_vcr
 
 
 LANGCHAIN_VERSION = parse_version(langchain.__version__)
@@ -29,11 +28,6 @@ IGNORE_FIELDS = [
     "meta.langchain.request.openai-chat.parameters.max_tokens",
     "meta.langchain.request.api_key",
 ]
-
-
-@pytest.fixture(scope="session")
-def request_vcr():
-    yield get_request_vcr()
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -72,23 +66,22 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
 
 @pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
 @pytest.mark.snapshot
-def test_cohere_llm_sync_0_2(langchain_cohere, request_vcr):
-    llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"))
-    with request_vcr.use_cassette("cohere_completion_sync_0_2.yaml"):
-        llm.invoke("What is the secret Krabby Patty recipe?")
+def test_cohere_llm_sync_0_2(langchain_cohere, cohere_url):
+    llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url)
+    llm.invoke("What is the secret Krabby Patty recipe?")
 
 
 @pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
 @pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Compatible with langchain>=0.3 only")
 @pytest.mark.snapshot
-def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
-    with request_vcr.use_cassette("cohere_completion_sync_latest.yaml"):
-        llm = langchain_cohere.llms.Cohere(
-            cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-            max_tokens=256,
-            temperature=0.75,
-        )
-        llm.invoke("What is the secret Krabby Patty recipe?")
+def test_cohere_llm_sync_latest(langchain_cohere, cohere_url):
+    llm = langchain_cohere.llms.Cohere(
+        cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+        max_tokens=256,
+        temperature=0.75,
+        base_url=cohere_url,
+    )
+    llm.invoke("What is the secret Krabby Patty recipe?")
 
 
 @pytest.mark.skipif(
@@ -96,12 +89,12 @@ def test_cohere_llm_sync_latest(langchain_cohere, request_vcr):
     reason="Requires separate cassette for langchain v0.1, Python 3.9",
 )
 @pytest.mark.snapshot
-def test_ai21_llm_sync(langchain_community, request_vcr):
+def test_ai21_llm_sync(langchain_community, ai21_url):
+    #  TODO: come back to this test
     if langchain_community is None:
         pytest.skip("langchain-community not installed which is required for this test.")
-    llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"))
-    with request_vcr.use_cassette("ai21_completion_sync.yaml"):
-        llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
+    llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"), base_url=ai21_url)
+    llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -143,7 +136,7 @@ def test_openai_chat_model_sync_generate(langchain_openai, openai_chat_completio
         "latest": LANGCHAIN_VERSION >= (0, 3),
     },
 )
-def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
+def test_openai_chat_model_vision_generate(langchain_openai, openai_url):
     """
     Test that input messages with nested contents are still tagged without error
     Regression test for https://github.com/DataDog/dd-trace-py/issues/8149.
@@ -152,23 +145,22 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk"
         ".jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
     )
-    chat = langchain_openai.ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_image_input_sync_generate.yaml"):
-        chat.generate(
+    chat = langchain_openai.ChatOpenAI(model="gpt-4o", temperature=0, max_tokens=256, base_url=openai_url)
+    chat.generate(
+        [
             [
-                [
-                    langchain.schema.HumanMessage(
-                        content=[
-                            {"type": "text", "text": "What’s in this image?"},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": image_url},
-                            },
-                        ],
-                    ),
-                ],
-            ]
-        )
+                langchain.schema.HumanMessage(
+                    content=[
+                        {"type": "text", "text": "What’s in this image?"},
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": image_url},
+                        },
+                    ],
+                ),
+            ],
+        ]
+    )
 
 
 @pytest.mark.skipif(
@@ -183,23 +175,22 @@ def test_openai_chat_model_vision_generate(langchain_openai, request_vcr):
         "meta.langchain.response.completions.1.0.content",
     ]
 )
-async def test_openai_chat_model_async_generate(langchain_openai, request_vcr):
-    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256)
-    with request_vcr.use_cassette("openai_chat_completion_async_generate.yaml"):
-        await chat.agenerate(
+async def test_openai_chat_model_async_generate(langchain_openai, openai_url):
+    chat = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url)
+    await chat.agenerate(
+        [
             [
-                [
-                    langchain.schema.SystemMessage(content="Respond like a frat boy."),
-                    langchain.schema.HumanMessage(
-                        content="Where's the nearest equinox gym from Hudson Yards manhattan?"
-                    ),
-                ],
-                [
-                    langchain.schema.SystemMessage(content="Respond with a pirate accent."),
-                    langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
-                ],
-            ]
-        )
+                langchain.schema.SystemMessage(content="Respond like a frat boy."),
+                langchain.schema.HumanMessage(
+                    content="Where's the nearest equinox gym from Hudson Yards manhattan?"
+                ),
+            ],
+            [
+                langchain.schema.SystemMessage(content="Respond with a pirate accent."),
+                langchain.schema.HumanMessage(content="How does one get to Bikini Bottom from New York?"),
+            ],
+        ]
+    )
 
 
 @pytest.mark.snapshot

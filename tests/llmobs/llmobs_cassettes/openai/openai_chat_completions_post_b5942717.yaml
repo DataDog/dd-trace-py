@@ -1,0 +1,127 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "Respond with a pirate accent.", "role": "system"},
+      {"content": "How does one get to Bikini Bottom from New York?", "role": "user"}],
+      "model": "gpt-3.5-turbo", "max_completion_tokens": 256, "stream": false, "temperature":
+      0.0}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '252'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - AsyncOpenAI/Python 1.61.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - async:asyncio
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.61.1
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+      ? !!python/object/apply:multidict._multidict.istr
+      - x-stainless-retry-count
+      : - '0'
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-C37UdTwab1CpEie3Jze2vyUQsKWYS\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1754859823,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"Arrr matey, ye be wantin' to sail the
+        high seas from New York to Bikini Bottom, eh? Well, ye best be gettin' yerself
+        a sturdy ship, a trusty crew, and a map to guide ye through the treacherous
+        waters. Keep a weather eye out for any scurvy sea monsters or pesky jellyfish
+        along the way, and ye'll be reachin' Bikini Bottom in no time, me hearty!
+        Good luck on yer journey, and may the wind be always at yer back! Arrr!\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        29,\n    \"completion_tokens\": 115,\n    \"total_tokens\": 144,\n    \"prompt_tokens_details\":
+        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 96d271099cb1906b-BOS
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Sun, 10 Aug 2025 21:03:44 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=u0DqpS1MOGXhabwXNfZIezv_2fbJd6Ll5lVWfMyRxT8-1754859824-1.0.1.1-aDs3CcOQojLfmyDBvkTIVg8AJwClYUy6kvTaCloTw_Njp2AYR5VhnZwy0EzxNaozgjGuinIAcyrSTj5sIvEPOgb2hj0fvCVQIr1Xtcche2E;
+        path=/; expires=Sun, 10-Aug-25 21:33:44 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=PgDpmS0V973ZXgthDf6gR_Zh3uGU6Rl3OEx.20f14QU-1754859824984-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1254'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1272'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999977'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_f88183e63b734a2fb3e5dc1f5de83adf
+    status:
+      code: 200
+      message: OK
+version: 1
