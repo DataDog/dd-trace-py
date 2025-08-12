@@ -115,6 +115,15 @@ jobs:
             fi
           done
 
+      - name: Validate wheel RECORD files
+        run: |
+          for wheel in ./wheelhouse/*.whl; do
+            if [ -f "$wheel" ]; then
+              echo "Validating $(basename $wheel)..."
+              python scripts/validate_wheel.py "$wheel"
+            fi
+          done
+
       - if: runner.os != 'Windows'
         run: |
           echo "ARTIFACT_NAME=${{ matrix.only }}" >> $GITHUB_ENV
