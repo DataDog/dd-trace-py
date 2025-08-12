@@ -769,6 +769,53 @@ def test_dataset_delete_after_update(llmobs, test_dataset):
     assert ds[0]["expected_output"] == {"answer": "Rome"}
 
 
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+        ],
+    ],
+)
+def test_dataset_delete_after_append(llmobs, test_dataset):
+    test_dataset.append({"input_data": "A", "expected_output": 1})
+    test_dataset.append({"input_data": "B", "expected_output": 2})
+    test_dataset.append({"input_data": {"prompt": "What is the capital of Sweden?"}})
+
+    test_dataset.delete(2)
+    test_dataset.delete(2)
+    test_dataset.delete(0)
+    # all that remains should be Italy and Sweden questions
+    assert len(test_dataset) == 2
+    assert test_dataset._version == 1
+
+    assert len(test_dataset._new_records_by_record_id) == 1
+    assert len(test_dataset._deleted_record_ids) == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert "expected_output" not in test_dataset[1]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 2
+    sds = sorted(ds, key=lambda r: r["input_data"]["prompt"])
+    assert sds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert sds[0]["expected_output"] == {"answer": "Rome"}
+    assert sds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert sds[1]["expected_output"] is None
+
+
 def test_project_create_new_project(llmobs):
     project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project-dne-sdk")
     assert project_id == "905824bc-ccec-4444-a48d-401931d5065b"
@@ -1133,9 +1180,9 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
         assert event[key] == mock.ANY
     assert event["status"] == "ok"
-    assert event["meta"]["input"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["output"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]

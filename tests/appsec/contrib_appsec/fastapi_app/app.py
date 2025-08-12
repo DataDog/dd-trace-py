@@ -39,6 +39,18 @@ class User(BaseModel):
 def get_app():
     app = FastAPI()
 
+    @app.middleware("http")
+    async def passthrough_middleware(request: Request, call_next):
+        """Middleware to test BlockingException nesting in ExceptionGroups (or BaseExceptionGroups)
+
+        With middlewares, the BlockingException can become nested multiple levels deep inside
+        an ExceptionGroup (or BaseExceptionGroup). The nesting depends the version of FastAPI
+        and AnyIO used, as well as the version of python.
+        By adding this empty middleware, we ensure that the BlockingException is catched
+        no matter how deep the ExceptionGroup is nested or else the contrib tests fail.
+        """
+        return await call_next(request)
+
     @app.get("/")
     @app.post("/")
     @app.options("/")
