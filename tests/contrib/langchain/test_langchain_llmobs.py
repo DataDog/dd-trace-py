@@ -305,10 +305,10 @@ def test_llmobs_anthropic_chat_model(langchain_anthropic, llmobs_events, tracer,
         model_name="claude-3-opus-20240229",
     )
 
-    if 'anthropic_api_url' in langchain_anthropic.ChatAnthropic.__fields__:
-        kwargs['anthropic_api_url'] = anthropic_url
+    if "anthropic_api_url" in langchain_anthropic.ChatAnthropic.__fields__:
+        kwargs["anthropic_api_url"] = anthropic_url
     else:
-        kwargs['base_url'] = anthropic_url
+        kwargs["base_url"] = anthropic_url
 
     chat = langchain_anthropic.ChatAnthropic(**kwargs)
     chat.invoke("When do you use 'whom' instead of 'who'?")
@@ -672,10 +672,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             max_tokens=15,
         )
 
-        if 'anthropic_api_url' in Anthropic.__fields__:
-            kwargs['anthropic_api_url'] = "http://localhost:9126/vcr/anthropic"
+        if "anthropic_api_url" in Anthropic.__fields__:
+            kwargs["anthropic_api_url"] = "http://localhost:9126/vcr/anthropic"
         else:
-            kwargs['base_url'] = "http://localhost:9126/vcr/anthropic"
+            kwargs["base_url"] = "http://localhost:9126/vcr/anthropic"
 
         llm = Anthropic(**kwargs)
         llm.invoke("When do you use 'whom' instead of 'who'?")

@@ -1,4 +1,3 @@
-import os
 from uuid import UUID
 
 from langchain_core.messages.ai import AIMessage

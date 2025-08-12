@@ -1,6 +1,5 @@
 from operator import itemgetter
 import os
-import sys
 
 import langchain
 import langchain.prompts  # noqa: F401
@@ -67,7 +66,9 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
 @pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
 @pytest.mark.snapshot
 def test_cohere_llm_sync_0_2(langchain_cohere, cohere_url):
-    llm = langchain_cohere.llms.Cohere(cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url)
+    llm = langchain_cohere.llms.Cohere(
+        cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url
+    )
     llm.invoke("What is the secret Krabby Patty recipe?")
 
 
@@ -181,9 +182,7 @@ async def test_openai_chat_model_async_generate(langchain_openai, openai_url):
         [
             [
                 langchain.schema.SystemMessage(content="Respond like a frat boy."),
-                langchain.schema.HumanMessage(
-                    content="Where's the nearest equinox gym from Hudson Yards manhattan?"
-                ),
+                langchain.schema.HumanMessage(content="Where's the nearest equinox gym from Hudson Yards manhattan?"),
             ],
             [
                 langchain.schema.SystemMessage(content="Respond with a pirate accent."),
@@ -388,16 +387,16 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropi
             b: second int
         """
         return a + b
-    
+
     kwargs = dict(
         temperature=1,
         model_name="claude-3-opus-20240229",
     )
 
-    if 'anthropic_api_url' in langchain_anthropic.ChatAnthropic.__fields__:
-        kwargs['anthropic_api_url'] = anthropic_url
+    if "anthropic_api_url" in langchain_anthropic.ChatAnthropic.__fields__:
+        kwargs["anthropic_api_url"] = anthropic_url
     else:
-        kwargs['base_url'] = anthropic_url
+        kwargs["base_url"] = anthropic_url
 
     llm = langchain_anthropic.ChatAnthropic(**kwargs)
     llm_with_tools = llm.bind_tools([add])

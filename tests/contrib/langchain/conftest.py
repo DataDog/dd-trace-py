@@ -130,8 +130,6 @@ def ai21_url() -> str:
     return "http://localhost:9126/vcr/ai21"
 
 
-
-
 @pytest.fixture
 def langchain_cohere(langchain):
     try:
