@@ -13,7 +13,8 @@ name = "ddtrace"
 dynamic = ["version"]
 description = "Datadog APM client library"
 readme = "README.md"
-license = { text = "LICENSE.BSD3" }
+license = "Apache-2.0 OR BSD-3-Clause"
+license-files = ["LICENSE", "LICENSE.Apache", "LICENSE.BSD3"]
 requires-python = ">=3.8"
 authors = [
     { name = "Datadog, Inc.", email = "dev@datadoghq.com" },
