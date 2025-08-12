@@ -9,6 +9,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -186,16 +187,22 @@ class CrewAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.get("instance")
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
+        input = kwargs.get("input", "")
         span._set_ctx_items(
             {
                 NAME: tool_name if tool_name else "CrewAI Tool",
                 METADATA: {"description": description},
-                INPUT_VALUE: kwargs.get("input", ""),
+                INPUT_VALUE: input,
             }
         )
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
+
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (tool_name, input, "function", span),
+        )
 
     def _tag_agent_manifest(self, span, agent):
         if not agent:
