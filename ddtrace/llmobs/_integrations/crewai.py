@@ -280,13 +280,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
     def _llmobs_set_tags_flow_method(self, span, args, kwargs, response):
         flow_instance = kwargs.pop("_dd.instance", None)
-        state_value = kwargs.pop("_dd.flow_state", {})
-        initial_flow_state = {}
-        if isinstance(state_value, dict):
-            initial_flow_state = state_value
-        elif hasattr(state_value, "model_dump"):
-            initial_flow_state = state_value.model_dump()
-
+        initial_flow_state = kwargs.pop("_dd.initial_flow_state", {})
         input_dict = {
             "args": [safe_json(arg) for arg in args[2:]],
             "kwargs": {k: safe_json(v) for k, v in kwargs.items()},
