@@ -155,7 +155,7 @@ SUPPORTED_OTEL_ENV_VARS = {
 }
 
 
-def parse_otel_env(otel_env: str) -> Optional[str]:
+def parse_otel_env(otel_env: str) -> Tuple[str, Optional[str]]:
     _, otel_config_validator = ENV_VAR_MAPPINGS[otel_env]
     raw_value = os.environ.get(otel_env, "")
     if otel_env not in ("OTEL_RESOURCE_ATTRIBUTES", "OTEL_SERVICE_NAME"):
@@ -163,5 +163,5 @@ def parse_otel_env(otel_env: str) -> Optional[str]:
         raw_value = raw_value.lower()
     mapped_value = otel_config_validator(raw_value)
     if mapped_value is None:
-        return None
-    return mapped_value
+        return "", None
+    return raw_value, mapped_value
