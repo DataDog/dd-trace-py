@@ -8,11 +8,13 @@ from typing import Tuple
 from typing import Union
 from weakref import WeakKeyDictionary
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -687,7 +689,8 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
-            tool_input = tool_inputs.get("input")
+            tool_input = tool_inputs.get("input", {})
+            core.dispatch(DISPATCH_ON_TOOL_CALL, (None, None, "function", span, tool_input.get("id")))
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):

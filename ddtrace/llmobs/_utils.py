@@ -306,13 +306,16 @@ class ToolCallTracker:
         self._tool_calls[tool_id] = tool_call
         self._lookup_tool_id[(tool_name, arguments)] = tool_id
 
-    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span) -> None:
+    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
         of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
         so that we can link to the input of an LLM span if it's output is used in an LLM call.
+
+        If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
+        lookup based on the tool_name and tool_arg.
         """
-        tool_id = self._lookup_tool_id.get((tool_name, tool_arg))
+        tool_id = tool_id or self._lookup_tool_id.get((tool_name, tool_arg))
         if not tool_id:
             return
         tool_call = self._tool_calls.get(tool_id)
