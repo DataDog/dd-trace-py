@@ -11,25 +11,18 @@
     "meta": {
       "_dd.base_service": "tests.contrib.botocore",
       "_dd.p.dm": "-0",
-      "_dd.p.tid": "6628215a00000000",
-      "bedrock.request.input_type": "search_document",
+      "_dd.p.tid": "687f906500000000",
       "bedrock.request.model": "embed-english-v3",
       "bedrock.request.model_provider": "cohere",
-      "bedrock.request.prompt": "['Hello World!', 'Goodbye cruel world!']",
-      "bedrock.request.truncate": "",
-      "bedrock.response.duration": "271",
-      "bedrock.response.id": "0e9cb5ab-1fef-46eb-8e2c-773f0f60f39d",
       "language": "python",
-      "runtime-id": "c02c555fdac14227bee7b37a0c304534"
+      "runtime-id": "f9bd434e80c74a2e87a2796368dac486"
     },
     "metrics": {
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,
-      "bedrock.response.embedding_length": 1024,
-      "bedrock.response.usage.prompt_tokens": 7,
-      "process_id": 61336
+      "process_id": 25551
     },
-    "duration": 630192000,
-    "start": 1713906010873383000
+    "duration": 2605000,
+    "start": 1753190501735406000
   }]]

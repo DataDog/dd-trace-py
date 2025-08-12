@@ -335,6 +335,7 @@ venv = Venv(
                 "_DD_IAST_PATCH_MODULES": "benchmarks.,tests.appsec.",
                 "DD_IAST_REQUEST_SAMPLING": "100",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
         ),
         Venv(
@@ -395,6 +396,8 @@ venv = Venv(
                 "werkzeug": "<2.0",
                 "pytest-randomly": latest,
                 "markupsafe": "<2.0",
+                "xmltodict": latest,
+                "django": latest,
             },
         ),
         Venv(
@@ -417,6 +420,17 @@ venv = Venv(
                         "DD_TRACE_AGENT_URL": "http://localhost:9126",
                         "AGENT_VERSION": "testagent",
                     },
+                ),
+                # This test variant ensures integration snapshots tests are compatible with both AgentWriter
+                # and NativeWriter.
+                Venv(
+                    name="integration-snapshot-native-writer",
+                    env={
+                        "DD_TRACE_AGENT_URL": "http://localhost:9126",
+                        "AGENT_VERSION": "testagent",
+                        "_DD_TRACE_WRITER_NATIVE": "1",
+                    },
+                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -471,6 +485,7 @@ venv = Venv(
             name="internal",
             env={
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
+                "DD_CIVISIBILITY_ITR_ENABLED": "0",
             },
             command="pytest -v {cmdargs} tests/internal/",
             pkgs={
@@ -2631,7 +2646,7 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={
-                        "openai": [latest, "~=1.76.2"],
+                        "openai": [latest, "~=1.76.2", "==1.66.0"],
                         "tiktoken": latest,
                         "pillow": latest,
                     },
@@ -2885,7 +2900,12 @@ venv = Venv(
             name="langgraph",
             command="pytest {cmdargs} tests/contrib/langgraph",
             pys=select_pys(min_version="3.9"),
-            pkgs={"pytest-asyncio": latest, "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest]},
+            pkgs={
+                "pytest-asyncio": latest,
+                "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
+                "langchain_openai": latest,
+                "langchain_core": latest,
+            },
         ),
         Venv(
             name="mcp",
@@ -2966,7 +2986,7 @@ venv = Venv(
             pkgs={
                 "pytest-asyncio": latest,
                 "openai": latest,
-                "crewai": ["~=0.102.0", "~=0.121.0"],
+                "crewai": ["~=0.102.0", latest],
                 "vcrpy": "==7.0.0",
             },
         ),
@@ -2976,8 +2996,20 @@ venv = Venv(
             pys=select_pys(min_version="3.9"),
             pkgs={
                 "pytest-asyncio": latest,
-                "pydantic-ai": ["==0.3.0", latest],
+                "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+            },
+        ),
+        Venv(
+            name="ray",
+            command="pytest {cmdargs} tests/contrib/ray",
+            env={
+                "DD_TRACE_OTEL_ENABLED": "true",
+            },
+            pys=select_pys(min_version="3.9"),
+            pkgs={
+                "pytest-asyncio": latest,
+                "ray": ["~=2.48.0", latest],
             },
         ),
         Venv(
@@ -3137,6 +3169,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "ragas": "==0.1.21",
                 "langchain": latest,
+                "pandas": latest,
             },
             pys=select_pys(min_version="3.8"),
         ),
@@ -3388,6 +3421,7 @@ venv = Venv(
                 "requests": latest,
                 "hypothesis": latest,
                 "gunicorn": latest,
+                "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "pytest-randomly": latest,
             },
@@ -3634,6 +3668,18 @@ venv = Venv(
                 "DD_IAST_VULNERABILITIES_PER_REQUEST": "100000",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
             },
+        ),
+        Venv(
+            name="ai_guard",
+            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            pkgs={
+                "requests": latest,
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(),
+                ),
+            ],
         ),
     ],
 )

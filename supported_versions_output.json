@@ -149,8 +149,8 @@
     {
         "dependency": "celery",
         "integration": "celery",
-        "minimum_tracer_supported": "5.3.6",
-        "max_tracer_supported": "5.4.0",
+        "minimum_tracer_supported": "5.5.3",
+        "max_tracer_supported": "5.5.3",
         "auto-instrumented": true
     },
     {
@@ -171,7 +171,7 @@
         "dependency": "crewai",
         "integration": "crewai",
         "minimum_tracer_supported": "0.102.0",
-        "max_tracer_supported": "0.121.1",
+        "max_tracer_supported": "0.157.0",
         "pinned": "true",
         "auto-instrumented": true
     },
@@ -307,7 +307,7 @@
         "minimum_tracer_supported": "1.3.1",
         "max_tracer_supported": "1.5.2",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "gevent",
@@ -383,14 +383,21 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.4.3",
+        "max_tracer_supported": "0.6.3",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
         "minimum_tracer_supported": "1.0.12",
-        "max_tracer_supported": "2.0.25",
+        "max_tracer_supported": "2.1.1",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "langgraph-prebuilt",
+        "integration": "langgraph",
+        "minimum_tracer_supported": "0.1.8",
+        "max_tracer_supported": "0.6.3",
         "auto-instrumented": true
     },
     {
@@ -432,7 +439,7 @@
     {
         "dependency": "mcp",
         "integration": "mcp",
-        "minimum_tracer_supported": "1.10.0",
+        "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.11.0",
         "auto-instrumented": true
     },
@@ -503,7 +510,7 @@
         "dependency": "pydantic-ai-slim",
         "integration": "pydantic_ai",
         "minimum_tracer_supported": "0.3.0",
-        "max_tracer_supported": "0.3.5",
+        "max_tracer_supported": "0.4.4",
         "pinned": "true",
         "auto-instrumented": true
     },

@@ -14,7 +14,6 @@ ddtrace/profiling/collector/stack.c
 ddtrace/profiling/exporter/pprof.c
 ddtrace/profiling/_build.c
 ddtrace/internal/datadog/profiling/ddup/_ddup.cpp
-ddtrace/internal/datadog/profiling/crashtracker/crashtracker_exe*
 ddtrace/internal/_encoding.c
 ddtrace/internal/_rand.c
 ddtrace/internal/_tagset.c

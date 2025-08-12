@@ -1091,8 +1091,6 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
-    import ddtrace.auto  # noqa
-
     from ddtrace.constants import MANUAL_KEEP_KEY
     from ddtrace.trace import tracer
 

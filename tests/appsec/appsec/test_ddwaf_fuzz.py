@@ -80,6 +80,68 @@ def test_limits(obj, res, trunc):
     assert (obs.string_length, obs.container_size, obs.container_depth) == trunc
 
 
+def test_vendorized_xmltodict():
+    # This test ensures that the vendored xmltodict generates the same structure as package xmltodict.
+    import ddtrace.vendor.xmltodict as xmltodict
+
+    test_file = """<?xml version="1.0" encoding="UTF-8"?>
+<!-- Sample XML file for testing xmltodict -->
+<root xmlns:ns="http://example.com/ns" xmlns="http://example.com/default">
+    <!-- Attributes -->
+    <elementWithAttributes id="123" type="example">
+        Attribute testing
+    </elementWithAttributes>
+
+    <!-- Nested elements -->
+    <nestedElements>
+        <level1>
+            <level2>
+                <level3>Deeply nested content</level3>
+            </level2>
+        </level1>
+    </nestedElements>
+
+    <!-- Namespaces -->
+    <ns:namespaceElement>
+        <ns:child>Namespace content</ns:child>
+    </ns:namespaceElement>
+
+    <!-- CDATA -->
+    <cdataExample><![CDATA[This is some <CDATA> content]]></cdataExample>
+
+    <!-- Mixed content -->
+    <mixedContent>
+        Text before <child>child element</child> text after.
+    </mixedContent>
+
+    <!-- Empty element -->
+    <emptyElement />
+
+    <!-- List-like structure -->
+    <items>
+        <item>Item 1</item>
+        <item>Item 2</item>
+        <item>Item 3</item>
+    </items>
+</root>
+"""
+    parsed = xmltodict.parse(test_file)
+    expected = {
+        "root": {
+            "@xmlns:ns": "http://example.com/ns",
+            "@xmlns": "http://example.com/default",
+            "elementWithAttributes": {"@id": "123", "@type": "example", "#text": "Attribute testing"},
+            "nestedElements": {"level1": {"level2": {"level3": "Deeply nested content"}}},
+            "ns:namespaceElement": {"ns:child": "Namespace content"},
+            "cdataExample": "This is some <CDATA> content",
+            "mixedContent": {"child": "child element", "#text": "Text before  text after."},
+            "emptyElement": None,
+            "items": {"item": ["Item 1", "Item 2", "Item 3"]},
+        }
+    }
+    assert parsed == expected, f"Parsed XML does not match expected structure: {parsed} != {expected}"
+
+
 if __name__ == "__main__":
     import atheris
 

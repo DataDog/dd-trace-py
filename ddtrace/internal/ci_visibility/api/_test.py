@@ -1,10 +1,14 @@
+import os
 from pathlib import Path
 from time import time_ns
+from typing import ContextManager
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
 
+import ddtrace
+from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -19,6 +23,7 @@ from ddtrace.internal.ci_visibility.api._base import TestVisibilityItemBase
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
 from ddtrace.internal.ci_visibility.api._coverage_data import TestVisibilityCoverageData
 from ddtrace.internal.ci_visibility.constants import BENCHMARK
+from ddtrace.internal.ci_visibility.constants import ITR_CORRELATION_ID_TAG_NAME
 from ddtrace.internal.ci_visibility.constants import RETRY_REASON
 from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TEST_ATTEMPT_TO_FIX_PASSED
@@ -38,6 +43,7 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -102,6 +108,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         # Some parameters can be overwritten:
         self._overwritten_suite_name: Optional[str] = None
+
+        self._main_tracer_context: Optional[ContextManager] = None
+
+    def _start_span(self, context: Optional[Context] = None) -> None:
+        super()._start_span(context)
+
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
+            self._main_tracer_context = ddtrace.tracer._activate_context(
+                Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
+            )
+            self._main_tracer_context.__enter__()
+
+    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
+        super()._finish_span(override_finish_time)
+
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
+            self._main_tracer_context.__exit__(None, None, None)
 
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
@@ -232,7 +255,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         When skipping at the suite level, the counting only happens when suites are finished as ITR-skipped.
         """
-        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST and self.parent is not None:
+        if self.parent is not None:
             self.parent.count_itr_skipped()
 
     def finish_itr_skipped(self) -> None:
@@ -286,6 +309,18 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def has_failed_all_retries(self):
         return bool(self.get_tag(TEST_HAS_FAILED_ALL_RETRIES))
+
+    def _set_itr_tags(self, itr_enabled: bool) -> None:
+        """Set test-level ITR tags"""
+        super()._set_itr_tags(itr_enabled)
+
+        # Only set correlation ID on tests when in test-level skipping mode
+        if (
+            itr_enabled
+            and self._session_settings.itr_correlation_id
+            and self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST
+        ):
+            self.set_tag(ITR_CORRELATION_ID_TAG_NAME, self._session_settings.itr_correlation_id)
 
     #
     # EFD (Early Flake Detection) functionality

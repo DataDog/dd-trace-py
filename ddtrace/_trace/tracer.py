@@ -7,12 +7,10 @@ import logging
 import os
 from os import getpid
 from threading import RLock
-from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Tuple
 from typing import TypeVar
 from typing import Union
 from typing import cast
@@ -69,34 +67,13 @@ log = get_logger(__name__)
 AnyCallable = TypeVar("AnyCallable", bound=Callable)
 
 
-def _start_appsec_processor():
-    try:
-        from ddtrace.appsec._processor import AppSecSpanProcessor
-
-        return AppSecSpanProcessor()
-    except Exception as e:
-        # DDAS-001-01
-        log.error(
-            "[DDAS-001-01] "
-            "AppSec could not start because of an unexpected error. No security activities will "
-            "be collected. "
-            "Please contact support at https://docs.datadoghq.com/help/ for help. Error details: "
-            "\n%s",
-            repr(e),
-        )
-        if config._raise:
-            raise
-    return None
-
-
 def _default_span_processors_factory(
     profiling_span_processor: EndpointCallCounterProcessor,
-) -> Tuple[List[SpanProcessor], Any]:
+) -> List[SpanProcessor]:
     """Construct the default list of span processors to use."""
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    appsec_processor = None
     if asm_config._asm_libddwaf_available:
         if asm_config._asm_enabled:
             if asm_config._api_security_enabled:
@@ -104,7 +81,6 @@ def _default_span_processors_factory(
 
                 APIManager.enable()
 
-            appsec_processor = _start_appsec_processor()
         else:
             # api_security_active will keep track of the service status of APIManager
             # we don't want to import the module if it was not started before due to
@@ -119,7 +95,8 @@ def _default_span_processors_factory(
 
         span_processors.append(AppSecIastSpanProcessor())
 
-    if config._trace_compute_stats:
+    # When using the NativeWriter stats are computed by the native code.
+    if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
         # when importing ddtrace.
         from ddtrace.internal.processor.stats import SpanStatsProcessorV06
@@ -130,7 +107,7 @@ def _default_span_processors_factory(
 
     span_processors.append(profiling_span_processor)
 
-    return span_processors, appsec_processor
+    return span_processors
 
 
 class Tracer(object):
@@ -180,9 +157,7 @@ class Tracer(object):
             config._trace_compute_stats = False
         # Direct link to the appsec processor
         self._endpoint_call_counter_span_processor = EndpointCallCounterProcessor()
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
-            self._endpoint_call_counter_span_processor
-        )
+        self._span_processors = _default_span_processors_factory(self._endpoint_call_counter_span_processor)
         self._span_aggregator = SpanAggregator(
             partial_flush_enabled=config._partial_flush_enabled,
             partial_flush_min_spans=config._partial_flush_min_spans,
@@ -264,6 +239,8 @@ class Tracer(object):
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
+        if isinstance(self._span_aggregator.writer, AgentWriterInterface):
+            self._span_aggregator.writer.before_fork()
         span = self.current_root_span()
         if span is not None and span.context.sampling_priority is None:
             self.sample(span)
@@ -427,7 +404,7 @@ class Tracer(object):
             appsec_enabled=appsec_enabled,
             reset_buffer=reset_buffer,
         )
-        self._span_processors, self._appsec_processor = _default_span_processors_factory(
+        self._span_processors = _default_span_processors_factory(
             self._endpoint_call_counter_span_processor,
         )
 
@@ -601,9 +578,7 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
-            for p in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
-            ):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_start(span)
         core.dispatch("trace.span_start", (span,))
@@ -620,16 +595,12 @@ class Tracer(object):
 
         # Only call span processors if the tracer is enabled (even if APM opted out)
         if self.enabled or asm_config._apm_opt_out:
-            for p in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
-            ):
+            for p in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if p:
                     p.on_span_finish(span)
 
         core.dispatch("trace.span_finish", (span,))
-
-        if log.isEnabledFor(logging.DEBUG):
-            log.debug("finishing span %s (enabled:%s)", span._pprint(), self.enabled)
+        log.debug("finishing span - %r (enabled:%s)", span, self.enabled)
 
     def _log_compat(self, level, msg):
         """Logs a message for the given level.
@@ -923,9 +894,7 @@ class Tracer(object):
         """
         with self._shutdown_lock:
             # Thread safety: Ensures tracer is shutdown synchronously
-            for processor in chain(
-                self._span_processors, SpanProcessor.__processors__, [self._appsec_processor, self._span_aggregator]
-            ):
+            for processor in chain(self._span_processors, SpanProcessor.__processors__, [self._span_aggregator]):
                 if processor:
                     processor.shutdown(timeout)
             self.enabled = False

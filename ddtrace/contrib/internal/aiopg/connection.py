@@ -46,7 +46,8 @@ class AIOTracedCursor(wrapt.ObjectProxy):
             # set span.kind to the type of request being performed
             s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            s.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            s.set_metric(_SPAN_MEASURED_KEY, 1)
             s.set_tags(pin.tags)
             s.set_tags(extra_tags)
 

@@ -8,7 +8,6 @@ from bson.son import SON
 
 # project
 from ddtrace.ext import net as netx
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 
 
@@ -195,9 +194,8 @@ def _cstring(raw):
 def _split_namespace(ns):
     """Return a tuple of (db, collection) from the 'db.coll' string."""
     if ns:
-        # NOTE[matt] ns is unicode or bytes depending on the client version
-        # so force cast to unicode
-        split = to_unicode(ns).split(".", 1)
+        # NOTE[matt] ns is bytes in python 3
+        split = ns.decode("utf-8", errors="ignore").split(".", 1)
         if len(split) == 1:
             log.warning("namespace doesn't contain period: %s", ns)
             return (None, None)

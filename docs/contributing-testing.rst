@@ -107,6 +107,40 @@ when the riotfile changes. Thus, if you make changes to the riotfile, you need t
 You can commit and pull request the resulting changes to files in ``.riot/requirements`` alongside the
 changes you made to ``riotfile.py``.
 
+Why is my CI run failing with benchmark or Service Level Objective (SLO) threshold breaches?
+---------------------------------------------------------------------------------------------
+
+The library includes automated SLO checks that monitor performance thresholds for execution time and memory usage. If your pull request causes these checks to fail, you'll see benchmark test failures in CI indicating that your changes have caused performance to exceed established thresholds.
+
+**If this is expected additional overhead**:
+
+1. **Add a comment to your PR description** explaining why the performance change is expected and necessary
+
+2. **Update the failing thresholds** in ``.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml`` following these guidelines:
+
+   **For execution time thresholds:**
+   
+   * Take the new benchmark result from CI
+   * Add 2% overhead for variance
+   * Round up to a reasonable precision  
+   * Example: 23.1 ms → 23.1 * 1.02 = 23.562 ms → round to 23.60 ms
+
+   **For memory usage thresholds:**
+   
+   * Take the new benchmark result from CI
+   * Add 5% overhead for variance
+   * Round up to a reasonable precision
+   * Consider unifying similar scenarios to the same threshold (e.g., set all ``tracer`` scenarios to ``< 32.00 MB`` instead of having slightly different values)
+
+**Example threshold update:**
+
+.. code-block:: yaml
+
+    - name: span-start
+      thresholds:
+        - execution_time < 23.60 ms  # was 23.50 ms
+        - max_rss_usage < 48.00 MB   # was 47.50 MB
+
 How do I add a new test suite?
 ------------------------------
 
@@ -204,3 +238,14 @@ Using ``@flaky`` comes with the responsibility of maintaining the test suite's c
 of using it, periodically set aside some time to ``grep -R 'flaky' tests`` and remove some of the decorators. This may require
 finding and fixing the root cause of the unreliable behavior. Upholding this responsibility is an important way to keep the test
 suite's coverage meaningfully broad while skipping tests.
+
+
+How do I enable debug logs for just a specific part of the library?
+-------------------------------------------------------------------
+
+Enabling debug logs for the whole library with ``DD_TRACE_DEBUG=1`` is often too
+noisy. Log levels for hierarchies of loggers can be controlled with internal
+environment variables. For example, to enable debug logs just for
+``ddtrace.debugging``, one can set ```_DD_DEBUGGING_LOG_LEVEL=DEBUG```. This
+will set the ``DEBUG`` log level for any logger whose name is prefixed with
+``ddtrace.debugging``.

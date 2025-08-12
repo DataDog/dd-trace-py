@@ -20,13 +20,88 @@ COMMON_RESPONSE_LLM_METADATA = {
     "text": {"format": {"type": "text"}},
 }
 
+AGENT_TO_EXPECTED_AGENT_MANIFEST = {
+    "Simple Agent": {
+        "framework": "OpenAI",
+        "name": "Simple Agent",
+        "instructions": "You are a helpful assistant who answers questions concisely and accurately.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,  # different versions of the library have different model settings
+    },
+    "Addition Agent": {
+        "framework": "OpenAI",
+        "name": "Addition Agent",
+        "instructions": mock.ANY,
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "add",
+                "description": "Add two numbers together",
+                "strict_json_schema": True,
+                "parameters": {
+                    "a": {"type": "integer", "title": "A", "required": True},
+                    "b": {"type": "integer", "title": "B", "required": True},
+                },
+            }
+        ],
+    },
+    "Researcher": {
+        "framework": "OpenAI",
+        "name": "Researcher",
+        "instructions": "You are a helpful assistant that can research a topic using your research tool. "
+        "Always research the topic before summarizing.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "research",
+                "description": "Research the internet on a topic.",
+                "strict_json_schema": True,
+                "parameters": {"query": {"type": "string", "title": "Query", "required": True}},
+            }
+        ],
+        "handoffs": [
+            {"handoff_description": None, "agent_name": "Summarizer"},
+        ],
+    },
+    "Summarizer": {
+        "framework": "OpenAI",
+        "name": "Summarizer",
+        "instructions": "You are a helpful assistant that can summarize a research results.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+    },
+    "Weather Agent": {
+        "framework": "OpenAI",
+        "name": "Weather Agent",
+        "instructions": "You are a helpful assistant specialized in searching the web for weather information.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,
+        "tools": [
+            {
+                "name": "web_search_preview",
+                "user_location": {"type": "approximate", "city": "New York"},
+                "search_context_size": "medium",
+            }
+        ],
+    },
+}
+
+
+def _expected_agent_metadata(agent_name: str) -> Dict:
+    return {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[agent_name]}
+
 
 def _assert_expected_agent_run(
     expected_span_names: List[str],
     spans,
     llmobs_events,
-    handoffs: List[str] = None,
-    tools: List[str] = None,
     llm_calls: List[Tuple[List[Dict], List[Dict]]] = None,
     tool_calls: List[dict] = None,
     previous_tool_events: List[dict] = None,
@@ -38,8 +113,6 @@ def _assert_expected_agent_run(
         spans: List of spans from the mock tracer
         llmobs_events: List of LLMObs events
         agent_name: Name of the agent
-        handoffs: List of handoff names
-        tools: List of tool names
         llm_calls: List of (input_messages, output_messages) for each LLM call
         tool_calls: List of information about tool calls
         previous_tool_events: List of previous tool events for span linking assertions across agent runs
@@ -49,7 +122,7 @@ def _assert_expected_agent_run(
     assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
         spans[0],
         span_kind="agent",
-        metadata={"handoffs": handoffs, "tools": tools},
+        metadata=_expected_agent_metadata(llmobs_events[0]["name"]),
         tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
     )
     if not previous_tool_events:
@@ -126,8 +199,6 @@ async def test_llmobs_single_agent(agents, mock_tracer, request_vcr, llmobs_even
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -175,8 +246,6 @@ async def test_llmobs_streamed_single_agent(agents, mock_tracer, request_vcr, ll
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -217,8 +286,6 @@ def test_llmobs_single_agent_sync(agents, mock_tracer, request_vcr, llmobs_event
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -272,8 +339,6 @@ async def test_llmobs_manual_tracing_llmobs(agents, mock_tracer, request_vcr, ll
         ["Simple Agent", "Simple Agent (LLM)"],
         spans[2:],
         llmobs_events[2:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 [
@@ -315,8 +380,6 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=["add"],
         llm_calls=[
             (
                 [
@@ -360,6 +423,49 @@ async def test_llmobs_single_agent_with_tool_calls_llmobs(
 
 
 @pytest.mark.asyncio
+async def test_llmobs_single_agent_with_ootb_tools(agents, mock_tracer, request_vcr, llmobs_events, weather_agent):
+    with request_vcr.use_cassette("test_single_agent_with_ootb_tools.yaml"):
+        result = await agents.Runner.run(weather_agent, "What is the weather like in New York right now?")
+
+    spans = mock_tracer.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 3
+
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(
+        spans[0],
+        span_kind="workflow",
+        input_value="What is the weather like in New York right now?",
+        output_value=result.final_output,
+        metadata={},
+        tags={"service": "tests.contrib.agents", "ml_app": "<ml-app-name>"},
+    )
+    _assert_expected_agent_run(
+        ["Weather Agent", "Weather Agent (LLM)"],
+        spans[1:],
+        llmobs_events[1:],
+        llm_calls=[
+            (
+                [
+                    {"role": "system", "content": weather_agent.instructions},
+                    {"role": "user", "content": "What is the weather like in New York right now?"},
+                ],
+                [
+                    {
+                        "content": "ResponseFunctionWebSearch(id='ws_68814fa4582081989a0bc4a33dc197cc026575ca32f194ce',"
+                        " status='completed', type='web_search_call', action={'type': 'search', 'query': 'current "
+                        "weather in New York'})",
+                        "role": "",
+                    },
+                    {"role": "assistant", "content": result.final_output},
+                ],
+            ),
+        ],
+    )
+
+
+@pytest.mark.asyncio
 async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, llmobs_events, research_workflow):
     with request_vcr.use_cassette("test_multiple_agent_handoffs.yaml"):
         result = await agents.Runner.run(
@@ -385,8 +491,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         ["Researcher", "Researcher (LLM)", "research", "Researcher (LLM)", "transfer_to_summarizer"],
         spans[1:6],
         llmobs_events[1:6],
-        handoffs=["Summarizer"],
-        tools=["research"],
         llm_calls=[
             (
                 [
@@ -455,8 +559,6 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
         ["Summarizer", "Summarizer (LLM)"],
         spans[6:],
         llmobs_events[6:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 mock.ANY,
@@ -492,8 +594,6 @@ async def test_llmobs_single_agent_with_tool_errors(
         ["Addition Agent", "Addition Agent (LLM)", "add", "Addition Agent (LLM)"],
         spans[1:],
         llmobs_events[1:],
-        handoffs=[],
-        tools=["add"],
         llm_calls=[
             (
                 [
@@ -573,8 +673,6 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         ],
         spans[1:6],
         llmobs_events[1:6],
-        handoffs=["Summarizer"],
-        tools=["research"],
         tool_calls=[{"type": "function_call", "error": False}, {"type": "handoff", "error": False}],
         is_chat=True,
     )
@@ -582,8 +680,6 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         ["Summarizer", "OpenAI.createChatCompletion"],
         spans[6:],
         llmobs_events[6:],
-        handoffs=[],
-        tools=[],
         llm_calls=[
             (
                 mock.ANY,

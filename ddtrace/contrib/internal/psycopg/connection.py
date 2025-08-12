@@ -102,7 +102,8 @@ def patched_connect_factory(psycopg_module):
                 if span.get_tag(db.SYSTEM) is None:
                     span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
 
-                span.set_tag(_SPAN_MEASURED_KEY)
+                # PERF: avoid setting via Span.set_tag
+                span.set_metric(_SPAN_MEASURED_KEY, 1)
                 conn = connect_func(*args, **kwargs)
 
         return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)

@@ -2,15 +2,14 @@ import pytest
 
 
 def _global_sampling_rule():
-    from ddtrace._trace.sampling_rule import SamplingRule
     from ddtrace.trace import tracer
 
     for rule in tracer._sampler.rules:
         if (
-            rule.service == SamplingRule.NO_RULE
-            and rule.name == SamplingRule.NO_RULE
-            and rule.resource == SamplingRule.NO_RULE
-            and rule.tags == SamplingRule.NO_RULE
+            rule.service is None
+            and rule.name is None
+            and rule.resource is None
+            and not rule.tags
             and rule.provenance == "default"
         ):
             return rule
@@ -38,7 +37,9 @@ def _global_sampling_rule():
         "OTEL_SDK_DISABLED": "True",
         "DD_TRACE_OTEL_ENABLED": "True",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration "
+    b"will be ignored.\nTrace sampler set from always_off to parentbased_always_off; only parent based "
+    b"sampling is supported.\nFollowing style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_mixed_env_configuration():
     from ddtrace import config
@@ -70,8 +71,9 @@ def test_dd_otel_mixed_env_configuration():
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
-    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, "
-    b"this configuration will be ignored.\nFollowing style not supported by ddtrace: jaegar.\n",
+    err=b"Setting OTEL_LOGS_EXPORTER to warning is not supported by ddtrace, this configuration will be ignored.\n"
+    b"Trace sampler set from always_off to parentbased_always_off; only parent based sampling is supported.\n"
+    b"Following style not supported by ddtrace: jaegar.\n",
 )
 def test_dd_otel_missing_dd_env_configuration():
     from ddtrace import config

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    django: fix incorrect component tag being set for django orm spans

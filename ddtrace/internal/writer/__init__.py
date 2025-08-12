@@ -4,6 +4,7 @@ from .writer import AgentWriter
 from .writer import AgentWriterInterface
 from .writer import HTTPWriter
 from .writer import LogWriter
+from .writer import NativeWriter
 from .writer import Response
 from .writer import TraceWriter
 from .writer import _human_size
@@ -18,6 +19,7 @@ __all__ = [
     "DEFAULT_SMA_WINDOW",
     "HTTPWriter",
     "LogWriter",
+    "NativeWriter",
     "Response",
     "TraceWriter",
     "WriterClientBase",
