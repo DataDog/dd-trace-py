@@ -810,7 +810,7 @@ class LangChainIntegration(BaseLLMIntegration):
         }
 
         try:
-            object.__setattr__(result, "_dd", {"prompt_template": prompt})
+            object.__setattr__(result, "_dd.prompt_template", prompt)
         except (AttributeError, TypeError):
             log.warning("Could not attach prompt metadata to resulting prompt")
 
@@ -818,17 +818,17 @@ class LangChainIntegration(BaseLLMIntegration):
         """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
         template = None
         if len(args) > 0:
-            template = getattr(args[0], "_dd", None)
+            template = getattr(args[0], "_dd.prompt_template", None)
         elif "input" in kwargs:
-            template = getattr(kwargs["input"], "_dd", None)
+            template = getattr(kwargs["input"], "_dd.prompt_template", None)
         if template:
-            object.__setattr__(instance, "_dd", template)
+            object.__setattr__(instance, "_dd.prompt_template", template)
 
     def llmobs_set_prompt_tag(self, instance, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
         """On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span."""
-        prompt_value_meta = getattr(instance, "_dd", None)
-        if prompt_value_meta is not None and "prompt_template" in prompt_value_meta:
-            prompt = prompt_value_meta["prompt_template"]
+        prompt_value_meta = getattr(instance, "_dd.prompt_template", None)
+        if prompt_value_meta is not None:
+            prompt = prompt_value_meta
             try:
                 prompt = validate_prompt(prompt)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
