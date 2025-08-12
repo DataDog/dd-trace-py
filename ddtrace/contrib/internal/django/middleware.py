@@ -33,6 +33,11 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
         self = args[0]
         resource = f"{func_name(self)}.{hook}"
 
+        # The first argument for all middleware is the request object
+        # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
+        # DEV: This is a method, so `self` is argument 0 , so request is at position 1
+        request = get_argument_value(args, kwargs, 1, "request", optional=True)
+
         with core.context_with_data(
             event_name,
             span_name="django.middleware",
@@ -42,6 +47,7 @@ def traced_middleware_wrapper(mw_path: str, hook: str) -> FunctionType:
             },
             # TODO: Migrate all tests to snapshot tests and remove this
             tracer=config_django._tracer,
+            request=request,
         ):
             return func(*args, **kwargs)
 
@@ -53,6 +59,11 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
 
     resource = f"{func_name(self)}.process_exception"
 
+    # The first argument for all middleware is the request object
+    # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
+    # DEV: This is a method, so `self` is argument 0 , so request is at position 1
+    request = get_argument_value(args, kwargs, 1, "request", optional=True)
+
     with core.context_with_data(
         "django.middleware.process_exception",
         span_name="django.middleware",
@@ -60,6 +71,7 @@ def traced_process_exception(func: FunctionType, args: Tuple[Any], kwargs: Dict[
         tags={COMPONENT: config_django.integration_name},
         # TODO: Migrate all tests to snapshot tests and remove this
         tracer=config_django._tracer,
+        request=request,
     ) as ctx:
         resp = func(*args, **kwargs)
 
@@ -73,6 +85,11 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
 
     resource = f"{func_name(self)}.process_request"
 
+    # The first argument for all middleware is the request object
+    # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
+    # DEV: This is a method, so `self` is argument 0 , so request is at position 1
+    request = get_argument_value(args, kwargs, 1, "request", optional=True)
+
     with core.context_with_data(
         "django.middleware.process_request",
         span_name="django.middleware",
@@ -80,6 +97,7 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
         tags={COMPONENT: config_django.integration_name},
         # TODO: Migrate all tests to snapshot tests and remove this
         tracer=config_django._tracer,
+        request=request,
     ):
         try:
             return func(*args, **kwargs)
@@ -88,7 +106,6 @@ def traced_auth_middleware_process_request(func: FunctionType, args: Tuple[Any],
             if mode == "disabled":
                 return
             try:
-                request = get_argument_value(args, kwargs, 0, "request")
                 if request:
                     if hasattr(request, "user") and hasattr(request.user, "_setup"):
                         request.user._setup()
@@ -124,6 +141,11 @@ def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict
             resource = func_name(func)
 
         def traced_middleware_func(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+            # The first argument for all middleware is the request object
+            # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
+            # DEV: This is a function, so no `self` argument, so request is at position 0
+            request = get_argument_value(args, kwargs, 0, "request")
+
             with core.context_with_data(
                 "django.middleware.func",
                 span_name="django.middleware",
@@ -133,6 +155,7 @@ def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict
                 },
                 # TODO: Migrate all tests to snapshot tests and remove this
                 tracer=config_django._tracer,
+                request=request,
             ):
                 return func(*args, **kwargs)
 

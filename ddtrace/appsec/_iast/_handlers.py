@@ -1,5 +1,8 @@
 from collections.abc import MutableMapping
 import functools
+from typing import Any
+from typing import Dict
+from typing import Tuple
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_request_context_base import get_iast_stacktrace_reported
@@ -16,6 +19,7 @@ from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject
 from ddtrace.appsec._iast._taint_utils import taint_dictionary
 from ddtrace.appsec._iast._taint_utils import taint_structure
 from ddtrace.appsec._iast.secure_marks.sanitizers import cmdi_sanitizer
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -182,6 +186,16 @@ def _on_django_patch():
             iast_instrumentation_wrapt_debug_log("Unexpected exception while patching Django", exc_info=True)
 
 
+def _on_django_middleware(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> None:
+    if not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
+        return
+
+    request = ctx.get_item("request")
+    if request:
+        args = (request,)
+        _taint_django_func_call(request, args, {})
+
+
 def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
     # If IAST is enabled, and we're wrapping a Django view call, taint the kwargs (view's
     # path parameters)
@@ -189,72 +203,74 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
         if not asm_config.is_iast_request_enabled:
             return
 
-        http_req = fn_args[0]
-        resolver_match = getattr(http_req, "resolver_match", None)
-        if resolver_match is not None:
-            set_iast_request_endpoint(http_req.method, resolver_match.route)
+        _taint_django_func_call(fn_args[0], fn_args, fn_kwargs)
 
-        http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
-        if (
-            getattr(http_req, "_body", None) is not None
-            and len(getattr(http_req, "_body", None)) > 0
-            and not is_pyobject_tainted(getattr(http_req, "_body", None))
-        ):
-            try:
-                http_req._body = taint_pyobject(
-                    http_req._body,
-                    source_name=origin_to_str(OriginType.BODY),
-                    source_value=http_req._body,
-                    source_origin=OriginType.BODY,
-                )
-            except AttributeError:
-                log.debug("IAST can't set attribute http_req._body", exc_info=True)
-        # This condition is only for testing purposes.
-        # In real applications, http_req.body is typically a property that can be set.
-        # Here we check if it's not a property to handle test cases where body is directly assigned.
-        elif (
-            getattr(http_req, "body", None) is not None
-            and not isinstance(getattr(http_req, "body", None), property)
-            and len(getattr(http_req, "body", None)) > 0
-            and not is_pyobject_tainted(getattr(http_req, "body", None))
-        ):
-            try:
-                http_req.body = taint_pyobject(
-                    http_req.body,
-                    source_name=origin_to_str(OriginType.BODY),
-                    source_value=http_req.body,
-                    source_origin=OriginType.BODY,
-                )
-            except AttributeError:
-                iast_propagation_listener_log_log("IAST can't set attribute http_req.body", exc_info=True)
 
-        http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
-        http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
-        http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
-        http_req.path = taint_pyobject(
-            http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
-        )
-        http_req.path_info = taint_pyobject(
-            http_req.path_info,
-            source_name=origin_to_str(OriginType.PATH),
-            source_value=http_req.path,
-            source_origin=OriginType.PATH,
-        )
-        http_req.environ["PATH_INFO"] = taint_pyobject(
-            http_req.environ["PATH_INFO"],
-            source_name=origin_to_str(OriginType.PATH),
-            source_value=http_req.path,
-            source_origin=OriginType.PATH,
-        )
-        http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
-        if fn_kwargs:
-            try:
-                for k, v in fn_kwargs.items():
-                    fn_kwargs[k] = taint_pyobject(
-                        v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER
-                    )
-            except Exception:
-                iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
+def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
+    print("HERE", http_req, args, kwargs)
+    resolver_match = getattr(http_req, "resolver_match", None)
+    if resolver_match is not None:
+        set_iast_request_endpoint(http_req.method, resolver_match.route)
+
+    http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
+    if (
+        getattr(http_req, "_body", None) is not None
+        and len(getattr(http_req, "_body", None)) > 0
+        and not is_pyobject_tainted(getattr(http_req, "_body", None))
+    ):
+        try:
+            http_req._body = taint_pyobject(
+                http_req._body,
+                source_name=origin_to_str(OriginType.BODY),
+                source_value=http_req._body,
+                source_origin=OriginType.BODY,
+            )
+        except AttributeError:
+            log.debug("IAST can't set attribute http_req._body", exc_info=True)
+    # This condition is only for testing purposes.
+    # In real applications, http_req.body is typically a property that can be set.
+    # Here we check if it's not a property to handle test cases where body is directly assigned.
+    elif (
+        getattr(http_req, "body", None) is not None
+        and not isinstance(getattr(http_req, "body", None), property)
+        and len(getattr(http_req, "body", None)) > 0
+        and not is_pyobject_tainted(getattr(http_req, "body", None))
+    ):
+        try:
+            http_req.body = taint_pyobject(
+                http_req.body,
+                source_name=origin_to_str(OriginType.BODY),
+                source_value=http_req.body,
+                source_origin=OriginType.BODY,
+            )
+        except AttributeError:
+            iast_propagation_listener_log_log("IAST can't set attribute http_req.body", exc_info=True)
+
+    http_req.GET = taint_structure(http_req.GET, OriginType.PARAMETER_NAME, OriginType.PARAMETER)
+    http_req.POST = taint_structure(http_req.POST, OriginType.PARAMETER_NAME, OriginType.BODY)
+    http_req.headers = taint_structure(http_req.headers, OriginType.HEADER_NAME, OriginType.HEADER)
+    http_req.path = taint_pyobject(
+        http_req.path, source_name="path", source_value=http_req.path, source_origin=OriginType.PATH
+    )
+    http_req.path_info = taint_pyobject(
+        http_req.path_info,
+        source_name=origin_to_str(OriginType.PATH),
+        source_value=http_req.path,
+        source_origin=OriginType.PATH,
+    )
+    http_req.environ["PATH_INFO"] = taint_pyobject(
+        http_req.environ["PATH_INFO"],
+        source_name=origin_to_str(OriginType.PATH),
+        source_value=http_req.path,
+        source_origin=OriginType.PATH,
+    )
+    http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
+    if fn_kwargs:
+        try:
+            for k, v in fn_kwargs.items():
+                fn_kwargs[k] = taint_pyobject(v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER)
+        except Exception:
+            iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
 
 def _custom_protobuf_getattribute(self, name):
