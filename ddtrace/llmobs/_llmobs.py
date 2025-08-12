@@ -54,6 +54,8 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
+from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -278,9 +280,18 @@ class LLMObs(Service):
 
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
-            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
-            if span_kind == "experiment" and expected_output:
-                meta["expected_output"] = expected_output
+            if span_kind == "experiment":
+                expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                if expected_output:
+                    meta["expected_output"] = expected_output
+
+                input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
+                if input_data:
+                    meta["input"] = input_data
+
+                output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
+                if output_data:
+                    meta["output"] = output_data
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -620,7 +631,7 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: Optional[List[DatasetRecord]] = None) -> Dataset:
+    def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
@@ -1366,6 +1377,8 @@ class LLMObs(Service):
                     error = cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
                 elif span_kind == "retrieval":
                     error = cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
+                elif span_kind == "experiment":
+                    cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         finally:
@@ -1446,6 +1459,18 @@ class LLMObs(Service):
             span._set_ctx_item(INPUT_VALUE, safe_json(input_value))
         if output_value is not None:
             span._set_ctx_item(OUTPUT_VALUE, safe_json(output_value))
+
+    @classmethod
+    def _tag_freeform_io(cls, span, input_value=None, output_value=None):
+        """Tags input/output values for experient spans.
+        Will be mapped to span's `meta.{input,output}` fields.
+        this is meant to be non restrictive on user's data, experiments allow
+        arbitrary structured or non structured IO values in its spans
+        """
+        if input_value is not None:
+            span._set_ctx_item(EXPERIMENTS_INPUT, safe_json(input_value))
+        if output_value is not None:
+            span._set_ctx_item(EXPERIMENTS_OUTPUT, safe_json(output_value))
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:
