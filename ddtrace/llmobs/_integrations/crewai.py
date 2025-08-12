@@ -1,3 +1,4 @@
+import json
 from collections.abc import Iterable
 from typing import Any
 from typing import Dict
@@ -199,9 +200,13 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
+        filtered_input = input
+        if isinstance(input, dict) and "security_context" in input:
+            filtered_input = {k: v for k, v in input.items() if k != "security_context"}
+        
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, input, "function", span),
+            (tool_name, json.dumps(filtered_input), "function", span),
         )
 
     def _tag_agent_manifest(self, span, agent):

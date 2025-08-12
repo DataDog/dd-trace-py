@@ -312,8 +312,9 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
+        content = str(_get_attr(m, "content", ""))
         processed_message = {
-            "content": str(_get_attr(m, "content", "")),
+            "content": content,
             "role": str(_get_attr(m, "role", "")),
         }  # type: dict[str, Union[str, list[dict[str, dict]]]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
@@ -331,6 +332,9 @@ def openai_set_meta_tags_from_chat(
                 }
                 for tool_call in tool_calls
             ]
+        if not processed_message.get("tool_calls"):
+            processed_message["tool_calls"] = []
+        capture_plain_text_tool_call(processed_message["tool_calls"], content, span, input=True)
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -373,6 +377,7 @@ def openai_set_meta_tags_from_chat(
             function_call_info = {"name": function_name, "arguments": arguments}
             output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
             continue
+        capture_plain_text_tool_call(tool_calls_info, content, span)
         tool_calls = _get_attr(choice_message, "tool_calls", []) or []
         for tool_call in tool_calls:
             tool_args = getattr(tool_call.function, "arguments", "")
@@ -403,6 +408,45 @@ def openai_set_meta_tags_from_chat(
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
+
+def capture_plain_text_tool_call(tool_calls_info: List[Dict[str, Any]], content: str, span: Span, input: bool = False) -> None:
+    """
+    Captures plain text tool calls from a content string.
+
+    This is useful for extracting tool calls from ReAct agents which format tool calls as plain text.
+    In this framework, the tool call is formatted within the content string as:
+    ```
+    Action: <tool_name>
+    Action Input: <tool_input>
+    ```
+    """
+    if not content:
+        return
+    
+    regex = (
+        r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+    )
+    action_match = re.search(regex, content, re.DOTALL)
+    if action_match:
+        tool_name = action_match.group(1).strip().strip("*").strip()
+        tool_input = action_match.group(2).strip().strip(" ").strip('"').split('\nObservation')[0]
+        tool_calls_info.append({"name": tool_name, "arguments": tool_input, "tool_id": "", "type": "function"})
+        if input:
+            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
+        else:
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_name + tool_input,
+                    tool_name,
+                    tool_input,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
+    
 
 def get_metadata_from_kwargs(
     kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
