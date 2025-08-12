@@ -25,7 +25,6 @@ from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
-from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.internal import core
@@ -849,14 +848,14 @@ def _on_azure_functions_trigger_span_modifier(ctx, azure_functions_config, funct
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
 
 
-def _on_azure_functions_service_bus_trigger_span_modifier(
-    ctx, azure_functions_config, function_name, trigger, span_kind, entity_name, message_id
+def _on_azure_functions_message_broker_trigger_span_modifier(
+    ctx, azure_functions_config, system, function_name, trigger, span_kind, destination_name, message_id
 ):
     span = ctx.span
     _set_azure_function_tags(span, azure_functions_config, function_name, trigger, span_kind)
-    span.set_tag_str(MESSAGING_DESTINATION_NAME, entity_name)
+    span.set_tag_str(MESSAGING_DESTINATION_NAME, destination_name)
     span.set_tag_str(MESSAGING_OPERATION, "receive")
-    span.set_tag_str(MESSAGING_SYSTEM, azure_servicebusx.SERVICE)
+    span.set_tag_str(MESSAGING_SYSTEM, system)
 
     if message_id is not None:
         span.set_tag_str(MESSAGING_MESSAGE_ID, message_id)
@@ -925,7 +924,8 @@ def listen():
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
     core.on("azure.functions.start_response", _on_azure_functions_start_response)
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
-    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
+    core.on("azure.functions.event_hub_trigger_modifier", _on_azure_functions_message_broker_trigger_span_modifier)
+    core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_message_broker_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_message_broker_send_modifier)
     core.on("azure.eventhub.send_event_modifier", _on_azure_message_broker_send_modifier)
 
@@ -984,6 +984,7 @@ def listen():
         "rq.job.perform",
         "rq.job.fetch_many",
         "azure.eventhub.patched_producer",
+        "azure.functions.patched_event_hub",
         "azure.functions.patched_route_request",
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",

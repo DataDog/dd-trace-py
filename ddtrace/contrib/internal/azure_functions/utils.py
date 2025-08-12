@@ -1,6 +1,7 @@
 import functools
 import inspect
 from typing import List
+from typing import Union
 
 import azure.functions as azure_functions
 
@@ -65,10 +66,20 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
     return wrapper
 
 
-def message_list_has_single_context(msg_list: List[azure_functions.ServiceBusMessage]):
-    first_context = HTTPPropagator.extract(msg_list[0].application_properties)
+def get_properties(message: Union[azure_functions.ServiceBusMessage, azure_functions.EventHubEvent]):
+    if isinstance(message, azure_functions.ServiceBusMessage):
+        return message.application_properties
+    if isinstance(message, azure_functions.EventHubEvent) and message.metadata is not None:
+        return message.metadata.get("properties")
+    return {}
+
+
+def message_list_has_single_context(
+    msg_list: List[Union[azure_functions.ServiceBusMessage, azure_functions.EventHubEvent]],
+):
+    first_context = HTTPPropagator.extract(get_properties(msg_list[0]))
     for message in msg_list[1:]:
-        context = HTTPPropagator.extract(message.application_properties)
+        context = HTTPPropagator.extract(get_properties(message))
         if first_context != context:
             return False
 
