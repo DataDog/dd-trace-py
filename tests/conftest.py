@@ -638,20 +638,21 @@ class TelemetryTestSession(object):
         configurations = []
         events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
         for event in events_with_configs:
-            for c in event["payload"]["configuration"]:
-                config = c.copy()
-                if remove_seq_id:
-                    config.pop("seq_id")
+            for config in event["payload"]["configuration"]:
                 if config["name"] == name or (name is None and config["name"] not in ignores):
                     configurations.append(config)
 
+        configurations.sort(key=lambda x: x["seq_id"])
         if effective:
             config_map = {}
             for c in configurations:
                 config_map[c["name"]] = c
             configurations = list(config_map.values())
 
-        configurations.sort(key=lambda x: x["name"])
+        if remove_seq_id:
+            for c in configurations:
+                c.pop("seq_id")
+
         return configurations
 
 
