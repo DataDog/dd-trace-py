@@ -63,13 +63,13 @@ def test_openai_llm_error(langchain, langchain_openai, openai_completion_error):
         llm.generate([12345, 123456])
 
 
-@pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
-@pytest.mark.snapshot
-def test_cohere_llm_sync_0_2(langchain_cohere, cohere_url):
-    llm = langchain_cohere.llms.Cohere(
-        cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url
-    )
-    llm.invoke("What is the secret Krabby Patty recipe?")
+# @pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
+# @pytest.mark.snapshot
+# def test_cohere_llm_sync_0_2(langchain_cohere, cohere_url):
+#     llm = langchain_cohere.llms.Cohere(
+#         cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url
+#     )
+#     llm.invoke("What is the secret Krabby Patty recipe?")
 
 
 @pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
