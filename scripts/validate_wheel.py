@@ -14,9 +14,9 @@ import base64
 import csv
 import hashlib
 import io
+from pathlib import Path
 import sys
 import zipfile
-from pathlib import Path
 
 
 def compute_hash(data):
@@ -133,7 +133,7 @@ def main():
             print(f"  - {error}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"[SUCCESS] Wheel validation passed!")
+    print("[SUCCESS] Wheel validation passed!")
     return 0
 
 
