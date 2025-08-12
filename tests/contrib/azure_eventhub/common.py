@@ -31,7 +31,7 @@ TRACE_CONTEXT_KEYS = [
 ]
 
 
-def normalize_properties(event_data: EventData | AmqpAnnotatedMessage):
+def normalize_properties(event_data: Union[EventData, AmqpAnnotatedMessage]):
     if isinstance(event_data, EventData):
         props = event_data.properties
     elif isinstance(event_data, AmqpAnnotatedMessage):
@@ -68,7 +68,7 @@ class EventHandler:
         self._lock = Lock()
         self._partitions_initialized_count = 0
 
-    def on_event(self, partition_context: PartitionContext, event: EventData | None):
+    def on_event(self, partition_context: PartitionContext, event: Union[EventData, None]):
         self.received_events.append(event)
         if len(self.received_events) >= self._expected_event_count:
             self._all_events_received.set()
@@ -101,7 +101,7 @@ class EventHandlerAsync:
         self._expected_partition_count = 2
         self._partitions_initialized_count = 0
 
-    async def on_event(self, partition_context: PartitionContextAsync, event: EventData | None) -> None:
+    async def on_event(self, partition_context: PartitionContextAsync, event: Union[EventData, None]) -> None:
         self.received_events.append(event)
         if len(self.received_events) >= self._expected_event_count:
             self._all_events_received.set()
@@ -260,7 +260,7 @@ async def run_test_async(
 
 
 @pytest.mark.asyncio
-async def test_distributed_tracing_disabled():
+async def test_common():
     is_async = os.environ.get("IS_ASYNC", "False") == "True"
     is_batch = os.environ.get("IS_BATCH", "False") == "True"
     distributed_tracing_enabled = os.environ.get("DD_AZURE_EVENTHUB_DISTRIBUTED_TRACING", "False") == "True"

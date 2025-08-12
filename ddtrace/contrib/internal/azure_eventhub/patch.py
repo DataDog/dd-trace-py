@@ -51,7 +51,7 @@ def _patch(azure_eventhub_module):
 
     if azure_eventhub_module.__name__ == "azure.eventhub.aio":
         Pin().onto(azure_eventhub_aio.EventHubProducerClient)
-        _w("azure.eventhub.aio", "EventHubProducerClient.__init__", _patched_producer_init)  # TODO: test async init
+        _w("azure.eventhub.aio", "EventHubProducerClient.__init__", _patched_producer_init)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_event", _patched_send_event_async)
         _w("azure.eventhub.aio", "EventHubProducerClient.send_batch", _patched_send_batch_async)
     else:
@@ -66,7 +66,6 @@ def _patched_producer_init(wrapped, instance, args, kwargs):
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)
 
-    # TODO: test positional argument
     instance._dd_fully_qualified_namespace = get_argument_value(args, kwargs, 0, "fully_qualified_namespace", True)
 
     return wrapped(*args, **kwargs)
