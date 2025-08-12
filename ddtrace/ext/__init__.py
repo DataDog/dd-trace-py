@@ -17,6 +17,7 @@ class SpanTypes(object):
     SYSTEM = "system"
     LLM = "llm"
     VALKEY = "valkey"
+    SERVING = "serving"
 
 
 class SpanKind(object):

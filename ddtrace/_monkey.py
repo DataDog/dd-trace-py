@@ -117,6 +117,7 @@ PATCH_MODULES = {
     "selenium": True,
     "valkey": True,
     "openai_agents": True,
+    "ray": True,
     "protobuf": config._data_streams_enabled,
 }
 
