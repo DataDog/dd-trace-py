@@ -5,9 +5,12 @@ from typing import Optional
 
 
 try:
-    from google.genai import types as genai_types
+    from google.genai.types import FunctionDeclaration
+
+    _from_callable_with_api_option = getattr(FunctionDeclaration, "from_callable_with_api_option", None)
 except ImportError:
-    genai_types = None
+    FunctionDeclaration = None
+    _from_callable_with_api_option = None
 
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -177,8 +180,8 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         tool_definitions = []
         tools = _get_attr(config, "tools", []) or []
         for tool in tools:
-            if callable(tool) and genai_types is not None:
-                function_declaration = genai_types.FunctionDeclaration.from_callable_with_api_option(
+            if callable(tool) and _from_callable_with_api_option is not None:
+                function_declaration = FunctionDeclaration.from_callable_with_api_option(
                     callable=tool, api_option="GEMINI_API"
                 )
                 schema = _get_attr(function_declaration, "parameters", {})
