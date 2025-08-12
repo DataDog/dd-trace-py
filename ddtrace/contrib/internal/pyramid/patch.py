@@ -24,12 +24,8 @@ config._add(
 DD_PATCH = "_datadog_patch"
 
 
-def get_version():
-    # type: () -> str
-    try:
-        import importlib.metadata as importlib_metadata
-    except ImportError:
-        import importlib_metadata  # type: ignore[no-redef]
+def get_version() -> str:
+    import importlib.metadata as importlib_metadata
 
     return str(importlib_metadata.version(pyramid.__package__))
 
