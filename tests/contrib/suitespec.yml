@@ -361,6 +361,7 @@ suites:
       - tests/contrib/azure_eventhub/*
       - tests/snapshots/tests.contrib.azure_eventhub.*
     runner: riot
+    snapshot: true
     services:
       - azurite
       - azureeventhubsemulator
