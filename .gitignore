@@ -191,3 +191,5 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 # .env file
 .env
 .envrc
+
+.debug
