@@ -631,7 +631,7 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: Optional[List[DatasetRecord]] = None) -> Dataset:
+    def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
