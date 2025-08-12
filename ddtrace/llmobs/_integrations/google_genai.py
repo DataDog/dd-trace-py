@@ -178,9 +178,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
 
     def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
         schema = _get_attr(function_declaration, "parameters", {}) or {}
-        try:
+        if hasattr(schema, "model_dump"):
             schema = schema.model_dump(exclude_none=True)
-        except AttributeError:
+        else:
             schema = {"value": repr(schema)}
 
         return ToolDefinition(
