@@ -128,12 +128,12 @@ def main():
     errors = validate_wheel(wheel_path)
 
     if errors:
-        print(f"\n❌ Found {len(errors)} error(s):", file=sys.stderr)
+        print(f"\n[ERROR] Found {len(errors)} error(s):", file=sys.stderr)
         for error in errors:
             print(f"  - {error}", file=sys.stderr)
         sys.exit(1)
 
-    print(f"✅ Wheel validation passed!")
+    print(f"[SUCCESS] Wheel validation passed!")
     return 0
 
 
