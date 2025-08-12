@@ -825,7 +825,10 @@ class LangChainIntegration(BaseLLMIntegration):
             object.__setattr__(instance, "_dd.prompt_template", template)
 
     def llmobs_set_prompt_tag(self, instance, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Any):
-        """On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span."""
+        """
+        On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span.
+        Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
+        """
         prompt_value_meta = getattr(instance, "_dd.prompt_template", None)
         if prompt_value_meta is not None:
             prompt = prompt_value_meta

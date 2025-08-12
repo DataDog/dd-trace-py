@@ -536,7 +536,13 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
 
 @with_traced_module
 def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+    """
+    No actual tracing happens here--we just need to move the prompt template to somewhere it can be accessed later.
+    """
     integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return func(*args, **kwargs)
+
     prompt = func(*args, **kwargs)
     integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
     return prompt
@@ -544,7 +550,13 @@ def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwa
 
 @with_traced_module
 async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
+    """
+    async version of above traced_base_prompt_template_invoke
+    """
     integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return func(*args, **kwargs)
+
     prompt = await func(*args, **kwargs)
     integration.handle_prompt_template_invoke(instance, prompt, args, kwargs)
     return prompt
@@ -559,6 +571,7 @@ def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
     with templating information) into a string.
     While most tagging happens in the .generate() wrapper, we need to enter here to capture
     that templating information before it is consumed.
+    Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
     """
     integration: LangChainIntegration = langchain._datadog_integration
     if integration.llmobs_enabled is False:
@@ -575,6 +588,9 @@ async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
     async version of above traced_llm_invoke
     """
     integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return func(*args, **kwargs)
+
     integration.handle_llm_invoke(instance, args, kwargs)
     response = await func(*args, **kwargs)
     return response
