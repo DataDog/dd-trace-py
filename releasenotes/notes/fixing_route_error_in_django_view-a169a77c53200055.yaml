@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    AAP: This fix resolves an issue where the ``route`` parameter was not being correctly handled in the Django path function.
