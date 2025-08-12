@@ -56,11 +56,11 @@ def llmobs_events(llmobs, llmobs_span_writer):
 def langchain():
     with override_env(
         dict(
-            # OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-            # COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-            # ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-            # HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-            # AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
+            OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+            COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
+            ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
+            HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
+            AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
         )
     ):
         patch()
