@@ -787,8 +787,7 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
         """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
-        template = None
-        variables = None
+        template, variables = None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
         if isinstance(args[0], dict):
