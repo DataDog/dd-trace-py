@@ -15,6 +15,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
@@ -320,11 +321,9 @@ class TraceMiddleware:
                 raise
             except BaseException as exception:
                 # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
-                if exception.__class__.__name__ == "BaseExceptionGroup":
-                    for exc in exception.exceptions:
-                        if isinstance(exc, BlockingException):
-                            set_blocked(exc.args[0])
-                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                if exc := find_exception(exception, BlockingException):
+                    set_blocked(exc.args[0])
+                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
