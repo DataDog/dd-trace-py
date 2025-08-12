@@ -1,9 +1,15 @@
 import os
+import time
 
 from crewai import Agent
 from crewai import Crew
+from crewai import Flow
 from crewai import Process
 from crewai import Task
+from crewai.flow.flow import and_
+from crewai.flow.flow import listen
+from crewai.flow.flow import router
+from crewai.flow.flow import start
 from crewai.tasks.conditional_task import ConditionalTask
 from crewai.tools import tool
 import pytest
@@ -13,6 +19,10 @@ from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
+from tests.contrib.crewai.utils import budget_text
+from tests.contrib.crewai.utils import fun_fact_text
+from tests.contrib.crewai.utils import itinerary_text
+from tests.contrib.crewai.utils import welcome_email_text
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -157,6 +167,172 @@ def hierarchical_crew(crewai):
         manager_llm="gpt-4o",
         planning=True,
     )
+
+
+@pytest.fixture
+def simple_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @listen(generate_city)
+        def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def simple_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @listen(generate_city)
+        async def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def complex_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @start()
+        def generate_welcome_email(self):
+            time.sleep(0.05)
+            return welcome_email_text
+
+        @listen(generate_city)
+        def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+        @listen(generate_city)
+        def generate_budget(self, random_city):
+            time.sleep(0.04)
+            return budget_text
+
+        @listen(and_(generate_budget, generate_city, generate_fun_fact, generate_welcome_email))
+        def generate_itinerary(self):
+            time.sleep(0.05)
+            return itinerary_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def complex_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            return "New York City"
+
+        @start()
+        async def generate_welcome_email(self):
+            time.sleep(0.05)
+            return welcome_email_text
+
+        @listen(generate_city)
+        async def generate_fun_fact(self, random_city):
+            time.sleep(0.06)
+            return fun_fact_text
+
+        @listen(generate_city)
+        async def generate_budget(self, random_city):
+            time.sleep(0.04)
+            return budget_text
+
+        @listen(and_(generate_budget, generate_city, generate_fun_fact, generate_welcome_email))
+        async def generate_itinerary(self):
+            time.sleep(0.05)
+            return itinerary_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
+
+
+@pytest.fixture
+def router_flow_async(crewai):
+    class ExFlow(Flow[dict]):
+        model = "gpt-4o-mini"
+
+        @start()
+        async def generate_city(self):
+            time.sleep(0.05)
+            random_city = "New York City"
+            self.state["city"] = random_city
+            return random_city
+
+        @router(generate_city)
+        async def discriminate_city(self):
+            time.sleep(0.05)
+            if self.state["city"] != "New York City":
+                return "YIKES"
+            return "LFG"
+
+        @listen("YIKES")
+        async def say_oop(self):
+            time.sleep(0.03)
+            return "Oop, have a fun trip!"
+
+        @listen("LFG")
+        async def generate_fun_fact(self):
+            time.sleep(0.06)
+            return fun_fact_text
+
+    yield ExFlow()
 
 
 @pytest.fixture
