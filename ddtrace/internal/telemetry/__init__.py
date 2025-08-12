@@ -44,27 +44,22 @@ def get_config(
     if isinstance(envs, str):
         envs = [envs]
 
-    # Default value will be used if no other configuration source is found
     effective_val = default
     telemetry_name = envs[0]
     if report_telemetry:
         telemetry_writer.add_configuration(telemetry_name, default, "default")
 
-    # 1. Check local stable config first (lowest precedence)
     for env in envs:
         if env in LOCAL_CONFIG:
             val = LOCAL_CONFIG[env]
-            # Apply modifier if provided
             if modifier:
                 val = modifier(val)
 
             if report_telemetry:
                 telemetry_writer.add_configuration(telemetry_name, val, "local_stable_config")
             effective_val = val
-            # Only match the first config
             break
 
-    # 2. Check OpenTelemetry env vars (higher precedence)
     if otel_env is not None and otel_env in os.environ:
         raw_val, parsed_val = parse_otel_env(otel_env)
         if parsed_val is not None:
@@ -79,7 +74,6 @@ def get_config(
         else:
             _invalid_otel_config(otel_env)
 
-    # 3. Check Datadog env vars (higher precedence)
     for env in envs:
         if env in os.environ:
             val = os.environ[env]
@@ -91,10 +85,8 @@ def get_config(
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
-            # Only match the first config
             break
 
-    # 4. Check fleet stable config last (highest precedence)
     for env in envs:
         if env in FLEET_CONFIG:
             val = FLEET_CONFIG[env]
@@ -107,10 +99,8 @@ def get_config(
                 if otel_env is not None and otel_env in os.environ:
                     _hiding_otel_config(otel_env, env)
             effective_val = val
-            # Only match the first config
             break
 
-    # Return the highest precedence configuration value
     return effective_val
 
 
