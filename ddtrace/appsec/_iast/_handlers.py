@@ -207,7 +207,6 @@ def _on_django_func_wrapped(fn_args, fn_kwargs, first_arg_expected_type, *_):
 
 
 def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> None:
-    print("HERE", http_req, args, kwargs)
     resolver_match = getattr(http_req, "resolver_match", None)
     if resolver_match is not None:
         set_iast_request_endpoint(http_req.method, resolver_match.route)
@@ -265,10 +264,10 @@ def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[s
         source_origin=OriginType.PATH,
     )
     http_req.META = taint_structure(http_req.META, OriginType.HEADER_NAME, OriginType.HEADER)
-    if fn_kwargs:
+    if kwargs:
         try:
-            for k, v in fn_kwargs.items():
-                fn_kwargs[k] = taint_pyobject(v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER)
+            for k, v in kwargs.items():
+                kwargs[k] = taint_pyobject(v, source_name=k, source_value=v, source_origin=OriginType.PATH_PARAMETER)
         except Exception:
             iast_propagation_listener_log_log("Unexpected exception while tainting path parameters", exc_info=True)
 
