@@ -1,4 +1,0 @@
----
-features:
-  - |
-    langchain: Adds support for auto instrumentation of Langchain prompt templates.
