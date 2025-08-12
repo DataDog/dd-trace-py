@@ -69,19 +69,17 @@ jobs:
       # See: https://stackoverflow.com/a/65402241
       CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
       CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+        python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
         unzip -l {wheel} | grep '\.so' &&
         auditwheel repair -w ./tempwheelhouse {wheel} &&
-        for w in ./tempwheelhouse/*.whl; do
-          python scripts/zip_filter.py $w \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md
-          mv $w {dest_dir}
-        done &&
+        mv ./tempwheelhouse/*.whl {dest_dir} &&
         rm -rf ./tempwheelhouse
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-        zip -d {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
+        python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
-      CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: choco install -y 7zip &&
-        7z d -r "{wheel}" *.c *.cpp *.cc *.h *.hpp *.pyx *.md &&
+      CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: |
+        python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" &&
         move "{wheel}" "{dest_dir}"
       CIBW_TEST_COMMAND: "python {project}/tests/smoke_test.py"
 
@@ -106,6 +104,16 @@ jobs:
         uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
         with:
           only: ${{ matrix.only }}
+
+      - name: Validate wheel RECORD files
+        shell: bash
+        run: |
+          for wheel in ./wheelhouse/*.whl; do
+            if [ -f "$wheel" ]; then
+              echo "Validating $(basename $wheel)..."
+              python scripts/validate_wheel.py "$wheel"
+            fi
+          done
 
       - if: runner.os != 'Windows'
         run: |
