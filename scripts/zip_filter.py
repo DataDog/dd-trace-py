@@ -22,7 +22,7 @@ def update_record(record_content, patterns):
 
     # Rebuild the RECORD content
     output = io.StringIO()
-    writer = csv.writer(output, lineterminator='\n')
+    writer = csv.writer(output, lineterminator="\n")
     for record in records:
         writer.writerow(record)
 
@@ -36,8 +36,8 @@ def remove_from_zip(zip_filename, patterns):
     # First pass: read RECORD file if it exists
     with zipfile.ZipFile(zip_filename, "r") as source_zip:
         for file in source_zip.infolist():
-            if file.filename.endswith('.dist-info/RECORD'):
-                record_content = source_zip.read(file.filename).decode('utf-8')
+            if file.filename.endswith(".dist-info/RECORD"):
+                record_content = source_zip.read(file.filename).decode("utf-8")
                 break
 
     # Second pass: create new zip without removed files and with updated RECORD
@@ -48,7 +48,7 @@ def remove_from_zip(zip_filename, patterns):
         for file in source_zip.infolist():
             if any(fnmatch.fnmatch(file.filename, pattern) for pattern in patterns):
                 continue
-            elif file.filename.endswith('.dist-info/RECORD') and record_content:
+            elif file.filename.endswith(".dist-info/RECORD") and record_content:
                 # Update the RECORD file
                 updated_record = update_record(record_content, patterns)
                 temp_zip.writestr(file, updated_record)
