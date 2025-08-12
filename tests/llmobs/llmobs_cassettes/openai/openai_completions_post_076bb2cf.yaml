@@ -1,0 +1,137 @@
+interactions:
+- request:
+    body: '{"model": "gpt-3.5-turbo-instruct", "prompt": ["Can you explain what Descartes
+      meant by ''I think, therefore I am''?"], "frequency_penalty": 0, "logit_bias":
+      {}, "max_tokens": 256, "n": 1, "presence_penalty": 0, "temperature": 0.7, "top_p":
+      1}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '241'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-C3je7m5QzHYamGsWaMxo8s04Infi4\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755006483,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\n\\\"Cogito, ergo sum\\\"
+        or \\\"I think, therefore I am\\\" is a famous statement by the 17th-century
+        philosopher Ren\xE9 Descartes. It is the starting point of his philosophical
+        system known as Cartesianism.\\n\\nDescartes believed that in order to find
+        absolute certainty, he needed to doubt everything he knew. He questioned the
+        existence of external objects, the reliability of his senses, and even whether
+        he was dreaming or being deceived by an evil demon.\\n\\nHowever, he realized
+        that the very act of doubting and thinking proved his existence. He argued
+        that even if he was being deceived, there must be a \\\"deceiver\\\" who is
+        deceiving him, and therefore he must exist as a thinking being.\\n\\nIn other
+        words, the fact that he was able to doubt and think was enough evidence for
+        his existence. He concluded that the one thing he could be sure of was his
+        own existence as a thinking being, and this became the foundation of his philosophy.\\n\\nThis
+        statement also highlights the importance of the mind or consciousness in defining
+        our existence. Descartes believed that our ability to think and reason distinguishes
+        us from other creatures and is what ultimately defines our existence. \",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 17,\n    \"completion_tokens\":
+        240,\n    \"total_tokens\": 257\n  }\n}\n"
+    headers:
+      CF-RAY:
+      - 96e06d94bd24d6cd-IAD
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Tue, 12 Aug 2025 13:48:05 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=mkQR_S6mQM7pWAfg36L7AJCMxRQM.27qtdHQliinSnQ-1755006485-1.0.1.1-lh83sos.2vkIZQKkKzIEMbiDV1jNSKiKchcPjjq9nv6c68hmsVNILLSlDhZlmg5H08G7QrVmVhd3736QnMefOm6S.WxGmKB6LJjKPHiuq14;
+        path=/; expires=Tue, 12-Aug-25 14:18:05 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=9_Q7U1VXyYGqyxUGQQZ0BcZWrpH7Pl_x8xOBhnzZOVk-1755006485197-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-model:
+      - gpt-3.5-turbo-instruct:20230824-v2
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '2187'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-7fc4f5b456-m2dbw
+      x-envoy-upstream-service-time:
+      - '2233'
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3498'
+      x-ratelimit-remaining-tokens:
+      - '89983'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 11ms
+      x-request-id:
+      - req_b715219d665840ec8d11b19185d01185
+    status:
+      code: 200
+      message: OK
+version: 1
