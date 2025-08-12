@@ -198,9 +198,9 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 
     function_response = _get_attr(part, "function_response", None)
     if function_response:
-        result = _get_attr(function_response, "response", "")
+        result = _get_attr(function_response, "response", "") or ""
         tool_result_info = ToolResult(
-            name=_get_attr(function_response, "name", ""),
+            name=_get_attr(function_response, "name", "") or "",
             result=result if isinstance(result, str) else json.dumps(result),
             tool_id=_get_attr(function_response, "id", "") or "",
             type="function_response",

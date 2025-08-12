@@ -177,10 +177,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         tool_definitions = []
         tools = _get_attr(config, "tools", []) or []
         for tool in tools:
-            # check if it's a Python function (automatic function calling)
             if callable(tool) and genai_types is not None:
-                # even though the api_option is set to GEMINI_API, this method does not actually
-                # make a client call, and the fields we are extracting do not vary based on client
                 function_declaration = genai_types.FunctionDeclaration.from_callable_with_api_option(
                     callable=tool, api_option="GEMINI_API"
                 )
@@ -188,7 +185,7 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 try:
                     schema = schema.model_dump(exclude_none=True)
                 except AttributeError:
-                    schema = repr(schema)
+                    schema = {"value": repr(schema)}
                 tool_definition_info = ToolDefinition(
                     name=_get_attr(function_declaration, "name", ""),
                     description=_get_attr(function_declaration, "description", ""),
@@ -196,13 +193,13 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 )
                 tool_definitions.append(tool_definition_info)
             else:
-                # check if it's a Google GenAI tool object with function_declarations
-                for function_declaration in _get_attr(tool, "function_declarations", []):
+                function_declarations = _get_attr(tool, "function_declarations", []) or []
+                for function_declaration in function_declarations:
                     schema = _get_attr(function_declaration, "parameters", {})
                     try:
                         schema = schema.model_dump()
                     except AttributeError:
-                        schema = repr(schema)
+                        schema = {"value": repr(schema)}
                     tool_definition_info = ToolDefinition(
                         name=_get_attr(function_declaration, "name", ""),
                         description=_get_attr(function_declaration, "description", ""),
