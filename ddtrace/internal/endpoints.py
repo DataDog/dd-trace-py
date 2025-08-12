@@ -1,6 +1,7 @@
 import dataclasses
 from time import monotonic
-from typing import List
+from typing import Dict
+from typing import Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -24,7 +25,7 @@ class HttpEndPointsCollection:
     It maintains a maximum size and drops endpoints after a certain time period in case of a hot reload of the server.
     """
 
-    endpoints: List[HttpEndPoint] = dataclasses.field(default_factory=list, init=False)
+    endpoints: Dict[Tuple[str, str], HttpEndPoint] = dataclasses.field(default_factory=dict, init=False)
     is_first: bool = dataclasses.field(default=True, init=False)
     drop_time_seconds: float = dataclasses.field(default=90.0, init=False)
     last_modification_time: float = dataclasses.field(default_factory=monotonic, init=False)
@@ -45,13 +46,13 @@ class HttpEndPointsCollection:
         current_time = monotonic()
         if current_time - self.last_modification_time > self.drop_time_seconds:
             self.reset()
-            self.endpoints.append(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+            self.endpoints[(method, path)] = HttpEndPoint(
+                method=method, path=path, resource_name=resource_name, operation_name=operation_name
             )
         elif len(self.endpoints) < self.max_size_length:
             self.last_modification_time = current_time
-            self.endpoints.append(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+            self.endpoints[(method, path)] = HttpEndPoint(
+                method=method, path=path, resource_name=resource_name, operation_name=operation_name
             )
 
     def flush(self, max_length: int) -> dict:
@@ -61,16 +62,16 @@ class HttpEndPointsCollection:
         if max_length >= len(self.endpoints):
             res = {
                 "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep) for ep in self.endpoints],
+                "endpoints": [dataclasses.asdict(ep) for ep in self.endpoints.values()],
             }
             self.reset()
             return res
         else:
+            batch = [self.endpoints.popitem()[1] for _ in range(max_length)]
             res = {
                 "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep) for ep in self.endpoints[:max_length]],
+                "endpoints": [dataclasses.asdict(ep) for ep in batch],
             }
-            self.endpoints = self.endpoints[max_length:]
             self.is_first = False
             self.last_modification_time = monotonic()
             return res
