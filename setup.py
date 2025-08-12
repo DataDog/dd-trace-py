@@ -509,7 +509,7 @@ class CustomBuildExt(build_ext):
             subprocess.run([objcopy, "--only-keep-debug", so_file, debug_out], check=True)
 
             # Strip the debug symbols from the .so file
-            subprocess.run([strip, "-S", so_file], check=True)
+            subprocess.run([strip, "-g", so_file], check=True)
 
             # Link the debug symbols to the .so file
             subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
