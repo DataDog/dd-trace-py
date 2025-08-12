@@ -211,7 +211,7 @@ class Contrib_TestClass_For_Threats:
             for ep in collection.values():
                 assert ep.method
                 # path could be empty, but must be a string
-                assert isinstance(ep.path,str)
+                assert isinstance(ep.path, str)
                 assert ep.resource_name
                 assert ep.operation_name
                 if ep.method not in ("GET", "*", "POST"):
