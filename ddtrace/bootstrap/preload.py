@@ -68,7 +68,6 @@ if config._otel_trace_enabled:
 
     @ModuleWatchdog.after_module_imported("opentelemetry.trace")
     def _ot_traces(_):
-        config._otel_logs_enabled
         from opentelemetry.trace import set_tracer_provider
 
         from ddtrace.opentelemetry import TracerProvider
