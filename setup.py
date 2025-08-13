@@ -45,14 +45,6 @@ from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
 
-# workaround for ModuleNotFound.
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
-
-# Remove the import of build_libnative since we're replacing it
-# from build_libnative import build_crate
-# from build_libnative import clean_crate
-
-
 HERE = Path(__file__).resolve().parent
 
 COMPILE_MODE = "Release"
@@ -197,9 +189,12 @@ class PatchedDistribution(Distribution):
                 "ddtrace.internal.native._native",
                 # Path to your Cargo.toml so setuptools-rust can infer names
                 path=str(Path(__file__).parent / "src" / "native" / "Cargo.toml"),
-                # Use no-binding if you don't need PyO3 bindings
-                binding=Binding.NoBinding,
+                py_limited_api="auto",
+                binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
+                features=(
+                    ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
+                ),
                 env=env,
             )
         ]
@@ -249,13 +244,8 @@ class ExtensionHashes(build_ext):
 class CustomBuildRust(build_rust):
     """Custom build_rust command that handles dedup_headers and header copying."""
 
-    user_options = build_rust.user_options + [
-        ("features=", "f", "comma-separated list of features to build"),
-    ]
-
     def initialize_options(self):
         super().initialize_options()
-        self.features = None
 
     def is_installed(self, bin_file):
         """Check if a binary is installed in PATH."""
@@ -282,23 +272,17 @@ class CustomBuildRust(build_rust):
 
     def run(self):
         """Run the build process with additional post-processing."""
-        # Set features on the RustExtension if available
-        features_to_use = []
 
-        # Use command line features if provided
-        if self.features:
-            features_to_use = [f.strip() for f in self.features.split(",") if f.strip()]
+        has_profiling_feature = False
+        for ext in self.distribution.rust_extensions:
+            if ext.features and "profiling" in ext.features:
+                has_profiling_feature = True
+                break
 
-        if features_to_use:
-            for ext in self.distribution.rust_extensions:
-                if isinstance(ext, RustExtension):
-                    ext.features = features_to_use
-
-        # Run the parent build_rust command
         super().run()
 
         # Check if profiling is enabled and run dedup_headers
-        if features_to_use and "profiling" in features_to_use:
+        if has_profiling_feature:
             self.install_dedup_headers()
 
             # Add cargo binary folder to PATH
@@ -510,13 +494,11 @@ class CustomBuildExt(build_ext):
         """Build the Rust component using CustomBuildRust command."""
         # Create and run the CustomBuildRust command
         build_rust_cmd = CustomBuildRust(self.distribution)
-        build_rust_cmd.features = native_features  # Pass the features to the command
         build_rust_cmd.initialize_options()
         build_rust_cmd.finalize_options()
         build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
-
         self.output_dir = Path(self.get_ext_fullpath("ddtrace.internal.native._native")).resolve()
 
     @staticmethod
@@ -878,7 +860,6 @@ else:
 
 
 if not IS_PYSTON:
-    native_features = []
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -936,8 +917,6 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        native_features.append("crashtracker")
-        native_features.append("profiling")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
@@ -968,7 +947,6 @@ if not IS_PYSTON:
 
 else:
     ext_modules = []
-    native_features = []
 
 interpose_sccache()
 setup(
