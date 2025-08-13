@@ -2,10 +2,10 @@ import sys
 
 import pytest
 
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MAX_PER_SEC
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
-from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MAX_PER_SEC
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_MECHANISM
+from ddtrace.internal.constants import SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import _get_file_json
@@ -34,12 +34,12 @@ def traced_function(rule, tracer=None, name="test_name", service="test_service",
 def assert_sampling_decision_tags(
     span, sample_rate=1.0, mechanism=SamplingMechanism.SPAN_SAMPLING_RULE, limit=None, trace_sampling=False
 ):
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_RATE) == sample_rate
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
-    assert span.get_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_RATE) == sample_rate
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_MECHANISM) == mechanism
+    assert span.get_metric(SINGLE_SPAN_SAMPLING_MAX_PER_SEC) == limit
 
     if trace_sampling:
-        assert span.get_metric(_SAMPLING_PRIORITY_KEY) > 0
+        assert span.get_metric(SAMPLING_PRIORITY_KEY) > 0
 
 
 def test_single_rule_init_via_env():

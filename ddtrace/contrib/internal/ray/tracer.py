@@ -1,9 +1,9 @@
 from ddtrace import config
 import ddtrace.auto  # noqa: F401
-from ddtrace.constants import _DJM_ENABLED_KEY
-from ddtrace.constants import _FILTER_KEPT_KEY
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import _SPAN_MEASURED_KEY
+from ddtrace.internal.constants import DJM_ENABLED_KEY
+from ddtrace.internal.constants import FILTER_KEPT_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer
 
@@ -20,10 +20,10 @@ class RayTraceFilter(TraceFilter):
                 span.span_type = f"ray.{span.name}"
                 span.name = DEFAULT_SPAN_NAME
                 span.service = config.service or DEFAULT_SERVICE_NAME
-                span.set_metric(_DJM_ENABLED_KEY, 1)
-                span.set_metric(_FILTER_KEPT_KEY, 1)
-                span.set_metric(_SPAN_MEASURED_KEY, 1)
-                span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+                span.set_metric(DJM_ENABLED_KEY, 1)
+                span.set_metric(FILTER_KEPT_KEY, 1)
+                span.set_metric(SPAN_MEASURED_KEY, 1)
+                span.set_metric(SAMPLING_PRIORITY_KEY, 2)
         return trace
 
 

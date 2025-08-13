@@ -2,11 +2,11 @@ import pytest
 import tornado
 
 from ddtrace import config
-from ddtrace.constants import _ORIGIN_KEY
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
 from ddtrace.ext import http
+from ddtrace.internal.constants import ORIGIN_KEY
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
@@ -381,7 +381,7 @@ class TestTornadoWeb(TornadoTestCase):
         # check propagation
         assert 1234 == request_span.trace_id
         assert 4567 == request_span.parent_id
-        assert 2 == request_span.get_metric(_SAMPLING_PRIORITY_KEY)
+        assert 2 == request_span.get_metric(SAMPLING_PRIORITY_KEY)
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -465,8 +465,8 @@ class TestNoPropagationTornadoWebViaSetting(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -504,8 +504,8 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 
@@ -538,8 +538,8 @@ class TestNoPropagationTornadoWebViaConfig(TornadoTestCase):
         # check non-propagation
         assert request_span.trace_id != 1234
         assert request_span.parent_id != 4567
-        assert request_span.get_metric(_SAMPLING_PRIORITY_KEY) != 2
-        assert request_span.get_tag(_ORIGIN_KEY) != "synthetics"
+        assert request_span.get_metric(SAMPLING_PRIORITY_KEY) != 2
+        assert request_span.get_tag(ORIGIN_KEY) != "synthetics"
         assert request_span.get_tag("component") == "tornado"
         assert request_span.get_tag("span.kind") == "server"
 

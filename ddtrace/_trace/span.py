@@ -23,10 +23,6 @@ from ddtrace._trace.types import _AttributeValueType
 from ddtrace._trace.types import _MetaDictType
 from ddtrace._trace.types import _MetricDictType
 from ddtrace._trace.types import _TagNameType
-from ddtrace.constants import _SAMPLING_AGENT_DECISION
-from ddtrace.constants import _SAMPLING_LIMIT_DECISION
-from ddtrace.constants import _SAMPLING_RULE_DECISION
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -48,8 +44,12 @@ from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
+from ddtrace.internal.constants import SAMPLING_AGENT_DECISION
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+from ddtrace.internal.constants import SAMPLING_LIMIT_DECISION
+from ddtrace.internal.constants import SAMPLING_RULE_DECISION
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -329,7 +329,7 @@ class Span(object):
         self.context.sampling_priority = decision
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
-            for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
+            for key in (SAMPLING_RULE_DECISION, SAMPLING_AGENT_DECISION, SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
 
@@ -397,7 +397,7 @@ class Span(object):
             # Also set the `version` tag to the same value
             # DEV: Note that we do no return, we want to set both
             self.set_tag(VERSION_KEY, value)
-        elif key == _SPAN_MEASURED_KEY:
+        elif key == SPAN_MEASURED_KEY:
             # Set `_dd.measured` tag as a metric
             # DEV: `set_metric` will ensure it is an integer 0 or 1
             if value is None:
@@ -454,7 +454,7 @@ class Span(object):
     def set_metric(self, key: _TagNameType, value: NumericType) -> None:
         """This method sets a numeric tag value for the given key."""
         # Enforce a specific constant for `_dd.measured`
-        if key == _SPAN_MEASURED_KEY:
+        if key == SPAN_MEASURED_KEY:
             try:
                 value = int(bool(value))
             except (ValueError, TypeError):

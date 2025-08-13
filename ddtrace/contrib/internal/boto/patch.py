@@ -8,13 +8,13 @@ import wrapt
 
 from ddtrace import config
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_cloud_api_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.serverless import in_aws_lambda
@@ -100,7 +100,7 @@ def patched_query_request(original_func, instance, args, kwargs):
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
 
         operation_name = None
         if args:
@@ -175,7 +175,7 @@ def patched_auth_request(original_func, instance, args, kwargs):
         span_type=SpanTypes.HTTP,
     ) as span:
         # PERF: avoid setting via Span.set_tag
-        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(SPAN_MEASURED_KEY, 1)
         if args:
             http_method = get_argument_value(args, kwargs, 0, "method")
             span.resource = "%s.%s" % (endpoint_name, http_method.lower())

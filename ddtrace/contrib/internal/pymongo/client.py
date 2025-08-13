@@ -13,7 +13,6 @@ from wrapt import ObjectProxy
 # project
 import ddtrace
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanKind
@@ -23,6 +22,7 @@ from ddtrace.ext import mongo as mongox
 from ddtrace.ext import net as netx
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
@@ -144,7 +144,7 @@ def _datadog_trace_operation(operation, wrapped):
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
     span.set_tag_str(mongox.DB, cmd.db)
     span.set_tag_str(mongox.COLLECTION, cmd.coll)
     span.set_tag_str(db.SYSTEM, mongox.SERVICE)
@@ -268,7 +268,7 @@ def _trace_cmd(cmd, socket_instance, address):
     s.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
     # PERF: avoid setting via Span.set_tag
-    s.set_metric(_SPAN_MEASURED_KEY, 1)
+    s.set_metric(SPAN_MEASURED_KEY, 1)
     if cmd.db:
         s.set_tag_str(mongox.DB, cmd.db)
     if cmd:

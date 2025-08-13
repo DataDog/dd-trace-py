@@ -7,7 +7,6 @@ import wrapt
 
 # project
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.redis.patch import instrumented_execute_command
@@ -17,6 +16,7 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
@@ -107,7 +107,7 @@ def traced_execute_pipeline(func, instance, args, kwargs):
         s.set_tag_str(COMPONENT, config.rediscluster.integration_name)
         s.set_tag_str(db.SYSTEM, redisx.APP)
         # PERF: avoid setting via Span.set_tag
-        s.set_metric(_SPAN_MEASURED_KEY, 1)
+        s.set_metric(SPAN_MEASURED_KEY, 1)
         s.set_tag_str(redisx.RAWCMD, resource)
         s.set_metric(redisx.PIPELINE_LEN, len(instance.command_stack))
 

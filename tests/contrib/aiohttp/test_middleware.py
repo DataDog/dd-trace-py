@@ -4,7 +4,6 @@ from opentracing.scope_managers.asyncio import AsyncioScopeManager
 import pytest
 
 from ddtrace._trace.sampler import RateSampler
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import AUTO_KEEP
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
@@ -12,6 +11,7 @@ from ddtrace.contrib.internal.aiohttp.middlewares import CONFIG_KEY
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_app
 from ddtrace.contrib.internal.aiohttp.middlewares import trace_middleware
 from ddtrace.ext import http
+from ddtrace.internal.constants import SAMPLING_PRIORITY_KEY
 from tests.opentracer.utils import init_tracer
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import assert_span_http_status_code
@@ -383,7 +383,7 @@ async def test_distributed_tracing(app_tracer, aiohttp_client):
     # with the right trace_id and parent_id
     assert span.trace_id == 100
     assert span.parent_id == 42
-    assert span.get_metric(_SAMPLING_PRIORITY_KEY) is AUTO_KEEP
+    assert span.get_metric(SAMPLING_PRIORITY_KEY) is AUTO_KEEP
 
 
 async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client):
@@ -409,7 +409,7 @@ async def test_distributed_tracing_with_sampling_true(app_tracer, aiohttp_client
     # with the right trace_id and parent_id
     assert 100 == span.trace_id
     assert 42 == span.parent_id
-    assert 1 == span.get_metric(_SAMPLING_PRIORITY_KEY)
+    assert 1 == span.get_metric(SAMPLING_PRIORITY_KEY)
 
 
 async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_client):
@@ -435,7 +435,7 @@ async def test_distributed_tracing_with_sampling_false(app_tracer, aiohttp_clien
     # with the right trace_id and parent_id
     assert 100 == span.trace_id
     assert 42 == span.parent_id
-    assert 0 == span.get_metric(_SAMPLING_PRIORITY_KEY)
+    assert 0 == span.get_metric(SAMPLING_PRIORITY_KEY)
 
 
 async def test_distributed_tracing_disabled(app_tracer, aiohttp_client):
@@ -486,11 +486,11 @@ async def test_distributed_tracing_sub_span(app_tracer, aiohttp_client):
     # with the right trace_id and parent_id
     assert 100 == span.trace_id
     assert 42 == span.parent_id
-    assert 0 == span.get_metric(_SAMPLING_PRIORITY_KEY)
+    assert 0 == span.get_metric(SAMPLING_PRIORITY_KEY)
     # check parenting is OK with custom sub-span created within server code
     assert 100 == sub_span.trace_id
     assert span.span_id == sub_span.parent_id
-    assert sub_span.get_metric(_SAMPLING_PRIORITY_KEY) is None
+    assert sub_span.get_metric(SAMPLING_PRIORITY_KEY) is None
 
 
 def _assert_200_parenting(client, traces):

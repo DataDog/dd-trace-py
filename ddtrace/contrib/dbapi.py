@@ -10,12 +10,12 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 
-from ..constants import _SPAN_MEASURED_KEY
 from ..constants import SPAN_KIND
 from ..ext import SpanKind
 from ..ext import SpanTypes
 from ..ext import db
 from ..ext import sql
+from ..internal.constants import SPAN_MEASURED_KEY
 from ..trace import Pin
 from .internal.trace_utils import ext_service
 from .internal.trace_utils import iswrapped
@@ -89,7 +89,7 @@ class TracedCursor(wrapt.ObjectProxy):
         ) as s:
             if measured:
                 # PERF: avoid setting via Span.set_tag
-                s.set_metric(_SPAN_MEASURED_KEY, 1)
+                s.set_metric(SPAN_MEASURED_KEY, 1)
             # No reason to tag the query since it is set as the resource by the agent. See:
             # https://github.com/DataDog/datadog-trace-agent/blob/bda1ebbf170dd8c5879be993bdd4dbae70d10fda/obfuscate/sql.go#L232
             s.set_tags(pin.tags)

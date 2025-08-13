@@ -7,10 +7,10 @@ import typing
 from typing import Dict
 
 from ddtrace import config
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 
@@ -93,7 +93,7 @@ def get_traced_cache(ddtracer, service=DEFAULT_SERVICE, meta=None, cache_cls=Non
             s.set_tag_str(COMPONENT, config.flask_cache.integration_name)
 
             # PERF: avoid setting via Span.set_tag
-            s.set_metric(_SPAN_MEASURED_KEY, 1)
+            s.set_metric(SPAN_MEASURED_KEY, 1)
             # set span tags
             s.set_tag_str(CACHE_BACKEND, self.config.get("CACHE_TYPE"))
             s.set_tags(self._datadog_meta)

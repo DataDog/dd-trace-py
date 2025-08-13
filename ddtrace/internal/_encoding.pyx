@@ -19,7 +19,7 @@ from ._utils cimport PyBytesLike_Check
 # DEV: This only occurs because there is a `constants.py` module
 #   in both `ddtrace` and `ddtrace.internal`
 
-from ..constants import _ORIGIN_KEY as ORIGIN_KEY
+from ..internal.constants import ORIGIN_KEY as ORIGIN_KEY
 from .constants import SPAN_LINKS_KEY
 from .constants import SPAN_EVENTS_KEY
 from .constants import MAX_UINT_64BITS
@@ -87,7 +87,7 @@ cdef inline const char * string_to_buff(str s):
 
 # This is a borrowed reference but should be fine as we don't expect ORIGIN_KEY
 # to get GC'd.
-cdef const char * _ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
+cdef const char * ORIGIN_KEY = string_to_buff(ORIGIN_KEY)
 cdef size_t _ORIGIN_KEY_LEN = <size_t> len(ORIGIN_KEY)
 
 
@@ -722,7 +722,7 @@ cdef class MsgpackEncoderV04(MsgpackEncoderBase):
                     if ret != 0:
                         break
                 if dd_origin is not NULL:
-                    ret = pack_bytes(&self.pk, _ORIGIN_KEY, _ORIGIN_KEY_LEN)
+                    ret = pack_bytes(&self.pk, ORIGIN_KEY, _ORIGIN_KEY_LEN)
                     if ret == 0:
                         ret = pack_bytes(&self.pk, dd_origin, strlen(dd_origin))
                     if ret != 0:

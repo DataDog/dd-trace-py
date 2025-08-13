@@ -17,13 +17,13 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
-from ddtrace.constants import _ORIGIN_KEY as ORIGIN_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext.ci import CI_APP_TEST_ORIGIN
 from ddtrace.internal._encoding import BufferFull
 from ddtrace.internal._encoding import BufferItemTooLarge
 from ddtrace.internal._encoding import ListStringTable
 from ddtrace.internal._encoding import MsgpackStringTable
+from ddtrace.internal.constants import ORIGIN_KEY as ORIGIN_KEY
 from ddtrace.internal.encoding import MSGPACK_ENCODERS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import JSONEncoderV2
@@ -35,7 +35,7 @@ from ddtrace.trace import Span
 from tests.utils import DummyTracer
 
 
-_ORIGIN_KEY = ORIGIN_KEY.encode()
+ORIGIN_KEY = ORIGIN_KEY.encode()
 
 
 def span_to_tuple(span):
@@ -717,7 +717,7 @@ def test_encoder_propagates_dd_origin(Encoder, item):
     assert decoded_trace[0]
 
     # Ensure encoded trace contains dd_origin tag in all spans
-    assert all((_[item][_ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
+    assert all((_[item][ORIGIN_KEY] == b"ciapp-test" for _ in decoded_trace[0]))
 
 
 @allencodings
@@ -807,7 +807,7 @@ def test_custom_msgpack_encode_v05():
     def filter_mut(ts):
         return [[[s[i] for i in [0, 1, 2, 5, 7, 8, 9, 10, 11]] for s in t] for t in ts]
 
-    assert st == [b"", _ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
+    assert st == [b"", ORIGIN_KEY, b"foo", b"v05-test", b"GET", b"POST", b"bar"]
     assert filter_mut(ts) == [
         [
             [2, 3, 4, 0, 0, 0, {}, {}, 0],
@@ -843,7 +843,7 @@ def test_msgpack_string_table():
     size = t.size
     encoded = t.flush()
     assert size == len(encoded)
-    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", _ORIGIN_KEY, b"foobar", b"foobaz"], None]
+    assert decode(encoded + b"\xc0", reconstruct=False) == [[b"", ORIGIN_KEY, b"foobar", b"foobaz"], None]
 
     assert len(t) == 2
     assert "foobar" not in t

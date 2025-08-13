@@ -6,12 +6,12 @@ from typing import Optional
 from ddtrace import config
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils_botocore.aws_payload_tagging import AWSPayloadTagging
-from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
 from ddtrace.ext import aws
 from ddtrace.ext import http
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.constants import SPAN_MEASURED_KEY
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils.formats import deep_getattr
 
@@ -64,7 +64,7 @@ def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, 
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     # PERF: avoid setting via Span.set_tag
-    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    span.set_metric(SPAN_MEASURED_KEY, 1)
 
     if args:
         # DEV: join is the fastest way of concatenating strings that is compatible
