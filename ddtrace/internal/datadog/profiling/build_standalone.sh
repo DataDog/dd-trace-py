@@ -104,6 +104,7 @@ cmake_args=(
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
   -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
+  -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
 
 # Initial build targets; start out empty

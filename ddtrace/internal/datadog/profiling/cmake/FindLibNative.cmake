@@ -10,9 +10,17 @@ else()
 endif()
 
 # For both Linux and macOS, Python setuptools-rust will build the extension with .so suffix.
-set(LIBRARY_NAME_PATTERN "_native.*.so")
+if(DEFINED EXTENSION_SUFFIX)
+    set(LIBRARY_NAME "_native${EXTENSION_SUFFIX}")
+else()
+    message(
+        FATAL_ERROR
+            "EXTENSION_SUFFIX is not set. Use `python setup.py` or ddtrace/internal/datadog/profiling/build_standalone.sh"
+            "to build profiling native extensions.")
+endif()
 
 message(WARNING "LIB_FILE_LOCATION: ${LIB_FILE_LOCATION}")
+message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
 # setup.py by setting CARGO_TARGET_DIR environment variable.
@@ -23,10 +31,10 @@ set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)
 
 file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
 
-file(GLOB LIB_FILE "${LIB_FILE_LOCATION}/${LIBRARY_NAME_PATTERN}")
+file(GLOB LIB_FILES "${LIB_FILE_LOCATION}/${LIBRARY_NAME}")
 
-message(WARNING "LIB_FILES LOCATION: ${LIB_FILE}")
+message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
 
 add_library(_native SHARED IMPORTED GLOBAL)
-set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${LIB_FILE} INTERFACE_INCLUDE_DIRECTORIES
-                                                                       ${DEST_INCLUDE_DIR})
+set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${LIB_FILE_LOCATION}/${LIBRARY_NAME}
+                                         INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR})
