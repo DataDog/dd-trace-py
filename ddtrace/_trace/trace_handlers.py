@@ -113,6 +113,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
+    # Look for the tracer in the context, or fallback to the global tracer
     tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
