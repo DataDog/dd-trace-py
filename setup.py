@@ -256,7 +256,15 @@ class CustomBuildRust(build_rust):
         """Install dedup_headers if not already installed."""
         if not self.is_installed("dedup_headers"):
             subprocess.run(
-                ["cargo", "install", "--git", "https://github.com/DataDog/libdatadog", "--bin", "dedup_headers", "tools"],
+                [
+                    "cargo",
+                    "install",
+                    "--git",
+                    "https://github.com/DataDog/libdatadog",
+                    "--bin",
+                    "dedup_headers",
+                    "tools",
+                ],
                 check=True,
             )
 
@@ -272,7 +280,7 @@ class CustomBuildRust(build_rust):
         os.environ["CARGO_TARGET_DIR"] = str(target_dir)
 
         # Set features on the RustExtension if available
-        if hasattr(self, 'native_features') and self.native_features:
+        if hasattr(self, "native_features") and self.native_features:
             for ext in self.distribution.rust_extensions:
                 if isinstance(ext, RustExtension):
                     ext.features = self.native_features
@@ -281,7 +289,7 @@ class CustomBuildRust(build_rust):
         super().run()
 
         # Check if profiling features are enabled and run dedup_headers
-        if hasattr(self, 'native_features') and self.native_features and "profiling" in self.native_features:
+        if hasattr(self, "native_features") and self.native_features and "profiling" in self.native_features:
             self.install_dedup_headers()
 
             # Add cargo binary folder to PATH
@@ -514,7 +522,7 @@ class CustomBuildExt(build_ext):
         link_file = None
         if sys.platform == "win32":
             try:
-                (library,) = target_dir.glob("_native.dll")
+                library = next(target_dir.glob("_native.dll"))
             except StopIteration:
                 raise RuntimeError(f"Could not find _native.dll in {target_dir}")
 
@@ -523,9 +531,15 @@ class CustomBuildExt(build_ext):
             except StopIteration:
                 raise RuntimeError(f"Could not find _native.dll.lib in {target_dir}")
         elif sys.platform == "darwin":
-            library = next(target_dir.glob("lib_native.dylib"))
-        else:
-            library = next(target_dir.glob("lib_native.so"))
+            try:
+                library = next(target_dir.glob("lib_native.dylib"))
+            except StopIteration:
+                raise RuntimeError(f"Could not find lib_native.dylib in {target_dir}")
+        elif sys.platform == "linux":
+            try:
+                library = next(target_dir.glob("lib_native.so"))
+            except StopIteration:
+                raise RuntimeError(f"Could not find lib_native.so in {target_dir}")
 
         if not library:
             raise RuntimeError("Not able to find native library")
