@@ -9,6 +9,9 @@ else()
             "to build profiling native extensions.")
 endif()
 
+# For both Linux and macOS, Python setuptools-rust will build the extension with .so suffix.
+set(LIBRARY_NAME_PATTERN "_native.*.so")
+
 message(WARNING "LIB_FILE_LOCATION: ${LIB_FILE_LOCATION}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
@@ -20,7 +23,7 @@ set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)
 
 file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
 
-file(GLOB LIB_FILE "${LIB_FILE_LOCATION}")
+file(GLOB LIB_FILE "${LIB_FILE_LOCATION}/${LIBRARY_NAME_PATTERN}")
 
 message(WARNING "LIB_FILES LOCATION: ${LIB_FILE}")
 

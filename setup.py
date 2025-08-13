@@ -504,7 +504,10 @@ class CustomBuildExt(build_ext):
         build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
-        self.output_dir = Path(self.get_ext_fullpath("ddtrace.internal.native._native")).resolve()
+        if IS_EDITABLE or getattr(self, "inplace", False):
+            self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
+        else:
+            self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
 
     @staticmethod
     def try_strip_symbols(so_file):
