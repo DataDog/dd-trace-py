@@ -65,6 +65,20 @@ def get_tag(test_spans, root_span):
 
 
 @pytest.fixture
+def find_resource(test_spans, root_span):
+    # checking both root spans and web spans for the tag
+    def find(resource_name):
+        for span in test_spans.spans:
+            if span.parent_id is None or span.span_type == "web":
+                res = span._resource[0]
+                if res == resource_name:
+                    return True
+        return False
+
+    yield find
+
+
+@pytest.fixture
 def get_metric(root_span):
     yield lambda name: root_span().get_metric(name)
 

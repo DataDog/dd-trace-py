@@ -154,13 +154,13 @@ def rasp(request, endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"], timeout=0.5)}')
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):
                 cmd = query_params[param]
                 try:
-                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
+                    res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
         tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
