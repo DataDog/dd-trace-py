@@ -1,3 +1,4 @@
+import asyncio
 import os
 import sys
 from typing import Dict
@@ -296,7 +297,7 @@ def _patched_endpoint_async(openai, patch_hook):
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as e:
+        except (Exception, asyncio.CancelledError) as e:
             err = e
             raise
         finally:
