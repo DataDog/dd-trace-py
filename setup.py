@@ -516,7 +516,7 @@ class CustomBuildExt(build_ext):
         if not library.exists():
             raise RuntimeError("Not able to find native library")
 
-        # Set SONAME (needed for auditwheel)
+        # Set SONAME (needed for auditwheel, and alpine source build to work)
         if CURRENT_OS == "Linux":
             subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
         elif CURRENT_OS == "Darwin":
