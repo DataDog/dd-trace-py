@@ -180,9 +180,12 @@ class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
-        # Note: features will be set dynamically in CustomBuildRust
-        env = {str(k): str(v) for k, v in os.environ.items()}
-        env["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
+
+        # setuptools-rust started to support passing extra env vars from 1.11.0
+        # but at the same time dropped support for Python 3.8. So we'd need to
+        # make sure that this env var is set to install the ffi headers in the
+        # right place.
+        os.environ["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
@@ -195,7 +198,6 @@ class PatchedDistribution(Distribution):
                 features=(
                     ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
                 ),
-                env=env,
             )
         ]
 
