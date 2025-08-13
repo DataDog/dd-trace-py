@@ -17,6 +17,15 @@ def start():
         from ddtrace.appsec._listeners import load_appsec
 
         load_appsec()
+        if config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.enable()
+
+    if config._iast_enabled:
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        AppSecIastSpanProcessor.enable()
 
 
 def restart(join=False):
