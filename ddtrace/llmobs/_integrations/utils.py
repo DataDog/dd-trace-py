@@ -354,15 +354,31 @@ def openai_set_meta_tags_from_chat(
             message = {"content": streamed_message.get("content", ""), "role": role}
             tool_calls = streamed_message.get("tool_calls", [])
             if tool_calls:
-                message["tool_calls"] = [
-                    {
-                        "name": tool_call.get("name", ""),
-                        "arguments": json.loads(tool_call.get("arguments", "")),
-                        "tool_id": tool_call.get("tool_id", ""),
-                        "type": tool_call.get("type", ""),
-                    }
-                    for tool_call in tool_calls
-                ]
+                for tool_call in tool_calls:
+                    tool_id = tool_call.get("tool_id", "")
+                    tool_name = tool_call.get("name", "")
+                    tool_args = tool_call.get("arguments", "")
+                    tool_type = tool_call.get("type", "")
+                    message["tool_calls"] = [
+                        {
+                            "name": tool_name,
+                            "arguments": json.loads(tool_args),
+                            "tool_id": tool_id,
+                            "type": tool_type,
+                        }
+                    ]
+                    core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_id,
+                        tool_name,
+                        tool_args,
+                        {
+                            "trace_id": format_trace_id(span.trace_id),
+                            "span_id": str(span.span_id),
+                        },
+                    ),
+                )
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
         return
