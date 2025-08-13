@@ -22,10 +22,10 @@ set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)
 
 file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
 
-file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
+file(GLOB LIB_FILES "${SOURCE_LIB_DIR}")
 
 message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
 
 add_library(_native SHARED IMPORTED GLOBAL)
-set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
-                                         INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR})
+set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${SOURCE_LIB_DIR} INTERFACE_INCLUDE_DIRECTORIES
+                                                                             ${DEST_INCLUDE_DIR})

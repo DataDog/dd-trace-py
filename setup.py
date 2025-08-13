@@ -506,68 +506,10 @@ class CustomBuildExt(build_ext):
         build_rust_cmd.finalize_options()
         build_rust_cmd.run()
 
-        # Find the built library
-        target_dir = NATIVE_CRATE / "target"
-        if sys.platform == "win32" and not is_64_bit_python():
-            target_dir = target_dir / "i686-pc-windows-msvc"
-
-        # Determine if we're building in release mode
-        is_release = True  # Default to release mode
-        if is_release:
-            target_dir = target_dir / "release"
-        else:
-            target_dir = target_dir / "debug"
-
-        library = None
-        link_file = None
-        if sys.platform == "win32":
-            try:
-                library = next(target_dir.glob("_native.dll"))
-            except StopIteration:
-                raise RuntimeError(f"Could not find _native.dll in {target_dir}")
-
-            try:
-                link_file = next(target_dir.glob("_native.dll.lib"))
-            except StopIteration:
-                raise RuntimeError(f"Could not find _native.dll.lib in {target_dir}")
-        elif sys.platform == "darwin":
-            try:
-                library = next(target_dir.glob("lib_native.dylib"))
-            except StopIteration:
-                raise RuntimeError(f"Could not find lib_native.dylib in {target_dir}")
-        elif sys.platform == "linux":
-            try:
-                library = next(target_dir.glob("lib_native.so"))
-            except StopIteration:
-                raise RuntimeError(f"Could not find lib_native.so in {target_dir}")
-
-        if not library:
-            raise RuntimeError("Not able to find native library")
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
-        native_name = f"_native{self.suffix}"
 
-        # Set SONAME (needed for auditwheel)
-        if sys.platform.startswith("linux"):
-            subprocess.run(["patchelf", "--set-soname", native_name, str(library)], check=True)
-        elif sys.platform == "darwin":
-            subprocess.run(["install_name_tool", "-id", native_name, str(library)], check=True)
-
-        if IS_EDITABLE or getattr(self, "inplace", False):
-            self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
-        else:
-            self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
-
-        destination = self.output_dir / native_name
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(library, destination)
-
-        # Rename .lib file so it has the same base name as the dll.
-        self.windows_link_file = None
-        if link_file is not None:
-            new_link_file = (target_dir / native_name).with_suffix(".lib")
-            shutil.copy2(link_file, new_link_file)
-            self.windows_link_file = new_link_file
+        self.output_dir = Path(self.get_ext_fullpath("ddtrace.internal.native._native")).resolve()
 
     @staticmethod
     def is_installed(bin_file):
@@ -675,11 +617,6 @@ class CustomBuildExt(build_ext):
             "-DEXTENSION_SUFFIX={}".format(self.suffix),
             "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
         ]
-
-        if self.windows_link_file is not None:
-            cmake_args += [
-                "-DNATIVE_IMPLIB={}".format(self.windows_link_file),
-            ]
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
