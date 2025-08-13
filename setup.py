@@ -506,7 +506,6 @@ class CustomBuildExt(build_ext):
         build_rust_cmd.finalize_options()
         build_rust_cmd.run()
 
-
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
 
         self.output_dir = Path(self.get_ext_fullpath("ddtrace.internal.native._native")).resolve()
