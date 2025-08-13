@@ -60,8 +60,6 @@ def langchain():
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
-            HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
-            AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
         )
     ):
         patch()
@@ -113,22 +111,6 @@ def anthropic_url() -> str:
     Use the request recording endpoint of the testagent to capture the requests to Anthropic
     """
     return "http://localhost:9126/vcr/anthropic"
-
-
-@pytest.fixture
-def cohere_url() -> str:
-    """
-    Use the request recording endpoint of the testagent to capture the requests to Cohere
-    """
-    return "http://localhost:9126/vcr/cohere"
-
-
-@pytest.fixture
-def ai21_url() -> str:
-    """
-    Use the request recording endpoint of the testagent to capture the requests to AI21
-    """
-    return "http://localhost:9126/vcr/ai21"
 
 
 @pytest.fixture
