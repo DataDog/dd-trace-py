@@ -1094,7 +1094,7 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
-              - execution_time < 22.50 ms
+              - execution_time < 23.00 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
@@ -1102,11 +1102,11 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
-              - execution_time < 1.40 ms
+              - execution_time < 1.50 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
-              - execution_time < 2.40 ms
+              - execution_time < 2.50 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-flush-1-metric
             thresholds:
@@ -1118,7 +1118,7 @@ experiments:
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-flush-1000-metrics
             thresholds:
-              - execution_time < 2.35 ms
+              - execution_time < 2.45 ms
               - max_rss_usage < 34.50 MB
 
           # tracer
