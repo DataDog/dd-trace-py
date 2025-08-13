@@ -8,7 +8,7 @@ version = "0.24.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfbe277e56a376000877090da837660b4427aad530e3028d44e0bffe4f89a1c1"
 dependencies = [
- "gimli",
+ "gimli 0.31.1",
 ]
 
 [[package]]
@@ -104,6 +104,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e16d2d3311acee920a9eb8d33b8cbc1787ce4a264e85f964c2404b969bdcd487"
 
 [[package]]
+name = "arc-swap"
+version = "1.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
+
+[[package]]
 name = "autocfg"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -190,12 +196,12 @@ checksum = "a1d084b0137aaa901caf9f1e8b21daa6aa24d41cd806e111335541eff9683bd6"
 
 [[package]]
 name = "blazesym"
-version = "0.2.0-rc.3"
+version = "0.2.0-rc.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "86d5caf72227115ce486e764e9199d6eab3437c51dacd78c3fae78ca1340c27d"
+checksum = "29a810b7e5f883ad3c711208237841f051061bf59b6ee698ac4dc1fe12a3a5db"
 dependencies = [
  "cpp_demangle",
- "gimli",
+ "gimli 0.32.0",
  "libc",
  "memmap2",
  "miniz_oxide",
@@ -203,9 +209,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-buffer"
+version = "0.10.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3078c7629b62d3f0439517fa394996acacc5cbc91c5a20d8c658e77abd503a71"
+dependencies = [
+ "generic-array",
+]
+
+[[package]]
 name = "build_common"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "cbindgen",
  "serde",
@@ -229,6 +244,15 @@ name = "bytes"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d71b6127be86fdcfddb610f7182ac57211d4b18a3e9c82eb2d17662f2227ad6a"
+
+[[package]]
+name = "cadence"
+version = "1.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3075f133bee430b7644c54fb629b9b4420346ffa275a45c81a6babe8b09b4f51"
+dependencies = [
+ "crossbeam-channel",
+]
 
 [[package]]
 name = "cbindgen"
@@ -411,6 +435,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpufeatures"
+version = "0.2.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "59ed5838eebb26a2bb2e58f6d5b5316989ae9d08bab10e0e6d103e656d1b0280"
+dependencies = [
+ "libc",
+]
+
+[[package]]
+name = "crossbeam-channel"
+version = "0.5.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "82b8f8f868b36967f9606790d1903570de9ceaf870a7bf9fbbd3016d636a2cb2"
+dependencies = [
+ "crossbeam-utils",
+]
+
+[[package]]
 name = "crossbeam-queue"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -426,9 +468,49 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d0a5c400df2834b80a4c3327b3aad3a4c4cd4de0629063962b03235697506a28"
 
 [[package]]
+name = "crypto-common"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1bfb12502f3fc46cca1bb51ac28df9d618d813cdc3d2f25b9fe775a34af26bb3"
+dependencies = [
+ "generic-array",
+ "typenum",
+]
+
+[[package]]
+name = "data-pipeline"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "anyhow",
+ "arc-swap",
+ "bytes",
+ "datadog-ddsketch",
+ "datadog-trace-protobuf",
+ "datadog-trace-utils",
+ "ddcommon",
+ "ddtelemetry",
+ "dogstatsd-client",
+ "either",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "rmp-serde",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tinybytes",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "datadog-alloc"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "allocator-api2",
  "libc",
@@ -437,8 +519,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-crashtracker"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "backtrace",
@@ -469,8 +551,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-ddsketch"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "prost",
 ]
@@ -478,7 +560,7 @@ dependencies = [
 [[package]]
 name = "datadog-library-config"
 version = "0.0.2"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "memfd",
@@ -491,8 +573,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "bitmaps",
@@ -521,8 +603,8 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-ffi"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "build_common",
@@ -540,16 +622,60 @@ dependencies = [
 
 [[package]]
 name = "datadog-profiling-protobuf"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "prost",
 ]
 
 [[package]]
+name = "datadog-trace-normalization"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "anyhow",
+ "datadog-trace-protobuf",
+]
+
+[[package]]
+name = "datadog-trace-protobuf"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "prost",
+ "serde",
+ "serde_bytes",
+]
+
+[[package]]
+name = "datadog-trace-utils"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "datadog-trace-normalization",
+ "datadog-trace-protobuf",
+ "ddcommon",
+ "futures",
+ "http-body-util",
+ "hyper",
+ "prost",
+ "rand",
+ "rmp",
+ "rmp-serde",
+ "rmpv",
+ "serde",
+ "serde_json",
+ "tinybytes",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "ddcommon"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "cc",
@@ -581,8 +707,8 @@ dependencies = [
 
 [[package]]
 name = "ddcommon-ffi"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "build_common",
@@ -595,8 +721,8 @@ dependencies = [
 
 [[package]]
 name = "ddtelemetry"
-version = "19.1.0"
-source = "git+https://github.com/DataDog/libdatadog?rev=v19.1.0#81b0e5a640cde084836c374e73b2e176498cbe06"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
 dependencies = [
  "anyhow",
  "base64",
@@ -623,6 +749,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "build_common",
+ "data-pipeline",
  "datadog-crashtracker",
  "datadog-ddsketch",
  "datadog-library-config",
@@ -648,6 +775,29 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9c9e6a11ca8224451684bc0d7d5a7adbf8f2fd6887261a1cfc3c0432f9d4068e"
 dependencies = [
  "powerfmt",
+]
+
+[[package]]
+name = "digest"
+version = "0.10.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
+dependencies = [
+ "block-buffer",
+ "crypto-common",
+]
+
+[[package]]
+name = "dogstatsd-client"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "anyhow",
+ "cadence",
+ "ddcommon",
+ "http",
+ "serde",
+ "tracing",
 ]
 
 [[package]]
@@ -819,6 +969,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "generic-array"
+version = "0.14.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "85649ca51fd72272d7821adaf274ad91c288277713d9c18820d8499a7ff69e9a"
+dependencies = [
+ "typenum",
+ "version_check",
+]
+
+[[package]]
 name = "getrandom"
 version = "0.2.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -846,6 +1006,12 @@ name = "gimli"
 version = "0.31.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
+
+[[package]]
+name = "gimli"
+version = "0.32.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93563d740bc9ef04104f9ed6f86f1e3275c2cdafb95664e26584b9ca807a8ffe"
 dependencies = [
  "fallible-iterator",
  "indexmap",
@@ -1458,12 +1624,11 @@ dependencies = [
 
 [[package]]
 name = "pyo3"
-version = "0.24.2"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e5203598f366b11a02b13aa20cab591229ff0a89fd121a308a5df751d5fc9219"
+checksum = "8970a78afe0628a3e3430376fc5fd76b6b45c4d43360ffd6cdd40bdde72b682a"
 dependencies = [
  "anyhow",
- "cfg-if",
  "indoc",
  "libc",
  "memoffset",
@@ -1477,9 +1642,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-build-config"
-version = "0.24.2"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99636d423fa2ca130fa5acde3059308006d46f98caac629418e53f7ebb1e9999"
+checksum = "458eb0c55e7ece017adeba38f2248ff3ac615e53660d7c71a238d7d2a01c7598"
 dependencies = [
  "once_cell",
  "target-lexicon",
@@ -1487,9 +1652,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-ffi"
-version = "0.24.2"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "78f9cf92ba9c409279bc3305b5409d90db2d2c22392d443a87df3a1adad59e33"
+checksum = "7114fe5457c61b276ab77c5055f206295b812608083644a5c5b2640c3102565c"
 dependencies = [
  "libc",
  "pyo3-build-config",
@@ -1497,9 +1662,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros"
-version = "0.24.2"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0b999cb1a6ce21f9a6b147dcf1be9ffedf02e0043aec74dc390f3007047cecd9"
+checksum = "a8725c0a622b374d6cb051d11a0983786448f7785336139c3c94f5aa6bef7e50"
 dependencies = [
  "proc-macro2",
  "pyo3-macros-backend",
@@ -1509,9 +1674,9 @@ dependencies = [
 
 [[package]]
 name = "pyo3-macros-backend"
-version = "0.24.2"
+version = "0.25.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "822ece1c7e1012745607d5cf0bcb2874769f0f7cb34c4cde03b9358eb9ef911a"
+checksum = "4109984c22491085343c05b0dbc54ddc405c3cf7b4374fc533f5c3313a572ccc"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -1522,9 +1687,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.38.0"
+version = "0.38.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8927b0664f5c5a98265138b7e3f90aa19a6b21353182469ace36d4ac527b7b1b"
+checksum = "9845d9dccf565065824e69f9f235fafba1587031eda353c1f1561cd6a6be78f4"
 dependencies = [
  "memchr",
 ]
@@ -1637,6 +1802,16 @@ dependencies = [
  "byteorder",
  "rmp",
  "serde",
+]
+
+[[package]]
+name = "rmpv"
+version = "1.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "58450723cd9ee93273ce44a20b6ec4efe17f8ed2e3631474387bfdecf18bb2a9"
+dependencies = [
+ "num-traits",
+ "rmp",
 ]
 
 [[package]]
@@ -1803,6 +1978,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "serde_bytes"
+version = "0.11.17"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8437fd221bde2d4ca316d61b90e337e9e702b3820b87d63caa9ba6c02bd06d96"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "serde_derive"
 version = "1.0.219"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1856,6 +2040,17 @@ dependencies = [
  "ryu",
  "serde",
  "unsafe-libyaml",
+]
+
+[[package]]
+name = "sha2"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
 ]
 
 [[package]]
@@ -2038,6 +2233,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "tinybytes"
+version = "20.0.0"
+source = "git+https://github.com/DataDog/libdatadog?rev=v20.0.0#9052563dd0a6e9d9ea28b32708b01921b43a1efc"
+dependencies = [
+ "serde",
+]
+
+[[package]]
 name = "tokio"
 version = "1.47.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2078,9 +2281,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-util"
-version = "0.7.15"
+version = "0.7.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "66a539a9ad6d5d281510d5bd368c973d636c02dbf8a67300bfb6b950696ad7df"
+checksum = "14307c986784f72ef81c89db7d9e28d6ac26d16213b109ea501696195e6e3ce5"
 dependencies = [
  "bytes",
  "futures-core",
@@ -2172,6 +2375,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "typenum"
+version = "1.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
+
+[[package]]
 name = "unicase"
 version = "2.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2224,6 +2433,12 @@ dependencies = [
  "serde",
  "wasm-bindgen",
 ]
+
+[[package]]
+name = "version_check"
+version = "0.9.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
 name = "want"

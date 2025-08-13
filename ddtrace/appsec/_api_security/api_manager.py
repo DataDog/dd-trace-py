@@ -78,12 +78,10 @@ class APIManager(Service):
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
-        from ddtrace.appsec import _processor as appsec_processor
         import ddtrace.appsec._asm_request_context as _asm_request_context
         import ddtrace.appsec._metrics as _metrics
 
         self._asm_context = _asm_request_context
-        self._appsec_processor = appsec_processor
         self._metrics = _metrics
 
     def _stop_service(self) -> None:

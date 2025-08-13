@@ -286,7 +286,7 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
-        path("login/", login_user, name="login"),
+        path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
         path("login_sdk", login_user_sdk, name="login_sdk"),
