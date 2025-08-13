@@ -363,19 +363,22 @@ class _DatadogMultiHeader:
         if not meta:
             meta = {}
 
-        # When there's head sampling (sampling_priority > 0), remove the propagated _dd.p.dm tag
+        # When there's head sampling (sampling_priority > 0), don't set or propagate _dd.p.dm tag
         # because the sampling decision has already been made upstream
+        head_sampling_active = False
         try:
             sampling_priority_int = int(sampling_priority) if sampling_priority is not None else None
             if sampling_priority_int is not None and sampling_priority_int > 0:
+                head_sampling_active = True
                 if SAMPLING_DECISION_TRACE_TAG_KEY in meta:
                     del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
         except (TypeError, ValueError):
             # If sampling_priority can't be parsed, continue with existing logic
             pass
 
-        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"
+        # Only set the default _dd.p.dm value if head sampling is not active
+        if not head_sampling_active and not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = "-3"
 
         # Try to parse values into their expected types
         try:
@@ -879,7 +882,11 @@ class _TraceContext:
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
 
-                    sampling_priority = _TraceContext._get_sampling_priority(trace_flag, sampling_priority_ts, origin)
+                    # trace_flag should always be 0 or 1 from _get_traceparent_values
+                    if trace_flag is not None:
+                        sampling_priority = _TraceContext._get_sampling_priority(
+                            trace_flag, sampling_priority_ts, origin
+                        )
                 else:
                     log.debug("no dd list member in tracestate from incoming request: %r", ts)
 
