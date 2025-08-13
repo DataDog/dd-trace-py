@@ -13,12 +13,16 @@ from inspect import isclass
 from inspect import isfunction
 from inspect import unwrap
 import os
+from types import FunctionType
+from typing import Any
 from typing import Dict
+from typing import Tuple
 from typing import cast
 
 import wrapt
 from wrapt.importer import when_imported
 
+import ddtrace
 from ddtrace import config
 from ddtrace.appsec._utils import _UserInfoRetriever
 from ddtrace.constants import SPAN_KIND
@@ -69,6 +73,7 @@ config._add(
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        always_add_django_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_ADD_DATABASE_SPANS", default=False)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
@@ -94,6 +99,7 @@ config._add(
         ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
+        _tracer=None,
     ),
 )
 
@@ -124,7 +130,7 @@ def _supported_versions() -> Dict[str, str]:
     return {"django": ">=2.2.8"}
 
 
-def patch_conn(django, conn):
+def patch_conn(conn):
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
     if psycopg_cursor_cls is _NotSet:
@@ -152,26 +158,30 @@ def patch_conn(django, conn):
                 tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags
 
-    def cursor(django, pin, func, instance, args, kwargs):
+    def cursor(func: FunctionType, instance: Any, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         alias = getattr(conn, "alias", "default")
-
-        service = config_django.database_service_name
-        if not service:
-            database_prefix = config_django.database_service_name_prefix
-            service = "{}{}{}".format(database_prefix, alias, "db")
-            service = schematize_service_name(service)
-
         vendor = getattr(conn, "vendor", "db")
-        prefix = sqlx.normalize_vendor(vendor)
 
         tags = {"django.db.vendor": vendor, "django.db.alias": alias}
         tags.update(getattr(conn, "_datadog_tags", {}))
 
-        tracer = pin.tracer
-        pin = Pin(service, tags=tags)
-        pin._tracer = tracer
-
         cursor = func(*args, **kwargs)
+
+        # If the cursor is already wrapped, just update the pin to get Django service name and tags
+        if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_add_django_database_spans:
+            tracer = config_django._tracer or ddtrace.tracer
+
+            # Add Django tags onto any existing Pin
+            # TODO: Can we get this without the use of Pin?
+            pin = Pin.get_from(cursor.cursor)
+            if pin:
+                pin = pin.clone()
+                pin.tags.update(tags)
+            else:
+                pin = Pin(tags=tags)
+            pin._tracer = tracer
+            pin.onto(cursor.cursor)
+            return cursor
 
         traced_cursor_cls = dbapi.TracedCursor
         try:
@@ -188,6 +198,14 @@ def patch_conn(django, conn):
         except AttributeError:
             pass
 
+        prefix = sqlx.normalize_vendor(vendor)
+
+        service = config_django.database_service_name
+        if not service:
+            database_prefix = config_django.database_service_name_prefix
+            service = "{}{}{}".format(database_prefix, alias, "db")
+            service = schematize_service_name(service)
+
         # Each db alias will need its own config for dbapi
         cfg = IntegrationConfig(
             config_django.global_config,
@@ -197,17 +215,22 @@ def patch_conn(django, conn):
             trace_fetch_methods=config_django.trace_fetch_methods,
             _dbm_propagator=_DBM_Propagator(0, "query"),
         )
+
+        tracer = config_django._tracer or ddtrace.tracer
+        pin = Pin(service, tags=tags)
+        pin._tracer = tracer
+
         return traced_cursor_cls(cursor, pin, cfg)
 
     if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
+        conn.cursor = wrapt.FunctionWrapper(conn.cursor, cursor)
 
 
 def instrument_dbs(django):
     def get_connection(wrapped, instance, args, kwargs):
         conn = wrapped(*args, **kwargs)
         try:
-            patch_conn(django, conn)
+            patch_conn(conn)
         except Exception:
             log.debug("Error instrumenting database connection %r", conn, exc_info=True)
         return conn
