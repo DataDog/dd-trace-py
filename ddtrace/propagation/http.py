@@ -378,7 +378,7 @@ class _DatadogMultiHeader:
 
         # Only set the default _dd.p.dm value if head sampling is not active
         if not head_sampling_active and not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = "-3"
+            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
