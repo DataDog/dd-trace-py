@@ -504,10 +504,23 @@ class CustomBuildExt(build_ext):
         build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
+        native_name = f"_native{self.suffix}"
+
         if IS_EDITABLE or getattr(self, "inplace", False):
             self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
         else:
             self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
+
+        library = self.output_dir / native_name
+
+        if not library.exists():
+            raise RuntimeError("Not able to find native library")
+
+        # Set SONAME (needed for auditwheel)
+        if CURRENT_OS == "Linux":
+            subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
+        elif CURRENT_OS == "Darwin":
+            subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
 
     @staticmethod
     def try_strip_symbols(so_file):
