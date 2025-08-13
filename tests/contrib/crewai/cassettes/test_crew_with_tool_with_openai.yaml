@@ -1,0 +1,254 @@
+interactions:
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Average Calculator], just the name, exactly as it''s written.\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Analyze
+      the given dataset and calculate the average age of participants. Ages: [10,
+      12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete
+      sentence showing the question and the answer.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1597'
+      content-type:
+      - application/json
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.85.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.85.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAAwAAAP//jFNNj5swEL3nV4x8hhUk5ItblKrSHnpqV5XaRMhrBnBrbNceoq6i/PfK
+        kAR2u5V6gMO8eY83b4bzDIDJkuXARMNJtFbF+2yz/Thvmz0+fXv6tPtqzYf1ry8vC/qcbucsCgzz
+        /AMF3VgPwrRWIUmjB1g45IRBNV0vl2mSrFbbHmhNiSrQaktxZuJWahnPk3kWJ+s43VzZjZECPcvh
+        +wwA4Ny/g09d4m+WQxLdKi16z2tk+b0JgDmjQoVx76UnrolFIyiMJtS99UfQiCWQAcGV6BQnBGoQ
+        +AkdrxHCY6q+ZLkjKaTlmjx0Xup6KDtzkiWWodU/HPRB70RIIYfdVWN/VTYO4IbCo7Yd5XA+MNTk
+        JPpDmDVNIkjnEaRZBOkqgnRzvABMvTusOs9DfrpTagJwrQ3xoN2ndrwil3tOytTWmWf/hsoqqaVv
+        CofcGx0y8WQs69HLDODY76N7FTGzzrSWCjI/sf/cIl0Pemw8gxHNsitIhriasFZp9I5eUSJxqfxk
+        o0xw0WA5Usf1866UZgLMJlP/7eY97WFyqev/kR8BIdASloV1WErxeuKxzWH4S/7Vdk+5N8w8upMU
+        WJBEFzZRYsU7Ndwu8y+esC0qqWt01snhgCtbLDK+zDhuF4LNLrM/AAAA//8DAPrPPpvOAwAA
+    headers:
+      CF-RAY:
+      - 96e9690a99c0e5fc-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 13 Aug 2025 15:57:50 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - _cfuvid=.93Re4scZak5mwI.O9f3IaNQ9fv.CQoExpuIJ0P1Vdg-1755100670444-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1346'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1382'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999640'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_3269595f93aa464caae12918fd004387
+    status:
+      code: 200
+      message: OK
+- request:
+    body: '{"messages": [{"role": "system", "content": "You are Python Data Analyst.
+      You are an experienced data analyst with strong Python skills.\nYour personal
+      goal is: Analyze data and provide insights using Python\nYou ONLY have access
+      to the following tools, and should NEVER make up tools that are not listed here:\n\nTool
+      Name: Average Calculator\nTool Arguments: {''entries'': {''description'': None,
+      ''type'': ''list''}}\nTool Description: This tool returns the average of a list
+      of numbers.\n\nIMPORTANT: Use the following format in your response:\n\n```\nThought:
+      you should always think about what to do\nAction: the action to take, only one
+      name of [Average Calculator], just the name, exactly as it''s written.\nAction
+      Input: the input to the action, just a simple JSON object, enclosed in curly
+      braces, using \" to wrap keys and values.\nObservation: the result of the action\n```\n\nOnce
+      all necessary information is gathered, return the following format:\n\n```\nThought:
+      I now know the final answer\nFinal Answer: the final answer to the original
+      input question\n```"}, {"role": "user", "content": "\nCurrent Task: Analyze
+      the given dataset and calculate the average age of participants. Ages: [10,
+      12, 14, 16, 18]\n\nThis is the expected criteria for your final answer: A complete
+      sentence showing the question and the answer.\nyou MUST return the actual complete
+      content as the final answer, not a summary.\n\nBegin! This is VERY important
+      to you, use the tools available and give your best Final Answer, your job depends
+      on it!\n\nThought:"}, {"role": "assistant", "content": "I need to calculate
+      the average age of the participants using the provided ages.\n\nAction: Average
+      Calculator  \nAction Input: {\"entries\": [10, 12, 14, 16, 18]}  \nObservation:
+      14.0"}], "model": "gpt-4o-mini", "stop": ["\nObservation:"]}'
+    headers:
+      accept:
+      - application/json
+      accept-encoding:
+      - gzip, deflate
+      connection:
+      - keep-alive
+      content-length:
+      - '1819'
+      content-type:
+      - application/json
+      cookie:
+      - _cfuvid=.93Re4scZak5mwI.O9f3IaNQ9fv.CQoExpuIJ0P1Vdg-1755100670444-0.0.1.1-604800000
+      host:
+      - api.openai.com
+      user-agent:
+      - OpenAI/Python 1.85.0
+      x-stainless-arch:
+      - arm64
+      x-stainless-async:
+      - 'false'
+      x-stainless-lang:
+      - python
+      x-stainless-os:
+      - MacOS
+      x-stainless-package-version:
+      - 1.85.0
+      x-stainless-raw-response:
+      - 'true'
+      x-stainless-read-timeout:
+      - '600.0'
+      x-stainless-retry-count:
+      - '0'
+      x-stainless-runtime:
+      - CPython
+      x-stainless-runtime-version:
+      - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: !!binary |
+        H4sIAAAAAAAAA4xSwW7bMAy9+ysInePASZyk8W1YUawDil2y7bAWBiPTtlJbEiS6bVDk3wc5aexu
+        HbCDBEiP75GP5GsEIFQhMhCyRpatbeLP6dXm7lrtvx++rV9+7Gr+sv15c/d1ccvXuBeTwDC7PUl+
+        Y02laW1DrIw+wdIRMgXV2Xq5nCXJar3qgdYU1ARaZTlOTdwqreJ5Mk/jZB3Prs7s2ihJXmTwKwIA
+        eO3vUKcu6EVkkEzeflryHisS2SUIQDjThB+B3ivPqFlMBlAazaT70re16aqaM7gFbZ7hMVxcE5RK
+        YwOo/TM5gHt9078/9e8MtjUBPpHDiiAcU/Yki46VVBY1e1AeZuk0gQOh89Nxekdl5zG0QHdNMwJQ
+        a8MYWtgbfzgjx4vVxlTWmZ3/gypKpZWvc0fojQ62PBsrevQYATz0Le3edUlYZ1rLOZtH6tMtVpuT
+        nhgmOaDz5Rlkw9iMWJt08oFeXhCjavxoKEKirKkYqMMEsSuUGQHRyPXf1XykfXKudPU/8gMgJVmm
+        IreOCiXfOx7CHIVF/1fYpct9wcKTe1KSclbkwiQKKrFrTusn/MEztXmpdEXOOnXawdLmixSXKdJm
+        IUV0jH4DAAD//wMAjLaTr5EDAAA=
+    headers:
+      CF-RAY:
+      - 96e9693a3b72de8e-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 13 Aug 2025 15:57:58 GMT
+      Server:
+      - cloudflare
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1822'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '2019'
+      x-ratelimit-limit-requests:
+      - '30000'
+      x-ratelimit-limit-tokens:
+      - '150000000'
+      x-ratelimit-remaining-requests:
+      - '29999'
+      x-ratelimit-remaining-tokens:
+      - '149999592'
+      x-ratelimit-reset-requests:
+      - 2ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_ecf675f6eb7e43d994754b63a1ac571e
+    status:
+      code: 200
+      message: OK
+version: 1

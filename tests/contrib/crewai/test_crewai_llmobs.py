@@ -1,6 +1,7 @@
 import mock
 
 from tests.llmobs._utils import _assert_span_link
+from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
@@ -139,6 +140,49 @@ def _assert_tool_crew_links(llmobs_events):
     # span links for task -> agent
     _assert_span_link(llmobs_events[1], llmobs_events[2], "input", "input")
     _assert_span_link(llmobs_events[2], llmobs_events[1], "output", "output")
+
+def _assert_tool_crew_with_openai_events(llmobs_events, spans):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(spans) == len(llmobs_events) == 6
+    expected_span_args = {
+        "input_value": mock.ANY,
+        "output_value": mock.ANY,
+        "metadata": mock.ANY,
+        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+        "span_links": True,
+    }
+    expected_llm_span_args = {
+        "input_messages": mock.ANY,
+        "output_messages": mock.ANY,
+        "metadata": mock.ANY,
+        "model_name": mock.ANY,
+        "model_provider": mock.ANY,
+        "token_metrics": {"input_tokens": mock.ANY, "output_tokens": mock.ANY, "total_tokens": mock.ANY, "cache_read_input_tokens": 0},
+        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+    }
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        spans[2], span_kind="agent", **expected_agent_span_args(llmobs_events[2]["name"])
+    )
+    assert llmobs_events[3] == _expected_llmobs_llm_span_event(spans[3], **expected_llm_span_args)
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="tool", **expected_span_args)
+    assert llmobs_events[5] == _expected_llmobs_llm_span_event(spans[5], **expected_llm_span_args, span_links=True)
+
+
+def _assert_tool_crew_with_openai_links(llmobs_events):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    # span links for crew -> task
+    _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[0], "output", "output")
+
+    # span links for task -> agent
+    _assert_span_link(llmobs_events[1], llmobs_events[2], "input", "input")
+    _assert_span_link(llmobs_events[2], llmobs_events[1], "output", "output")
+
+    # span links for llm -> tool -> llm
+    _assert_span_link(llmobs_events[3], llmobs_events[4], "output", "input")
+    _assert_span_link(llmobs_events[4], llmobs_events[5], "output", "input")
 
 
 def _assert_async_crew_events(llmobs_events, spans):
@@ -306,6 +350,13 @@ async def test_crew_with_tool_async_for_each(crewai, tool_crew, request_vcr, moc
     spans = mock_tracer.pop_traces()[0]
     _assert_tool_crew_events(llmobs_events, spans)
     _assert_tool_crew_links(llmobs_events)
+
+def test_crew_with_tool_with_openai(crewai, tool_crew_with_openai, request_vcr, mock_tracer, llmobs_events):
+    with request_vcr.use_cassette("test_crew_with_tool_with_openai.yaml"):
+        tool_crew_with_openai.kickoff(inputs={"ages": [10, 12, 14, 16, 18]})
+    spans = mock_tracer.pop_traces()[0]
+    _assert_tool_crew_with_openai_events(llmobs_events, spans)
+    _assert_tool_crew_with_openai_links(llmobs_events)
 
 
 def test_async_crew(crewai, async_exec_crew, request_vcr, mock_tracer, llmobs_events):
