@@ -712,16 +712,11 @@ class Span(object):
 
     @property
     def _local_root(self) -> "Span":
-        if self._local_root_value is None:
-            return self
-        return self._local_root_value
+        return self._local_root_value or self
 
     @_local_root.setter
     def _local_root(self, value: "Span") -> None:
-        if value is not self:
-            self._local_root_value = value
-        else:
-            self._local_root_value = None
+        self._local_root_value = value if value is not self else None
 
     @_local_root.deleter
     def _local_root(self) -> None:
@@ -873,7 +868,8 @@ class Span(object):
             f"metrics={self._metrics}, "
             f"links={self._links}, "
             f"events={self._events}, "
-            f"context={self._context})"
+            f"context={self._context}, "
+            f"service_entry_span_name={self._service_entry_span.name})"
         )
 
     def __str__(self) -> str:
