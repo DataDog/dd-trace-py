@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: This introduces endpoint discovery for Django applications. It allows the collection of API endpoints of a Django application at startup.

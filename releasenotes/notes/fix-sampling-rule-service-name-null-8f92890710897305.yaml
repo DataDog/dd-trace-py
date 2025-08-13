@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    tracing: Resolves an issue where sampling rules with null values for service, resource, or name would not match any spans,
+    since these fields are always exported as strings and never null. Now, null and unset fields are treated the same. 
+    Ex: `DD_TRACE_SAMPLING_RULES='[{"resource": null, "sample_rate": 1}]'` will be equivalent to `DD_TRACE_SAMPLING_RULES='[{"sample_rate": 1}]'`.

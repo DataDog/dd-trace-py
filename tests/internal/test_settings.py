@@ -2,10 +2,8 @@ import json
 import os
 from typing import Sequence
 
-import mock
 import pytest
 
-from ddtrace._trace.product import _on_global_config_update
 from ddtrace._trace.product import apm_tracing_rc
 from ddtrace.internal.remoteconfig import Payload
 from ddtrace.settings._config import Config
@@ -74,7 +72,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
         {
             "expected": {
                 "_trace_sampling_rules": "",
-                "_logs_injection": "structured",
+                "_logs_injection": True,
                 "_trace_http_header_tags": {},
             },
             "expected_source": {
@@ -100,7 +98,7 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
             "rc": {
                 "tracing_sampling_rules": [
                     {
-                        "sample_rate": "0.73",
+                        "sample_rate": 0.73,
                         "service": "*",
                         "name": "*",
                         "resource": "*",
@@ -110,14 +108,14 @@ def call_apm_tracing_rc(payloads: Sequence[Payload], g_config):
                 ]
             },
             "expected": {
-                "_trace_sampling_rules": '[{"sample_rate": "0.73", "service": "*", "name": "*", '
+                "_trace_sampling_rules": '[{"sample_rate": 0.73, "service": "*", "name": "*", '
                 '"resource": "*", "tags": {}, "provenance": "customer"}]',
             },
             "expected_source": {"_trace_sampling_rules": "remote_config"},
         },
         {
-            "env": {"DD_LOGS_INJECTION": "true"},
-            "expected": {"_logs_injection": "true"},
+            "env": {"DD_LOGS_INJECTION": "false"},
+            "expected": {"_logs_injection": False},
             "expected_source": {"_logs_injection": "env_var"},
         },
         {
@@ -212,8 +210,6 @@ def test_settings_parametrized(testcase, config, monkeypatch):
         config._reset()
 
     expected_name = list(testcase["expected"].keys())[0]
-    config._subscribe([expected_name], _on_global_config_update)
-
     for code_name, code_value in testcase.get("code", {}).items():
         setattr(config, code_name, code_value)
 
@@ -225,7 +221,7 @@ def test_settings_parametrized(testcase, config, monkeypatch):
         assert getattr(config, expected_name) == expected_value
 
     for expected_name, expected_source in testcase.get("expected_source", {}).items():
-        assert config._get_source(expected_name) == expected_source
+        assert config._config[expected_name].source() == expected_source
 
 
 def test_settings_missing_lib_config(config, monkeypatch):
@@ -255,15 +251,7 @@ def test_settings_missing_lib_config(config, monkeypatch):
         assert getattr(config, expected_name) == expected_value
 
     for expected_name, expected_source in testcase.get("expected_source", {}).items():
-        assert config._get_source(expected_name) == expected_source
-
-
-def test_config_subscription(config):
-    for s in ("_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags"):
-        _handler = mock.MagicMock()
-        config._subscribe([s], _handler)
-        setattr(config, s, "1")
-        _handler.assert_called_once_with(config, [s])
+        assert config._config[expected_name].source() == expected_source
 
 
 def test_remoteconfig_sampling_rules(ddtrace_run_python_code_in_subprocess):
@@ -641,7 +629,7 @@ def test_config_public_properties_and_methods():
 
 
 @pytest.mark.subprocess()
-def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
+def test_remoteconfig_debug_logging():
     import mock
 
     with mock.patch("ddtrace._trace.product.log") as mock_log:
@@ -650,48 +638,45 @@ def test_remoteconfig_debug_logging(ddtrace_run_python_code_in_subprocess):
         from tests.internal.test_settings import _base_rc_config
         from tests.internal.test_settings import call_apm_tracing_rc
 
-        call_apm_tracing_rc(
-            _base_rc_config(
-                {
-                    "log_injection_enabled": False,
-                    "tracing_sampling_rate": 0.3,
-                    "tracing_enabled": "false",
-                    "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
-                    "tracing_tags": ["team:onboarding"],
-                }
-            ),
-            config,
-        )
+        rc_configs = {
+            "log_injection_enabled": False,
+            "tracing_sampling_rate": 0.3,
+            "tracing_enabled": "false",
+            "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
+            "tracing_tags": ["team:onboarding"],
+        }
 
-    assert mock_log.debug.call_args_list == [
-        mock.call(
-            "APM Tracing Remote Config enabled for trace sampling rules, log injection, "
-            "dd tags, tracing enablement, and HTTP header tags.\nConfigs on startup: "
-            "sampling_rules: %s, logs_injection: %s, tags: %s, tracing_enabled: %s, trace_http_header_tags: %s",
-            "",
-            "structured",
-            {},
-            True,
-            {},
-        ),
+        for _ in range(3):
+            # Attempt to set the same RC Configurations multiple times. This mimicks the behavior
+            # of the agent where all the current RC configurations are returned periodically.
+            call_apm_tracing_rc(
+                _base_rc_config(rc_configs),
+                config,
+            )
+    # Ensure APM Tracing Remote Config debug logs are generated
+    expected_logs = [
+        # Tracer configurations are only updated once (calls with duplicate values should be ignored)
         mock.call("Updated tracer sampling rules via remote_config: %s", '[{"sample_rate": 0.3}]'),
         mock.call("Updated tracer tags via remote_config: %s", {"team": "onboarding"}),
+        mock.call("Tracing disabled via remote_config. Config: %s Value: %s", "_tracing_enabled", False),
         mock.call(
-            "Tracing disabled via remote_config. Config Items: %s",
-            ["_trace_sampling_rules", "_logs_injection", "_trace_http_header_tags", "tags", "_tracing_enabled"],
+            "Updated HTTP header tags configuration via remote_config: %s", {"X-Header-Tag-420": "header_tag_420"}
         ),
-        mock.call(
-            "Updated HTTP header tags configuration via remote_config: %s", {"x-header-tag-420": "header_tag_420"}
-        ),
-        mock.call("Updated logs injection configuration via remote_config: %s", "false"),
+        mock.call("Updated logs injection configuration via remote_config: %s", False),
+        # 3 payloads should be received generating 3 debug logs.
         mock.call(
             "APM Tracing Received: %s from the Agent",
-            {
-                "log_injection_enabled": False,
-                "tracing_sampling_rate": 0.3,
-                "tracing_enabled": "false",
-                "tracing_header_tags": [{"header": "X-Header-Tag-420", "tag_name": "header_tag_420"}],
-                "tracing_tags": ["team:onboarding"],
-            },
+            rc_configs,
         ),
-    ], mock_log.debug.call_args_list
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            rc_configs,
+        ),
+        mock.call(
+            "APM Tracing Received: %s from the Agent",
+            rc_configs,
+        ),
+    ]
+    assert sorted(mock_log.debug.call_args_list) == sorted(
+        expected_logs
+    ), f"expected: {expected_logs} got: {mock_log.debug.call_args_list}"

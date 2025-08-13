@@ -11,6 +11,7 @@ from ddtrace.internal._unpatched import _threading as ddtrace_threading
 from ddtrace._trace import context
 from ddtrace._trace import span as ddspan
 from ddtrace.trace import Tracer
+from ddtrace.internal import core
 from ddtrace.internal._threads import periodic_threads
 from ddtrace.internal.datadog.profiling import ddup
 from ddtrace.internal.datadog.profiling import stack_v2
@@ -458,7 +459,7 @@ class StackCollector(collector.PeriodicCollector):
         if self.tracer is not None:
             self._thread_span_links = _ThreadSpanLinks()
             link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
-            self.tracer.context_provider._on_activate(link_span)
+            core.on("ddtrace.context_provider.activate", link_span)
 
         # If stack v2 is enabled, then use the v2 sampler
         if self._stack_collector_v2_enabled:
@@ -483,7 +484,7 @@ class StackCollector(collector.PeriodicCollector):
         super(StackCollector, self)._stop_service()
         if self.tracer is not None:
             link_span = stack_v2.link_span if self._stack_collector_v2_enabled else self._thread_span_links.link_span
-            self.tracer.context_provider._deregister_on_activate(link_span)
+            core.reset_listeners("ddtrace.context_provider.activate", link_span)
         LOG.debug("Profiling StackCollector stopped")
 
         # Also tell the native thread running the v2 sampler to stop, if needed

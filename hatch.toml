@@ -224,32 +224,6 @@ test = [
 [[envs.multiple_os_tests.matrix]]
 python = ["3.13", "3.12", "3.10", "3.8"]
 
-[envs.pytest_plugin_v2]
-template = "pytest_plugin_v2"
-dependencies = [
-    "httpx",
-    "msgpack",
-    "requests",
-    "hypothesis",
-    "pytest{matrix:pytest}",
-    "pytest-cov",
-    "pytest-mock"
-]
-
-[envs.pytest_plugin_v2.env-vars]
-DD_AGENT_PORT = "9126"
-
-[envs.pytest_plugin_v2.scripts]
-test = [
-    "pip freeze",
-    "echo $PYTEST_ADDOPTS",
-    "pytest -c /dev/null --no-ddtrace --no-cov tests/contrib/pytest {args:}",
-]
-
-[[envs.pytest_plugin_v2.matrix]]
-python = ["3.9", "3.10", "3.12"]
-pytest = ["~=6.0", "~=7.0", "~=8.0"]
-
 [envs.snapshot_viewer]
 dev-mode = false
 detached = true

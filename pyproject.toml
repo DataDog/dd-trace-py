@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools_scm[toml]>=4", "cython", "cmake>=3.24.2,<3.28; python_version>='3.8'", "setuptools-rust<2"]
+requires = [
+    "setuptools_scm[toml]>=4",
+    "cython",
+    "cmake>=3.24.2,<3.28; python_version>='3.8'",
+    "setuptools-rust<2",
+    "patchelf>=0.17.0.0; sys_platform == 'linux'",
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -30,12 +36,10 @@ dependencies = [
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
     "envier~=0.6.1",
-    "importlib_metadata<=6.5.0; python_version<'3.8'",
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
     "protobuf>=3",
     "typing_extensions",
-    "xmltodict>=0.12",
     "wrapt>=1",
 ]
 
@@ -52,6 +56,7 @@ openai = [
 
 [project.scripts]
 ddtrace-run = "ddtrace.commands.ddtrace_run:main"
+_dd_crashtracker_receiver = "ddtrace.commands._dd_crashtracker_receiver:main"
 
 [project.entry-points.opentelemetry_context]
 ddcontextvars_context = "ddtrace.internal.opentelemetry.context:DDRuntimeContext"
@@ -114,7 +119,6 @@ exclude = '''
   | ddtrace/profiling/_threading.pyx$
   | ddtrace/profiling/collector/stack.pyx$
   | ddtrace/profiling/exporter/pprof.pyx$
-  | ddtrace/internal/datadog/profiling/crashtracker/_crashtracker.pyx$
   | ddtrace/internal/datadog/profiling/ddup/_ddup.pyx$
   | ddtrace/vendor/
   | ddtrace/appsec/_iast/_taint_tracking/_vendor/

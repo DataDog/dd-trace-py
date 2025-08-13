@@ -163,7 +163,6 @@ class LangChainIntegration(BaseLLMIntegration):
 
         self._set_links(span)
         model_provider = span.get_tag(PROVIDER)
-        self._llmobs_set_metadata(span, model_provider)
 
         is_workflow = False
 
@@ -365,26 +364,37 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
-    def _llmobs_set_metadata(self, span: Span, model_provider: Optional[str] = None) -> None:
-        if not model_provider:
+    def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
+        identifying_params = kwargs.pop("_dd.identifying_params", None)
+        if not identifying_params:
             return
+        metadata = self._llmobs_extract_parameters(identifying_params)
+        for val in identifying_params.values():
+            if metadata:
+                break
+            if not isinstance(val, dict):
+                continue
+            metadata = self._llmobs_extract_parameters(val)
 
-        metadata = {}
-        temperature = span.get_tag(f"langchain.request.{model_provider}.parameters.temperature") or span.get_tag(
-            f"langchain.request.{model_provider}.parameters.model_kwargs.temperature"
-        )  # huggingface
-        max_tokens = (
-            span.get_tag(f"langchain.request.{model_provider}.parameters.max_tokens")
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.maxTokens")  # ai21
-            or span.get_tag(f"langchain.request.{model_provider}.parameters.model_kwargs.max_tokens")  # huggingface
-        )
+        if metadata:
+            span._set_ctx_item(METADATA, metadata)
 
+    def _llmobs_extract_parameters(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        metadata: Dict[str, Any] = {}
+        max_tokens = None
+        temperature = None
+        if "temperature" in parameters:
+            temperature = parameters["temperature"]
+        for max_token_key in ["max_tokens", "maxTokens", "max_completion_tokens"]:
+            if max_token_key in parameters:
+                max_tokens = parameters[max_token_key]
+                break
         if temperature is not None and temperature != "None":
             metadata["temperature"] = float(temperature)
         if max_tokens is not None and max_tokens != "None":
             metadata["max_tokens"] = int(max_tokens)
-        if metadata:
-            span._set_ctx_item(METADATA, metadata)
+
+        return metadata
 
     def _llmobs_set_tags_from_llm(
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], completions: Any, is_workflow: bool = False
@@ -410,6 +420,8 @@ class LangChainIntegration(BaseLLMIntegration):
                 input_tag_key: input_messages,
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
 
         if span.error:
             span._set_ctx_item(output_tag_key, [{"content": ""}])
@@ -444,6 +456,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 MODEL_PROVIDER: span.get_tag(PROVIDER) or "",
             }
         )
+
+        self._llmobs_set_metadata(span, kwargs)
+
         input_tag_key = INPUT_VALUE if is_workflow else INPUT_MESSAGES
         output_tag_key = OUTPUT_VALUE if is_workflow else OUTPUT_MESSAGES
         stream = span.get_tag("langchain.request.stream")
@@ -700,16 +715,10 @@ class LangChainIntegration(BaseLLMIntegration):
         **kwargs,
     ) -> None:
         """Set base level tags that should be present on all LangChain spans (if they are not None)."""
-        span.set_tag_str(TYPE, interface_type)
         if provider is not None:
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
-        if api_key is not None:
-            if len(api_key) >= 4:
-                span.set_tag_str(API_KEY, "...%s" % str(api_key[-4:]))
-            else:
-                span.set_tag_str(API_KEY, api_key)
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""

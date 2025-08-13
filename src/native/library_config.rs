@@ -1,5 +1,7 @@
-use datadog_library_config::{Configurator, ProcessInfo};
-use ddcommon::tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata};
+use datadog_library_config::{
+    tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
+    Configurator, ProcessInfo,
+};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;

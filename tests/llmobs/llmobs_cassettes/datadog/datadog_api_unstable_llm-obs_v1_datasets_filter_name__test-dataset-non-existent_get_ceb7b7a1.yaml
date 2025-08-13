@@ -16,7 +16,7 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: GET
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter%5Bname%5D=test-dataset-non-existent
   response:
@@ -30,7 +30,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Tue, 15 Jul 2025 00:15:19 GMT
+      - Wed, 06 Aug 2025 20:51:15 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

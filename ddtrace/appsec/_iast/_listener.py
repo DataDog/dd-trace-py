@@ -1,3 +1,7 @@
+from types import TracebackType
+from typing import Optional
+from typing import Tuple
+
 from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
@@ -19,6 +23,12 @@ from ddtrace.internal import core
 
 
 def iast_listen():
+    def _iast_context_end(
+        ctx: core.ExecutionContext,
+        _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+    ):
+        _iast_end_request(ctx)
+
     core.on("grpc.client.response.message", _on_grpc_response)
     core.on("grpc.server.response.message", _on_grpc_server_response)
 
@@ -37,8 +47,8 @@ def iast_listen():
     core.on("flask.finalize_request.post", _on_flask_finalize_request_post)
     core.on("werkzeug.render_debugger_html", _on_werkzeug_render_debugger_html)
 
-    core.on("context.ended.wsgi.__call__", _iast_end_request)
-    core.on("context.ended.asgi.__call__", _iast_end_request)
+    core.on("context.ended.wsgi.__call__", _iast_context_end)
+    core.on("context.ended.asgi.__call__", _iast_context_end)
 
     # Sink points
     core.on("db_query_check", _on_report_sqli)

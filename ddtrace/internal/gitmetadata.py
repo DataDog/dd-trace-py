@@ -33,8 +33,11 @@ class GitMetadataConfig(DDConfig):
     tags = DDConfig.var(str, "tags", default="")
 
 
-def _get_tags_from_env(config):
-    # type: (GitMetadataConfig) -> typing.Tuple[str, str, str]
+config = GitMetadataConfig()
+
+
+def _get_tags_from_env():
+    # type: () -> typing.Tuple[str, str, str]
     """
     Get git metadata from environment variables.
     Returns tuple (repository_url, commit_sha, main_package)
@@ -57,8 +60,7 @@ def _get_tags_from_env(config):
     return filtered_git_url, commit_sha, main_package
 
 
-def _get_tags_from_package(main_package):
-    # type: (str) -> typing.Tuple[str, str]
+def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
     """
     Extracts git metadata from python package's medatada field Project-URL:
     e.g: Project-URL: source_code_link, https://github.com/user/repo#gitcommitsha&someoptions
@@ -67,10 +69,7 @@ def _get_tags_from_package(main_package):
     if not main_package:
         return "", ""
     try:
-        try:
-            import importlib.metadata as importlib_metadata
-        except ImportError:
-            import importlib_metadata  # type: ignore[no-redef]
+        import importlib.metadata as importlib_metadata
 
         source_code_link = ""
         for val in importlib_metadata.metadata(main_package).get_all("Project-URL") or []:
@@ -101,24 +100,17 @@ def get_git_tags():
         if _GITMETADATA_TAGS is not None:
             return _GITMETADATA_TAGS
 
-        config = GitMetadataConfig()
-
         if config.enabled:
-            repository_url, commit_sha, main_package = _get_tags_from_env(config)
-            log.debug("git tags from env: %s %s %s", repository_url, commit_sha, main_package)
+            repository_url, commit_sha, main_package = _get_tags_from_env()
             if main_package and (not repository_url or not commit_sha):
                 # trying to extract repo URL and/or commit sha from the main package
                 pkg_repository_url, pkg_commit_sha = _get_tags_from_package(main_package)
-                log.debug("git tags from package: %s %s", pkg_repository_url, pkg_commit_sha)
                 if not repository_url:
                     repository_url = pkg_repository_url
                 if not commit_sha:
                     commit_sha = pkg_commit_sha
-
-            log.debug("git tags: %s %s", repository_url, commit_sha)
             _GITMETADATA_TAGS = repository_url, commit_sha, main_package
         else:
-            log.debug("git tags disabled")
             _GITMETADATA_TAGS = ("", "", "")
         return _GITMETADATA_TAGS
     except Exception:

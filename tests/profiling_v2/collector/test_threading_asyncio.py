@@ -48,7 +48,7 @@ def test_lock_acquire_events():
     linenos_1 = get_lock_linenos("test_lock_acquire_events_1")
     linenos_2 = get_lock_linenos("test_lock_acquire_events_2")
 
-    profile = pprof_utils.parse_profile(output_filename)
+    profile = pprof_utils.parse_newest_profile(output_filename)
 
     task_name_regex = r"Task-\d+$"
 

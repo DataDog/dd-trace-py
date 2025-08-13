@@ -8,7 +8,6 @@ from mako.template import Template
 from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.contrib.internal.mako.patch import patch
 from ddtrace.contrib.internal.mako.patch import unpatch
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
@@ -47,7 +46,7 @@ class MakoTest(TracerTestCase):
 
         # render_unicode
         t = Template("Hello ${name}!")
-        self.assertEqual(t.render_unicode(name="mako"), to_unicode("Hello mako!"))
+        self.assertEqual(t.render_unicode(name="mako"), "Hello mako!")
         spans = self.pop_spans()
         self.assertEqual(len(spans), 1)
         assert_is_measured(spans[0])

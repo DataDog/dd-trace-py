@@ -1,3 +1,6 @@
+import json
+from unittest import mock
+
 from google.genai import types
 import pytest
 
@@ -208,6 +211,23 @@ class TestLLMObsGoogleGenAI:
 
         expected_second_event = expected_llmobs_tool_response_span_event(second_span)
         assert llmobs_events[1] == expected_second_event
+
+    def test_code_execution(self, genai_client_vcr, llmobs_events):
+        genai_client_vcr.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
+            config={"tools": [{"code_execution": {}}]},
+        )
+
+        assert llmobs_events[0]["meta"]["output"]["messages"][0]["content"] == mock.ANY
+        assert json.loads(llmobs_events[0]["meta"]["output"]["messages"][1]["content"]) == {
+            "language": mock.ANY,
+            "code": mock.ANY,
+        }
+        assert json.loads(llmobs_events[0]["meta"]["output"]["messages"][2]["content"]) == {
+            "outcome": mock.ANY,
+            "output": mock.ANY,
+        }
 
 
 def expected_llmobs_span_event(span):

@@ -48,12 +48,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             self._body.append(json.loads(body))
             if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
                 formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-                model_provider = self._execution_ctx["model_provider"]
-                model_name = self._execution_ctx["model_name"]
-                should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
                 core.dispatch(
                     "botocore.bedrock.process_response",
-                    [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
+                    [self._execution_ctx, formatted_response],
                 )
             return body
         except Exception:
@@ -67,12 +64,9 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
             for line in lines:
                 self._body.append(json.loads(line))
             formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-            model_provider = self._execution_ctx["model_provider"]
-            model_name = self._execution_ctx["model_name"]
-            should_set_choice_ids = model_provider == _COHERE and "embed" not in model_name
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response, None, self._body[0], should_set_choice_ids],
+                [self._execution_ctx, formatted_response],
             )
             return lines
         except Exception:
@@ -93,16 +87,10 @@ class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
         finally:
             if exception_raised:
                 return
-            metadata = _extract_streamed_response_metadata(self._execution_ctx, self._body)
             formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
-            model_provider = self._execution_ctx["model_provider"]
-            model_name = self._execution_ctx["model_name"]
-            should_set_choice_ids = (
-                model_provider == _COHERE and "is_finished" not in self._body[0] and "embed" not in model_name
-            )
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response, metadata, self._body, should_set_choice_ids],
+                [self._execution_ctx, formatted_response],
             )
 
 
@@ -441,18 +429,6 @@ def handle_bedrock_response(
         safe_token_count(total_tokens),
         safe_token_count(cache_read_tokens),
         safe_token_count(cache_write_tokens),
-    )
-
-    # for both converse & invoke, dispatch success event to store basic metrics
-    core.dispatch(
-        "botocore.patched_bedrock_api_call.success",
-        [
-            ctx,
-            str(metadata.get("RequestId", "")),
-            request_latency,
-            str(input_tokens),
-            str(output_tokens),
-        ],
     )
 
     if ctx["resource"] == "Converse":

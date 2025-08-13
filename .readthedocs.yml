@@ -3,8 +3,9 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-    rust: "1.78"
+    rust: "1.86"
   commands:
+    - cargo install --force --root /home/docs/.asdf --git https://github.com/DataDog/libdatadog --bin dedup_headers tools
     - git fetch --unshallow || true
     - curl -L https://github.com/pypa/hatch/releases/download/hatch-v1.12.0/hatch-x86_64-unknown-linux-gnu.tar.gz | tar zx
     - install -t $HOME/.asdf/bin hatch

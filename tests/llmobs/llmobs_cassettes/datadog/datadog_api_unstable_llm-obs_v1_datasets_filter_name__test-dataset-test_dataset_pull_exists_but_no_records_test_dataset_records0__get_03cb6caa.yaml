@@ -16,13 +16,13 @@ interactions:
       - Content-Type
       : - application/json
       User-Agent:
-      - python-requests/2.32.4
+      - python-requests/2.32.3
     method: GET
     uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets?filter%5Bname%5D=test-dataset-test_dataset_pull_exists_but_no_records%5Btest_dataset_records0%5D
   response:
     body:
-      string: '{"data":[{"id":"df56b404-42a2-4a55-aaec-702c83a152f3","type":"datasets","attributes":{"author":{"id":"0dd9d379-c1a3-11ed-b4e0-566658a732f8"},"created_at":"2025-07-11T02:28:06.760541Z","current_version":0,"description":"A
-        test dataset","name":"test-dataset-test_dataset_pull_exists_but_no_records[test_dataset_records0]","updated_at":"2025-07-11T02:28:06.760541Z"}}],"meta":{"after":""}}'
+      string: '{"data":[{"id":"b1c12787-7c4a-4a4d-b8ee-061bd83b9a5e","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-06T20:51:16.143945Z","current_version":0,"description":"A
+        test dataset","name":"test-dataset-test_dataset_pull_exists_but_no_records[test_dataset_records0]","updated_at":"2025-08-06T20:51:16.143945Z"}}],"meta":{"after":""}}'
     headers:
       content-length:
       - '386'
@@ -31,7 +31,7 @@ interactions:
       content-type:
       - application/vnd.api+json
       date:
-      - Fri, 11 Jul 2025 02:28:08 GMT
+      - Wed, 06 Aug 2025 20:51:18 GMT
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       vary:

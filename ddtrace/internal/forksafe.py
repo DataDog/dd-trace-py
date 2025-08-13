@@ -1,6 +1,7 @@
 """
 An API to provide fork-safe functions.
 """
+
 import functools
 import logging
 import os
@@ -16,6 +17,7 @@ log = logging.getLogger(__name__)
 
 _registry = []  # type: typing.List[typing.Callable[[], None]]
 _registry_before_fork = []  # type: typing.List[typing.Callable[[], None]]
+_registry_after_parent = []  # type: typing.List[typing.Callable[[], None]]
 
 # Some integrations might require after-fork hooks to be executed after the
 # actual call to os.fork with earlier versions of Python (<= 3.6), else issues
@@ -50,6 +52,7 @@ def run_hooks(registry):
 
 ddtrace_before_fork = functools.partial(run_hooks, _registry_before_fork)
 ddtrace_after_in_child = functools.partial(run_hooks, _registry)
+ddtrace_after_in_parent = functools.partial(run_hooks, _registry_after_parent)
 
 
 def register_hook(registry, hook):
@@ -59,6 +62,9 @@ def register_hook(registry, hook):
 
 register_before_fork = functools.partial(register_hook, _registry_before_fork)
 register = functools.partial(register_hook, _registry)
+register_after_parent = functools.partial(register_hook, _registry_after_parent)
+
+register_after_parent(set_forked)
 
 
 def unregister(after_in_child):
@@ -69,6 +75,13 @@ def unregister(after_in_child):
         log.info("after_in_child hook %s was unregistered without first being registered", after_in_child.__name__)
 
 
+def unregister_parent(after_in_parent: typing.Callable[[], None]) -> None:
+    try:
+        _registry_after_parent.remove(after_in_parent)
+    except ValueError:
+        log.info("after_in_parent hook %s was unregistered without first being registered", after_in_parent.__name__)
+
+
 def unregister_before_fork(before_fork):
     # type: (typing.Callable[[], None]) -> None
     try:
@@ -77,8 +90,12 @@ def unregister_before_fork(before_fork):
         log.info("before_in_child hook %s was unregistered without first being registered", before_fork.__name__)
 
 
+# Availability: Unix, not WASI, not Android, not iOS.
+# Added in version 3.7.
 if hasattr(os, "register_at_fork"):
-    os.register_at_fork(before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=set_forked)
+    os.register_at_fork(
+        before=ddtrace_before_fork, after_in_child=ddtrace_after_in_child, after_in_parent=ddtrace_after_in_parent
+    )
 
 _resetable_objects = weakref.WeakSet()  # type: weakref.WeakSet[ResetObject]
 
@@ -108,7 +125,8 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
     """
 
     def __init__(
-        self, wrapped_class  # type: typing.Type[_T]
+        self,
+        wrapped_class,  # type: typing.Type[_T]
     ):
         # type: (...) -> None
         super(ResetObject, self).__init__(wrapped_class())

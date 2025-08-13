@@ -17,7 +17,6 @@ from ddtrace.appsec._constants import APPSEC
 from ddtrace.appsec._constants import IAST
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.internal._unpatched import unpatched_json_loads
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -30,24 +29,24 @@ _TRUNC_CONTAINER_SIZE = 2
 
 
 class _observator:
-    def __init__(self):
+    def __init__(self) -> None:
         self.string_length: Optional[int] = None
         self.container_size: Optional[int] = None
         self.container_depth: Optional[int] = None
 
-    def set_string_length(self, length: int):
+    def set_string_length(self, length: int) -> None:
         if self.string_length is None:
             self.string_length = length
         else:
             self.string_length = max(self.string_length, length)
 
-    def set_container_size(self, size: int):
+    def set_container_size(self, size: int) -> None:
         if self.container_size is None:
             self.container_size = size
         else:
             self.container_size = max(self.container_size, size)
 
-    def set_container_depth(self, depth: int):
+    def set_container_depth(self, depth: int) -> None:
         if self.container_depth is None:
             self.container_depth = depth
         else:
@@ -80,7 +79,7 @@ class DDWaf_result:
         truncation: _observator,
         derivatives: Dict[str, Any],
         keep: bool = False,
-    ):
+    ) -> None:
         self.return_code = return_code
         self.data = data
         self.actions = actions
@@ -116,13 +115,13 @@ Binding_error = DDWaf_result(-127, [], {}, 0.0, 0.0, False, _observator(), {})
 class DDWaf_info:
     __slots__ = ["loaded", "failed", "errors", "version"]
 
-    def __init__(self, loaded: int, failed: int, errors: str, version: str):
+    def __init__(self, loaded: int, failed: int, errors: str, version: str) -> None:
         self.loaded = loaded
         self.failed = failed
         self.errors = errors
         self.version = version
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "{loaded: %d, failed: %d, errors: %s, version: %s}" % (
             self.loaded,
             self.failed,
@@ -134,24 +133,24 @@ class DDWaf_info:
 class Truncation_result:
     __slots__ = ["string_length", "container_size", "container_depth"]
 
-    def __init__(self):
-        self.string_length = []
-        self.container_size = []
-        self.container_depth = []
+    def __init__(self) -> None:
+        self.string_length: List[int] = []
+        self.container_size: List[int] = []
+        self.container_depth: List[int] = []
 
 
 class Rasp_result:
     __slots__ = ["blocked", "sum_eval", "duration", "total_duration", "eval", "match", "timeout", "durations"]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.blocked = False
         self.sum_eval = 0
         self.duration = 0.0
         self.total_duration = 0.0
-        self.eval = collections.defaultdict(int)
-        self.match = collections.defaultdict(int)
-        self.timeout = collections.defaultdict(int)
-        self.durations = collections.defaultdict(float)
+        self.eval: Dict[str, int] = collections.defaultdict(int)
+        self.match: Dict[str, int] = collections.defaultdict(int)
+        self.timeout: Dict[str, int] = collections.defaultdict(int)
+        self.durations: Dict[str, float] = collections.defaultdict(float)
 
 
 class Telemetry_result:
@@ -168,7 +167,7 @@ class Telemetry_result:
         "error",
     ]
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.blocked = False
         self.triggered = False
         self.timeout = 0
@@ -182,8 +181,6 @@ class Telemetry_result:
 
 
 def parse_response_body(raw_body, headers):
-    import xmltodict
-
     if not raw_body:
         return
 
@@ -193,7 +190,7 @@ def parse_response_body(raw_body, headers):
     if not headers:
         return
     content_type = _get_header_value_case_insensitive(
-        {to_unicode(k): to_unicode(v) for k, v in dict(headers).items()},
+        {str(k): str(v) for k, v in dict(headers).items()},
         "content-type",
     )
     if not content_type:
@@ -214,6 +211,8 @@ def parse_response_body(raw_body, headers):
         if "json" in content_type:
             req_body = unpatched_json_loads(access_body(raw_body))
         elif "xml" in content_type:
+            import ddtrace.vendor.xmltodict as xmltodict
+
             req_body = xmltodict.parse(access_body(raw_body))
         else:
             return

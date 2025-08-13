@@ -542,7 +542,9 @@ def test_module_import_side_effect():
 
 
 def test_public_modules_in_ddtrace_contrib():
-    # Ensures that public modules are not accidentally added to ddtrace.contrib
+    """Ensures that integration implementation details are not accidentally added to our public api.
+    By default, integrations should be defined in ddtrace/contrib/internal/<integration_name>/
+    """
     contrib_dir = Path(DDTRACE_PATH) / "ddtrace" / "contrib"
 
     public_modules = set()
@@ -553,8 +555,7 @@ def test_public_modules_in_ddtrace_contrib():
             continue
 
         for file_name in file_names:
-            # Ignore private modules (python files prefixed with "_")
-            if file_name.endswith(".py") and not file_name.startswith("_"):
+            if file_name.endswith(".py"):
                 # Converts filename to a module name (ex: dd-trace-py/ddtrace/contrib/flask.py -> ddtrace.contrib.flask)
                 relative_dir_with_file = relative_dir / file_name[:-3]
                 module_name = "ddtrace.contrib." + ".".join(relative_dir_with_file.parts)
@@ -563,6 +564,7 @@ def test_public_modules_in_ddtrace_contrib():
     # The following modules contain attributes that are exposed to ddtrace users. All other modules in ddtrace.contrib
     # are internal.
     assert public_modules == {
+        "ddtrace.contrib.__init__",
         "ddtrace.contrib.trace_utils",
         "ddtrace.contrib.celery",
         "ddtrace.contrib.tornado",
@@ -570,6 +572,7 @@ def test_public_modules_in_ddtrace_contrib():
         "ddtrace.contrib.asgi",
         "ddtrace.contrib.bottle",
         "ddtrace.contrib.flask_cache",
+        "ddtrace.contrib.integration_registry.__init__",
         "ddtrace.contrib.integration_registry.mappings",
         "ddtrace.contrib.integration_registry.utils",
         "ddtrace.contrib.aiohttp",

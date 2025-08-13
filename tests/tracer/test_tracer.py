@@ -691,11 +691,10 @@ def test_tracer_url_default():
 def test_tracer_shutdown_no_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
-        with mock.patch.object(AgentWriter, "join") as mock_join:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
+        with mock.patch.object(t._span_aggregator.writer, "join") as mock_join:
             t.shutdown()
 
     mock_stop.assert_called()
@@ -706,10 +705,9 @@ def test_tracer_shutdown_no_timeout():
 def test_tracer_shutdown_timeout():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
-    with mock.patch.object(AgentWriter, "stop") as mock_stop:
+    with mock.patch.object(t._span_aggregator.writer, "stop") as mock_stop:
         with t.trace("something"):
             pass
 
@@ -723,12 +721,11 @@ def test_tracer_shutdown_timeout():
 def test_tracer_shutdown():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
 
     t.shutdown()
 
-    with mock.patch.object(AgentWriter, "write") as mock_write:
+    with mock.patch.object(t._span_aggregator.writer, "write") as mock_write:
         with t.trace("something"):
             pass
 
@@ -1043,10 +1040,16 @@ def test_start_span_hooks():
     def store_span(span):
         result["span"] = span
 
-    span = t.start_span("hello")
+    try:
+        span = t.start_span("hello")
 
-    assert span == result["span"]
-    span.finish()
+        assert span == result["span"]
+        span.finish()
+    finally:
+        # Cleanup after the test is done
+        # DEV: Since we use the core API for these hooks,
+        #      they are not isolated to a single tracer instance
+        t.deregister_on_start_span(store_span)
 
 
 def test_deregister_start_span_hooks():
@@ -1088,8 +1091,6 @@ def test_enable():
 )
 def test_unfinished_span_warning_log():
     """Test that a warning log is emitted when the tracer is shut down with unfinished spans."""
-    import ddtrace.auto  # noqa
-
     from ddtrace.constants import MANUAL_KEEP_KEY
     from ddtrace.trace import tracer
 

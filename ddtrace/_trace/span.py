@@ -1,8 +1,6 @@
 from io import StringIO
 import math
-import pprint
 import sys
-from time import time_ns
 import traceback
 from types import TracebackType
 from typing import Any
@@ -50,11 +48,12 @@ from ddtrace.internal.compat import is_integer
 from ddtrace.internal.constants import MAX_INT_64BITS as _MAX_INT_64BITS
 from ddtrace.internal.constants import MAX_UINT_64BITS as _MAX_UINT_64BITS
 from ddtrace.internal.constants import MIN_INT_64BITS as _MIN_INT_64BITS
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SPAN_API_DATADOG
+from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.sampling import SamplingMechanism
-from ddtrace.internal.sampling import set_sampling_decision_maker
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
+from ddtrace.internal.utils.time import Time
 from ddtrace.settings._config import config
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -70,7 +69,7 @@ class SpanEvent:
     ):
         self.name: str = name
         if time_unix_nano is None:
-            time_unix_nano = time_ns()
+            time_unix_nano = Time.time_ns()
         self.time_unix_nano: int = time_unix_nano
         self.attributes: dict = attributes if attributes else {}
 
@@ -80,14 +79,12 @@ class SpanEvent:
             d["attributes"] = self.attributes
         return d
 
-    def __str__(self):
+    def __repr__(self):
         """
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
-
-        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
-        return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
 
     def __iter__(self):
         yield "name", self.name
@@ -199,7 +196,7 @@ class Span(object):
 
         self._meta_struct: Dict[str, Dict[str, Any]] = {}
 
-        self.start_ns: int = time_ns() if start is None else int(start * 1e9)
+        self.start_ns: int = Time.time_ns() if start is None else int(start * 1e9)
         self.duration_ns: Optional[int] = None
 
         if trace_id is not None:
@@ -292,7 +289,7 @@ class Span(object):
         """
         if value:
             if not self.finished:
-                self.duration_ns = time_ns() - self.start_ns
+                self.duration_ns = Time.time_ns() - self.start_ns
         else:
             self.duration_ns = None
 
@@ -314,7 +311,7 @@ class Span(object):
         :param finish_time: The end time of the span, in seconds. Defaults to ``now``.
         """
         if finish_time is None:
-            self._finish_ns(time_ns())
+            self._finish_ns(Time.time_ns())
         else:
             self._finish_ns(int(finish_time * 1e9))
 
@@ -330,11 +327,19 @@ class Span(object):
 
     def _override_sampling_decision(self, decision: Optional[NumericType]):
         self.context.sampling_priority = decision
-        set_sampling_decision_maker(self.context, SamplingMechanism.MANUAL)
+        self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
             for key in (_SAMPLING_RULE_DECISION, _SAMPLING_AGENT_DECISION, _SAMPLING_LIMIT_DECISION):
                 if key in self._local_root._metrics:
                     del self._local_root._metrics[key]
+
+    def _set_sampling_decision_maker(
+        self,
+        sampling_mechanism: int,
+    ) -> Optional[Text]:
+        value = "-%d" % sampling_mechanism
+        self.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] = value
+        return value
 
     def set_tag(self, key: _TagNameType, value: Any = None) -> None:
         """Set a tag key/value pair on the span.
@@ -650,7 +655,7 @@ class Span(object):
             # User provided attributes must take precedence over attrs
             attrs.update(attributes)
 
-        self._add_event(name="exception", attributes=attrs, timestamp=time_ns())
+        self._add_event(name="exception", attributes=attrs, timestamp=Time.time_ns())
 
     def _validate_attribute(self, key: str, value: object) -> bool:
         if isinstance(value, (str, bool, int, float)):
@@ -695,31 +700,6 @@ class Span(object):
             return True
 
         return False
-
-    def _pprint(self) -> str:
-        """Return a human readable version of the span."""
-        data = [
-            ("name", self.name),
-            ("id", self.span_id),
-            ("trace_id", self.trace_id),
-            ("parent_id", self.parent_id),
-            ("service", self.service),
-            ("resource", self.resource),
-            ("type", self.span_type),
-            ("start", self.start),
-            ("end", None if not self.duration else self.start + self.duration),
-            ("duration", self.duration),
-            ("error", self.error),
-            ("tags", dict(sorted(self._meta.items()))),
-            ("metrics", dict(sorted(self._metrics.items()))),
-            ("links", ", ".join([str(link) for link in self._links])),
-            ("events", ", ".join([str(e) for e in self._events])),
-        ]
-        return " ".join(
-            # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
-            for (k, v) in data
-        )
 
     @property
     def context(self) -> Context:
@@ -836,15 +816,54 @@ class Span(object):
     def __enter__(self) -> "Span":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Optional[TracebackType]) -> None:
+    def __exit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc_val: Optional[BaseException],
+        exc_tb: Optional[TracebackType],
+    ) -> None:
         try:
             if exc_type:
-                self.set_exc_info(exc_type, exc_val, exc_tb)
+                self.set_exc_info(exc_type, exc_val, exc_tb)  # type: ignore
             self.finish()
         except Exception:
             log.exception("error closing trace")
 
+    def _pprint(self) -> str:
+        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
+        # used to debug spans in the wild. Introducing a deprecation warning here to
+        # give users a chance to migrate to __repr__ before we remove it.
+        deprecate(
+            prefix="The _pprint method is deprecated for __repr__",
+            message="""Use __repr__ instead.""",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        return self.__repr__()
+
     def __repr__(self) -> str:
+        """Return a detailed string representation of a span."""
+        return (
+            f"Span(name='{self.name}', "
+            f"span_id={self.span_id}, "
+            f"parent_id={self.parent_id}, "
+            f"trace_id={self.trace_id}, "
+            f"service='{self.service}', "
+            f"resource='{self.resource}', "
+            f"type='{self.span_type}', "
+            f"start={self.start_ns}, "
+            f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
+            f"duration={self.duration_ns}, "
+            f"error={self.error}, "
+            f"tags={self._meta}, "
+            f"metrics={self._metrics}, "
+            f"links={self._links}, "
+            f"events={self._events}, "
+            f"context={self._context})"
+        )
+
+    def __str__(self) -> str:
+        """Return a concise string representation of a span."""
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
             self.span_id,
             self.trace_id,

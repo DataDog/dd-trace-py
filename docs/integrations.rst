@@ -7,27 +7,27 @@ Integrations
 
 aiobotocore
 ^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._aiobotocore
+.. automodule:: ddtrace.contrib.internal.aiobotocore
 
 
 .. _aiopg:
 
 aiopg
 ^^^^^
-.. automodule:: ddtrace.contrib._aiopg
+.. automodule:: ddtrace.contrib.internal.aiopg
 
 
 .. _algoliasearch:
 
 algoliasearch
 ^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._algoliasearch
+.. automodule:: ddtrace.contrib.internal.algoliasearch
 
 .. _aredis:
 
 aredis
 ^^^^^^
-.. automodule:: ddtrace.contrib._aredis
+.. automodule:: ddtrace.contrib.internal.aredis
 
 .. _asgi:
 
@@ -45,62 +45,62 @@ aiohttp
 
 aiohttp-jinja2
 ^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._aiohttp_jinja2
+.. automodule:: ddtrace.contrib.internal.aiohttp_jinja2
 
 .. _aiomysql:
 
 aiomysql
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._aiomysql
+.. automodule:: ddtrace.contrib.internal.aiomysql
 
 
 .. _anthropic:
 
 anthropic
 ^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._anthropic
+.. automodule:: ddtrace.contrib.internal.anthropic
 
 
 .. _asyncio:
 
 asyncio
 ^^^^^^^
-.. automodule:: ddtrace.contrib._asyncio
+.. automodule:: ddtrace.contrib.internal.asyncio
 
 
 .. _asyncpg:
 
 asyncpg
 ^^^^^^^
-.. automodule:: ddtrace.contrib._asyncpg
+.. automodule:: ddtrace.contrib.internal.asyncpg
 
 
 .. _avro:
 
 avro
 ^^^^
-.. automodule:: ddtrace.contrib._avro
+.. automodule:: ddtrace.contrib.internal.avro
 
 
 .. _azure_functions:
 
 Azure Functions
 ^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._azure_functions
+.. automodule:: ddtrace.contrib.internal.azure_functions
 
 
 .. _botocore:
 
 botocore
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._botocore
+.. automodule:: ddtrace.contrib.internal.botocore
 
 
 .. _boto2:
 
 boto2
 ^^^^^
-.. automodule:: ddtrace.contrib._boto
+.. automodule:: ddtrace.contrib.internal.boto
 
 
 .. _bottle:
@@ -114,7 +114,7 @@ Bottle
 
 Cassandra
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._cassandra
+.. automodule:: ddtrace.contrib.internal.cassandra
 
 
 .. _celery:
@@ -135,28 +135,28 @@ CherryPy
 
 Consul
 ^^^^^^
-.. automodule:: ddtrace.contrib._consul
+.. automodule:: ddtrace.contrib.internal.consul
 
 
 .. _coverage:
 
 Coverage
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._coverage
+.. automodule:: ddtrace.contrib.internal.coverage
 
 
 .. _crewai:
 
 CrewAI
 ^^^^^^
-.. automodule:: ddtrace.contrib._crewai
+.. automodule:: ddtrace.contrib.internal.crewai
 
 
 .. _datadog_lambda:
 
 datadog_lambda
 ==============
-.. automodule:: ddtrace.contrib._aws_lambda
+.. automodule:: ddtrace.contrib.internal.aws_lambda
 
 
 .. _djangorestframework:
@@ -164,28 +164,28 @@ datadog_lambda
 
 Django
 ^^^^^^
-.. automodule:: ddtrace.contrib._django
+.. automodule:: ddtrace.contrib.internal.django
 
 
 .. _dogpile.cache:
 
 dogpile.cache
 ^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._dogpile_cache
+.. automodule:: ddtrace.contrib.internal.dogpile_cache
 
 
 .. _dramatiq:
 
 Dramatiq
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._dramatiq
+.. automodule:: ddtrace.contrib.internal.dramatiq
 
 
 .. _elasticsearch:
 
 Elasticsearch
 ^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._elasticsearch
+.. automodule:: ddtrace.contrib.internal.elasticsearch
 
 
 .. _falcon:
@@ -199,14 +199,14 @@ Falcon
 
 Fastapi
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._fastapi
+.. automodule:: ddtrace.contrib.internal.fastapi
 
 
 .. _flask:
 
 Flask
 ^^^^^
-.. automodule:: ddtrace.contrib._flask
+.. automodule:: ddtrace.contrib.internal.flask
 
 
 .. _flask_cache:
@@ -220,159 +220,166 @@ Flask Cache
 
 FreezeGun
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._freezegun
+.. automodule:: ddtrace.contrib.internal.freezegun
 
 
 .. _futures:
 
 futures
 ^^^^^^^
-.. automodule:: ddtrace.contrib._futures
+.. automodule:: ddtrace.contrib.internal.futures
 
 
 .. _gevent:
 
 gevent
 ^^^^^^
-.. automodule:: ddtrace.contrib._gevent
+.. automodule:: ddtrace.contrib.internal.gevent
 
 
 .. _google_genai:
 
 google-genai
 ^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._google_genai
+.. automodule:: ddtrace.contrib.internal.google_genai
 
 .. _google_generativeai:
 
 google-generativeai
 ^^^^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._google_generativeai
+.. automodule:: ddtrace.contrib.internal.google_generativeai
 
 
 .. _graphql:
 
 graphql
 ^^^^^^^
-.. automodule:: ddtrace.contrib._graphql
+.. automodule:: ddtrace.contrib.internal.graphql
 
 
 .. _grpc:
 
 Grpc
 ^^^^
-.. automodule:: ddtrace.contrib._grpc
+.. automodule:: ddtrace.contrib.internal.grpc
 
 
 .. _gunicorn:
 
 gunicorn
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._gunicorn
+.. automodule:: ddtrace.contrib.internal.gunicorn
 
 
 .. _httplib:
 
 httplib
 ^^^^^^^
-.. automodule:: ddtrace.contrib._httplib
+.. automodule:: ddtrace.contrib.internal.httplib
 
 .. _httpx:
 
 httpx
 ^^^^^
-.. automodule:: ddtrace.contrib._httpx
+.. automodule:: ddtrace.contrib.internal.httpx
 
 
 .. _jinja2:
 
 Jinja2
 ^^^^^^
-.. automodule:: ddtrace.contrib._jinja2
+.. automodule:: ddtrace.contrib.internal.jinja2
 
 .. _kafka:
 
 Kafka
 ^^^^^
 
-.. automodule:: ddtrace.contrib._kafka
+.. automodule:: ddtrace.contrib.internal.kafka
 
 .. _kombu:
 
 kombu
 ^^^^^
-.. automodule:: ddtrace.contrib._kombu
+.. automodule:: ddtrace.contrib.internal.kombu
 
 .. _langchain:
 
 LangChain
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._langchain
+.. automodule:: ddtrace.contrib.internal.langchain
 
 .. _langgraph:
 
 LangGraph
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._langgraph
+.. automodule:: ddtrace.contrib.internal.langgraph
 
 .. _litellm:
 
 LiteLLM
 ^^^^^^^
-.. automodule:: ddtrace.contrib._litellm
+.. automodule:: ddtrace.contrib.internal.litellm
 
 .. _logbook:
 
 Logbook
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._logbook
+.. automodule:: ddtrace.contrib.internal.logbook
 
 .. _logging:
 
 Logging
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._logging
+.. automodule:: ddtrace.contrib.internal.logging
 
 .. _loguru:
 
 Loguru
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._loguru
+.. automodule:: ddtrace.contrib.internal.loguru
 
 
 .. _mako:
 
 Mako
 ^^^^
-.. automodule:: ddtrace.contrib._mako
+.. automodule:: ddtrace.contrib.internal.mako
+
+
+.. _mcp:
+
+MCP
+^^^
+.. automodule:: ddtrace.contrib.internal.mcp
 
 
 .. _mariadb:
 
 MariaDB
 ^^^^^^^
-.. automodule:: ddtrace.contrib._mariadb
+.. automodule:: ddtrace.contrib.internal.mariadb
 
 
 .. _molten:
 
 Molten
 ^^^^^^
-.. automodule:: ddtrace.contrib._molten
+.. automodule:: ddtrace.contrib.internal.molten
 
 
 .. _mongoengine:
 
 Mongoengine
 ^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._mongoengine
+.. automodule:: ddtrace.contrib.internal.mongoengine
 
 
 .. _mysql-connector:
 
 mysql-connector
 ^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._mysql
+.. automodule:: ddtrace.contrib.internal.mysql
 
 
 .. _mysqlclient:
@@ -380,21 +387,21 @@ mysql-connector
 
 mysqlclient
 ^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._mysqldb
+.. automodule:: ddtrace.contrib.internal.mysqldb
 
 
 .. _openai:
 
 OpenAI
 ^^^^^^
-.. automodule:: ddtrace.contrib._openai
+.. automodule:: ddtrace.contrib.internal.openai
 
 
 .. _openai-agents:
 
 OpenAI Agents
 ^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._openai_agents
+.. automodule:: ddtrace.contrib.internal.openai_agents
 
 
 .. _pylibmc:
@@ -408,35 +415,35 @@ pylibmc
 
 PynamoDB
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._pynamodb
+.. automodule:: ddtrace.contrib.internal.pynamodb
 
 
 .. _pyodbc:
 
 PyODBC
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._pyodbc
+.. automodule:: ddtrace.contrib.internal.pyodbc
 
 
 .. _pymemcache:
 
 pymemcache
 ^^^^^^^^^^
-.. automodule:: ddtrace.contrib._pymemcache
+.. automodule:: ddtrace.contrib.internal.pymemcache
 
 
 .. _pymongo:
 
 Pymongo
 ^^^^^^^
-.. automodule:: ddtrace.contrib._pymongo
+.. automodule:: ddtrace.contrib.internal.pymongo
 
 
 .. _pymysql:
 
 pymysql
 ^^^^^^^
-.. automodule:: ddtrace.contrib._pymysql
+.. automodule:: ddtrace.contrib.internal.pymysql
 
 
 .. _pyramid:
@@ -450,46 +457,46 @@ Pyramid
 
 pytest
 ^^^^^^
-.. automodule:: ddtrace.contrib._pytest
+.. automodule:: ddtrace.contrib.internal.pytest
 
 
 .. _pytest_bdd:
 
 pytest-bdd
 ^^^^^^^^^^
-.. automodule:: ddtrace.contrib._pytest_bdd
+.. automodule:: ddtrace.contrib.internal.pytest_bdd
 
 .. _pytest_benchmark:
 
 pytest-benchmark
 ^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._pytest_benchmark
+.. automodule:: ddtrace.contrib.internal.pytest_benchmark
 
 .. _protobuf:
 
 protobuf
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._protobuf
+.. automodule:: ddtrace.contrib.internal.protobuf
 
 .. _psycopg:
 
 psycopg
 ^^^^^^^
-.. automodule:: ddtrace.contrib._psycopg
+.. automodule:: ddtrace.contrib.internal.psycopg
 
 
 .. _redis:
 
 redis
 ^^^^^
-.. automodule:: ddtrace.contrib._redis
+.. automodule:: ddtrace.contrib.internal.redis
 
 
 .. _rediscluster:
 
 redis-py-cluster
 ^^^^^^^^^^^^^^^^
-.. automodule:: ddtrace.contrib._rediscluster
+.. automodule:: ddtrace.contrib.internal.rediscluster
 
 
 .. _requests:
@@ -503,42 +510,42 @@ Requests
 
 RQ
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._rq
+.. automodule:: ddtrace.contrib.internal.rq
 
 
 .. _sanic:
 
 Sanic
 ^^^^^
-.. automodule:: ddtrace.contrib._sanic
+.. automodule:: ddtrace.contrib.internal.sanic
 
 
 .. _selenium:
 
 Selenium
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._selenium
+.. automodule:: ddtrace.contrib.internal.selenium
 
 
 .. _snowflake:
 
 Snowflake
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._snowflake
+.. automodule:: ddtrace.contrib.internal.snowflake
 
 
 .. _starlette:
 
 Starlette
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._starlette
+.. automodule:: ddtrace.contrib.internal.starlette
 
 
 .. _structlog:
 
 Structlog
 ^^^^^^^^^
-.. automodule:: ddtrace.contrib._structlog
+.. automodule:: ddtrace.contrib.internal.structlog
 
 
 .. _sqlalchemy:
@@ -552,14 +559,14 @@ SQLAlchemy
 
 SQLite
 ^^^^^^
-.. automodule:: ddtrace.contrib._sqlite3
+.. automodule:: ddtrace.contrib.internal.sqlite3
 
 
 .. _subprocess:
 
 Subprocess
 ^^^^^^^^^^
-.. automodule:: ddtrace.contrib._subprocess
+.. automodule:: ddtrace.contrib.internal.subprocess
 
 
 .. _tornado:
@@ -573,21 +580,21 @@ Tornado
 
 unittest
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._unittest
+.. automodule:: ddtrace.contrib.internal.unittest
 
 
 .. _urllib:
 
 urllib
 ^^^^^^
-.. automodule:: ddtrace.contrib._urllib
+.. automodule:: ddtrace.contrib.internal.urllib
 
 
 .. _urllib3:
 
 urllib3
 ^^^^^^^
-.. automodule:: ddtrace.contrib._urllib3
+.. automodule:: ddtrace.contrib.internal.urllib3
 
 
 .. _valkey:
@@ -601,20 +608,20 @@ valkey
 
 vertexai
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._vertexai
+.. automodule:: ddtrace.contrib.internal.vertexai
 
 
 .. _vertica:
 
 Vertica
 ^^^^^^^
-.. automodule:: ddtrace.contrib._vertica
+.. automodule:: ddtrace.contrib.internal.vertica
 
 .. _webbrowser:
 
 Webbrowser
 ^^^^^^^^^^
-.. automodule:: ddtrace.contrib._webbrowser
+.. automodule:: ddtrace.contrib.internal.webbrowser
 
 .. _wsgi:
 
@@ -626,4 +633,4 @@ WSGI
 
 yaaredis
 ^^^^^^^^
-.. automodule:: ddtrace.contrib._yaaredis
+.. automodule:: ddtrace.contrib.internal.yaaredis

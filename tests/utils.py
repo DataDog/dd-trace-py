@@ -1,9 +1,9 @@
 import base64
 import contextlib
 from contextlib import contextmanager
-import datetime as dt
 import http.client as httplib
 from http.client import RemoteDisconnected
+import importlib.metadata as importlib_metadata
 import inspect
 import json
 import os
@@ -30,7 +30,6 @@ from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal.ci_visibility.writer import CIVisibilityWriter
-from ddtrace.internal.compat import to_unicode
 from ddtrace.internal.constants import HIGHER_ORDER_TRACE_ID_BITS
 from ddtrace.internal.encoding import JSONEncoder
 from ddtrace.internal.encoding import MsgpackEncoderV04 as Encoder
@@ -44,6 +43,8 @@ from ddtrace.internal.schema import SCHEMA_VERSION
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import AgentWriterInterface
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.propagation._database_monitoring import listen as dbm_config_listen
 from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unlisten
 from ddtrace.propagation.http import _DatadogMultiHeader
@@ -54,11 +55,6 @@ from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
-
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:
-    import importlib_metadata
 
 NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[1]
@@ -179,8 +175,6 @@ def override_global_config(values):
 
     asm_config_keys = asm_config._asm_config_keys
 
-    subscriptions = ddtrace.config._subscriptions
-    ddtrace.config._subscriptions = []
     # Grab the current values of all keys
     originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
     asm_originals = dict((key, getattr(asm_config, key)) for key in asm_config_keys)
@@ -195,8 +189,13 @@ def override_global_config(values):
             setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
+    if asm_config._asm_enabled:
+        from ddtrace.appsec._listeners import load_appsec
+
+        load_appsec()
     try:
         core.dispatch("test.config.override")
+        core.dispatch("asm.switch_state")
         yield
     finally:
         # Reset all to their original values
@@ -208,7 +207,6 @@ def override_global_config(values):
             setattr(asm_config, key, value)
 
         ddtrace.config._reset()
-        ddtrace.config._subscriptions = subscriptions
 
 
 @contextlib.contextmanager
@@ -574,7 +572,7 @@ class DummyWriterMixin:
         return traces
 
 
-class DummyWriter(DummyWriterMixin, AgentWriter):
+class DummyWriter(DummyWriterMixin, AgentWriterInterface):
     """DummyWriter is a small fake writer used for tests. not thread-safe."""
 
     def __init__(self, *args, **kwargs):
@@ -589,7 +587,15 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
         # DEV: We don't want to do anything with the response callback
         # so we set it to a no-op lambda function
         kwargs["response_callback"] = lambda *args, **kwargs: None
-        AgentWriter.__init__(self, *args, **kwargs)
+        if dd_config._trace_writer_native:
+            kwargs["compute_stats_enabled"] = dd_config._trace_compute_stats
+            kwargs["stats_opt_out"] = asm_config._apm_opt_out
+            self._inner_writer = NativeWriter(*args, **kwargs)
+        else:
+            if dd_config._trace_compute_stats or asm_config._apm_opt_out:
+                kwargs["headers"] = {"Datadog-Client-Computed-Stats": "yes"}
+            self._inner_writer = AgentWriter(*args, **kwargs)
+
         DummyWriterMixin.__init__(self, *args, **kwargs)
 
     def write(self, spans=None):
@@ -598,7 +604,7 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             traces = [spans]
             self.json_encoder.encode_traces(traces)
             if self._trace_flush_enabled:
-                AgentWriter.write(self, spans=spans)
+                self._inner_writer.write(spans=spans)
             else:
                 self.msgpack_encoder.put(spans)
                 self.msgpack_encoder.encode()
@@ -609,8 +615,55 @@ class DummyWriter(DummyWriterMixin, AgentWriter):
             flush_test_tracer_spans(self)
         return spans
 
-    def recreate(self):
+    def recreate(self, appsec_enabled: Optional[bool] = None) -> "DummyWriter":
         return self.__class__(trace_flush_enabled=self._trace_flush_enabled)
+
+    def flush_queue(self, raise_exc: bool = False) -> None:
+        return self._inner_writer.flush_queue(raise_exc)
+
+    def before_fork(self) -> None:
+        return self._inner_writer.before_fork()
+
+    def set_test_session_token(self, token: Optional[str]) -> None:
+        return self._inner_writer.set_test_session_token(token)
+
+    def stop(self, timeout: Optional[float] = None) -> None:
+        self._inner_writer.stop(timeout=timeout)
+
+    @property
+    def interval(self) -> float:
+        return self._inner_writer._interval
+
+    @interval.setter
+    def interval(
+        self,
+        value: float,
+    ) -> None:
+        self._inner_writer.interval = value
+
+    def _start_service(self, *args, **kwargs) -> None:
+        self._inner_writer._start_service(*args, **kwargs)
+
+    def join(
+        self,
+        timeout: Optional[float],
+    ) -> None:
+        self._inner_writer.join(timeout=timeout)
+
+    def periodic(self):
+        self._inner_writer.periodic()
+
+    def _stop_service(
+        self,
+        timeout: Optional[float] = None,
+    ) -> None:
+        self._inner_writer._stop_service(timeout=timeout)
+
+    def on_shutdown(self):
+        self._inner_writer.on_shutdown()
+
+    def __getattr__(self, name: str):
+        return self._inner_writer.__getattribute__(name)
 
 
 class DummyCIVisibilityWriter(DummyWriterMixin, CIVisibilityWriter):
@@ -1172,7 +1225,10 @@ def snapshot_context(
 
         if async_mode:
             # Patch the tracer writer to include the test token header for all requests.
-            tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
+            if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                tracer._span_aggregator.writer.set_test_session_token(token)
+            else:
+                tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"] = token
 
             # Also add a header to the environment for subprocesses test cases that might use snapshotting.
             existing_headers = parse_tags_str(os.environ.get("_DD_TRACE_WRITER_ADDITIONAL_HEADERS", ""))
@@ -1202,7 +1258,7 @@ def snapshot_context(
                 pytest.fail("Repeated attempts to start testagent session failed", pytrace=False)
             elif r.status != 200:
                 # The test agent returns nice error messages we can forward to the user.
-                pytest.fail(to_unicode(r.read()), pytrace=False)
+                pytest.fail(r.read().decode("utf-8", errors="ignore"), pytrace=False)
         try:
             yield SnapshotTest(
                 tracer=tracer,
@@ -1212,7 +1268,10 @@ def snapshot_context(
             # Force a flush so all traces are submitted.
             tracer._span_aggregator.writer.flush_queue()
             if async_mode:
-                del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
+                if isinstance(tracer._span_aggregator.writer, AgentWriterInterface):
+                    tracer._span_aggregator.writer.set_test_session_token(None)
+                else:
+                    del tracer._span_aggregator.writer._headers["X-Datadog-Test-Session-Token"]
                 del os.environ["_DD_TRACE_WRITER_ADDITIONAL_HEADERS"]
 
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
@@ -1240,7 +1299,7 @@ def snapshot_context(
         conn = httplib.HTTPConnection(parsed.hostname, parsed.port)
         conn.request("GET", "/test/session/snapshot?ignores=%s&test_session_token=%s" % (",".join(ignores), token))
         r = conn.getresponse()
-        result = to_unicode(r.read())
+        result = r.read().decode("utf-8", errors="ignore")
         if r.status != 200:
             lowered = result.lower()
             if "received unmatched traces" not in lowered:
@@ -1419,15 +1478,15 @@ def flush_test_tracer_spans(writer):
     client = writer._clients[0]
     n_traces = len(client.encoder)
     try:
-        encoded_traces, _ = client.encoder.encode()
+        if not (encoded_traces := client.encoder.encode()):
+            return
+
+        [(encoded_traces, _)] = encoded_traces
         if encoded_traces is None:
             return
-        headers = writer._get_finalized_headers(n_traces, client)
-        response = writer._put(encoded_traces, add_dd_env_variables_to_headers(headers), client, no_trace=True)
+        writer._send_payload(encoded_traces, n_traces, client)
     except Exception:
         return
-
-    assert response.status == 200, response.body
 
 
 def add_dd_env_variables_to_headers(headers):
@@ -1448,43 +1507,6 @@ def get_128_bit_trace_id_from_headers(headers):
     return _DatadogMultiHeader._put_together_trace_id(
         meta[HIGHER_ORDER_TRACE_ID_BITS], int(headers["x-datadog-trace-id"])
     )
-
-
-def _get_skipped_item(item, skip_reason):
-    if not inspect.isfunction(item) and not inspect.isclass(item):
-        raise ValueError(f"Unexpected skipped object: {item}")
-
-    if not hasattr(item, "pytestmark"):
-        item.pytestmark = []
-
-    item.pytestmark.append(pytest.mark.xfail(reason=skip_reason))
-
-    return item
-
-
-def _should_skip(until: int, condition=None):
-    until = dt.datetime.fromtimestamp(until)
-    if until and dt.datetime.now(dt.timezone.utc).replace(tzinfo=None) < until.replace(tzinfo=None):
-        return True
-    return condition is not None and condition
-
-
-def flaky(until: int, condition: bool = None, reason: str = None):
-    return skip_if_until(until, condition=condition, reason=reason)
-
-
-def skip_if_until(until: int, condition=None, reason=None):
-    """Conditionally skip the test until the given epoch timestamp"""
-    skip = _should_skip(until=until, condition=condition)
-
-    def decorator(function_or_class):
-        if not skip:
-            return function_or_class
-
-        full_reason = f"known bug, skipping until epoch time {until} - {reason or ''}"
-        return _get_skipped_item(function_or_class, full_reason)
-
-    return decorator
 
 
 def _build_env(env=None, file_path=FILE_PATH):

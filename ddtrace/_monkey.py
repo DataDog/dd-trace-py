@@ -1,16 +1,16 @@
 import importlib
 import os
-import threading
 from types import ModuleType
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Set
 from typing import Union
 
 from wrapt.importer import when_imported
 
 from ddtrace.appsec._listeners import load_common_appsec_modules
+from ddtrace.internal.compat import Path
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.settings._config import config
-from ddtrace.settings.asm import config as asm_config
 from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.specifiers import SpecifierSet
 from ddtrace.vendor.packaging.version import Version
@@ -48,7 +48,7 @@ PATCH_MODULES = {
     "elasticsearch": True,
     "algoliasearch": True,
     "futures": True,
-    "freezegun": True,
+    "freezegun": False,  # deprecated, to be removed in ddtrace 4.x
     "google_generativeai": True,
     "google_genai": True,
     "gevent": True,
@@ -63,6 +63,7 @@ PATCH_MODULES = {
     "mysqldb": True,
     "pymysql": True,
     "mariadb": True,
+    "mcp": True,
     "psycopg": True,
     "pylibmc": True,
     "pymemcache": True,
@@ -130,7 +131,6 @@ CONTRIB_DEPENDENCIES = {
 }
 
 
-_LOCK = threading.Lock()
 _PATCHED_MODULES = set()
 
 # Module names that need to be patched for a given integration. If the module
@@ -169,6 +169,7 @@ _MODULES_FOR_CONTRIB = {
     "langgraph": (
         "langgraph",
         "langgraph.graph",
+        "langgraph.prebuilt",
     ),
     "openai_agents": ("agents",),
 }
@@ -357,12 +358,6 @@ def _patch_all(**patch_modules: bool) -> None:
     modules.update(patch_modules)
 
     patch(raise_errors=False, **modules)
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.main import patch_iast
-        from ddtrace.appsec.iast import enable_iast_propagation
-
-        patch_iast()
-        enable_iast_propagation()
 
     load_common_appsec_modules()
 
@@ -379,7 +374,7 @@ def patch(raise_errors=True, **patch_modules):
     contribs = {c: patch_indicator for c, patch_indicator in patch_modules.items() if patch_indicator}
     for contrib, patch_indicator in contribs.items():
         # Check if we have the requested contrib.
-        if not os.path.isfile(os.path.join(os.path.dirname(__file__), "contrib", "internal", contrib, "patch.py")):
+        if not (Path(__file__).parent / "contrib" / "internal" / contrib / "patch.py").exists():
             if raise_errors:
                 raise ModuleNotFoundException(f"{contrib} does not have automatic instrumentation")
         modules_to_patch = _MODULES_FOR_CONTRIB.get(contrib, (contrib,))
@@ -395,8 +390,7 @@ def patch(raise_errors=True, **patch_modules):
             )
 
         # manually add module to patched modules
-        with _LOCK:
-            _PATCHED_MODULES.add(contrib)
+        _PATCHED_MODULES.add(contrib)
 
     log.info(
         "Configured ddtrace instrumentation for %s integration(s). The following modules have been patched: %s",
@@ -405,8 +399,6 @@ def patch(raise_errors=True, **patch_modules):
     )
 
 
-def _get_patched_modules():
-    # type: () -> List[str]
+def _get_patched_modules() -> Set[str]:
     """Get the list of patched modules"""
-    with _LOCK:
-        return sorted(_PATCHED_MODULES)
+    return _PATCHED_MODULES

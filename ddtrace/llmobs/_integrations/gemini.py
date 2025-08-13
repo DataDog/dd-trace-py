@@ -16,9 +16,9 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
@@ -43,9 +43,9 @@ class GeminiIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         instance = kwargs.get("instance", None)
-        metadata = llmobs_get_metadata_google(kwargs, instance)
+        metadata = llmobs_get_metadata_gemini_vertexai(kwargs, instance)
 
-        system_instruction = get_system_instructions_from_google_model(instance)
+        system_instruction = get_system_instructions_gemini_vertexai(instance)
         input_contents = get_argument_value(args, kwargs, 0, "contents")
         input_messages = self._extract_input_message(input_contents, system_instruction)
 
@@ -95,7 +95,7 @@ class GeminiIntegration(BaseLLMIntegration):
                 messages.append(message)
                 continue
             for part in parts:
-                message = extract_message_from_part_google(part, role)
+                message = extract_message_from_part_gemini_vertexai(part, role)
                 messages.append(message)
         return messages
 
@@ -107,7 +107,7 @@ class GeminiIntegration(BaseLLMIntegration):
             role = content.get("role", "model")
             parts = content.get("parts", [])
             for part in parts:
-                message = extract_message_from_part_google(part, role)
+                message = extract_message_from_part_gemini_vertexai(part, role)
                 output_messages.append(message)
         return output_messages
 

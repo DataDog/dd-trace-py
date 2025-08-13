@@ -15,7 +15,6 @@ from ddtrace.contrib.internal.coverage.patch import run_coverage_report
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_invoked_by_coverage_run
 from ddtrace.contrib.internal.coverage.utils import _is_coverage_patched
 from ddtrace.contrib.internal.pytest._benchmark_utils import _set_benchmark_data_from_item
-from ddtrace.contrib.internal.pytest._plugin_v1 import _is_pytest_cov_enabled
 from ddtrace.contrib.internal.pytest._report_links import print_test_report_links
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_CallInfo
@@ -40,19 +39,24 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
+from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
+from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
+from ddtrace.contrib.internal.pytest._xdist import XdistHooks
+from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
+from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
-from ddtrace.contrib.internal.pytest.plugin import is_enabled
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
 from ddtrace.ext.test_visibility.api import enable_test_visibility
 from ddtrace.ext.test_visibility.api import is_test_visibility_enabled
 from ddtrace.internal.ci_visibility.constants import SKIPPED_BY_ITR_REASON
+from ddtrace.internal.ci_visibility.service_registry import require_ci_visibility_service
 from ddtrace.internal.ci_visibility.telemetry.coverage import COVERAGE_LIBRARY
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_empty
 from ddtrace.internal.ci_visibility.telemetry.coverage import record_code_coverage_finished
@@ -104,24 +108,9 @@ INCOMPATIBLE_PLUGINS = ("flaky", "rerunfailures")
 
 skip_pytest_runtest_protocol = False
 
-
-class XdistHooks:
-    @pytest.hookimpl
-    def pytest_configure_node(self, node):
-        main_session_span = InternalTestSession.get_span()
-        if main_session_span:
-            root_span = main_session_span.span_id
-        else:
-            root_span = 0
-
-        node.workerinput["root_span"] = root_span
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node, error):
-        if hasattr(node, "workeroutput") and "itr_skipped_count" in node.workeroutput:
-            if not hasattr(pytest, "global_worker_itr_results"):
-                pytest.global_worker_itr_results = 0
-            pytest.global_worker_itr_results += node.workeroutput["itr_skipped_count"]
+# Module-level variable to store the current test's coverage collector
+# This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
+_current_coverage_collector = None
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -134,9 +123,21 @@ def _handle_itr_should_skip(item, test_id) -> bool:
 
     suite_id = test_id.parent_id
 
-    item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    # Check what ITR skipping level is configured
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
 
-    if InternalTestSuite.is_itr_skippable(suite_id):
+    # Determine if the item should be skipped based on the skipping level
+    if is_suite_skipping_mode:
+        # Suite-level skipping: check if the suite is skippable
+        should_skip = InternalTestSuite.is_itr_skippable(suite_id)
+        item_is_unskippable = InternalTestSuite.is_itr_unskippable(suite_id) or InternalTest.is_attempt_to_fix(test_id)
+    else:
+        # Test-level skipping: check if the individual test is skippable
+        should_skip = InternalTest.is_itr_skippable(test_id)
+        item_is_unskippable = InternalTest.is_itr_unskippable(test_id) or InternalTest.is_attempt_to_fix(test_id)
+
+    if should_skip:
         if item_is_unskippable:
             # Marking the test as forced run also applies to its hierarchy
             InternalTest.mark_itr_forced_run(test_id)
@@ -178,20 +179,50 @@ def _handle_test_management(item, test_id):
         item.user_properties += [USER_PROPERTY_QUARANTINED]
 
 
+def _coverage_collector_enter(coverage_collector) -> None:
+    """
+    Wraps coverage collector __enter__ call for testing purposes
+    """
+    coverage_collector.__enter__()
+
+
+def _coverage_collector_exit(coverage_collector) -> None:
+    """
+    Wraps coverage collector __exit__ call for testing purposes
+    """
+    coverage_collector.__exit__()
+
+
+def _coverage_collector_get_covered_lines(coverage_collector) -> t.Dict[str, CoverageLines]:
+    """
+    Wraps coverage collector get_covered_lines call for testing purposes
+    """
+    return coverage_collector.get_covered_lines()
+
+
 def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     coverage_collector = ModuleCodeCollector.CollectInContext()
     # TODO: don't depend on internal for telemetry
     record_code_coverage_started(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
-    coverage_collector.__enter__()
+    _coverage_collector_enter(coverage_collector)
 
     return coverage_collector
 
 
-def _handle_collected_coverage(test_id, coverage_collector) -> None:
+@_catch_and_log_exceptions
+def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
+    if not coverage_collector:
+        log.debug("No coverage collector available for test %s", test_id)
+        return
+
+    should_collect_coverage = InternalTestSession.should_collect_coverage()
+    if not should_collect_coverage:
+        return
+
     # TODO: clean up internal coverage API usage
-    test_covered_lines = coverage_collector.get_covered_lines()
-    coverage_collector.__exit__()
+    test_covered_lines = _coverage_collector_get_covered_lines(coverage_collector)
+    _coverage_collector_exit(coverage_collector)
 
     record_code_coverage_finished(COVERAGE_LIBRARY.COVERAGEPY, FRAMEWORK)
 
@@ -205,7 +236,17 @@ def _handle_collected_coverage(test_id, coverage_collector) -> None:
     for path_str, covered_lines in test_covered_lines.items():
         coverage_data[Path(path_str).absolute()] = covered_lines
 
-    InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    if not coverage_data:
+        log.debug("No coverage data found for test %s", test_id)
+        return
+
+    ci_visibility_service = require_ci_visibility_service()
+    is_suite_skipping_mode = ci_visibility_service._suite_skipping_mode
+
+    if is_suite_skipping_mode:
+        InternalTestSuite.add_coverage_data(test_id.parent_id, coverage_data)
+    else:
+        InternalTest.add_coverage_data(test_id, coverage_data)
 
 
 def _handle_coverage_dependencies(suite_id) -> None:
@@ -239,27 +280,81 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     ModuleCodeCollector has a tangible impact on the time it takes to load modules, so it should only be installed if
     coverage collection is requested by the backend.
     """
+    take_over_logger_stream_handler()
+
+    # Log early initialization details
+    is_worker = PYTEST_XDIST_WORKER_VALUE is not None
+    process_type = "WORKER" if is_worker else "MAIN"
+    log.debug("EARLY_INIT: %s process starting pytest_load_initial_conftests_pre_yield", process_type)
+
     if not _is_enabled_early(early_config, args):
+        log.debug("EARLY_INIT: %s process - not enabled early, returning", process_type)
         return
 
     try:
-        take_over_logger_stream_handler()
-        if not asbool(os.getenv("_DD_PYTEST_FREEZEGUN_SKIP_PATCH")):
-            from ddtrace._monkey import patch
+        # Parse xdist configuration once and reuse for both ITR level detection and coverage optimization
+        log.debug("EARLY_INIT: %s process - parsing xdist configuration", process_type)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
 
-            # Freezegun is proactively patched to avoid it interfering with internal timing
-            patch(freezegun=True)
-        dd_config.test_visibility.itr_skipping_level = ITR_SKIPPING_LEVEL.SUITE
+        # Detect ITR level based on xdist configuration
+        log.debug("EARLY_INIT: %s process - detecting ITR level", process_type)
+        detected_itr_level = _skipping_level_for_xdist_parallelization_mode(
+            config=early_config,
+            num_workers=num_workers,
+            dist_mode=dist_mode,
+        )
+        dd_config.test_visibility.itr_skipping_level = detected_itr_level
+        log.debug("EARLY_INIT: %s process - ITR level set to: %s", process_type, detected_itr_level.name)
+
         enable_test_visibility(config=dd_config.pytest)
-        if InternalTestSession.should_collect_coverage():
+        log.debug("EARLY_INIT: %s process - test visibility enabled", process_type)
+
+        should_collect_coverage = InternalTestSession.should_collect_coverage()
+        log.debug("EARLY_INIT: %s process - should_collect_coverage: %s", process_type, should_collect_coverage)
+
+        # Check if we're actually using xdist to optimize coverage collection
+        # Main process doesn't need coverage when using xdist since it doesn't run tests
+        using_xdist = num_workers not in (0, None, XDIST_UNSET)
+
+        if should_collect_coverage and (not using_xdist or is_worker):
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
-            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+            log.debug(
+                "EARLY_INIT: %s process - Installing ModuleCodeCollector with include_paths=%s",
+                process_type,
+                [workspace_path],
+            )
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+            log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
+        elif using_xdist and not is_worker:
+            log.debug(
+                "EARLY_INIT: %s process - Skipping ModuleCodeCollector (xdist workers will handle coverage)",
+                process_type,
+            )
+        else:
+            log.debug(
+                "EARLY_INIT: %s process - Coverage collection not needed, skipping ModuleCodeCollector", process_type
+            )
     except Exception:  # noqa: E722
-        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+        log.debug(
+            "EARLY_INIT: %s process - encountered error during configure, disabling Datadog CI Visibility",
+            process_type,
+            exc_info=True,
+        )
         _disable_ci_visibility()
+
+
+def _is_pytest_cov_enabled(config) -> bool:
+    if not config.pluginmanager.get_plugin("pytest_cov"):
+        return False
+    cov_option = config.getoption("--cov", default=False)
+    nocov_option = config.getoption("--no-cov", default=False)
+    if nocov_option is True:
+        return False
+    if isinstance(cov_option, list) and cov_option == [True] and not nocov_option:
+        return True
+    return cov_option
 
 
 def pytest_configure(config: pytest_Config) -> None:
@@ -275,6 +370,8 @@ def pytest_configure(config: pytest_Config) -> None:
         )
 
     try:
+        from ddtrace.contrib.internal.pytest.plugin import is_enabled
+
         if is_enabled(config):
             unpatch_unittest()
             enable_test_visibility(config=dd_config.pytest)
@@ -303,9 +400,10 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
                     # Main process
                     pytest.global_worker_itr_results = 0
+
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -337,7 +435,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
             test_impact_analysis="1" if _pytest_version_supports_itr() else None,
             test_management_quarantine="1",
             test_management_disable="1",
-            test_management_attempt_to_fix="4" if _pytest_version_supports_attempt_to_fix() else None,
+            test_management_attempt_to_fix="5" if _pytest_version_supports_attempt_to_fix() else None,
         )
 
         InternalTestSession.discover(
@@ -477,6 +575,12 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    # IMPORTANT: Collect coverage data BEFORE finishing the test
+    # This ensures that coverage data is available when the span is finished
+    # Note: If the test was finished in _pytest_run_one_test, coverage was already handled there
+    if coverage_collector is not None and not InternalTest.is_finished(test_id):
+        _handle_collected_coverage(item, test_id, coverage_collector)
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
         reports_dict = reports_by_item.get(item)
@@ -486,9 +590,6 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
-
-    if coverage_collector is not None:
-        _handle_collected_coverage(test_id, coverage_collector)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
@@ -508,21 +609,27 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
 @pytest.hookimpl(tryfirst=True, hookwrapper=True, specname="pytest_runtest_protocol")
 def pytest_runtest_protocol_wrapper(item, nextitem) -> None:
+    global _current_coverage_collector
+
     if not is_test_visibility_enabled():
         yield
         return
 
     try:
-        coverage_collector = _pytest_runtest_protocol_pre_yield(item)
+        _current_coverage_collector = _pytest_runtest_protocol_pre_yield(item)
     except Exception:  # noqa: E722
+        _current_coverage_collector = None
         log.debug("encountered error during pre-test", exc_info=True)
 
     yield
 
     try:
-        _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector)
+        _pytest_runtest_protocol_post_yield(item, nextitem, _current_coverage_collector)
     except Exception:  # noqa: E722
         log.debug("encountered error during post-test", exc_info=True)
+    finally:
+        # Always clean up the coverage collector after the test, even if there's an exception
+        _current_coverage_collector = None
 
 
 @pytest.hookimpl(specname="pytest_runtest_protocol")
@@ -560,6 +667,7 @@ def _pytest_run_one_test(item, nextitem):
     setup_or_teardown_failed = False
 
     if not InternalTest.is_finished(test_id):
+        _handle_collected_coverage(item, test_id, _current_coverage_collector)
         InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
 
     for report in reports:
@@ -817,8 +925,16 @@ def _pytest_sessionfinish(session: pytest.Session, exitstatus: int) -> None:
             run_coverage_report()
 
         lines_pct_value = _coverage_data.get(PCT_COVERED_KEY, None)
-        if not isinstance(lines_pct_value, float):
-            log.warning("Tried to add total covered percentage to session span but the format was unexpected")
+        if lines_pct_value is None:
+            log.debug("Unable to retrieve coverage data for the session span")
+        elif not isinstance(lines_pct_value, (float, int)):
+            t = type(lines_pct_value)
+            log.warning(
+                "Unexpected format for total covered percentage: type=%s.%s, value=%r",
+                t.__module__,
+                t.__name__,
+                lines_pct_value,
+            )
         else:
             InternalTestSession.set_covered_lines_pct(lines_pct_value)
 

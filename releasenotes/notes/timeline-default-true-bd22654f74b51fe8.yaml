@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    profiling: timeline view is now enabled by default
+    (DD_PROFILING_TIMELINE_ENABLED=True). This provides visualization
+    of profiling data with timing information.

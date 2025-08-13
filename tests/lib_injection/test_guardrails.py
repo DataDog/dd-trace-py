@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import re
@@ -56,7 +57,9 @@ TEST_CASES = [
 
 
 @pytest.mark.parametrize("packages_to_install, expected_disabled_integrations", TEST_CASES)
-def test_integration_compatibility_guardrail(test_venv, packages_to_install, expected_disabled_integrations):
+def test_integration_compatibility_guardrail(
+    test_venv, packages_to_install, expected_disabled_integrations, mock_telemetry_forwarder
+):
     """
     Tests that sitecustomize correctly disables integrations based on installed package versions.
     It runs python -c '...' in a venv with specific packages installed and checks debug logs.
@@ -76,6 +79,7 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_TRACE_AGENT_URL"] = "http://localhost:9126"
     env["DD_INJECT_FORCE"] = "false"
+    telemetry_file = mock_telemetry_forwarder(env, python_executable)
 
     try:
         import_line = ""
@@ -96,6 +100,16 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
 
         # Check that ddtrace was loaded by sitecustomize
         assert "successfully loaded ddtrace" in stdout, f"ddtrace was not loaded properly. stdout: {stdout}"
+        # Check that telemetry was sent
+        assert telemetry_file.is_file()
+        telemetry_data = json.loads(telemetry_file.read_text())
+        assert telemetry_data["metadata"]["result"] == "success"
+        assert telemetry_data["metadata"]["result_class"] == "success"
+        points = telemetry_data["points"]
+        assert len(points) == 1
+        complete_metric = points[0]
+        assert complete_metric["name"] == "library_entrypoint.complete"
+        assert "injection_forced:false" in complete_metric["tags"]
 
         # Check that expected integrations are disabled
         for integration_info in expected_disabled_integrations:
@@ -127,7 +141,7 @@ def test_integration_compatibility_guardrail(test_venv, packages_to_install, exp
         pytest.fail(f"Subprocess timed out:\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
 
 
-def test_core_dependency_conflict_guardrail(test_venv):
+def test_core_dependency_conflict_guardrail(test_venv, mock_telemetry_forwarder):
     """
     Tests that lib-injection is aborted when a core dependency conflicts with a package
     installed in the user's environment.
@@ -144,6 +158,7 @@ def test_core_dependency_conflict_guardrail(test_venv):
     env["DD_TRACE_DEBUG"] = "true"
     env["DD_INJECTION_ENABLED"] = "true"
     env["DD_INJECT_FORCE"] = "false"
+    telemetry_file = mock_telemetry_forwarder(env, python_executable)
 
     script_to_run_conflict = """
 import sys
@@ -173,6 +188,87 @@ except ImportError:
         assert "Aborting dd-trace-py installation" in stderr
         # Check that ddtrace was not actually imported
         assert "ddtrace import failed as expected" in stdout
+
+        assert telemetry_file.is_file()
+        telemetry_data = json.loads(telemetry_file.read_text())
+        assert telemetry_data["metadata"]["result"] == "abort"
+        assert (
+            "Found incompatible packages: {'opentelemetry-api': '0.17b0'}"
+            in telemetry_data["metadata"]["result_reason"]
+        )
+        assert telemetry_data["metadata"]["result_class"] == "incompatible_runtime"
+        points = telemetry_data["points"]
+        assert len(points) == 2
+        incompatible_dependency_metric = next(
+            (p for p in points if "reason:incompatible_dependency" in p["tags"]), None
+        )
+        assert incompatible_dependency_metric is not None
+        assert incompatible_dependency_metric["name"] == "library_entrypoint.abort"
+        assert "dependency:opentelemetry-api" in incompatible_dependency_metric["tags"]
+        assert "dependency_version:0.17b0" in incompatible_dependency_metric["tags"]
+
+        abort_metric = next((p for p in points if "reason:incompatible_runtime" in p["tags"]), None)
+        assert abort_metric is not None
+        assert abort_metric["name"] == "library_entrypoint.abort"
+
+    except subprocess.CalledProcessError as e:
+        pytest.fail(f"Subprocess failed:\\nExit Code: {e.returncode}\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
+    except subprocess.TimeoutExpired as e:
+        pytest.fail(f"Subprocess timed out:\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")
+
+
+def test_force_inject_with_conflict(test_venv, mock_telemetry_forwarder):
+    """
+    Tests that lib-injection proceeds with DD_INJECT_FORCE=true even with core dependency conflicts,
+    and sends a 'success_forced' telemetry event.
+    """
+    packages_to_install = {"opentelemetry-api": "0.17b0"}
+    venv_factory_func = test_venv
+    python_executable, sitecustomize_dir, base_env, venv_dir = venv_factory_func(packages_to_install)
+
+    env = base_env.copy()
+    venv_pythonpath = base_env.get("PYTHONPATH", "")
+    env["PYTHONPATH"] = f"{sitecustomize_dir}{os.pathsep}{venv_pythonpath}"
+    env["DD_TRACE_DEBUG"] = "true"
+    env["DD_INJECTION_ENABLED"] = "true"
+    env["DD_INJECT_FORCE"] = "true"
+    telemetry_file = mock_telemetry_forwarder(env, python_executable)
+
+    script_to_run_forced = """
+import sys
+try:
+    import ddtrace
+    print("ddtrace was imported successfully.")
+except ImportError:
+    print("ddtrace import failed, which is an error with force inject.")
+    sys.exit(1)
+"""
+
+    try:
+        result = subprocess.run(
+            [python_executable, "-c", script_to_run_forced],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=venv_dir,
+            check=True,
+            timeout=180,
+        )
+        stderr = result.stderr
+        stdout = result.stdout
+
+        assert "DD_INJECT_FORCE set to True, allowing unsupported dependencies and continuing" in stderr
+        assert "ddtrace was imported successfully" in stdout
+
+        assert telemetry_file.is_file()
+        telemetry_data = json.loads(telemetry_file.read_text())
+        assert telemetry_data["metadata"]["result"] == "success"
+        assert telemetry_data["metadata"]["result_class"] == "success_forced"
+        points = telemetry_data["points"]
+        assert len(points) == 1
+        complete_metric = points[0]
+        assert complete_metric["name"] == "library_entrypoint.complete"
+        assert "injection_forced:true" in complete_metric["tags"]
 
     except subprocess.CalledProcessError as e:
         pytest.fail(f"Subprocess failed:\\nExit Code: {e.returncode}\\nstdout:\\n{e.stdout}\\nstderr:\\n{e.stderr}")

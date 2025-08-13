@@ -70,7 +70,7 @@ jobs:
 
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
-        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
 
       - name: Check source package
         run: |

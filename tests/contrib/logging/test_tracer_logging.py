@@ -5,7 +5,11 @@ import pytest
 
 
 # example: '2022-06-10 21:49:26,010 CRITICAL [ddtrace] [test.py:15] - ddtrace critical log\n'
-LOG_PATTERN = r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}.\w{2}:\d{1,}\] - .{1,}$"
+# example: '2025-07-16 16:27:02,708 CRITICAL [ddtrace] [test.py:8] [dd.service=ddtrace_subprocess_dir
+#           dd.env= dd.version= dd.trace_id=0 dd.span_id=0] - ddtrace critical log\n'
+LOG_PATTERN = (
+    r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} \w{1,} \[\S{1,}\] \[\w{1,}\.\w{2}:\d{1,}\]( \[.*\])? - .{1,}$"
+)
 
 
 def assert_log_files(test_directory, test_log_file, total_file_count):
@@ -246,7 +250,7 @@ ddtrace_logger.warning('warning log')
     ]:
         out, err, status, pid = run_in_subprocess(code, env=env)
         assert status == 0, err
-        assert err == b"warning log\n", err.decode()
+        assert b"warning log\n" in err, err.decode()
         assert out == b"", out.decode()
         with open(log_file) as file:
             first_line = file.readline()

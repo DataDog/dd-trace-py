@@ -121,7 +121,8 @@ def traced_receive(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
 
-        s.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        s.set_metric(_SPAN_MEASURED_KEY, 1)
         # run the command
         exchange = message.delivery_info["exchange"]
         s.resource = exchange
@@ -149,7 +150,8 @@ def traced_publish(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         s.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
-        s.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        s.set_metric(_SPAN_MEASURED_KEY, 1)
         exchange_name = get_exchange_from_args(args)
         s.resource = exchange_name
         s.set_tag_str(kombux.EXCHANGE, exchange_name)

@@ -74,7 +74,9 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
             )
             continue
 
-        flare_log_level = log_level.lower()
+        # Convert to uppercase to match Python logging expectations
+        flare_log_level = log_level.upper()
+
         flare.prepare(flare_log_level)
         return True
     return False

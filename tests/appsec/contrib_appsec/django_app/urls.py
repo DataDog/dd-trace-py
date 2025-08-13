@@ -12,6 +12,7 @@ from django.http import FileResponse
 from django.http import HttpResponse
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
 
 import ddtrace.constants
 from ddtrace.trace import tracer
@@ -36,6 +37,7 @@ else:
 
 
 @csrf_exempt
+@require_http_methods(["GET", "TRACE", "POST", "OPTIONS"])
 def healthcheck(request):
     return HttpResponse("ok ASM", status=200)
 
@@ -284,7 +286,7 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
-        path("login/", login_user, name="login"),
+        path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
         path("login_sdk", login_user_sdk, name="login_sdk"),

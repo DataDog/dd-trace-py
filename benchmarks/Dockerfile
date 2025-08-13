@@ -1,4 +1,4 @@
-FROM debian:buster-slim as base
+FROM debian:bookworm-slim as base
 
 ARG PYTHON_VERSION=3.13
 ARG PYENV_VERSION=2.5.5
@@ -13,7 +13,7 @@ ENV PATH "$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
 RUN git clone --depth 1 https://github.com/pyenv/pyenv.git --branch "v$PYENV_VERSION" --single-branch "$PYENV_ROOT"
 RUN pyenv install "$PYTHON_VERSION"
 
-FROM debian:buster-slim
+FROM debian:bookworm-slim
 ARG PYTHON_VERSION=3.13
 
 COPY --from=base /pyenv /pyenv

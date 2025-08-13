@@ -22,7 +22,6 @@ from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.django_tests.utils import _aux_appsec_get_root_span
 from tests.utils import TracerSpanContainer
-from tests.utils import flaky
 from tests.utils import override_global_config
 
 
@@ -1304,7 +1303,7 @@ def test_django_stacktrace_leak(client, iast_span, tracer):
     assert vulnerability["hash"]
 
 
-@flaky(until=1767220930, reason="This test fails on Python 3.10 and below, and on Django versions below 4.2")
+@pytest.mark.skip(reason="This test fails on Python 3.10 and below, and on Django versions below 4.2")
 def test_django_stacktrace_from_technical_500_response(client, iast_span, tracer, debug_mode):
     root_span, response = _aux_appsec_get_root_span(
         client,

@@ -10,7 +10,8 @@ variables:
   REPO_NOTIFICATION_CHANNEL: "#apm-python-release"
   RELEASE_ALLOW_TEST_FAILURES: false
   RELEASE_ALLOW_BENCHMARK_FAILURES: false
-  DD_DISABLE_VPA: true
+  # VPA Template configuration
+  DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
 
 default:
@@ -41,8 +42,16 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
-    - pip install riot==0.20.1
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        # Use dd-octo-sts to get GitHub token
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -76,7 +85,7 @@ microbenchmarks:
   variables:
     PARENT_PIPELINE_ID: $CI_PIPELINE_ID
     # Disable VPA for benchmarks
-    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+    DD_DISABLE_VPA: true
 
 macrobenchmarks:
   stage: benchmarks
@@ -85,7 +94,7 @@ macrobenchmarks:
     include: .gitlab/benchmarks/macrobenchmarks.yml
   variables:
     # Disable VPA for benchmarks
-    KUBERNETES_POD_ANNOTATIONS_1: vpa.datadoghq.com/updateMode=Off
+    DD_DISABLE_VPA: true
   allow_failure: true
   rules:
     - if: $CI_PIPELINE_SOURCE == "schedule"
