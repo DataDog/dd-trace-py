@@ -635,9 +635,10 @@ class LLMObs(Service):
         if records is None:
             records = []
 
-        # Check if dataset already exists using a direct API call
         if cls._instance._dne_client._check_dataset_exists(name):
-            raise ValueError(f"Dataset '{name}' already exists. Use pull_dataset() to load an existing dataset.")
+            raise ValueError(
+                f"Dataset '{name}' already exists. Use LLMObs.pull_dataset() to retrieve the existing dataset."
+            )
 
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
@@ -661,13 +662,6 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-
-        # Check if dataset already exists using a direct API call
-        if cls._instance._dne_client._check_dataset_exists(dataset_name):
-            raise ValueError(
-                f"Dataset '{dataset_name}' already exists. Use pull_dataset() to load an existing dataset."
-            )
-
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
@@ -1056,7 +1050,7 @@ class LLMObs(Service):
         if ml_app is None:
             raise ValueError(
                 "ml_app is required for sending LLM Observability data. "
-                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
+                "Ensure the name of your LLM application is set via `DD_APP_KEY` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})

@@ -96,16 +96,13 @@ def test_dataset_create_duplicate_name_error(llmobs):
     )
     assert dataset._id is not None
 
-    try:
-        # Try to create another dataset with the same name - this should raise an error
-        with pytest.raises(
-            ValueError,
-            match="Dataset 'test-dataset-duplicate' already exists. Use pull_dataset to load an existing dataset.",
-        ):
-            llmobs.create_dataset(name="test-dataset-duplicate", description="Another dataset with same name")
-    finally:
-        # Clean up
-        llmobs._delete_dataset(dataset_id=dataset._id)
+    with pytest.raises(
+        ValueError,
+        match="Dataset 'test-dataset-duplicate' already exists. Use LLMObs.pull_dataset() to retrieve the existing dataset.",
+    ):
+        llmobs.create_dataset(name="test-dataset-duplicate", description="Another dataset with same name")
+
+    llmobs._delete_dataset(dataset_id=dataset._id)
 
 
 def test_dataset_create_from_csv_duplicate_name_error(llmobs):
