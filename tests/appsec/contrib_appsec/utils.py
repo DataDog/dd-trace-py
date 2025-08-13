@@ -181,6 +181,51 @@ class Contrib_TestClass_For_Threats:
             assert len(args_list) == 1
             assert ("waf_timeout", "true") in args_list[0][4]
 
+    def test_api_endpoint_discovery(self, interface: Interface, find_resource):
+        """Check that API endpoint discovery works in the framework.
+
+        Also ensure the resource name is set correctly.
+        """
+        if interface.name != "django":
+            pytest.skip("API endpoint discovery is only supported in Django")
+        from ddtrace.settings.asm import endpoint_collection
+
+        def parse(path: str) -> str:
+            import re
+
+            # django substitutions to make a url path from route
+            if re.match(r"^\^.*\$$", path):
+                path = path[1:-1]
+            path = re.sub(r"<int:param_int>", "123", path)
+            path = re.sub(r"<str:param_str>", "abc", path)
+            if path.endswith("/?"):
+                path = path[:-2]
+            return "/" + path
+
+        with override_global_config(dict(_asm_enabled=True)):
+            self.update_tracer(interface)
+            # required to load the endpoints
+            interface.client.get("/")
+            collection = endpoint_collection.endpoints
+            assert collection
+            for ep in collection:
+                assert ep.method
+                # path could be empty, but must be a string
+                assert isinstance(ep.path, str)
+                assert ep.resource_name
+                assert ep.operation_name
+                if ep.method not in ("GET", "*", "POST"):
+                    continue
+                path = parse(ep.path)
+                response = (
+                    interface.client.post(path, {"data": "content"})
+                    if ep.method == "POST"
+                    else interface.client.get(path)
+                )
+                assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
+                resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
+                assert find_resource(resource)
+
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
         ("user_agent", "priority"),
