@@ -363,6 +363,17 @@ class _DatadogMultiHeader:
         if not meta:
             meta = {}
 
+        # When there's head sampling (sampling_priority > 0), remove the propagated _dd.p.dm tag
+        # because the sampling decision has already been made upstream
+        try:
+            sampling_priority_int = int(sampling_priority) if sampling_priority is not None else None
+            if sampling_priority_int is not None and sampling_priority_int > 0:
+                if SAMPLING_DECISION_TRACE_TAG_KEY in meta:
+                    del meta[SAMPLING_DECISION_TRACE_TAG_KEY]
+        except (TypeError, ValueError):
+            # If sampling_priority can't be parsed, continue with existing logic
+            pass
+
         if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
             meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"
 
@@ -397,11 +408,8 @@ class _DatadogMultiHeader:
             )
         except (TypeError, ValueError):
             log.debug(
-                (
-                    "received invalid x-datadog-* headers, "
-                    "trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags:%r"
-                ),
-                trace_id,
+                "received invalid x-datadog-* headers, trace-id: %r, parent-id: %r, priority: %r, origin: %r, tags: %r",
+                trace_id_str,
                 parent_span_id,
                 sampling_priority,
                 origin,
@@ -717,7 +725,7 @@ class _TraceContext:
             span_id_hex,
             trace_flags_hex,
             future_vals,
-        ) = valid_tp_values.groups()  # type: Tuple[str, str, str, str, Optional[str]]
+        ) = valid_tp_values.groups()
 
         if version == "ff":
             # https://www.w3.org/TR/trace-context/#version
