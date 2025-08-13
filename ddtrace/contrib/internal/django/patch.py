@@ -456,7 +456,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not gather some metadata on blocked request: %s", str(e))
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
 
 
@@ -667,17 +667,17 @@ def _instrument_view(django, view, path=None):
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
-        from_args = False
-        view = kwargs.pop("view", None)
-        path = kwargs.pop("path", None)
-        if view is None:
+        view_from_args = False
+        view = kwargs.get("view", None)
+        path = kwargs.get("route", None)
+        if view is None and len(args) > 1:
             view = args[1]
-            from_args = True
-        if path is None:
+            view_from_args = True
+        if path is None and args:
             path = args[0]
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
-        if from_args:
+        if view_from_args:
             args = list(args)
             args[1] = instrument_view(django, view, path=path)
             args = tuple(args)
