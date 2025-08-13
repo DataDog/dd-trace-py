@@ -105,10 +105,10 @@ import logging
 import sys
 import types
 import typing
-from typing import Any
-from typing import Dict
-from typing import List
-from typing import Optional
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
+from typing import List  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
