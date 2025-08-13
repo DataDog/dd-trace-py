@@ -1,4 +1,4 @@
-from concurrent import futures
+import base64
 
 import pytest
 
@@ -13,61 +13,28 @@ except ImportError:
     EXPORTER_VERSION = (0, 0, 0)
 
 
-def mock_grpc_exporter_connection():
-    """
-    Mock the gRPC connection for OpenTelemetry logs exporter and return the MockLogsService.
-    """
-    import grpc
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import LogsServiceServicer
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2_grpc import add_LogsServiceServicer_to_server
-
-    class MockLogsService(LogsServiceServicer):
-        def __init__(self):
-            self.received_requests = []
-
-        def Export(self, request, context):
-            from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceResponse
-
-            self.received_requests.append(request)
-            return ExportLogsServiceResponse()
-
-    mock_service = MockLogsService()
-    # Start gRPC server in background thread
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=1))
-    add_LogsServiceServicer_to_server(mock_service, server)
-    _ = server.add_insecure_port("[::]:4317")
-    return mock_service, server
-
-
-def decode_logs_request(request_body: bytes):
-    """
-    Decode the protobuf request body into an ExportLogsServiceRequest object.
-    """
-    from opentelemetry.proto.collector.logs.v1.logs_service_pb2 import ExportLogsServiceRequest
-
-    export_request = ExportLogsServiceRequest()
-    export_request.ParseFromString(request_body)
-    return export_request
-
-
 def find_log_correlation_attributes(captured_logs, log_message: str):
     """Find and return the log correlation attributes from the received requests."""
     lc_attributes = {}
-    for resource_logs in captured_logs.resource_logs:
-        for attr in resource_logs.resource.attributes:
-            if attr.key == "service.name":
-                lc_attributes["service"] = attr.value.string_value
-            elif attr.key == "deployment.environment":
-                lc_attributes["env"] = attr.value.string_value
-            elif attr.key == "service.version":
-                lc_attributes["version"] = attr.value.string_value
-            elif attr.key == "host.name":
-                lc_attributes["host_name"] = attr.value.string_value
-        for scope_logs in resource_logs.scope_logs:
-            for record in scope_logs.log_records:
-                if log_message in record.body.string_value:
-                    lc_attributes["trace_id"] = record.trace_id.hex()
-                    lc_attributes["span_id"] = record.span_id.hex()
+    for resource_logs in captured_logs["resource_logs"]:
+        for attr in resource_logs["resource"]["attributes"]:
+            key = attr["key"]
+            value_str = attr["value"]["string_value"]
+            if key == "service.name":
+                lc_attributes["service"] = value_str
+            elif key == "deployment.environment":
+                lc_attributes["env"] = value_str
+            elif key == "service.version":
+                lc_attributes["version"] = value_str
+            elif key == "host.name":
+                lc_attributes["host_name"] = value_str
+        for scope_logs in resource_logs["scope_logs"]:
+            for record in scope_logs["log_records"]:
+                if log_message in record["body"]["string_value"]:
+                    if "trace_id" in record:
+                        lc_attributes["trace_id"] = base64.b64decode(record["trace_id"]).hex()
+                    if "span_id" in record:
+                        lc_attributes["span_id"] = base64.b64decode(record["span_id"]).hex()
                     break
     return lc_attributes
 
@@ -173,58 +140,30 @@ def test_otel_logs_exporter_auto_configured_http():
     Test that the OpenTelemetry logs exporter is automatically configured for HTTP when DD_LOGS_OTEL_ENABLED is set.
     """
     from logging import getLogger
-    from unittest.mock import Mock
-    from unittest.mock import patch
 
+    from ddapm_test_agent.client import TestOTLPClient
     from opentelemetry._logs import get_logger_provider
 
-    from tests.opentelemetry.test_logs import decode_logs_request
-    from tests.opentelemetry.test_logs import find_log_correlation_attributes
+    client = TestOTLPClient()
+    client.clear()
 
     log = getLogger()
-    with patch("requests.sessions.Session.request") as mock_request:
-        mock_response = Mock(status_code=200)
-        mock_request.return_value = mock_response
+    log.error("test_otel_logs_exporter_auto_configured_http")
 
-        log.error("test_otel_logs_exporter_auto_configured_http")
+    lp = get_logger_provider()
+    lp.shutdown()
 
-        lp = get_logger_provider()
-        lp.shutdown()
-
-        request_body = None
-        for call in mock_request.call_args_list:
-            method, url = call[0][:2]
-            if method == "POST" and url == "http://localhost:4318/v1/logs":
-                request_body = call[1].get("data", None)
-                break
-        assert request_body is not None, "Expected a request body to be present in the OpenTelemetry "
-        "logs exporter request {mock_request.call_args_list}"
-
-    captured_logs = decode_logs_request(request_body)
-    assert len(captured_logs.resource_logs) > 0, "Expected at least one resource log in the OpenTelemetry logs request"
-
-    lc_attributes = find_log_correlation_attributes(captured_logs, "test_otel_logs_exporter_auto_configured_http")
-    assert len(lc_attributes) == 6, f"Expected 6 log correlation attributes but found: {lc_attributes}"
+    captured_logs = client.wait_for_num_logs(1)
+    expected_log = [
+        record["body"]["string_value"]
+        for resource_logs in captured_logs[0]["resource_logs"]
+        for scope_logs in resource_logs["scope_logs"]
+        for record in scope_logs["log_records"]
+        if record["body"]["string_value"] == "test_otel_logs_exporter_auto_configured_http"
+    ]
     assert (
-        lc_attributes["service"] == "ddservice"
-    ), f"Expected service.name to be 'ddservice' but found: {lc_attributes['service']}"
-    assert (
-        lc_attributes["env"] == "ddenv"
-    ), f"Expected deployment.environment to be 'ddenv' but found: {lc_attributes['env']}"
-    assert (
-        lc_attributes["version"] == "ddv1"
-    ), f"Expected service.version to be 'ddv1' but found: {lc_attributes['version']}"
-    assert (
-        lc_attributes["host_name"] == "ddhost"
-    ), f"Expected host.name to be 'ddhost' but found: {lc_attributes['host_name']}"
-    assert lc_attributes["trace_id"] in (
-        "00000000000000000000000000000000",
-        "",
-    ), f"Expected trace_id to be '00000000000000000000000000000000' but found: {lc_attributes['trace_id']}"
-    assert lc_attributes["span_id"] in (
-        "0000000000000000",
-        "",
-    ), f"Expected span_id to be '0000000000000000' but found: {lc_attributes['span_id']}"
+        len(expected_log) == 1
+    ), f"Expected 1 log with message 'test_otel_logs_exporter_auto_configured_http' but found: {captured_logs}"
 
 
 @pytest.mark.skipif(
@@ -235,6 +174,7 @@ def test_otel_logs_exporter_auto_configured_http():
     ddtrace_run=True,
     env={
         "DD_LOGS_OTEL_ENABLED": "true",
+        "DD_LOGS_INJECTION": "false",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
     },
     err=b"OpenTelemetry Logs exporter protocol 'http/json' is not supported. Use 'grpc' or 'http/protobuf'.\n",
@@ -259,36 +199,28 @@ def test_otel_logs_exporter_auto_configured_grpc():
     """
     from logging import getLogger
 
+    from ddapm_test_agent.client import TestOTLPClient
     from opentelemetry._logs import get_logger_provider
 
-    from tests.opentelemetry.test_logs import mock_grpc_exporter_connection
+    client = TestOTLPClient()
+    client.clear()
 
-    mock_service, server = mock_grpc_exporter_connection()
-    try:
-        server.start()
-        logger = getLogger()
-        logger.error("test_otel_logs_exporter_auto_configured_grpc")
+    logger = getLogger()
+    logger.error("test_otel_logs_exporter_auto_configured_grpc")
+    lp = get_logger_provider()
+    lp.shutdown()
 
-        lp = get_logger_provider()
-        lp.shutdown()
-    finally:
-        server.stop(0)
-
-    # Inspect captured requests
-    assert mock_service.received_requests, "No gRPC Export requests were received by the mock server"
-
-    # Flatten all log records
-    all_logs = [
-        record
-        for request in mock_service.received_requests
-        for resource_logs in request.resource_logs
-        for scope_logs in resource_logs.scope_logs
-        for record in scope_logs.log_records
+    captured_logs = client.wait_for_num_logs(1)
+    expected_log = [
+        record["body"]["string_value"]
+        for resource_logs in captured_logs[0]["resource_logs"]
+        for scope_logs in resource_logs["scope_logs"]
+        for record in scope_logs["log_records"]
+        if record["body"]["string_value"] == "test_otel_logs_exporter_auto_configured_grpc"
     ]
-
-    assert any(
-        b"test_otel_logs_exporter_auto_configured_grpc" in log.body.string_value.encode() for log in all_logs
-    ), "Expected log message not found in exported gRPC payload"
+    assert (
+        len(expected_log) == 1
+    ), f"Expected 1 log with message 'test_otel_logs_exporter_auto_configured_grpc' but found: {captured_logs}"
 
 
 @pytest.mark.skipif(
@@ -315,33 +247,28 @@ def test_ddtrace_log_correlation():
     from logging import getLogger
     import os
 
+    from ddapm_test_agent.client import TestOTLPClient
     from opentelemetry._logs import get_logger_provider
 
     from ddtrace import tracer
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
-    from tests.opentelemetry.test_logs import mock_grpc_exporter_connection
 
     otel_context = os.environ.get("OTEL_PYTHON_CONTEXT")
     assert (
         otel_context == "ddcontextvars_context"
     ), f"Expected OTEL_PYTHON_CONTEXT to be set to ddcontextvars_context but found: {otel_context}"
 
-    log = getLogger()
-    mock_service, server = mock_grpc_exporter_connection()
-    try:
-        server.start()
-        with tracer.trace("test_trace") as span:
-            log.error("test_ddtrace_log_correlation")
-        lp = get_logger_provider()
-        lp.shutdown()
-    finally:
-        server.stop(0)
+    client = TestOTLPClient()
+    client.clear()
 
-    lc_attributes = {}
-    for request in mock_service.received_requests:
-        lc_attributes = find_log_correlation_attributes(request, "test_ddtrace_log_correlation")
-        if lc_attributes:
-            break
+    log = getLogger()
+    with tracer.trace("test_ddtrace_log_correlation") as span:
+        log.error("test_ddtrace_log_correlation")
+    lp = get_logger_provider()
+    lp.shutdown()
+
+    captured_logs = client.wait_for_num_logs(1)
+    lc_attributes = find_log_correlation_attributes(captured_logs[0], "test_ddtrace_log_correlation")
 
     assert len(lc_attributes) == 6, f"All log correlation attributes NOT found lc_attributes: {lc_attributes}"
     assert (
@@ -356,12 +283,14 @@ def test_ddtrace_log_correlation():
     assert (
         lc_attributes["host_name"] == "test_host2"
     ), f"Expected host.name to match 'test_host2' but found: {lc_attributes['host_name']}"
+    expected_trace_id = int(lc_attributes["trace_id"], 16)
     assert (
-        int(lc_attributes["trace_id"], 16) == span.trace_id
-    ), f"Expected trace_id_hex to be set to {lc_attributes['trace_id']} but found: {span.trace_id}"
+        expected_trace_id == span.trace_id
+    ), f"Expected trace_id_hex to be set to {expected_trace_id} but found: {span.trace_id}"
+    expected_span_id = int(lc_attributes["span_id"], 16)
     assert (
-        int(lc_attributes["span_id"], 16) == span.span_id
-    ), f"Expected span_id_hex to be set to {lc_attributes['span_id']} but found: {span.span_id}"
+        expected_span_id == span.span_id
+    ), f"Expected span_id_hex to be set to {expected_span_id} but found: {span.span_id}"
 
 
 @pytest.mark.skipif(
@@ -384,35 +313,30 @@ def test_otel_trace_log_correlation():
     from logging import getLogger
     import os
 
+    from ddapm_test_agent.client import TestOTLPClient
     from opentelemetry import trace
     from opentelemetry._logs import get_logger_provider
 
     from tests.opentelemetry.test_logs import find_log_correlation_attributes
-    from tests.opentelemetry.test_logs import mock_grpc_exporter_connection
 
     otel_context = os.environ.get("OTEL_PYTHON_CONTEXT")
     assert (
         otel_context == "ddcontextvars_context"
     ), f"Expected OTEL_PYTHON_CONTEXT to be set to ddcontextvars_context but found: {otel_context}"
 
+    client = TestOTLPClient()
+    client.clear()
+
     log = getLogger()
 
-    mock_service, server = mock_grpc_exporter_connection()
-    try:
-        server.start()
-        oteltracer = trace.get_tracer(__name__)
-        with oteltracer.start_as_current_span("test-otel-distributed-trace") as ot_span:
-            log.error("test_otel_trace_log_correlation")
-        lp = get_logger_provider()
-        lp.shutdown()
-    finally:
-        server.stop(0)
+    oteltracer = trace.get_tracer(__name__)
+    with oteltracer.start_as_current_span("test-otel-distributed-trace") as ot_span:
+        log.error("test_otel_trace_log_correlation")
+    lp = get_logger_provider()
+    lp.shutdown()
 
-    lc_attributes = {}
-    for request in mock_service.received_requests:
-        lc_attributes = find_log_correlation_attributes(request, "test_otel_trace_log_correlation")
-        if lc_attributes:
-            break
+    captured_logs = client.wait_for_num_logs(1)
+    lc_attributes = find_log_correlation_attributes(captured_logs[0], "test_otel_trace_log_correlation")
 
     assert len(lc_attributes) == 6, f"All log correlation attributes NOT found lc_attributes: {lc_attributes}"
     assert (

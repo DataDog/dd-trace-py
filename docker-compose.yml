@@ -121,9 +121,11 @@ services:
         volumes:
           - ddagent:/tmp/ddagent:rw
     testagent:
-        image: ghcr.io/datadog/dd-apm-test-agent/ddapm-test-agent:v1.29.1
+        image: ddapm-test-agent:grpc-logs-support
         ports:
             - "127.0.0.1:9126:8126"
+            - "127.0.0.1:4318:4318"
+            - "127.0.0.1:4317:4317"
         volumes:
             - ./tests/snapshots:/snapshots
             - ./tests/llmobs/llmobs_cassettes:/cassettes
