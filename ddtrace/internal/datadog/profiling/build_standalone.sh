@@ -361,7 +361,7 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    python3 install cmake setuptools_rust cython
+    pip3 install cmake setuptools_rust cython
     python3 setup.py build_rust
 }
 
