@@ -102,6 +102,7 @@ TAGS_CONTAINER_DEPTH = (("truncation_reason", "4"),)
 
 
 def _report_waf_truncations(observator):
+    print(f">>> observator {observator}")
     try:
         bitfield = 0
         if observator.string_length is not None:
