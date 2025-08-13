@@ -11,8 +11,6 @@ import vcr
 
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
-from ddtrace.contrib.internal.openai.patch import patch as patch_openai
-from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -120,10 +118,6 @@ def basic_crew(crewai):
 def tool_crew(crewai):
     yield Crew(agents=[analytics_agent], tasks=[data_analysis_task_1], process=Process.sequential)
 
-@pytest.fixture
-def tool_crew_with_openai(crewai, openai_patched):
-    yield Crew(agents=[analytics_agent], tasks=[data_analysis_task_1], process=Process.sequential)
-
 
 @pytest.fixture
 def async_exec_crew(crewai):
@@ -173,16 +167,6 @@ def crewai(monkeypatch):
 
     yield crewai
     unpatch()
-
-@pytest.fixture
-def openai_patched(mock_tracer):
-    patch_openai()
-    import openai
-    pin = Pin.get_from(openai)
-    pin._override(openai, tracer=mock_tracer)
-    
-    yield openai
-    unpatch_openai()
 
 
 @pytest.fixture
