@@ -142,7 +142,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # depending on the version, the output may be a ToolReturnPart or the raw response
             output_content = getattr(response, "content", "") or response
             span._set_ctx_item(OUTPUT_VALUE, output_content)
-        
+
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (tool_name, tool_input, "function", span),

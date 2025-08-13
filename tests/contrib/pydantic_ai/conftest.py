@@ -45,13 +45,15 @@ def pydantic_ai(ddtrace_global_config, monkeypatch):
         yield pydantic_ai
         unpatch()
 
+
 @pytest.fixture
 def openai_patched(mock_tracer):
     patch_openai()
     import openai
+
     pin = Pin.get_from(openai)
     pin._override(openai, tracer=mock_tracer)
-    
+
     yield openai
     unpatch_openai()
 

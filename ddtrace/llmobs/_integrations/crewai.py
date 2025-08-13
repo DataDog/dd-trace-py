@@ -203,7 +203,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         filtered_input = input
         if isinstance(input, dict) and "security_context" in input:
             filtered_input = {k: v for k, v in input.items() if k != "security_context"}
-        
+
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (tool_name, json.dumps(filtered_input), "function", span),

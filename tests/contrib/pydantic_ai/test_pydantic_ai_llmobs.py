@@ -251,7 +251,7 @@ class TestLLMObsPydanticAISpanLinks:
             async with agent.run_stream("What is the square of 2?") as result:
                 async for _ in result.stream(debounce_by=None):
                     pass
-        
+
         assert len(llmobs_events) == 4
         first_llm_span = llmobs_events[0]
         tool_span = llmobs_events[1]
@@ -264,4 +264,3 @@ class TestLLMObsPydanticAISpanLinks:
         assert len(second_llm_span["span_links"]) == 1
         assert second_llm_span["span_links"][0]["span_id"] == tool_span["span_id"]
         assert second_llm_span["span_links"][0]["attributes"] == {"from": "output", "to": "input"}
-        

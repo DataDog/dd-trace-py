@@ -368,17 +368,17 @@ def openai_set_meta_tags_from_chat(
                         }
                     ]
                     core.dispatch(
-                    DISPATCH_ON_LLM_TOOL_CHOICE,
-                    (
-                        tool_id,
-                        tool_name,
-                        tool_args,
-                        {
-                            "trace_id": format_trace_id(span.trace_id),
-                            "span_id": str(span.span_id),
-                        },
-                    ),
-                )
+                        DISPATCH_ON_LLM_TOOL_CHOICE,
+                        (
+                            tool_id,
+                            tool_name,
+                            tool_args,
+                            {
+                                "trace_id": format_trace_id(span.trace_id),
+                                "span_id": str(span.span_id),
+                            },
+                        ),
+                    )
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
         return
@@ -428,7 +428,9 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
-def capture_plain_text_tool_call(tool_calls_info: List[Dict[str, Any]], content: str, span: Span, input: bool = False) -> None:
+def capture_plain_text_tool_call(
+    tool_calls_info: List[Dict[str, Any]], content: str, span: Span, input: bool = False
+) -> None:
     """
     Captures plain text tool calls from a content string.
 
@@ -441,15 +443,15 @@ def capture_plain_text_tool_call(tool_calls_info: List[Dict[str, Any]], content:
     """
     if not content:
         return
-    
-    regex = (
-        r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
-    )
+
+    regex = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
     action_match = re.search(regex, content, re.DOTALL)
     if action_match:
         tool_name = action_match.group(1).strip().strip("*").strip()
-        tool_input = action_match.group(2).split('\nObservation')[0].strip().strip(" ").strip('"')
-        tool_calls_info.append({"name": tool_name, "arguments": json.loads(tool_input), "tool_id": "", "type": "function"})
+        tool_input = action_match.group(2).split("\nObservation")[0].strip().strip(" ").strip('"')
+        tool_calls_info.append(
+            {"name": tool_name, "arguments": json.loads(tool_input), "tool_id": "", "type": "function"}
+        )
         if input:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
         else:
@@ -465,7 +467,7 @@ def capture_plain_text_tool_call(tool_calls_info: List[Dict[str, Any]], content:
                     },
                 ),
             )
-    
+
 
 def get_metadata_from_kwargs(
     kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
