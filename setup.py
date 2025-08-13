@@ -279,6 +279,8 @@ class CustomBuildRust(build_rust):
                 has_profiling_feature = True
                 break
 
+        self.inplace = IS_EDITABLE
+
         super().run()
 
         # Check if profiling is enabled and run dedup_headers
@@ -500,12 +502,6 @@ class CustomBuildExt(build_ext):
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
         self.output_dir = Path(self.get_ext_fullpath("ddtrace.internal.native._native")).resolve()
-
-    @staticmethod
-    def is_installed(bin_file):
-        for path in os.environ.get("PATH", "").split(os.pathsep):
-            return os.path.isfile(os.path.join(path, bin_file))
-        return False
 
     @staticmethod
     def try_strip_symbols(so_file):
