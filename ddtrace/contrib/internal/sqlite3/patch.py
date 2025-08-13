@@ -1,7 +1,10 @@
 import os
 import sqlite3
 import sqlite3.dbapi2
+from typing import Any
+from typing import Callable
 from typing import Dict
+from typing import Tuple
 
 import wrapt
 
@@ -12,6 +15,7 @@ from ddtrace.contrib.dbapi import TracedCursor
 from ddtrace.ext import db
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Pin
@@ -63,14 +67,20 @@ def unpatch():
     sqlite3.dbapi2.connect = _connect
 
 
-def traced_connect(func, _, args, kwargs):
+def traced_connect(
+    func: Callable[..., sqlite3.Connection], _, args: Tuple[Any], kwargs: Dict[str, Any]
+) -> sqlite3.Connection:
     conn = func(*args, **kwargs)
-    return patch_conn(conn)
-
-
-def patch_conn(conn):
     wrapped = TracedSQLite(conn)
-    Pin(tags={db.SYSTEM: "sqlite"}).onto(wrapped)
+
+    tags = {db.SYSTEM: "sqlite"}
+
+    # DEV: It is required, but we don't want to fail here, so set `optional=True`
+    database_name = get_argument_value(args, kwargs, 0, "database", optional=True)
+    if database_name:
+        tags[db.NAME] = database_name
+
+    Pin(tags=tags).onto(wrapped)
     return wrapped
 
 
