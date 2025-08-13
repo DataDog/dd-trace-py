@@ -161,29 +161,31 @@ def _process_asm_features(payload_list: List[Payload], local_tracer: Tracer, cac
 
 
 def disable_asm(local_tracer: Tracer):
-    from ddtrace.appsec._processor import AppSecSpanProcessor
+    if asm_config._asm_enabled:
+        from ddtrace.appsec._processor import AppSecSpanProcessor
 
-    AppSecSpanProcessor.disable()
+        AppSecSpanProcessor.disable()
 
-    asm_config._asm_enabled = False
-    if asm_config._api_security_active:
-        from ddtrace.appsec._api_security.api_manager import APIManager
+        asm_config._asm_enabled = False
+        if asm_config._api_security_active:
+            from ddtrace.appsec._api_security.api_manager import APIManager
 
-        APIManager.disable()
+            APIManager.disable()
 
-    local_tracer.configure(appsec_enabled=False)
+        local_tracer.configure(appsec_enabled=False)
 
 
 def enable_asm(local_tracer: Tracer):
-    from ddtrace.appsec._listeners import load_appsec
+    if asm_config._asm_can_be_enabled and not asm_config._asm_enabled:
+        from ddtrace.appsec._listeners import load_appsec
 
-    asm_config._asm_enabled = True
-    if asm_config._api_security_enabled:
-        from ddtrace.appsec._api_security.api_manager import APIManager
+        asm_config._asm_enabled = True
+        if asm_config._api_security_enabled:
+            from ddtrace.appsec._api_security.api_manager import APIManager
 
-        APIManager.enable()
-    load_appsec()
-    local_tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
+            APIManager.enable()
+        load_appsec()
+        local_tracer.configure(appsec_enabled=True, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_RC)
 
 
 def _preprocess_results_appsec_1click_activation(
