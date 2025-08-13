@@ -208,7 +208,7 @@ class Contrib_TestClass_For_Threats:
             interface.client.get("/")
             collection = endpoint_collection.endpoints
             assert collection
-            for ep in collection.values():
+            for ep in collection:
                 assert ep.method
                 # path could be empty, but must be a string
                 assert isinstance(ep.path, str)
