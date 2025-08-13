@@ -108,6 +108,12 @@ class Event
         return _cond.wait_for(lock, timeout, [this]() { return _set; });
     }
 
+    bool wait(std::chrono::time_point<std::chrono::steady_clock> until)
+    {
+        std::unique_lock<std::mutex> lock(_mutex);
+        return _cond.wait_until(lock, until, [this]() { return _set; });
+    }
+
     void clear()
     {
         std::lock_guard<std::mutex> lock(_mutex);
@@ -138,6 +144,8 @@ typedef struct periodic_thread
     bool _stopping;
     bool _atexit;
     bool _skip_shutdown;
+
+    std::chrono::time_point<std::chrono::steady_clock> _next_call_time;
 
     std::unique_ptr<Event> _started;
     std::unique_ptr<Event> _stopped;
@@ -255,6 +263,11 @@ PeriodicThread_start(PeriodicThread* self)
     if (self->_stopping)
         Py_RETURN_NONE;
 
+    // Initialize the next call time to the current time plus the interval.
+    // This ensures that the first call happens after the specified interval.
+    self->_next_call_time =
+      std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
+
     // Start the thread
     self->_thread = std::make_unique<std::thread>([self]() {
         GILGuard _gil;
@@ -274,7 +287,6 @@ PeriodicThread_start(PeriodicThread* self)
         self->_started->set();
 
         bool error = false;
-        auto interval = std::chrono::milliseconds((long long)(self->interval * 1000));
         if (self->_no_wait_at_start)
             self->_request->set();
 
@@ -282,7 +294,7 @@ PeriodicThread_start(PeriodicThread* self)
             {
                 AllowThreads _;
 
-                if (self->_request->wait(interval)) {
+                if (self->_request->wait(self->_next_call_time)) {
                     if (self->_stopping)
                         break;
 
@@ -305,6 +317,9 @@ PeriodicThread_start(PeriodicThread* self)
                 error = true;
                 break;
             }
+
+            self->_next_call_time =
+              std::chrono::steady_clock::now() + std::chrono::milliseconds((long long)(self->interval * 1000));
         }
 
         // Run the shutdown callback if there was no error and we are not
