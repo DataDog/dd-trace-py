@@ -1,3 +1,4 @@
+import importlib
 import json
 from operator import itemgetter
 import os
@@ -8,7 +9,6 @@ from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
 import mock
 import pinecone as pinecone_
-import pkg_resources
 import pytest
 
 from ddtrace import patch
@@ -114,7 +114,7 @@ def test_llmobs_openai_chat_model(langchain_openai, llmobs_events, tracer, opena
 
 
 def test_llmobs_openai_chat_model_no_usage(langchain_openai, llmobs_events, openai_url):
-    if parse_version(pkg_resources.get_distribution("langchain-openai").version) < (0, 2, 0):
+    if parse_version(importlib.metadata.version("langchain_openai")) < (0, 2, 0):
         pytest.skip("langchain-openai <0.2.0 does not support stream_usage=False")
     chat_model = langchain_openai.ChatOpenAI(temperature=0, max_tokens=256, base_url=openai_url, stream_usage=False)
 
