@@ -161,6 +161,8 @@ def _finish_span(
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
     span.finish()
 
 
@@ -546,11 +548,6 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
             ctx.span._ignore_exception(exc)
 
 
-def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
-    if should_set_traceback:
-        ctx.span.set_traceback()
-
-
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         ctx.span.set_tag_str(tk, tv)
@@ -890,7 +887,6 @@ def listen():
     core.on("django.start_response", _on_django_start_response)
     core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -989,7 +985,7 @@ def listen():
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("django.template.render",):
+    for name in ("django.template.render", "django.process_exception"):
         core.on(f"context.ended.{name}", _finish_span)
 
 
