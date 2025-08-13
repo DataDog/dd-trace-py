@@ -20,13 +20,13 @@ interactions:
       : - application/json
       ? !!python/object/apply:multidict._multidict.istr
       - User-Agent
-      : - AsyncOpenAI/Python 1.61.1
+      : - OpenAI/Python 1.61.1
       ? !!python/object/apply:multidict._multidict.istr
       - X-Stainless-Arch
       : - arm64
       ? !!python/object/apply:multidict._multidict.istr
       - X-Stainless-Async
-      : - async:asyncio
+      : - 'false'
       ? !!python/object/apply:multidict._multidict.istr
       - X-Stainless-Lang
       : - python
@@ -49,8 +49,8 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C3owyfNipLQ88iQBQgC7D2Jsqm2fq\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1755026872,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47NQgZ6gfMWOJ6k3jZ76HjQLhtAn\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097704,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"'Whom' is used as the object of a verb
         or preposition, while 'who' is used as the subject of a verb. \\n\\nFor example:\\n-
@@ -67,7 +67,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96e25f5f2e40c971-IAD
+      - 96e920aa7ee4a506-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -75,11 +75,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:27:53 GMT
+      - Wed, 13 Aug 2025 15:08:25 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=s_zFlSeRTRnwPjlIRZHQcOXxhdEJgohBqHEbJpyw3K0-1755026873194-0.0.1.1-604800000;
+      - _cfuvid=UH7yr0aHr.mQhFvFV9UMG0N6guDyqfBcMOSzIudrxHU-1755097705490-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -96,13 +96,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '919'
+      - '1234'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '948'
+      - '1298'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -116,7 +116,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_e5f41842dbd649f8be8cbc1923e3a585
+      - req_62a9d4e24369410abb498dcb94bcf3f4
     status:
       code: 200
       message: OK

@@ -48,21 +48,21 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C2OFsZNY19JrRASV5iBKza2ZoNxtK\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754685928,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47N5oyDxWrOkiyaqK4NwylFXKBZl\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097683,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Why did the pig go to the casino? To
-        play the slop machines!\",\n        \"refusal\": null,\n        \"annotations\":
+        \"assistant\",\n        \"content\": \"Why did the pig become an actor? Because
+        he was a real ham!\",\n        \"refusal\": null,\n        \"annotations\":
         []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
         \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 14,\n    \"completion_tokens\":
-        16,\n    \"total_tokens\": 30,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        15,\n    \"total_tokens\": 29,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96c1db8f4e41903e-BOS
+      - 96e920262b544297-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -70,14 +70,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 08 Aug 2025 20:45:29 GMT
+      - Wed, 13 Aug 2025 15:08:03 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=Pdf9bFZRAbzBVwFd17aHVZRdvphND6Ym_t2IefHwdtE-1754685929-1.0.1.1-XZDE5taAh4fqw5nR6ZBVr9cU1jXO9MSSu_vopOB6bZgjLkq2VDRJD9NYgUfy_DjzBBv6OhII4IKkhh0fhgn0ATmuuakIopVCkqslmKD2nnM;
-        path=/; expires=Fri, 08-Aug-25 21:15:29 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=GpRR0byEoQKpayEKklspTMfKVyrMddxPFyfKyj7Dpxo-1754685929409-0.0.1.1-604800000;
+      - _cfuvid=7lkNcIWk8LT41p8wNuJjJxNCDndGCDpsITf1.cbZ8hg-1755097683745-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -94,13 +91,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '446'
+      - '488'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '482'
+      - '519'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -114,7 +111,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_0d9cacf92dc147889ccf3bc5a59f0831
+      - req_3671a6825c0047cf83b8a746256adf67
     status:
       code: 200
       message: OK

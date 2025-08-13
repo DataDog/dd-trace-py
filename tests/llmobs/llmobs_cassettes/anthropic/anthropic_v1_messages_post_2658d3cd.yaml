@@ -55,17 +55,15 @@ interactions:
     uri: https://api.anthropic.com/v1/messages
   response:
     body:
-      string: '{"id":"msg_01YDnkiSM2s3RjthNSy8eqX8","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"<thinking>\nThe
-        user is asking for the sum of 1 and 2. The provided add tool is directly relevant
-        for answering this request, as it takes two integers a and b and returns their
-        sum.\n\nLooking at the required parameters for the add tool:\na: The user
-        provided the value 1 in the request \nb: The user provided the value 2 in
-        the request\n\nSince the user directly provided values for both required parameters,
-        I have all the information needed to call the add tool to answer the request.
-        No other tools are needed.\n</thinking>"},{"type":"tool_use","id":"toolu_01GGZmB72uxCSRnN8yq2EEUf","name":"add","input":{"a":1,"b":2}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":636,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":189,"service_tier":"standard"}}'
+      string: '{"id":"msg_01XUKrbWdZ1jYUsLTQRSThkF","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"<thinking>\nTo
+        find the sum of 1 and 2, we can use the \"add\" tool.\n\nLooking at the parameters
+        for the \"add\" tool:\n- a (integer): This represents the first number to
+        add. The user provided 1 for this.\n- b (integer): This represents the second
+        number to add. The user provided 2 for this.\n\nWe have values for both required
+        parameters, so we can proceed with calling the \"add\" tool.\n</thinking>"},{"type":"tool_use","id":"toolu_014uq3jc8VgqFAu6RnrkY8Ne","name":"add","input":{"a":1,"b":2}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":636,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":174,"service_tier":"standard"}}'
     headers:
       CF-RAY:
-      - 96e05ef4c8dd7f1b-IAD
+      - 96e920c89b247d1e-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -73,7 +71,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 13:38:11 GMT
+      - Wed, 13 Aug 2025 15:08:35 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -87,29 +85,29 @@ interactions:
       anthropic-ratelimit-input-tokens-remaining:
       - '400000'
       anthropic-ratelimit-input-tokens-reset:
-      - '2025-08-12T13:38:04Z'
+      - '2025-08-13T15:08:29Z'
       anthropic-ratelimit-output-tokens-limit:
       - '80000'
       anthropic-ratelimit-output-tokens-remaining:
       - '80000'
       anthropic-ratelimit-output-tokens-reset:
-      - '2025-08-12T13:38:11Z'
+      - '2025-08-13T15:08:35Z'
       anthropic-ratelimit-requests-limit:
       - '4000'
       anthropic-ratelimit-requests-remaining:
       - '3999'
       anthropic-ratelimit-requests-reset:
-      - '2025-08-12T13:38:03Z'
+      - '2025-08-13T15:08:29Z'
       anthropic-ratelimit-tokens-limit:
       - '480000'
       anthropic-ratelimit-tokens-remaining:
       - '480000'
       anthropic-ratelimit-tokens-reset:
-      - '2025-08-12T13:38:04Z'
+      - '2025-08-13T15:08:29Z'
       cf-cache-status:
       - DYNAMIC
       request-id:
-      - req_011CS3uaHipk18KLvrXNu1Zk
+      - req_011CS5vH8LAnbwkKpUJc7yii
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:

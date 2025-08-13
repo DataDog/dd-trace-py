@@ -49,11 +49,11 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C3ourN4B6bYexlY5mbpReQuds3JQe\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1755026741,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47Kq8W5o5oyHrSsFxAXNqpkaq9Jf\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097544,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": null,\n        \"tool_calls\": [\n          {\n
-        \           \"id\": \"call_t5h6vhQn2AmzPZhY4Acbx38M\",\n            \"type\":
+        \           \"id\": \"call_aRMb91k5YxGdI7wtfEFZWGea\",\n            \"type\":
         \"function\",\n            \"function\": {\n              \"name\": \"add\",\n
         \             \"arguments\": \"{\\\"a\\\": 1, \\\"b\\\": 2}\"\n            }\n
         \         }\n        ],\n        \"refusal\": null,\n        \"annotations\":
@@ -66,7 +66,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96e25c30187c393a-IAD
+      - 96e91cc109a2c54d-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -74,11 +74,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:42 GMT
+      - Wed, 13 Aug 2025 15:05:44 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=xZBQwPbsL92OQLn08.2Ec7gYCSsp1dDhtvEKIgNoNuY-1755026742355-0.0.1.1-604800000;
+      - _cfuvid=TPXwFLo87HsGS_irw.D047xc8qknX.JBmQO8SFJcJUw-1755097544983-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -95,13 +95,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '489'
+      - '768'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '512'
+      - '815'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -115,7 +115,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_e0f68ef2436d4d7495a2a9abf9499783
+      - req_9523976ac81747c1b12bfe6ecb6a3de1
     status:
       code: 200
       message: OK

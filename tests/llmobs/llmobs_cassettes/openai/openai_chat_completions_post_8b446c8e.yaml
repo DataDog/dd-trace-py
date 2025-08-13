@@ -45,21 +45,21 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C2OFmU3WaiAESRDJpDnFttCodkVnE\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754685922,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47LyxLG9xoSpmofhwzi7Z0GTwng0\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097614,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Why did the pig go to the casino? He
-        was feeling lucky!\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 14,\n    \"completion_tokens\":
-        14,\n    \"total_tokens\": 28,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        \"assistant\",\n        \"content\": \"What do you call a pig that does karate?
+        A pork chop!\",\n        \"refusal\": null,\n        \"annotations\": []\n
+        \     },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 14,\n    \"completion_tokens\":
+        15,\n    \"total_tokens\": 29,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96c1db64aa558fcc-BOS
+      - 96e91e7b2a8c7ca2-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -67,14 +67,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 08 Aug 2025 20:45:23 GMT
+      - Wed, 13 Aug 2025 15:06:55 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=O7oTO0eyTplJdgLD20YZoeOfCjdAk3oKu75oqNMtEsM-1754685923-1.0.1.1-PqeiXAtzdgkIWqkSu7WjLGcX08W8qK4jLDQeenqRPgpWWVR3WjrWNn5_CL1crnldCtisPb9wJbK5rXlzYUhfo9Jga0nPdwy0WIfC2m15yIU;
-        path=/; expires=Fri, 08-Aug-25 21:15:23 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=IhodctHUkQZtEuqtE5vHlZE0Wh7UAOOxvlH5bXKvmZ4-1754685923237-0.0.1.1-604800000;
+      - _cfuvid=QSXKYQ6Xa6xTOImHPkvxVxzgNCpnVHacy3gFxbfsrbU-1755097615128-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -91,13 +88,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '276'
+      - '422'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '319'
+      - '461'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -111,7 +108,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_96eb3c356c584b05a0997f245958a167
+      - req_66778e6dacd1464189d0a3bb678c5b83
     status:
       code: 200
       message: OK

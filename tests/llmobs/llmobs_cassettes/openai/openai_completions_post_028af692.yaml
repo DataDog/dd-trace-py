@@ -47,36 +47,34 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3ov0TjVe6fs9YaNDgqMMA5TnWwfa\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755026750,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
-        \ \"choices\": [\n    {\n      \"text\": \"\\n\\n1. Start early: The earlier
-        you start exposing your baby to multiple languages, the easier it will be
-        for them to learn and absorb them. Babies have a natural ability to pick up
-        languages, so it's best to start as early as possible.\\n\\n2. Use the one
-        parent, one language method: This method involves each parent speaking to
-        the baby in a different language consistently. This helps the baby to differentiate
-        between the languages and learn them separately.\\n\\n3. Use different languages
-        in daily routines: Incorporate different languages into your daily routines
-        such as singing lullabies, counting, or naming objects in different languages.
-        This will help your baby to associate languages with different activities.\\n\\n4.
-        Use visual aids: Visual aids such as books, flashcards, and videos can be
-        helpful in teaching your baby multiple languages. They can help your baby
-        associate words with images and make learning more fun.\\n\\n5. Be consistent:
-        Consistency is key when teaching a baby multiple languages. Stick to a routine
-        and use the same language consistently to avoid confusion.\\n\\n6. Engage
-        in language immersion activities: If possible, expose your baby to different
-        cultures and languages through activities such as attending cultural events,
-        watching foreign language shows, or interacting with native speakers.\\n\\n7.
-        Don't mix languages: It's\",\n      \"index\": 0,\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"length\"\n    },\n    {\n      \"text\": \"\\n\\nIt
-        is not specified in the show how many times Spongebob has failed his road
-        test. However, he fails multiple times in the episode \\\"Boating School.\\\"\",\n
-        \     \"index\": 1,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 23,\n    \"completion_tokens\":
-        289,\n    \"total_tokens\": 312\n  }\n}\n"
+      string: "{\n  \"id\": \"cmpl-C47KwYiR7VKgnx5zswavL7XtKCsie\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097550,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n1. Start early: Experts suggest
+        that the earlier a baby is exposed to multiple languages, the easier it is
+        for them to learn and develop proficiency in those languages. The ideal time
+        to start teaching a baby multiple languages is from birth.\\n\\n2. One person,
+        one language approach: The most effective way to teach a baby multiple languages
+        is to have one person consistently speak one language to the baby. This way,
+        the baby can associate each language with a specific person and avoid confusion.\\n\\n3.
+        Use interactive and fun activities: Babies learn best through play and interaction.
+        Incorporate games, songs, and other fun activities to teach them new words
+        and phrases in different languages. This will also make learning enjoyable
+        for the baby.\\n\\n4. Expose them to the language through media: Use children's
+        books, songs, and TV shows in different languages to expose the baby to the
+        language. This will help them learn new words and phrases and also develop
+        an interest in the language.\\n\\n5. Be consistent: Consistency is key when
+        teaching a baby multiple languages. Use the same words and phrases in each
+        language consistently, and stick to a routine. This will help the baby understand
+        and remember the language better.\\n\\n6. Be patient and don't force it: Learning
+        multiple languages can be challenging for\",\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"length\"\n    },\n    {\n      \"text\":
+        \"\\nSpongebob has failed his road test a total of 47 times. \",\n      \"index\":
+        1,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 23,\n    \"completion_tokens\":
+        273,\n    \"total_tokens\": 296\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e25c652df88244-IAD
+      - 96e91ce43d0b41cd-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -86,11 +84,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:52 GMT
+      - Wed, 13 Aug 2025 15:05:52 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=64NDo7YSgV4AetywexnDJnD1LdphVIcYbfyJWYQQ32w-1755026752296-0.0.1.1-604800000;
+      - _cfuvid=0vqBvpRnD0sEUkmYI5XCCNTTvW7mWCsmb2u23QFVoY4-1755097552078-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -109,7 +107,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '1951'
+      - '2490'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -117,23 +115,23 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-c5b9484b5-8cs5q
+      - envoy-router-66cdf87cd5-ncvxl
       x-envoy-upstream-service-time:
-      - '1986'
+      - '2527'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
       - '90000'
       x-ratelimit-remaining-requests:
-      - '3498'
+      - '3499'
       x-ratelimit-remaining-tokens:
-      - '89971'
+      - '89972'
       x-ratelimit-reset-requests:
       - 17ms
       x-ratelimit-reset-tokens:
       - 18ms
       x-request-id:
-      - req_4977f6ce7a0043599154cc85b397eadb
+      - req_959487fccd864a82a85e3f6d258e8e7e
     status:
       code: 200
       message: OK

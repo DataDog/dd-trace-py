@@ -50,8 +50,8 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C37TgJGYMpiaSVR1q5LRSnFOmyzSW\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754859764,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47NmPOtnwj4jHCl7pKoEwxC6QFt7\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097726,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"The image shows a scenic landscape
         with a wooden boardwalk path leading through a lush green field. The sky is
@@ -67,7 +67,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": \"fp_ff25b2783a\"\n}\n"
     headers:
       CF-RAY:
-      - 96d26f8bad709015-BOS
+      - 96e921301d4ede9b-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -75,14 +75,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 10 Aug 2025 21:02:46 GMT
+      - Wed, 13 Aug 2025 15:08:50 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=GjEThqHn4VibyrI1mJREd4vPMgwczmfesyN0wfOlcWY-1754859766-1.0.1.1-HM955yMWrCsz85VSIohm5BD.ks8puGlkOX5SRcMH7.nZ86MaAOCNv9m.DprzX9P.6Gr3ikgAgQtSPaHIOEoV18pSjXprDHnBh7gGHWR1O7M;
-        path=/; expires=Sun, 10-Aug-25 21:32:46 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=ICoSskVRrswfLvHqtw5t3X2pigQ3TuCt30ZjavjlNMU-1754859766921-0.0.1.1-604800000;
+      - _cfuvid=gzEWKwZovI01uWp0.xCZnYFH0GIMU.O0TInOdMQUXns-1755097730995-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -99,13 +96,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '3890'
+      - '5422'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '3924'
+      - '5460'
       x-ratelimit-limit-input-images:
       - '250000'
       x-ratelimit-limit-requests:
@@ -125,7 +122,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 1ms
       x-request-id:
-      - req_c39ea8bdf69d497390cef53732110fd6
+      - req_7893cbddf7a24b8480f40335507f75bf
     status:
       code: 200
       message: OK

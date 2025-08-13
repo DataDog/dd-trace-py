@@ -49,24 +49,24 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C3oxOj1vyZrzzMzkkXcnRXIyq7lte\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1755026898,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47NJhiMKtCNtCCZZIe7NVAuJ8esm\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097697,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"'Who' is used as a subject pronoun,
-        while 'whom' is used as an object pronoun. \\n\\nYou use 'who' when referring
-        to the subject of a sentence or clause. For example, \\\"Who is coming to
-        the party?\\\" \\n\\nYou use 'whom' when referring to the object of a verb
-        or preposition. For example, \\\"To whom did you give the gift?\\\"\",\n        \"refusal\":
-        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        20,\n    \"completion_tokens\": 83,\n    \"total_tokens\": 103,\n    \"prompt_tokens_details\":
+        while 'whom' is used as an object pronoun. \\n\\nYou use 'who' when it is
+        the subject of a sentence or clause, such as in the sentence \\\"Who is coming
+        to the party?\\\" \\n\\nYou use 'whom' when it is the object of a verb or
+        preposition, such as in the sentence \\\"To whom should I address this letter?\\\"\",\n
+        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        20,\n    \"completion_tokens\": 87,\n    \"total_tokens\": 107,\n    \"prompt_tokens_details\":
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96e260040b774f6d-IAD
+      - 96e92080acdcd826-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -74,11 +74,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:28:19 GMT
+      - Wed, 13 Aug 2025 15:08:18 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=7qPOt_jIzdSe5sBGtN_7u9WeCxX4U5vhkec_hgpJsc8-1755026899497-0.0.1.1-604800000;
+      - _cfuvid=IK6_tknnHRNcDgWJLgIG1_A4ChbCIYXQ7n6zF17M8dg-1755097698340-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -95,13 +95,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '827'
+      - '851'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '850'
+      - '887'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -109,13 +109,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '9999'
       x-ratelimit-remaining-tokens:
-      - '49999988'
+      - '49999987'
       x-ratelimit-reset-requests:
       - 6ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_47c4c09468b142419814f55b58578579
+      - req_a4d1d3de21e34f98b076c8858c1e3e45
     status:
       code: 200
       message: OK

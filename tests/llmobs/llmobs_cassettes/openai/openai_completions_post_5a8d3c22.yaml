@@ -47,20 +47,20 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3ouq2uGye1BXhx25orDjdA2dBfP6\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755026740,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+      string: "{\n  \"id\": \"cmpl-C47KdwqPqVtq3tGGTXPqTpVZY3khX\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097531,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
         \ \"choices\": [\n    {\n      \"text\": \"\\nSystem: Langsmith can help with
-        testing by providing clear and comprehensive technical documentation that
-        outlines the steps for conducting tests and troubleshooting any issues that
-        may arise. This documentation can serve as a guide for testers and ensure
-        that testing is done accurately and efficiently. Additionally, Langsmith can
-        also provide language translation services to help with testing in different
-        language environments.\",\n      \"index\": 0,\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        20,\n    \"completion_tokens\": 69,\n    \"total_tokens\": 89\n  }\n}\n"
+        testing by providing clear and detailed technical documentation that outlines
+        the functionality of the system being tested. This documentation can serve
+        as a guide for testers, helping them understand the purpose of the system
+        and how it should function. Additionally, Langsmith can also assist with creating
+        test cases and scenarios based on the documentation, ensuring that all aspects
+        of the system are thoroughly tested.\",\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        20,\n    \"completion_tokens\": 79,\n    \"total_tokens\": 99\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e25c28acf71f55-IAD
+      - 96e91c701c0428c9-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -70,11 +70,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:41 GMT
+      - Wed, 13 Aug 2025 15:05:32 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=f_GCclaEtpxr7KWYBV09Z_2Hf1M94O6rZt6r0IahC.E-1755026741584-0.0.1.1-604800000;
+      - _cfuvid=5UrB0duNgrP2bKyWcFrQF_fJUZ1wuRsrpJfXbSnACNM-1755097532164-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -93,7 +93,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '715'
+      - '1106'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -101,9 +101,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-554fbdff69-5jm5l
+      - envoy-router-97bd886c9-ntg7f
       x-envoy-upstream-service-time:
-      - '915'
+      - '1161'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -117,7 +117,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 17ms
       x-request-id:
-      - req_2812349396ab4cfda840ae32bf39dcb1
+      - req_8a485313c6604e7dae90693cd0bf7915
     status:
       code: 200
       message: OK

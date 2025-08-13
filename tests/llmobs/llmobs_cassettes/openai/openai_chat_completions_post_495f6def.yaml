@@ -50,22 +50,22 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C37UfOAMxlPxUNJS5zF0gtTq6nykE\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754859825,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47NSnsxmw8K9JfYnW0ytgQoi1ZSH\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097706,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Bro, Equinox Hudson Yards is just a
-        few blocks away from the main entrance. You gonna get your pump on or what?
-        Let's go crush some weights, bro!\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 31,\n    \"completion_tokens\":
-        36,\n    \"total_tokens\": 67,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        few blocks away from the main entrance. You can't miss it, dude. Get your
+        pump on and show those weights who's boss!\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 31,\n    \"completion_tokens\":
+        38,\n    \"total_tokens\": 69,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96d271131da94ce2-BOS
+      - 96e920b9ce7bb731-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -73,14 +73,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 10 Aug 2025 21:03:46 GMT
+      - Wed, 13 Aug 2025 15:08:27 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=dBmHbm4RsmM0LuDSb03oZmnKkBHRjqpxjkO8OKAY1w4-1754859826-1.0.1.1-IL2mWp_XhKV3kgDyXe8xH1oxNDK4csBk1Kqg.RdhQU5dS_lQBNUfEGLrKZrw0OB0KMzuBoKcLPKLnkNUKCofD5b.T_BlR4eUCUrGmDwKgqs;
-        path=/; expires=Sun, 10-Aug-25 21:33:46 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=tWiLviOpQxNcyiIstnp7qpb0_pawCDSMrwPNDqZFcPU-1754859826355-0.0.1.1-604800000;
+      - _cfuvid=mQs4cbcw1jz7WGZ5QxTnnZKg4bEqBe93wS30DClTNnw-1755097707235-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -97,13 +94,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '869'
+      - '619'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '896'
+      - '650'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -111,13 +108,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '9999'
       x-ratelimit-remaining-tokens:
-      - '49999976'
+      - '49999975'
       x-ratelimit-reset-requests:
       - 6ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_9aebd09e43fa4156b87399b98a857002
+      - req_28def4bea14b4ff8a9600309d7168766
     status:
       code: 200
       message: OK

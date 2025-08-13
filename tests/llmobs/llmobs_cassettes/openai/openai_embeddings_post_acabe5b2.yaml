@@ -51,7 +51,7 @@ interactions:
         \   \"prompt_tokens\": 2,\n    \"total_tokens\": 2\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96c7c2f2eb3c4cc6-BOS
+      - 96e91e87f8434239-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -59,14 +59,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sat, 09 Aug 2025 13:57:15 GMT
+      - Wed, 13 Aug 2025 15:06:56 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=1hKEoznSrKpalj8fhE2fKFj47Vzx3xcerzk19fWwV4Y-1754747835-1.0.1.1-qBjh40xo89dhinZjToRrVeqHd8WqHor32QvkntWLfrxauP8ItzyJLnuiN96JX.rvcGxlllWkFfmC3EEYbYnS50qFuTvxWGoM7Mtmz5TRnb0;
-        path=/; expires=Sat, 09-Aug-25 14:27:15 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=Tsm0PgmgnWPG6INSV5Nbbt6eFJvGOclA6pVTXxEg9nk-1754747835766-0.0.1.1-604800000;
+      - _cfuvid=UWwGPchxtqbfQsDnm00a9Xcf0P4bk9aqZsXt3UW8XyU-1755097616809-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -85,7 +82,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '43'
+      - '74'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -93,9 +90,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-554fbdff69-j42rr
+      - envoy-router-66cdf87cd5-w7gns
       x-envoy-upstream-service-time:
-      - '78'
+      - '109'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -109,7 +106,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_e4fffdf45a334b64a75d5e82bff05245
+      - req_32ffa89d9803451bbc4b5e45c65877ca
     status:
       code: 200
       message: OK

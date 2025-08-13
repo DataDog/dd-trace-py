@@ -46,15 +46,15 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3ov4ixQlmxYPp6BiyjrJTG8lTROq\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755026754,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+      string: "{\n  \"id\": \"cmpl-C47L3RG6ICY37W3Q0flVHr4BPTPMS\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097557,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
         \ \"choices\": [\n    {\n      \"text\": \"\\n\\nThe Toronto Raptors won the
         2019 NBA Finals.\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
         \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 10,\n    \"completion_tokens\":
         12,\n    \"total_tokens\": 22\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e25c7c3e7af284-IAD
+      - 96e91d157cc9db40-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -64,11 +64,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:54 GMT
+      - Wed, 13 Aug 2025 15:05:58 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=vjj5n08qq9VPXodLn2cpw9mNdUDwqFaoO_h.z9kZD.Q-1755026754673-0.0.1.1-604800000;
+      - _cfuvid=Mx3zTcL_heAXgUNms1i2va8t47P.Ud41knS8zKK0q20-1755097558009-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -87,7 +87,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '607'
+      - '585'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -95,9 +95,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-7c45b9c6dc-vcpw6
+      - envoy-router-844495c9d7-sqpkl
       x-envoy-upstream-service-time:
-      - '639'
+      - '606'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -111,7 +111,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 6ms
       x-request-id:
-      - req_41762862ee564d8692f98b3aabd9a895
+      - req_f276379288894f44af0008874d198b71
     status:
       code: 200
       message: OK

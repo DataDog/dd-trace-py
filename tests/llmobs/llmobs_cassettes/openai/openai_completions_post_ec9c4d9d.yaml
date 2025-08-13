@@ -51,7 +51,7 @@ interactions:
         \"invalid_request_error\",\n    \"param\": null,\n    \"code\": null\n  }\n}"
     headers:
       CF-RAY:
-      - 96e25c0c4da1b49c-IAD
+      - 96e91d404de0c35d-EWR
       Connection:
       - keep-alive
       Content-Length:
@@ -59,11 +59,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:36 GMT
+      - Wed, 13 Aug 2025 15:06:04 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=2gTsVUcdfOyNLBLhyOsGu0EAyw0lflORoRNfm9HA7sQ-1755026736171-0.0.1.1-604800000;
+      - _cfuvid=b7UKUE5QUzwGn8g6.ZQhF4m.B1sdMO.b9yl.jjAj8vo-1755097564303-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -78,19 +78,19 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '25'
+      - '16'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '61'
+      - '36'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
       - '90000'
       x-ratelimit-remaining-requests:
-      - '3498'
+      - '3499'
       x-ratelimit-remaining-tokens:
       - '89997'
       x-ratelimit-reset-requests:
@@ -98,7 +98,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 2ms
       x-request-id:
-      - req_ac445a3a93834494aab70c2bf0008277
+      - req_37825b8ced824ce18527e2afd4f60393
     status:
       code: 400
       message: Bad Request

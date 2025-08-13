@@ -47,13 +47,13 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C37TVwql2KY1AahL5F7KpU0DHZNbs\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754859753,\n  \"model\": \"gpt-4o-2024-08-06\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47KzKC1iChTqzBiWKWvc5vkvPiFX\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097553,\n  \"model\": \"gpt-4o-2024-08-06\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"The image shows a scenic landscape
         with a wooden boardwalk path leading through a lush green field. The sky is
         blue with scattered clouds, and there are trees and bushes in the background.
-        The setting appears to be a natural, open area, possibly a park or nature
+        The setting appears to be a peaceful, natural area, possibly a park or nature
         reserve.\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
         \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
         \ \"usage\": {\n    \"prompt_tokens\": 1118,\n    \"completion_tokens\": 55,\n
@@ -64,7 +64,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": \"fp_ff25b2783a\"\n}\n"
     headers:
       CF-RAY:
-      - 96d26f490cef4d13-BOS
+      - 96e91cf52ab8cd8b-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -72,14 +72,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 10 Aug 2025 21:02:35 GMT
+      - Wed, 13 Aug 2025 15:05:57 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=IX2HtuEPM1t6xKSSWL7w7bZGE2jwuOlfqWFDRFGexWE-1754859755-1.0.1.1-3Jm16OjVt39IBC2ghebKb8COu523Orx3h5uGiYajfJ7kyRuCHI.H4CE7ZNLI1zLQO.oItVBTS6XvHofFAiXkbcIv7A4sbl0DX6eao3X0oqA;
-        path=/; expires=Sun, 10-Aug-25 21:32:35 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=_tzta53Q_tkUjpB3kRj9ia7sQXoNBQm9mPl6NMqAHDQ-1754859755985-0.0.1.1-604800000;
+      - _cfuvid=Cy98zO8fYMMgBwIu99G0hkxMzd4mzsOO.7_98tM4.ro-1755097557248-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -96,13 +93,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '3413'
+      - '4965'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '3435'
+      - '4998'
       x-ratelimit-limit-input-images:
       - '250000'
       x-ratelimit-limit-requests:
@@ -122,7 +119,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 1ms
       x-request-id:
-      - req_3bd086de5bbb475da2cef3dea02ded9e
+      - req_81b631def7b34af6950c3e7cbcb400f2
     status:
       code: 200
       message: OK

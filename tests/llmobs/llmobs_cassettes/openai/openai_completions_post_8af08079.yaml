@@ -49,28 +49,28 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: 'data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"The","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
+      string: 'data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"The","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"
         answer","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"
         is","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"
         ","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"4","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"4","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":".","index":0,"logprobs":null,"finish_reason":null}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
-        data: {"id":"cmpl-C3oxAaPi3wH4DeQ2LntUUM8NErjJ6","object":"text_completion","created":1755026884,"choices":[{"text":"","index":0,"logprobs":null,"finish_reason":"stop"}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
+        data: {"id":"cmpl-C47NLjfaDq6oEDpHVhNkYgD6TUnye","object":"text_completion","created":1755097699,"choices":[{"text":"","index":0,"logprobs":null,"finish_reason":"stop"}],"model":"gpt-3.5-turbo-instruct:20230824-v2"}
 
 
         data: [DONE]
@@ -79,7 +79,7 @@ interactions:
         '
     headers:
       CF-RAY:
-      - 96e25fa69ec14f53-IAD
+      - 96e920874a64c44f-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -87,11 +87,11 @@ interactions:
       Content-Type:
       - text/event-stream
       Date:
-      - Tue, 12 Aug 2025 19:28:04 GMT
+      - Wed, 13 Aug 2025 15:08:19 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=Ws1l.pAmDO7lAwbXj2l.vBRt9AymyiXtCR9Xa6_OA98-1755026884429-0.0.1.1-604800000;
+      - _cfuvid=3wIGywibNRocP3OTUHiVWRzcHTLWJ3PuGnDbeJdWPmE-1755097699131-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -110,7 +110,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '728'
+      - '543'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -118,9 +118,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-769c5f49f9-5q5tm
+      - envoy-router-5955b7647b-4x9pn
       x-envoy-upstream-service-time:
-      - '761'
+      - '570'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -128,13 +128,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '3498'
       x-ratelimit-remaining-tokens:
-      - '89996'
+      - '89995'
       x-ratelimit-reset-requests:
       - 17ms
       x-ratelimit-reset-tokens:
       - 2ms
       x-request-id:
-      - req_c102a19980ca409680551582b1a512a1
+      - req_bcea4e53ea7f42f98217fab463a1f2ee
     status:
       code: 200
       message: OK

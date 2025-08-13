@@ -50,30 +50,31 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3jgLPlRU92TyHQ2WgCqKmr9OT8jG\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755006621,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+      string: "{\n  \"id\": \"cmpl-C47MtKzXYrevSz8ZITq5T1hJPoKnc\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097671,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
         \ \"choices\": [\n    {\n      \"text\": \"\\n\\n\\\"Cogito, ergo sum\\\"
-        or \\\"I think, therefore I am\\\" is a famous statement by the French philosopher
-        Ren\xE9 Descartes in his work \\\"Meditations on First Philosophy.\\\" It
-        is considered one of the most fundamental and influential ideas in Western
-        philosophy.\\n\\nDescartes believed that in order to find certain and indubitable
-        knowledge, he needed to doubt everything he had previously believed to be
-        true. He even doubted the existence of his own body and the external world.
-        However, he realized that he could not doubt the fact that he was doubting,
-        which meant that there must be a thinking entity - the self - that was doing
-        the doubting.\\n\\nFrom this, Descartes concluded that the only thing he could
-        be certain of was his own existence. In other words, the very act of thinking
-        and doubting proved that he existed. He wrote, \\\"I am, I exist, is necessarily
-        true each time that I pronounce it, or that I mentally conceive it.\\\"\\n\\nTherefore,
-        the statement \\\"I think, therefore I am\\\" is Descartes' way of expressing
-        his certainty of his own existence as a thinking being. It implies that the
-        very act of thinking is evidence of one's own existence. This idea is also
-        known as the\",\n      \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\":
-        \"length\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 17,\n    \"completion_tokens\":
-        256,\n    \"total_tokens\": 273\n  }\n}\n"
+        (I think, therefore I am) is a philosophical statement made by the French
+        philosopher Ren\xE9 Descartes. It is a foundational principle in his philosophy,
+        which he uses to establish the existence of the self.\\n\\nDescartes begins
+        his philosophy by doubting everything that he believes to be true, in order
+        to find a solid and indubitable foundation for knowledge. He realizes that
+        he could be deceived by his senses or by a powerful, evil demon that manipulates
+        his thoughts. However, he also realizes that even if he is being deceived,
+        there must be something that is being deceived - a \\\"thinking thing\\\"
+        that is having these doubts. This is where the famous phrase \\\"I think,
+        therefore I am\\\" comes in.\\n\\nDescartes argues that the very act of doubting,
+        questioning, and thinking proves the existence of a thinking entity, or the
+        self. This thinking entity, according to Descartes, is the foundation of knowledge
+        and the starting point for all other beliefs. He goes on to argue that this
+        thinking entity, or the self, is inseparable from his existence and is the
+        only thing that he can be certain of.\\n\\nIn summary, Descartes meant that
+        the very act of thinking proves the existence\",\n      \"index\": 0,\n      \"logprobs\":
+        null,\n      \"finish_reason\": \"length\"\n    }\n  ],\n  \"usage\": {\n
+        \   \"prompt_tokens\": 17,\n    \"completion_tokens\": 256,\n    \"total_tokens\":
+        273\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e070f53a51c940-IAD
+      - 96e91fdc288a3d85-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -83,14 +84,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 13:50:24 GMT
+      - Wed, 13 Aug 2025 15:07:53 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=KfgFBERZ1BAsVq0ZGo.J.4pGxvaLMNdtdA4ctJ.kLi4-1755006624-1.0.1.1-WK8wkO7tuZLqFJhVbB8AS9QL6PpleCO7g2_O9f8m_l_.V9NMyk1qL9zoBseEAojyGhrzoSNUQDihW7pALP93JO9WSz6po02TiNYdwGhQtgQ;
-        path=/; expires=Tue, 12-Aug-25 14:20:24 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=.mZDYpKh9V7dlTLpoaCRZ9BMFEWJBjYkxhLpYoQelU8-1755006624038-0.0.1.1-604800000;
+      - _cfuvid=0bC2uL6I1njHqRQE.R4ehJPVff3xZb2u1f6ICvulNcY-1755097673900-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -109,7 +107,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '2664'
+      - '2598'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -117,9 +115,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-74b555f448-2mbdl
+      - envoy-router-5b57d74c7f-ms62r
       x-envoy-upstream-service-time:
-      - '2703'
+      - '2722'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -133,7 +131,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 11ms
       x-request-id:
-      - req_1197f47412ae4bb1b9805a19ca301565
+      - req_39324a3f0e1a4e5c8415237f75a93535
     status:
       code: 200
       message: OK

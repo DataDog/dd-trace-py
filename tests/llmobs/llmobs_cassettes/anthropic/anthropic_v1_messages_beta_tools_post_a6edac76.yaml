@@ -54,15 +54,15 @@ interactions:
     uri: https://api.anthropic.com/v1/messages?beta=tools
   response:
     body:
-      string: '{"id":"msg_01RSbdshWAW9FvpdMb3E2QWo","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"<thinking>\nTo
-        answer this question, the relevant tool is the \"add\" function. It takes
-        two parameters:\n- a: first int\n- b: second int\nThe question provides the
-        values for both of these parameters directly:\n- a = 1 \n- b = 2\nSince all
-        the required parameters are given, we can proceed with calling the \"add\"
-        tool without needing any additional information from the user.\n</thinking>"},{"type":"tool_use","id":"toolu_014tEpN5Qi6LBDuThmCQ9A69","name":"add","input":{"a":1,"b":2}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":636,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":161,"service_tier":"standard"}}'
+      string: '{"id":"msg_01UzGkuRBUKt3PCim6D3c6F2","type":"message","role":"assistant","model":"claude-3-opus-20240229","content":[{"type":"text","text":"<thinking>\nTo
+        answer the question \"What is the sum of 1 and 2?\", the add tool seems directly
+        relevant since it takes two integers a and b as parameters and returns their
+        sum.\n\nThe question provides the two integer values needed:\na = 1 \nb =
+        2\n\nSince the required parameters are given, we can proceed with calling
+        the add tool to get the answer.\n</thinking>"},{"type":"tool_use","id":"toolu_01Bcrbv9YeacQZ16euu2W2xp","name":"add","input":{"a":1,"b":2}}],"stop_reason":"tool_use","stop_sequence":null,"usage":{"input_tokens":636,"cache_creation_input_tokens":0,"cache_read_input_tokens":0,"output_tokens":155,"service_tier":"standard"}}'
     headers:
       CF-RAY:
-      - 96e06826c99ce5ef-IAD
+      - 96e91f5578a8c8b9-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -70,7 +70,7 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 13:44:26 GMT
+      - Wed, 13 Aug 2025 15:07:35 GMT
       Server:
       - cloudflare
       Transfer-Encoding:
@@ -84,29 +84,29 @@ interactions:
       anthropic-ratelimit-input-tokens-remaining:
       - '400000'
       anthropic-ratelimit-input-tokens-reset:
-      - '2025-08-12T13:44:21Z'
+      - '2025-08-13T15:07:30Z'
       anthropic-ratelimit-output-tokens-limit:
       - '80000'
       anthropic-ratelimit-output-tokens-remaining:
       - '80000'
       anthropic-ratelimit-output-tokens-reset:
-      - '2025-08-12T13:44:26Z'
+      - '2025-08-13T15:07:35Z'
       anthropic-ratelimit-requests-limit:
       - '4000'
       anthropic-ratelimit-requests-remaining:
       - '3999'
       anthropic-ratelimit-requests-reset:
-      - '2025-08-12T13:44:20Z'
+      - '2025-08-13T15:07:29Z'
       anthropic-ratelimit-tokens-limit:
       - '480000'
       anthropic-ratelimit-tokens-remaining:
       - '480000'
       anthropic-ratelimit-tokens-reset:
-      - '2025-08-12T13:44:21Z'
+      - '2025-08-13T15:07:30Z'
       cf-cache-status:
       - DYNAMIC
       request-id:
-      - req_011CS3v442LZfDC84QEVkZfZ
+      - req_011CS5vCkEGwo94rfS4cJVvf
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:

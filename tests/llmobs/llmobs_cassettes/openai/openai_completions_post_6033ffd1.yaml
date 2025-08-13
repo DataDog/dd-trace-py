@@ -50,23 +50,23 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3owuS43eUhgMlEk7axFSiISCeHZk\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755026868,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+      string: "{\n  \"id\": \"cmpl-C47NfQjt4TpW3wHmOAruAs1W7YEQY\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097719,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
         \ \"choices\": [\n    {\n      \"text\": \"\\nSystem: Langsmith can help with
-        testing by providing clear and comprehensive technical documentation that
-        outlines the steps needed to properly test a system or software. This documentation
-        can also include troubleshooting tips and best practices for identifying and
-        fixing any issues that may arise during testing. By having access to this
-        information, testers can ensure that they are thoroughly testing the system
-        and can effectively communicate any problems or bugs to the development team.
-        Additionally, Langsmith's documentation can serve as a reference for future
-        testing efforts, saving time and effort in the long run.\",\n      \"index\":
+        testing by providing clear and comprehensive technical documentation for all
+        your testing processes and procedures. This will ensure that your team has
+        a thorough understanding of how to conduct tests and accurately document the
+        results. Additionally, Langsmith's language expertise can help streamline
+        communication between team members and across different departments, making
+        testing more efficient and effective. By utilizing Langsmith's services, you
+        can be confident that your testing will be conducted accurately and thoroughly,
+        leading to a high-quality product for your customers.\",\n      \"index\":
         0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
         \ ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
-        106,\n    \"total_tokens\": 126\n  }\n}\n"
+        102,\n    \"total_tokens\": 122\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e25f442d513b00-IAD
+      - 96e9210979a10e82-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -76,11 +76,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:27:49 GMT
+      - Wed, 13 Aug 2025 15:08:40 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=iylgZW9gmsbuhfYoJNN5yLdKUHON50..HmFc633uSvo-1755026869188-0.0.1.1-604800000;
+      - _cfuvid=katxPy_uZTT_.XtpkOr8O9r2o3ai35nU8IFq.9Q4IkE-1755097720726-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -99,7 +99,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '1218'
+      - '1371'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -107,15 +107,15 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-6557b57797-qbphs
+      - envoy-router-68b84f5fb9-xwvdn
       x-envoy-upstream-service-time:
-      - '1249'
+      - '1414'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
       - '90000'
       x-ratelimit-remaining-requests:
-      - '3499'
+      - '3498'
       x-ratelimit-remaining-tokens:
       - '89974'
       x-ratelimit-reset-requests:
@@ -123,7 +123,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 17ms
       x-request-id:
-      - req_42b5a883351c43c1861991d9a55cec26
+      - req_ce76ee3eb4014772a01fe64e1d449f57
     status:
       code: 200
       message: OK

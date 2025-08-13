@@ -50,34 +50,35 @@ interactions:
     uri: https://api.openai.com/v1/completions
   response:
     body:
-      string: "{\n  \"id\": \"cmpl-C3owvvpKI6HA0vzB9XGSxOohzwHiK\",\n  \"object\":
-        \"text_completion\",\n  \"created\": 1755026869,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
-        \ \"choices\": [\n    {\n      \"text\": \"\\n\\n1. Start early: Introducing
-        multiple languages to a baby from a young age is the best way to teach them.
-        Babies have a natural ability to absorb languages, and the earlier they are
-        exposed, the easier it will be for them to learn.\\n\\n2. Speak to them in
-        different languages: If you are a bilingual parent, make sure to speak to
-        your baby in both languages on a regular basis. This will help them become
-        familiar with the sounds and rhythms of each language.\\n\\n3. Use everyday
-        objects and activities: Incorporate the use of different languages in your
-        daily routines. For example, label objects in the house with their names in
-        different languages, or sing songs and read books in different languages.\\n\\n4.
-        Interactive activities: Engage your baby in interactive activities such as
-        games, songs, and stories in different languages. This will make learning
-        more fun and engaging for them.\\n\\n5. Exposure to native speakers: If possible,
-        expose your baby to native speakers of the languages you want them to learn.
-        This will help them develop a more natural and authentic accent.\\n\\n6. Be
-        consistent: Consistency is key when teaching a baby multiple languages. Stick
-        to a routine and make sure to use the same words and phrases in each language
-        to avoid confusion.\\n\\n7. Use technology:\",\n      \"index\": 0,\n      \"logprobs\":
-        null,\n      \"finish_reason\": \"length\"\n    },\n    {\n      \"text\":
-        \"\\n\\nSpongebob has failed his road test at least three times in the episode
-        \\\"Boating School.\\\"\",\n      \"index\": 1,\n      \"logprobs\": null,\n
-        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        23,\n    \"completion_tokens\": 277,\n    \"total_tokens\": 300\n  }\n}\n"
+      string: "{\n  \"id\": \"cmpl-C47NccHQic8uOYMJR9TLdmZ7NxQM4\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1755097716,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\\n1. Start early: The earlier
+        you introduce a second language to your baby, the easier it will be for them
+        to learn and become fluent in multiple languages. The ideal time to start
+        is before the age of 6 months, as this is when a baby's brain is most receptive
+        to language acquisition.\\n\\n2. Create a language-rich environment: Surround
+        your baby with the languages you want them to learn. This can include speaking
+        to them in different languages, playing music or videos in different languages,
+        and having books or toys in different languages.\\n\\n3. Use the one-parent-one-language
+        method: If you and your partner speak different languages, you can use the
+        one-parent-one-language method where each parent speaks to the baby in their
+        native language. This will help the baby differentiate between the two languages
+        and learn them separately.\\n\\n4. Speak to your baby in full sentences: Babies
+        learn language through exposure and repetition, so it's important to speak
+        to them in full sentences rather than just specific words. This will help
+        them understand the structure and grammar of the language.\\n\\n5. Use gestures
+        and visuals: Babies learn through all their senses, so incorporating gestures
+        and visuals can help them understand and remember words in different languages.\\n\\n6.
+        Be consistent: Consistency is key when teaching a baby multiple\",\n      \"index\":
+        0,\n      \"logprobs\": null,\n      \"finish_reason\": \"length\"\n    },\n
+        \   {\n      \"text\": \"\\nSpongebob has failed his road test at least 26
+        times, according to the episode \\\"Boating School.\\\"\",\n      \"index\":
+        1,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n
+        \ ],\n  \"usage\": {\n    \"prompt_tokens\": 23,\n    \"completion_tokens\":
+        280,\n    \"total_tokens\": 303\n  }\n}\n"
     headers:
       CF-RAY:
-      - 96e25f4dac706fce-IAD
+      - 96e920f1ec7cb295-EWR
       Cache-Control:
       - no-cache, must-revalidate
       Connection:
@@ -87,11 +88,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:27:51 GMT
+      - Wed, 13 Aug 2025 15:08:37 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=GwAreGk8kSs3H99ccAKstUy3sAjMQ121GCAqbB8Dq0o-1755026871833-0.0.1.1-604800000;
+      - _cfuvid=0YEiOJqXLJXFcgSZi5Lg26tK5gPOTCT6AOXxfdDZB3k-1755097717854-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Transfer-Encoding:
       - chunked
@@ -110,7 +111,7 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '2330'
+      - '2254'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
@@ -118,9 +119,9 @@ interactions:
       strict-transport-security:
       - max-age=31536000; includeSubDomains; preload
       via:
-      - envoy-router-769c5f49f9-5p6fp
+      - envoy-router-844495c9d7-m5znb
       x-envoy-upstream-service-time:
-      - '2373'
+      - '2281'
       x-ratelimit-limit-requests:
       - '3500'
       x-ratelimit-limit-tokens:
@@ -134,7 +135,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 18ms
       x-request-id:
-      - req_f8875d82c4454b6aa08682eb93933a2b
+      - req_cb5e38cb3020420281eba6ae71083984
     status:
       code: 200
       message: OK

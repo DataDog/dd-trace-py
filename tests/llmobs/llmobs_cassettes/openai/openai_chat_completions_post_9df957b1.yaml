@@ -46,16 +46,16 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C3ovIrjRqU1o3wKn0kIyfegtd2az8\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1755026768,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47Lxns0KyLvk5Cjg3mvDnhxevyxe\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097613,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"'Who' is used as a subject pronoun,
         while 'whom' is used as an object pronoun. \\n\\nYou use 'who' when referring
         to the subject of a sentence or clause. For example, \\\"Who is coming to
         the party?\\\" \\n\\nYou use 'whom' when referring to the object of a verb
-        or preposition. For example, \\\"To whom should I address this letter?\\\"\",\n
-        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
-        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
+        or preposition. For example, \\\"To whom did you give the gift?\\\"\",\n        \"refusal\":
+        null,\n        \"annotations\": []\n      },\n      \"logprobs\": null,\n
+        \     \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
         20,\n    \"completion_tokens\": 83,\n    \"total_tokens\": 103,\n    \"prompt_tokens_details\":
         {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
@@ -63,7 +63,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96e25cd8afaa0582-IAD
+      - 96e91e712a9f8c23-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -71,11 +71,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:26:09 GMT
+      - Wed, 13 Aug 2025 15:06:54 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=il_946vsLc2MqFPyC_XAw5qp.M7taFhwAOtREEsrE4M-1755026769832-0.0.1.1-604800000;
+      - _cfuvid=YoTCXzL8zDiZnd7OPjMYdkhMcS0GzaQxFap9RiK8SXg-1755097614362-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -92,13 +92,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '964'
+      - '1180'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '1005'
+      - '1215'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -106,13 +106,13 @@ interactions:
       x-ratelimit-remaining-requests:
       - '9999'
       x-ratelimit-remaining-tokens:
-      - '49999987'
+      - '49999988'
       x-ratelimit-reset-requests:
       - 6ms
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_1508abc34eaf46b4b3a8cba83e87c503
+      - req_ccf35c3b73344753b33cb8fe85b5807e
     status:
       code: 200
       message: OK

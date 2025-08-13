@@ -47,13 +47,13 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C3ouxn3JIBBT7MV63ZzFQnlEY3v4w\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1755026747,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47L80tWkNfWkAfb0LdQUHZBcm9pM\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097562,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Why did the chicken join the rap group?
-        Because it had mad cluckin' skills!\",\n        \"refusal\": null,\n        \"annotations\":
-        []\n      },\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
-        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 53,\n    \"completion_tokens\":
+        Because it wanted to lay down some fresh beats!\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 53,\n    \"completion_tokens\":
         19,\n    \"total_tokens\": 72,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
         0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
@@ -61,7 +61,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96e25c542954f3c4-IAD
+      - 96e91d26cfa68095-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -69,11 +69,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Tue, 12 Aug 2025 19:25:48 GMT
+      - Wed, 13 Aug 2025 15:06:03 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - _cfuvid=3lmNRj2OtWFEFFzuLauf..cEn34BXSXMzaWLG9tB7Ak-1755026748069-0.0.1.1-604800000;
+      - _cfuvid=aFv.T.eMHrAoiNdGtYqefplkGL6r3wr7fInOavZ1Qvs-1755097563044-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -90,13 +90,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '418'
+      - '583'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '451'
+      - '613'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -110,7 +110,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_5ba586020cc8409586331a0bfb4f69f4
+      - req_611a2537ffb94f2eb0318a3b59dc5fde
     status:
       code: 200
       message: OK

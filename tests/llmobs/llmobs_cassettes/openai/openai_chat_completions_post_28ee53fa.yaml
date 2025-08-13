@@ -46,8 +46,8 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C2OFntadxFL3wIq4ZeMolFiNlCj5U\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754685923,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47Kc5R0WyqwM1RFbv4VRS18cqHkt\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097530,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
         \"assistant\",\n        \"content\": \"Why did the chicken join a band? Because
         it had the drumsticks!\",\n        \"refusal\": null,\n        \"annotations\":
@@ -60,7 +60,7 @@ interactions:
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96c1db6c8b23904d-BOS
+      - 96e91c6c48dd4f0b-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -68,14 +68,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Fri, 08 Aug 2025 20:45:23 GMT
+      - Wed, 13 Aug 2025 15:05:30 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=TPjsMNSnQqKMeQFD6lkR90QuW5X9tsGTogD2FSRejWY-1754685923-1.0.1.1-FxvaYAolPoZ4dj2oIzIKhp07_yOx0jwLTwPu4ewT8plXMbgr0FzR5Rq61NXUSB.e25kAorbfjX4brFZYVDbx5hN_EENVN092KH5UfComtgY;
-        path=/; expires=Fri, 08-Aug-25 21:15:23 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=1XoNEW6z.Kg2ZvBDftskDDGxmkM1nzevQQCp9QCrqcc-1754685923892-0.0.1.1-604800000;
+      - _cfuvid=ARefBICkxYmAnF.HAvvJNqd7pCpdXqxEwfFfX7Dn5gQ-1755097530811-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -92,13 +89,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '274'
+      - '441'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '313'
+      - '472'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -112,7 +109,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_422c1ad317984baeb2f2cf492611163d
+      - req_7981f28bb640480eb69177f291eafe31
     status:
       code: 200
       message: OK

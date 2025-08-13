@@ -50,25 +50,26 @@ interactions:
     uri: https://api.openai.com/v1/chat/completions
   response:
     body:
-      string: "{\n  \"id\": \"chatcmpl-C37UdTwab1CpEie3Jze2vyUQsKWYS\",\n  \"object\":
-        \"chat.completion\",\n  \"created\": 1754859823,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+      string: "{\n  \"id\": \"chatcmpl-C47NTGitUtAtrEk2EbJ3QcOdFeCKb\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097707,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
         \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
-        \"assistant\",\n        \"content\": \"Arrr matey, ye be wantin' to sail the
-        high seas from New York to Bikini Bottom, eh? Well, ye best be gettin' yerself
-        a sturdy ship, a trusty crew, and a map to guide ye through the treacherous
-        waters. Keep a weather eye out for any scurvy sea monsters or pesky jellyfish
-        along the way, and ye'll be reachin' Bikini Bottom in no time, me hearty!
-        Good luck on yer journey, and may the wind be always at yer back! Arrr!\",\n
-        \       \"refusal\": null,\n        \"annotations\": []\n      },\n      \"logprobs\":
-        null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\":
-        29,\n    \"completion_tokens\": 115,\n    \"total_tokens\": 144,\n    \"prompt_tokens_details\":
-        {\n      \"cached_tokens\": 0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        \"assistant\",\n        \"content\": \"Arrr matey, ye be needin' to sail the
+        high seas to reach Bikini Bottom from New York! Hoist the sails, set a course
+        for the east, and keep a weather eye out for any scurvy sea monsters along
+        the way. Arrr, it be a treacherous journey, but with a bit o' luck and a trusty
+        compass, ye'll find yer way to that legendary place known as Bikini Bottom!
+        Aye, may the wind be at yer back and the rum flow freely on yer voyage, me
+        hearty!\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 29,\n    \"completion_tokens\": 114,\n
+        \   \"total_tokens\": 143,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
         {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
         0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
         \"default\",\n  \"system_fingerprint\": null\n}\n"
     headers:
       CF-RAY:
-      - 96d271099cb1906b-BOS
+      - 96e920be795c42b8-EWR
       Connection:
       - keep-alive
       Content-Encoding:
@@ -76,14 +77,11 @@ interactions:
       Content-Type:
       - application/json
       Date:
-      - Sun, 10 Aug 2025 21:03:44 GMT
+      - Wed, 13 Aug 2025 15:08:28 GMT
       Server:
       - cloudflare
       Set-Cookie:
-      - __cf_bm=u0DqpS1MOGXhabwXNfZIezv_2fbJd6Ll5lVWfMyRxT8-1754859824-1.0.1.1-aDs3CcOQojLfmyDBvkTIVg8AJwClYUy6kvTaCloTw_Njp2AYR5VhnZwy0EzxNaozgjGuinIAcyrSTj5sIvEPOgb2hj0fvCVQIr1Xtcche2E;
-        path=/; expires=Sun, 10-Aug-25 21:33:44 GMT; domain=.api.openai.com; HttpOnly;
-        Secure; SameSite=None
-      - _cfuvid=PgDpmS0V973ZXgthDf6gR_Zh3uGU6Rl3OEx.20f14QU-1754859824984-0.0.1.1-604800000;
+      - _cfuvid=Be8YbLrQLkY30bJ.Xm0C46cOxP905b97bzI5FA8OSzc-1755097708684-0.0.1.1-604800000;
         path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
       Strict-Transport-Security:
       - max-age=31536000; includeSubDomains; preload
@@ -100,13 +98,13 @@ interactions:
       openai-organization:
       - datadog-staging
       openai-processing-ms:
-      - '1254'
+      - '1281'
       openai-project:
       - proj_gt6TQZPRbZfoY2J9AQlEJMpd
       openai-version:
       - '2020-10-01'
       x-envoy-upstream-service-time:
-      - '1272'
+      - '1318'
       x-ratelimit-limit-requests:
       - '10000'
       x-ratelimit-limit-tokens:
@@ -120,7 +118,7 @@ interactions:
       x-ratelimit-reset-tokens:
       - 0s
       x-request-id:
-      - req_f88183e63b734a2fb3e5dc1f5de83adf
+      - req_2faadc8e8566433ebc9dbd336dd0fefa
     status:
       code: 200
       message: OK

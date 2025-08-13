@@ -70,12 +70,14 @@ def _expected_langchain_llmobs_chain_span(span, input_value=None, output_value=N
 
 
 def test_llmobs_openai_llm(langchain_openai, llmobs_events, tracer, openai_url):
-    llm = langchain_openai.OpenAI(base_url=openai_url)
+    llm = langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
 
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
-    assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(span, mock_token_metrics=True)
+    assert llmobs_events[0] == _expected_langchain_llmobs_llm_span(
+        span, mock_token_metrics=True, metadata={"max_tokens": 256, "temperature": 0.7}
+    )
 
 
 @mock.patch("langchain_core.language_models.llms.BaseLLM._generate_helper")
@@ -154,7 +156,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]
     )
-    chain = prompt | langchain_openai.OpenAI(base_url=openai_url)
+    chain = prompt | langchain_openai.OpenAI(base_url=openai_url, max_tokens=256)
     chain.invoke({"input": "Can you explain what an LLM chain is?"})
 
     llmobs_events.sort(key=lambda span: span["start_ns"])
@@ -169,6 +171,7 @@ def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_event
         trace[1],
         mock_token_metrics=True,
         span_links=True,
+        metadata={"max_tokens": 256, "temperature": 0.7},
     )
 
 
@@ -367,42 +370,24 @@ def test_llmobs_embedding_documents(langchain_community, llmobs_events, tracer):
     )
 
 
-#  TODO: come back to this test
-# def test_llmobs_similarity_search(langchain_openai, langchain_pinecone, llmobs_events, tracer):
-#     import pinecone
+@pytest.mark.skip("llmobs needs to support in-memory vectorstores")
+def test_llmobs_vectorstore_similarity_search(langchain_in_memory_vectorstore, llmobs_events, tracer):
+    vectorstore = langchain_in_memory_vectorstore
+    vectorstore.similarity_search("France", k=1)
 
-#     if langchain_pinecone is None:
-#         pytest.skip("langchain_pinecone not installed which is required for this test.")
-#     embedding_model = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-#         with get_request_vcr().use_cassette("openai_pinecone_similarity_search.yaml"):
-#             if PINECONE_VERSION <= (2, 2, 4):
-#                 pinecone.init(
-#                     api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-#                     environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-#                 )
-#                 index = pinecone.Index(index_name="langchain-retrieval")
-#             else:
-#                 pc = pinecone.Pinecone(
-#                     api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-#                 )
-#                 index = pc.Index(name="langchain-retrieval")
-#             vector_db = langchain_pinecone.PineconeVectorStore(index, embedding_model, "text")
-#             vector_db.similarity_search("Evolution", 1)
-
-#     trace = tracer.pop_traces()[0]
-#     assert len(llmobs_events) == 2
-#     llmobs_events.sort(key=lambda span: span["start_ns"])
-#     expected_span = _expected_llmobs_non_llm_span_event(
-#         trace[0],
-#         "retrieval",
-#         input_value="Evolution",
-#         output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
-#         output_value="[1 document(s) retrieved]",
-#         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
-#         span_links=True,
-#     )
-#     assert llmobs_events[0] == expected_span
+    trace = tracer.pop_traces()[0]
+    assert len(llmobs_events) == 2
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    expected_span = _expected_llmobs_non_llm_span_event(
+        trace[0],
+        "retrieval",
+        input_value="France",
+        output_documents=[{"text": mock.ANY, "id": mock.ANY, "name": mock.ANY}],
+        output_value="[1 document(s) retrieved]",
+        tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
+        span_links=True,
+    )
+    assert llmobs_events[0] == expected_span
 
 
 def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, openai_url):
@@ -487,7 +472,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
     )
-    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7)
+    llm = langchain_openai.ChatOpenAI(model="gpt-4o", base_url=openai_url, temperature=0.7, max_tokens=256)
     parser = langchain_core.output_parsers.StrOutputParser()
 
     chain = prompt | llm | parser
@@ -513,7 +498,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
             {"content": "how can langsmith help with testing?", "role": "HumanMessage"},
         ],
         output_messages=[{"content": mock.ANY, "role": "assistant"}],
-        metadata={"temperature": 0.7},
+        metadata={"temperature": 0.7, "max_tokens": 256},
         token_metrics={},
         tags={"ml_app": "langchain_test", "service": "tests.contrib.langchain"},
         span_links=True,
@@ -617,30 +602,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
                 assert len(call_args["meta"]["input"]["documents"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
 
-    # @staticmethod
-    # def _call_bedrock_chat_model(ChatBedrock, HumanMessage):
-    #     chat = ChatBedrock(
-    #         model_id="amazon.titan-tg1-large",
-    #         model_kwargs={"maxTokenCount": 50, "temperature": 0},
-    #     )
-    #     messages = [HumanMessage(content="summarize the plot to the lord of the rings in a dozen words")]
-
-    #     #  TODO: come back to this test
-    #     with get_request_vcr().use_cassette("bedrock_amazon_chat_invoke.yaml"):
-    #         chat.invoke(messages)
-
-    # @staticmethod
-    # def _call_bedrock_llm(BedrockLLM):
-    #     llm = BedrockLLM(
-    #         model_id="amazon.titan-tg1-large",
-    #         region_name="us-east-1",
-    #         model_kwargs={"temperature": 0.0, "topP": 0.9, "stopSequences": [], "maxTokenCount": 50},
-    #     )
-
-    #     #  TODO: come back to this test
-    #     with get_request_vcr().use_cassette("bedrock_amazon_invoke.yaml"):
-    #         llm.invoke("can you explain what Datadog is to someone not in the tech industry?")
-
     @staticmethod
     def _call_openai_llm(OpenAI):
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
@@ -669,48 +630,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
 
         llm = Anthropic(**kwargs)
         llm.invoke("When do you use 'whom' instead of 'who'?")
-
-    # @run_in_subprocess(env_overrides=bedrock_env_config)
-    # def test_llmobs_with_chat_model_bedrock_enabled(self):
-    #     from langchain_aws import ChatBedrock
-    #     from langchain_core.messages import HumanMessage
-
-    #     patch(langchain=True, botocore=True)
-    #     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-
-    #     self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
-
-    #     self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-
-    # @run_in_subprocess(env_overrides=bedrock_env_config)
-    # def test_llmobs_with_chat_model_bedrock_disabled(self):
-    #     from langchain_aws import ChatBedrock
-    #     from langchain_core.messages import HumanMessage
-
-    #     patch(langchain=True)
-    #     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-
-    #     self._call_bedrock_chat_model(ChatBedrock, HumanMessage)
-
-    #     self._assert_trace_structure_from_writer_call_args(["llm"])
-
-    # @run_in_subprocess(env_overrides=bedrock_env_config)
-    # def test_llmobs_with_llm_model_bedrock_enabled(self):
-    #     from langchain_aws import BedrockLLM
-
-    #     patch(langchain=True, botocore=True)
-    #     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-    #     self._call_bedrock_llm(BedrockLLM)
-    #     self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-
-    # @run_in_subprocess(env_overrides=bedrock_env_config)
-    # def test_llmobs_with_llm_model_bedrock_disabled(self):
-    #     from langchain_aws import BedrockLLM
-
-    #     patch(langchain=True)
-    #     LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-    #     self._call_bedrock_llm(BedrockLLM)
-    #     self._assert_trace_structure_from_writer_call_args(["llm"])
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled(self):

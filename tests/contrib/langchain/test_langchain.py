@@ -1,5 +1,4 @@
 from operator import itemgetter
-import os
 
 import langchain
 import langchain.prompts  # noqa: F401
@@ -61,41 +60,6 @@ def test_openai_llm_error(langchain, langchain_openai, openai_url):
 
     with pytest.raises(openai.BadRequestError):
         llm.generate([12345, 123456])
-
-
-# @pytest.mark.skipif(not ((0, 2) <= LANGCHAIN_VERSION < (0, 3)), reason="Compatible with langchain==0.2 only")
-# @pytest.mark.snapshot
-# def test_cohere_llm_sync_0_2(langchain_cohere, cohere_url):
-#     llm = langchain_cohere.llms.Cohere(
-#         cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"), base_url=cohere_url
-#     )
-#     llm.invoke("What is the secret Krabby Patty recipe?")
-
-
-@pytest.mark.skip(reason="https://github.com/langchain-ai/langchain-cohere/issues/44")
-@pytest.mark.skipif(LANGCHAIN_VERSION < (0, 3), reason="Compatible with langchain>=0.3 only")
-@pytest.mark.snapshot
-def test_cohere_llm_sync_latest(langchain_cohere, cohere_url):
-    llm = langchain_cohere.llms.Cohere(
-        cohere_api_key=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
-        max_tokens=256,
-        temperature=0.75,
-        base_url=cohere_url,
-    )
-    llm.invoke("What is the secret Krabby Patty recipe?")
-
-
-# @pytest.mark.skipif(
-#     LANGCHAIN_VERSION < (0, 2) or sys.version_info < (3, 10),
-#     reason="Requires separate cassette for langchain v0.1, Python 3.9",
-# )
-# @pytest.mark.snapshot
-# def test_ai21_llm_sync(langchain_community, ai21_url):
-#     #  TODO: come back to this test
-#     if langchain_community is None:
-#         pytest.skip("langchain-community not installed which is required for this test.")
-#     llm = langchain_community.llms.AI21(ai21_api_key=os.getenv("AI21_API_KEY", "<not-a-real-key>"), base_url=ai21_url)
-#     llm.invoke("Why does everyone in Bikini Bottom hate Plankton?")
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -215,25 +179,11 @@ def test_fake_embedding_document(langchain_community):
     embeddings.embed_documents(texts=["foo", "bar"])
 
 
-# @pytest.mark.snapshot
-# def test_pinecone_vectorstore_similarity_search(langchain_openai, request_vcr):
-#     """
-#     Test that calling a similarity search on a Pinecone vectorstore with langchain will
-#     result in a 2-span trace with a vectorstore span and underlying OpenAI embedding interface span.
-#     """
-#     import langchain_pinecone
-#     import pinecone
-
-#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[0.0] * 1536):
-#         with request_vcr.use_cassette("openai_pinecone_similarity_search.yaml"):
-#             pc = pinecone.Pinecone(
-#                 api_key=os.getenv("PINECONE_API_KEY", "<not-a-real-key>"),
-#                 environment=os.getenv("PINECONE_ENV", "<not-a-real-env>"),
-#             )
-#             embed = langchain_openai.OpenAIEmbeddings(model="text-embedding-ada-002")
-#             index = pc.Index("langchain-retrieval")
-#             vectorstore = langchain_pinecone.PineconeVectorStore(index, embed, "text")
-#             vectorstore.similarity_search("Who was Alan Turing?", 1)
+@pytest.mark.skip("llmobs needs to support in-memory vectorstores")
+@pytest.mark.snapshot
+def test_vectorstore_similarity_search(langchain_in_memory_vectorstore):
+    vectorstore = langchain_in_memory_vectorstore
+    vectorstore.similarity_search("What is the capital of France?", k=1)
 
 
 @pytest.mark.snapshot(ignores=IGNORE_FIELDS)
@@ -403,19 +353,18 @@ def test_lcel_with_tools_anthropic(langchain_core, langchain_anthropic, anthropi
     llm_with_tools.invoke("What is the sum of 1 and 2?")
 
 
-# @pytest.mark.snapshot
-# def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, request_vcr):
-#     if langchain_community is None:
-#         pytest.skip("langchain-community not installed which is required for this test.")
-#     pytest.importorskip("faiss", reason="faiss required for this test.")
-#     with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
-#         faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
-#             ["this is a test query."],
-#             embedding=langchain_openai.OpenAIEmbeddings(),
-#         )
-#         retriever = faiss.as_retriever()
-#         with request_vcr.use_cassette("openai_retrieval_embedding.yaml"):
-#             retriever.invoke("What was the message of the last test query?")
+@pytest.mark.snapshot
+def test_faiss_vectorstore_retrieval(langchain_community, langchain_openai, openai_url):
+    if langchain_community is None:
+        pytest.skip("langchain-community not installed which is required for this test.")
+    pytest.importorskip("faiss", reason="faiss required for this test.")
+    with mock.patch("langchain_openai.OpenAIEmbeddings._get_len_safe_embeddings", return_value=[[0.0] * 1536]):
+        faiss = langchain_community.vectorstores.faiss.FAISS.from_texts(
+            ["this is a test query."],
+            embedding=langchain_openai.OpenAIEmbeddings(base_url=openai_url),
+        )
+        retriever = faiss.as_retriever()
+        retriever.invoke("What was the message of the last test query?")
 
 
 @pytest.mark.snapshot(

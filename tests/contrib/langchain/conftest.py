@@ -1,9 +1,11 @@
+import importlib
 import os
 
 import pytest
 
 from ddtrace.contrib.internal.langchain.patch import patch
 from ddtrace.contrib.internal.langchain.patch import unpatch
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -57,7 +59,6 @@ def langchain():
     with override_env(
         dict(
             OPENAI_API_KEY=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
-            COHERE_API_KEY=os.getenv("COHERE_API_KEY", "<not-a-real-key>"),
             ANTHROPIC_API_KEY=os.getenv("ANTHROPIC_API_KEY", "<not-a-real-key>"),
             HUGGINGFACEHUB_API_TOKEN=os.getenv("HUGGINGFACEHUB_API_TOKEN", "<not-a-real-key>"),
             AI21_API_KEY=os.getenv("AI21_API_KEY", "<not-a-real-key>"),
@@ -163,3 +164,22 @@ def langchain_pinecone(langchain):
             yield langchain_pinecone
         except ImportError:
             yield
+
+
+@pytest.fixture
+def langchain_in_memory_vectorstore(langchain_core, langchain_openai, openai_url):
+    if parse_version(importlib.metadata.version("langchain_core")) < (0, 3, 0):
+        pytest.skip("langchain_core <0.3.0 does not support in-memory vectorstores")
+
+    embedding = langchain_openai.OpenAIEmbeddings(base_url=openai_url)
+    vectorstore = langchain_core.vectorstores.in_memory.InMemoryVectorStore(embedding=embedding)
+
+    vectorstore.add_documents(
+        [
+            langchain_core.documents.Document(page_content="The capital of France is Paris."),
+            langchain_core.documents.Document(page_content="The capital of Germany is Berlin."),
+            langchain_core.documents.Document(page_content="A stop sign has 8 sides."),
+        ]
+    )
+
+    yield vectorstore
