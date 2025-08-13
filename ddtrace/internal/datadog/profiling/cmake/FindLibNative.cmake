@@ -1,7 +1,7 @@
 find_package(Python3)
 
 if(DEFINED NATIVE_EXTENSION_LOCATION)
-    set(LIB_FILE_LOCATION ${NATIVE_EXTENSION_LOCATION})
+    set(SOURCE_LIB_DIR ${NATIVE_EXTENSION_LOCATION})
 else()
     message(
         FATAL_ERROR
@@ -11,7 +11,7 @@ endif()
 
 # For both Linux and macOS, Python setuptools-rust will build the extension with .so suffix.
 if(DEFINED EXTENSION_SUFFIX)
-    set(LIBRARY_NAME "_native${EXTENSION_SUFFIX}")
+    set(LIBRARY_NAME _native${EXTENSION_SUFFIX})
 else()
     message(
         FATAL_ERROR
@@ -19,7 +19,7 @@ else()
             "to build profiling native extensions.")
 endif()
 
-message(WARNING "LIB_FILE_LOCATION: ${LIB_FILE_LOCATION}")
+message(WARNING "SOURCE_LIB_DIR: ${SOURCE_LIB_DIR}")
 message(WARNING "LIBRARY_NAME: ${LIBRARY_NAME}")
 
 # We expect the native extension to be built and installed the headers in the following directory. It is configured in
@@ -31,10 +31,10 @@ set(DEST_INCLUDE_DIR ${DEST_LIB_DIR}/include)
 
 file(COPY ${SOURCE_INCLUDE_DIR} DESTINATION ${DEST_LIB_DIR})
 
-file(GLOB LIB_FILES "${LIB_FILE_LOCATION}/${LIBRARY_NAME}")
+file(GLOB LIB_FILES "${SOURCE_LIB_DIR}/${LIBRARY_NAME}")
 
 message(WARNING "LIB_FILES LOCATION: ${LIB_FILES}")
 
 add_library(_native SHARED IMPORTED GLOBAL)
-set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${LIB_FILE_LOCATION}/${LIBRARY_NAME}
+set_target_properties(_native PROPERTIES IMPORTED_LOCATION ${SOURCE_LIB_DIR}/${LIBRARY_NAME}
                                          INTERFACE_INCLUDE_DIRECTORIES ${DEST_INCLUDE_DIR})
