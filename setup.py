@@ -279,7 +279,8 @@ class CustomBuildRust(build_rust):
                 has_profiling_feature = True
                 break
 
-        self.inplace = IS_EDITABLE
+        if IS_EDITABLE:
+            self.inplace = True
 
         super().run()
 
