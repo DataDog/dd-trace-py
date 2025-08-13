@@ -363,11 +363,11 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config_django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx.span:
+        ) as ctx:
             resp = func(*args, **kwargs)
-            core.dispatch(
-                "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
-            )
+
+            # Tell finish span that we should collect the traceback
+            ctx.set_item("should_set_traceback", hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
             return resp
 
     return trace_utils.with_traced_module(wrapped)(django)
