@@ -11,6 +11,7 @@ from urllib import parse
 
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -112,7 +113,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
+    # Look for the tracer in the context, or fallback to the global tracer
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
