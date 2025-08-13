@@ -193,6 +193,11 @@ def override_global_config(values):
         from ddtrace.appsec._listeners import load_appsec
 
         load_appsec()
+    else:
+        if asm_config._api_security_active:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.disable()
     try:
         core.dispatch("test.config.override")
         core.dispatch("asm.switch_state")
