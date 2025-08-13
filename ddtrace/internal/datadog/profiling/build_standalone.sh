@@ -5,6 +5,7 @@ set -euo pipefail
 MY_DIR=$(dirname $(realpath $0))
 MY_NAME="$0"
 BUILD_DIR="build"
+BUILD_MODE="Debug"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
@@ -318,6 +319,7 @@ add_build_mode() {
   case "$1" in
     Debug|Release|RelWithDebInfo)
       cmake_args+=(-DCMAKE_BUILD_TYPE=$1)
+      BUILD_MODE=$1
       ;;
     ""|--)
       cmake_args+=(-DCMAKE_BUILD_TYPE=Debug)
@@ -364,7 +366,7 @@ add_target() {
 build_rust() {
     echo "Building Rust dependencies"
     pip3 install cmake setuptools_rust cython
-    python3 setup.py build_rust --inplace
+    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
 

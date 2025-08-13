@@ -9,7 +9,6 @@ else()
             "to build profiling native extensions.")
 endif()
 
-# For both Linux and macOS, Python setuptools-rust will build the extension with .so suffix.
 if(DEFINED EXTENSION_SUFFIX)
     set(LIBRARY_NAME _native${EXTENSION_SUFFIX})
 else()
