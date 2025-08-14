@@ -73,6 +73,7 @@ MIDDLEWARE = [
     "tests.contrib.django.middleware.ClsMiddleware",
     "tests.contrib.django.middleware.fn_middleware",
     "tests.contrib.django.middleware.EverythingMiddleware",
+    "tests.appsec.contrib_appsec.django_app.app.middlewares.ServiceRenamingMiddleware",
 ]
 
 INSTALLED_APPS = [
