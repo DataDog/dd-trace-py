@@ -214,7 +214,7 @@ def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[s
     http_req.COOKIES = taint_structure(http_req.COOKIES, OriginType.COOKIE_NAME, OriginType.COOKIE)
     if (
         getattr(http_req, "_body", None) is not None
-        and len(getattr(http_req, "_body", None)) > 0
+        and len(http_req._body) > 0
         and not is_pyobject_tainted(getattr(http_req, "_body", None))
     ):
         try:
@@ -232,7 +232,7 @@ def _taint_django_func_call(http_req: Any, args: Tuple[Any, ...], kwargs: Dict[s
     elif (
         getattr(http_req, "body", None) is not None
         and not isinstance(getattr(http_req, "body", None), property)
-        and len(getattr(http_req, "body", None)) > 0
+        and len(http_req.body) > 0
         and not is_pyobject_tainted(getattr(http_req, "body", None))
     ):
         try:
