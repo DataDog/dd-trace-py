@@ -111,7 +111,7 @@ jobs:
           for wheel in ./wheelhouse/*.whl; do
             if [ -f "$wheel" ]; then
               echo "Extracting debug symbols from $(basename $wheel)..."
-              python scripts/extract_debug_symbols.py "$wheel" ./debugwheelhouse
+              python scripts/extract_debug_symbols.py "$wheel" --output-dir ./debugwheelhouse
             fi
           done
 
