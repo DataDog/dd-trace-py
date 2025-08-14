@@ -1,4 +1,3 @@
-import os
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -13,7 +12,6 @@ from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -78,10 +76,6 @@ def set_iast_request_endpoint(method, route) -> None:
                 env.endpoint_route = route
         else:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
-
-
-def _move_iast_data_to_root_span():
-    return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
 
 def _iast_start_request(span=None, *args, **kwargs):

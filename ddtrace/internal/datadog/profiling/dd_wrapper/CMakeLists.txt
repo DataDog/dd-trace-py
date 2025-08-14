@@ -102,7 +102,7 @@ if(APPLE)
         COMMENT "Fixing library dependency to use @rpath")
 else()
     # To make sure that dd_wrapper finds _native.so for real
-    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../native" INSTALL_RPATH "$ORIGIN/../../native")
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.
