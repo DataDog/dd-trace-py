@@ -39,7 +39,7 @@ class IntegrationRegistryManager:
         """Checks if the patch call originated from ddtrace.contrib.internal/*/patch.py."""
         # reverse the lines to check the most recent patch call first since some integrations call
         # other integrations patches:
-        #   e.g. mongoengine calls pymongo's patch
+        #   e.g. django calls postgres's patch
         return any(
             "ddtrace/contrib/internal" in line and "/patch.py" in line for line in reversed(tb_string.splitlines())
         )
