@@ -170,7 +170,7 @@ class CIVisibility(Service):
 
                 if ci_dd_tags := os.getenv("_CI_DD_TAGS"):
                     log.debug("Using _CI_DD_TAGS for CI Visibility tracer: %s", ci_dd_tags)
-                    self.tracer._tags = parse_tags_str(ci_dd_tags)
+                    self.tracer._tags.update(parse_tags_str(ci_dd_tags))
 
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
