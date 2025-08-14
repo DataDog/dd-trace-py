@@ -558,12 +558,13 @@ class CustomBuildExt(build_ext):
 
             if dsymutil:
                 # 1) Emit dSYM
-                print(f"dsymutil {so_file} -o {Path(so_file).with_suffix('.dSYM')}")
-                subprocess.run([dsymutil, so_file, "-o", Path(so_file).with_suffix(".dSYM")], check=False)
+                dsym_path = Path(so_file).with_suffix(".dSYM")
+                subprocess.run([dsymutil, so_file, "-o", str(dsym_path)], check=False)
 
             if strip:
                 # Strip DWARF + local symbols
                 subprocess.run([strip, "-S", "-x", so_file], check=True)
+                pass
             else:
                 print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
 
@@ -1006,6 +1007,8 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
+        # Include debug files for native extensions
+        **({"": ["*.debug", "*.dSYM/*"]}),
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
