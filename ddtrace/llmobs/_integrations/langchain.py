@@ -830,4 +830,4 @@ class LangChainIntegration(BaseLLMIntegration):
                 prompt = validate_prompt(prompt)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
             except Exception as e:
-                log.warning("Failed to validate prompt", e)
+                log.warning("Failed to validate langchain prompt", e)
