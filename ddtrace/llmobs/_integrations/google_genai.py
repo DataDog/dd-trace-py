@@ -3,6 +3,12 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+
+try:
+    from google.genai.types import FunctionDeclaration
+except ImportError:
+    FunctionDeclaration = None
+
 from ddtrace._trace.span import Span
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -13,6 +19,7 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.google_utils import GOOGLE_GENAI_DEFAULT_MODEL_ROLE
 from ddtrace.llmobs._integrations.google_utils import extract_embedding_metrics_google_genai
@@ -22,6 +29,7 @@ from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model
 from ddtrace.llmobs._integrations.google_utils import normalize_contents_google_genai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import ToolDefinition
 
 
 # https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/content-generation-parameters
@@ -40,7 +48,6 @@ GENERATE_METADATA_PARAMS = [
     "response_mime_type",
     "safety_settings",
     "automatic_function_calling",
-    "tools",
 ]
 
 EMBED_METADATA_PARAMS = [
@@ -94,6 +101,9 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
                 METRICS: extract_generation_metrics_google_genai(response),
             }
         )
+        tools = self._extract_tools(config)
+        if tools:
+            span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
     def _llmobs_set_tags_from_embedding(self, span, args, kwargs, response):
         config = kwargs.get("config")
@@ -162,3 +172,37 @@ class GoogleGenAIIntegration(BaseLLMIntegration):
         for param in params:
             metadata[param] = _get_attr(config, param, None)
         return metadata
+
+    def _function_declaration_to_tool_definition(self, function_declaration) -> ToolDefinition:
+        schema = _get_attr(function_declaration, "parameters", {}) or {}
+        if hasattr(schema, "model_dump"):
+            schema = schema.model_dump(exclude_none=True)
+        else:
+            schema = {"value": repr(schema)}
+
+        return ToolDefinition(
+            name=_get_attr(function_declaration, "name", "") or "",
+            description=_get_attr(function_declaration, "description", "") or "",
+            schema=schema,
+        )
+
+    def _extract_tools(self, config) -> List[ToolDefinition]:
+        tool_definitions = []
+        tools = _get_attr(config, "tools", []) or []
+        for tool in tools:
+            if (
+                callable(tool)
+                and FunctionDeclaration is not None
+                and hasattr(FunctionDeclaration, "from_callable_with_api_option")
+            ):
+                function_declaration = FunctionDeclaration.from_callable_with_api_option(
+                    callable=tool, api_option="GEMINI_API"
+                )
+                tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
+                tool_definitions.append(tool_definition_info)
+            else:
+                function_declarations = _get_attr(tool, "function_declarations", []) or []
+                for function_declaration in function_declarations:
+                    tool_definition_info = self._function_declaration_to_tool_definition(function_declaration)
+                    tool_definitions.append(tool_definition_info)
+        return tool_definitions
