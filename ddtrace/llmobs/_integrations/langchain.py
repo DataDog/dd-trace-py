@@ -814,10 +814,7 @@ class LangChainIntegration(BaseLLMIntegration):
     def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
         """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
         template = None
-        if len(args) > 0:
-            template = getattr(args[0], "_dd.prompt_template", None)
-        elif "input" in kwargs:
-            template = getattr(kwargs["input"], "_dd.prompt_template", None)
+        template = get_argument_value(args, kwargs, 0, "input")
         if template:
             object.__setattr__(instance, "_dd.prompt_template", template)
 
