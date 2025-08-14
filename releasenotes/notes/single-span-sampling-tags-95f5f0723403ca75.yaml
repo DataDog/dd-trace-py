@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    sampling: Fix trace sampling decision tag (_dd.p.dm) interference with head sampling.
+    When sampling priority is propagated via distributed tracing headers (head sampling decision),
+    local trace sampling rules no longer override the upstream decision by setting sampling decision tags.
