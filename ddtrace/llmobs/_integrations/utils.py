@@ -337,7 +337,7 @@ def openai_set_meta_tags_from_chat(
             processed_message["tool_calls"] = []
         if role != "system":
             # ignore system messages as we may unintentionally parse instructions as tool calls
-            capture_plain_text_tool_call(list(processed_message["tool_calls"]), content, span, is_input=True)
+            capture_plain_text_tool_call(processed_message["tool_calls"], content, span, is_input=True)
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -429,7 +429,7 @@ def openai_set_meta_tags_from_chat(
 
 
 def capture_plain_text_tool_call(
-    tool_calls_info: List[Dict[str, Any]], content: str, span: Span, is_input: bool = False
+    tool_calls_info: Any, content: str, span: Span, is_input: bool = False
 ) -> None:
     """
     Captures plain text tool calls from a content string.
@@ -446,7 +446,7 @@ def capture_plain_text_tool_call(
 
     regex = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
     action_match = re.search(regex, content, re.DOTALL)
-    if action_match:
+    if action_match and isinstance(tool_calls_info, list):
         tool_name = action_match.group(1).strip().strip("*").strip()
         tool_input = action_match.group(2).split("\nObservation")[0].strip("`").strip().strip(" ").strip('"')
         tool_calls_info.append(
