@@ -64,7 +64,7 @@ config._add(
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
-        always_add_django_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_ADD_DATABASE_SPANS", default=False)),
+        always_add_django_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_ADD_DATABASE_SPANS", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
