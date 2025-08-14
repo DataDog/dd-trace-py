@@ -767,14 +767,14 @@ def test_annotate_prompt_dict(llmobs):
             prompt={
                 "template": "{var1} {var3}",
                 "variables": {"var1": "var1", "var2": "var3"},
-                "user_version_tag": "1.0.0",
+                "prompt_version": "1.0.0",
                 "prompt_id": "test_prompt",
             },
         )
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "user_version_tag": "1.0.0",
+            "prompt_version": "1.0.0",
             "prompt_id": "test_prompt",
             "name": "test_prompt",
             "_dd_context_variable_keys": ["context"],
@@ -789,7 +789,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             prompt={
                 "template": "{var1} {var3}",
                 "variables": {"var1": "var1", "var2": "var3"},
-                "user_version_tag": "1.0.0",
+                "prompt_version": "1.0.0",
                 "prompt_id": "test_prompt",
                 "rag_context_variables": ["var1", "var2"],
                 "rag_query_variables": ["user_input"],
@@ -798,7 +798,7 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "user_version_tag": "1.0.0",
+            "prompt_version": "1.0.0",
             "prompt_id": "test_prompt",
             "name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
@@ -813,7 +813,7 @@ def test_annotate_prompt_typed_dict(llmobs):
             prompt=Prompt(
                 template="{var1} {var3}",
                 variables={"var1": "var1", "var2": "var3"},
-                user_version_tag="1.0.0",
+                prompt_version="1.0.0",
                 prompt_id="test_prompt",
                 rag_context_variables=["var1", "var2"],
                 rag_query_variables=["user_input"],
@@ -822,7 +822,7 @@ def test_annotate_prompt_typed_dict(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "user_version_tag": "1.0.0",
+            "prompt_version": "1.0.0",
             "prompt_id": "test_prompt",
             "name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
@@ -832,12 +832,12 @@ def test_annotate_prompt_typed_dict(llmobs):
 
 def test_prompt_strict_validation(llmobs):
     with pytest.raises(ValueError, match="'id' must be provided"):
-        prompt_with_no_id = Prompt(template="{var1} {var3}", user_version_tag="1.0.0")
+        prompt_with_no_id = Prompt(template="{var1} {var3}", prompt_version="1.0.0")
         with llmobs.llm(model_name="test_model", prompt=prompt_with_no_id) as span:
             assert span._get_ctx_item(INPUT_PROMPT) is None
 
     with pytest.raises(ValueError, match="Either 'template' or 'chat_template' must be provided."):
-        prompt_with_no_template = Prompt(prompt_id="test_prompt", user_version_tag="1.0.0")
+        prompt_with_no_template = Prompt(prompt_id="test_prompt", prompt_version="1.0.0")
         with llmobs.llm(model_name="test_model", prompt=prompt_with_no_template) as span:
             assert span._get_ctx_item(INPUT_PROMPT) is None
 
@@ -848,7 +848,7 @@ def test_prompt_in_llm_annotation(llmobs):
         prompt=Prompt(
             chat_template=[{"role": "user", "content": "{var1} {var3}"}],
             variables={"var1": "var1", "var2": "var3"},
-            user_version_tag="1.0.0",
+            prompt_version="1.0.0",
             prompt_id="test_prompt",
             rag_context_variables=["var1", "var2"],
             rag_query_variables=["user_input"],
@@ -857,7 +857,7 @@ def test_prompt_in_llm_annotation(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "chat_template": [{"role": "user", "content": "{var1} {var3}"}],
             "variables": {"var1": "var1", "var2": "var3"},
-            "user_version_tag": "1.0.0",
+            "prompt_version": "1.0.0",
             "prompt_id": "test_prompt",
             "name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],

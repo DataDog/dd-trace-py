@@ -54,9 +54,9 @@ def _validate_prompt(
         raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
 
     # Stage 1: Extract values
-    name = prompt.get("name")
+    prompt_name = prompt.get("prompt_name")
     prompt_id = prompt.get("id")
-    user_version_tag = prompt.get("user_version_tag")
+    prompt_version = prompt.get("prompt_version")
     tags = prompt.get("tags")
     variables = prompt.get("variables")
     template = prompt.get("template")
@@ -73,8 +73,8 @@ def _validate_prompt(
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
     # Stage 3: Set defaults
-    final_prompt_id = prompt_id or name or DEFAULT_PROMPT_NAME
-    final_name = name or prompt_id or DEFAULT_PROMPT_NAME
+    final_prompt_id = prompt_id or prompt_name or DEFAULT_PROMPT_NAME
+    final_name = prompt_name or prompt_id or DEFAULT_PROMPT_NAME
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
@@ -85,8 +85,8 @@ def _validate_prompt(
     if not isinstance(final_name, str):
         raise TypeError(f"'name' must be str, got {type(final_name).__name__}.")
 
-    if not isinstance(user_version_tag, str):
-        raise TypeError(f"'version' must be str, got {type(user_version_tag).__name__}.")
+    if not isinstance(prompt_version, str):
+        raise TypeError(f"'version' must be str, got {type(prompt_version).__name__}.")
 
     if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
         raise TypeError("'rag_context_variables' must be a List[str].")
@@ -133,8 +133,8 @@ def _validate_prompt(
         validated_prompt["prompt_id"] = final_prompt_id
     if final_name:
         validated_prompt["name"] = final_name
-    if user_version_tag:
-        validated_prompt["user_version_tag"] = user_version_tag
+    if prompt_version:
+        validated_prompt["prompt_version"] = prompt_version
     if variables:
         validated_prompt["variables"] = variables
     if template:

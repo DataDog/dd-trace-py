@@ -55,9 +55,9 @@ ToolDefinition = TypedDict(
 class Prompt(TypedDict, total=False):
     """
     A Prompt object that contains the information needed to render a prompt.
-        id: str - the id of the prompt set by the user.
-        name: str - the name of the prompt template, should be unique per ml_app.
-        user_version_tag: str - user tag for the version of the prompt.
+        id: str - the id of the prompt set by the user. Should be unique per ml_app.
+        prompt_name: str - the name of the prompt template.
+        prompt_version: str - user tag for the version of the prompt.
         variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
             - A list of dicts of (role,template) where role is the role of the prompt and template is the template string
@@ -69,8 +69,8 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: List[str] - a list of variable key names that contains query information
     """
 
-    name: Optional[str]
-    user_version_tag: Optional[str]
+    prompt_name: Optional[str]
+    prompt_version: Optional[str]
     prompt_id: Optional[str]
     template: Optional[str]
     chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]

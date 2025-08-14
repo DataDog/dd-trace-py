@@ -833,12 +833,12 @@ class LLMObs(Service):
                      regarding the span's context.
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
-                            "name":"my-prompt",
-                            "version": "...",
-                            "id": "...",
-                            "template": "...",
+                            "prompt_name":"my-prompt",
+                            "prompt_version": "...",
+                            "prompt_id": "...",
                             "chat_template": [{"content": "...", "role": "..."}, ...],
                             "variables": {"variable_1": "...", ...}}`.
+                            "tags": {"key1": "value1", "key2": "value2"},
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
                         - The dictionary may contain optional keys relevant to Templates and RAG applications:
@@ -1290,9 +1290,11 @@ class LLMObs(Service):
                         `{
                             "template": "...",
                             "chat_template": [{"content": "...", "role": "..."}, ...])
-                            "id": "...",
-                            "version": "...",
-                            "variables": {"variable_1": "...", ...}
+                            "prompt_id": "...",
+                            "prompt_name": "...",
+                            "prompt_version": "...",
+                            "variables": {"variable_1": "...", ...},
+                            tags": {"tag_1": "...", ...},
                         }`.
                         Can also be set using the `ddtrace.llmobs.utils.Prompt` constructor class.
                         - This argument is only applicable to LLM spans.
@@ -1866,11 +1868,11 @@ class LLMObs(Service):
     def prompt_context(
         cls,
         prompt_id: Optional[str] = None,
-        name: Optional[str] = None,
+        prompt_name: Optional[str] = None,
         template: Optional[str] = None,
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]] = None,
         variables: Optional[Dict[str, Any]] = None,
-        user_version_tag: Optional[str] = None,
+        prompt_version: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         rag_context_variable_keys: Optional[List[str]] = None,
         rag_query_variable_keys: Optional[List[str]] = None,
@@ -1879,8 +1881,8 @@ class LLMObs(Service):
         Creates an annotation context with a `Prompt` constructed on the following
         """
         prompt = Prompt(
-            name=name,
-            user_version_tag=user_version_tag,
+            prompt_name=prompt_name,
+            prompt_version=prompt_version,
             prompt_id=prompt_id,
             template=template,
             chat_template=chat_template,
