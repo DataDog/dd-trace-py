@@ -81,6 +81,7 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
+        export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
