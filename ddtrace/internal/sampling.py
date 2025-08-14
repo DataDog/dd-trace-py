@@ -239,7 +239,10 @@ def is_single_span_sampled(span):
 
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
-    if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+    # Don't set _dd.p.dm when head sampling is active (sampling_priority > 0)
+    # because the sampling decision was already made upstream
+    if (not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY) 
+        and (span.context.sampling_priority is None or span.context.sampling_priority <= 0)):
         span._set_sampling_decision_maker(mechanism)
 
     # Set the sampling psr rate
