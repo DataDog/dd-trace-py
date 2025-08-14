@@ -27,10 +27,6 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
-      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
-      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
-      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
@@ -44,7 +40,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
+          ref: '4ea4c419151062ab3c2e4131962f24f73c8f3f5d'
 
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -83,10 +79,6 @@ jobs:
     env:
       TEST_LIBRARY: python
       WEBLOG_VARIANT: ${{ matrix.weblog-variant }}
-      # system-tests requires an API_KEY, but it does not have to be a valid key, as long as we don't run a scenario
-      # that make assertion on backend data. Using a fake key allow to run system tests on PR originating from forks.
-      # If ever it's needed, a valid key exists in the repo, using ${{ secrets.DD_API_KEY }}
-      DD_API_KEY: ${{ secrets.FAKE_DD_API_KEY }}
       CMAKE_BUILD_PARALLEL_LEVEL: 12
       SYSTEM_TESTS_AWS_ACCESS_KEY_ID: ${{ secrets.IDM_AWS_ACCESS_KEY_ID }}
       SYSTEM_TESTS_AWS_SECRET_ACCESS_KEY: ${{ secrets.IDM_AWS_SECRET_ACCESS_KEY }}
@@ -98,7 +90,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
+          ref: '4ea4c419151062ab3c2e4131962f24f73c8f3f5d'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -268,8 +260,7 @@ jobs:
 
 
   parametric:
-    runs-on:
-      group: "APM Larger Runners"
+    runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
     steps:
@@ -282,7 +273,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: '19028ef64b7932526448f04f9a3bc5b33223c12f'
+          ref: '4ea4c419151062ab3c2e4131962f24f73c8f3f5d'
       - name: Checkout dd-trace-py
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:

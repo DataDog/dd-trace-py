@@ -233,25 +233,28 @@ def test_ip_not_block(tracer, ip):
 
 def test_ip_update_rules_and_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm) as span1:
-        tracer._appsec_processor._update_rules(
-            [],
-            [
-                (
-                    "ASM",
-                    "Datadog/1/ASM/data",
-                    {
-                        "rules_data": [
-                            {
-                                "data": [
-                                    {"value": rules._IP.BLOCKED},
-                                ],
-                                "id": "blocked_ips",
-                                "type": "ip_with_expiration",
-                            },
-                        ]
-                    },
-                )
-            ],
+        core.dispatch(
+            "waf.update",
+            (
+                [],
+                [
+                    (
+                        "ASM",
+                        "Datadog/1/ASM/data",
+                        {
+                            "rules_data": [
+                                {
+                                    "data": [
+                                        {"value": rules._IP.BLOCKED},
+                                    ],
+                                    "id": "blocked_ips",
+                                    "type": "ip_with_expiration",
+                                },
+                            ]
+                        },
+                    )
+                ],
+            ),
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -262,30 +265,37 @@ def test_ip_update_rules_and_block(tracer):
     assert get_waf_addresses("http.request.remote_ip") == rules._IP.BLOCKED
     assert is_blocked(span1)
     assert (span._local_root or span).get_tag(APPSEC.RC_PRODUCTS) == "[ASM:1] u:1 r:2"
-    assert py_ddwaf_builder_get_config_paths(tracer._appsec_processor._ddwaf._builder, "ASM/data") == 1
+
+    from ddtrace.appsec._processor import AppSecSpanProcessor
+
+    assert AppSecSpanProcessor._instance
+    assert py_ddwaf_builder_get_config_paths(AppSecSpanProcessor._instance._ddwaf._builder, "ASM/data") == 1
 
 
 def test_ip_update_rules_expired_no_block(tracer):
     with asm_context(tracer=tracer, ip_addr=rules._IP.BLOCKED, config=config_asm):
-        tracer._appsec_processor._update_rules(
-            [],
-            [
-                (
-                    "ASM",
-                    "Datadog/1/ASM/data",
-                    {
-                        "rules_data": [
-                            {
-                                "data": [
-                                    {"expiration": 1662804872, "value": rules._IP.BLOCKED},
-                                ],
-                                "id": "blocked_ips",
-                                "type": "ip_with_expiration",
-                            },
-                        ]
-                    },
-                )
-            ],
+        core.dispatch(
+            "waf.update",
+            (
+                [],
+                [
+                    (
+                        "ASM",
+                        "Datadog/1/ASM/data",
+                        {
+                            "rules_data": [
+                                {
+                                    "data": [
+                                        {"expiration": 1662804872, "value": rules._IP.BLOCKED},
+                                    ],
+                                    "id": "blocked_ips",
+                                    "type": "ip_with_expiration",
+                                },
+                            ]
+                        },
+                    )
+                ],
+            ),
         )
         with tracer.trace("test", span_type=SpanTypes.WEB) as span:
             set_http_meta(
@@ -755,7 +765,7 @@ def test_ephemeral_addresses(mock_run, persistent, ephemeral):
     mock_run.return_value = DDWaf_result(0, [], {}, 0.0, 0.0, False, _observator(), {})
 
     with asm_context(tracer=tracer, config=config_asm, rc_payload=CUSTOM_RULE_METHOD) as span:
-        processor = tracer._appsec_processor
+        processor = AppSecSpanProcessor._instance
         assert processor
         # first call must send all data to the waf
         processor._waf_action(span, None, {persistent: {"key_1": "value_1"}, ephemeral: {"key_2": "value_2"}})
@@ -793,3 +803,18 @@ def test_lambda_unsupported_event(tracer, skip_event):
     else:
         # When skip_event is False, the metric should not be set
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
+
+
+def test_lambda_inferred_span(tracer):
+    """
+    Ensure that when the service entry span is not the root span, the service entry span is tagged
+    and not the root span
+    """
+    config = {"_asm_enabled": True, "_asm_processed_span_types": {SpanTypes.SERVERLESS}}
+
+    with asm_context(tracer=tracer, config=config, span_type=SpanTypes.HTTP, span_name="aws-apigateway") as root_span:
+        with tracer.trace("aws.lambda", service="test_function", span_type=SpanTypes.SERVERLESS) as entry_span:
+            pass
+
+    assert root_span.get_metric(APPSEC.ENABLED) is None
+    assert entry_span.get_metric(APPSEC.ENABLED) == 1.0

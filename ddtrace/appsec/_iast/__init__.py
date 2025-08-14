@@ -26,7 +26,8 @@ def wrapped_function(wrapped, instance, args, kwargs):
         evidence_value=evidence,
     )
     return wrapped(*args, **kwargs)
-"""  # noqa: RST201, RST213, RST210
+"""
+
 import os
 import sys
 import types
@@ -107,7 +108,6 @@ def _iast_pytest_activation():
     if _iast_propagation_enabled:
         return
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
-    os.environ["_DD_IAST_USE_ROOT_SPAN"] = os.environ.get("_DD_IAST_USE_ROOT_SPAN") or "true"
     os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
     os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
     os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"

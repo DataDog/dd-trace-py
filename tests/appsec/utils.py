@@ -3,6 +3,7 @@ import sys
 import typing
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
 from ddtrace.trace import Span
@@ -71,7 +72,7 @@ def asm_context(
             tracer._recreate()
         patch_for_waf_addresses()
         if rc_payload:
-            processor = tracer._appsec_processor
+            processor = AppSecSpanProcessor._instance
             if processor:
                 processor._update_rules([], rc_payload)
         with core.context_with_data(
