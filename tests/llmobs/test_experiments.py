@@ -96,8 +96,10 @@ def test_dataset_create_duplicate_name_error(llmobs, test_dataset_one_record):
     existing_dataset = llmobs.pull_dataset(name=test_dataset_one_record.name)
     assert existing_dataset.name == test_dataset_one_record.name
 
-    expected_message = (f"Dataset '{test_dataset_one_record.name}' already exists. "
-                        "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset.")
+    expected_message = (
+        f"Dataset '{test_dataset_one_record.name}' already exists. "
+        "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
+    )
     with pytest.raises(
         ValueError,
         match=re.escape(expected_message),

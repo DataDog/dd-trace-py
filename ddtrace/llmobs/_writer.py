@@ -355,7 +355,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
-
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
         # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
