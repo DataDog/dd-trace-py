@@ -5,6 +5,7 @@ set -euo pipefail
 MY_DIR=$(dirname $(realpath $0))
 MY_NAME="$0"
 BUILD_DIR="build"
+BUILD_MODE="Debug"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
@@ -103,6 +104,8 @@ cmake_args=(
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+  -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
+  -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
 
 # Initial build targets; start out empty
@@ -316,6 +319,7 @@ add_build_mode() {
   case "$1" in
     Debug|Release|RelWithDebInfo)
       cmake_args+=(-DCMAKE_BUILD_TYPE=$1)
+      BUILD_MODE=$1
       ;;
     ""|--)
       cmake_args+=(-DCMAKE_BUILD_TYPE=Debug)
@@ -361,7 +365,8 @@ add_target() {
 #Build rust dependencies
 build_rust() {
     echo "Building Rust dependencies"
-    python3 build_libnative.py --crate ./src/native --release --features profiling
+    pip3 install cmake setuptools_rust cython
+    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
 
