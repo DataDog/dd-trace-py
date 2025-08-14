@@ -535,7 +535,7 @@ async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs)
 
 
 @with_traced_module
-def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
+def patched_base_prompt_template_invoke(langchain, pin, func, instance, args, kwargs):
     """
     No actual tracing happens here--we just need to move the prompt template to somewhere it can be accessed later.
     """
@@ -549,9 +549,9 @@ def traced_base_prompt_template_invoke(langchain, pin, func, instance, args, kwa
 
 
 @with_traced_module
-async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
+async def patched_base_prompt_template_ainvoke(langchain, pin, func, instance, args, kwargs):
     """
-    async version of above traced_base_prompt_template_invoke
+    async version of above patched_base_prompt_template_invoke
     """
     integration: LangChainIntegration = langchain._datadog_integration
     if integration.llmobs_enabled is False:
@@ -563,9 +563,9 @@ async def traced_base_prompt_template_ainvoke(langchain, pin, func, instance, ar
 
 
 @with_traced_module
-def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
+def patched_language_model_invoke(langchain, pin, func, instance, args, kwargs):
     """
-    Wrapper for BaseLLM.invoke() method to handle prompt template metadata transfer.
+    Wrapper for BaseLLM.invoke() and BaseChatModel.invoke() methods to handle prompt template metadata transfer.
 
     BaseLLM.invoke() wraps BaseLLM.generate(), converting .invoke()'s input (often a PromptValue
     with templating information) into a string.
@@ -583,9 +583,9 @@ def traced_llm_invoke(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
+async def patched_language_model_ainvoke(langchain, pin, func, instance, args, kwargs):
     """
-    async version of above traced_llm_invoke
+    async version of above patched_language_model_invoke
     """
     integration: LangChainIntegration = langchain._datadog_integration
     if integration.llmobs_enabled is False:
@@ -693,8 +693,8 @@ def patch():
 
     wrap("langchain_core", "language_models.llms.BaseLLM.generate", traced_llm_generate(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.agenerate", traced_llm_agenerate(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", traced_llm_invoke(langchain))
-    wrap("langchain_core", "language_models.llms.BaseLLM.ainvoke", traced_llm_ainvoke(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.invoke", patched_language_model_invoke(langchain))
+    wrap("langchain_core", "language_models.llms.BaseLLM.ainvoke", patched_language_model_ainvoke(langchain))
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.generate",
@@ -708,12 +708,12 @@ def patch():
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.invoke",
-        traced_llm_invoke(langchain),
+        patched_language_model_invoke(langchain),
     )
     wrap(
         "langchain_core",
         "language_models.chat_models.BaseChatModel.ainvoke",
-        traced_llm_ainvoke(langchain),
+        patched_language_model_ainvoke(langchain),
     )
     wrap("langchain_core", "runnables.base.RunnableSequence.invoke", traced_lcel_runnable_sequence(langchain))
     wrap("langchain_core", "runnables.base.RunnableSequence.ainvoke", traced_lcel_runnable_sequence_async(langchain))
@@ -731,8 +731,8 @@ def patch():
         "language_models.chat_models.BaseChatModel.astream",
         traced_chat_stream(langchain),
     )
-    wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", traced_base_prompt_template_invoke(langchain))
-    wrap("langchain_core", "prompts.base.BasePromptTemplate.ainvoke", traced_base_prompt_template_ainvoke(langchain))
+    wrap("langchain_core", "prompts.base.BasePromptTemplate.invoke", patched_base_prompt_template_invoke(langchain))
+    wrap("langchain_core", "prompts.base.BasePromptTemplate.ainvoke", patched_base_prompt_template_ainvoke(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
 
