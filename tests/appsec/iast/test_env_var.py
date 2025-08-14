@@ -22,8 +22,8 @@ def _run_python_file(*args, **kwargs):
     ] + list(args)
     env = _build_env(kwargs.get("env"))
     ret = subprocess.run(cmd, cwd=current_dir, env=env)
-    print(ret.stderr)
-    assert ret.returncode == 0, (cmd, current_dir, env, "no_ddtracerun" in kwargs)
+
+    assert ret.returncode == 0
 
 
 def test_env_var_iast_enabled(capfd):
