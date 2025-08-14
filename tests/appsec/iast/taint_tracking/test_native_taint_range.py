@@ -33,7 +33,6 @@ from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import join_aspect
 from tests.appsec.iast.iast_utils import IAST_VALID_LOG
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -573,9 +572,7 @@ def test_race_conditions_reset_contexts_threads(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-        dict(_iast_debug=True)
-    ), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         pool = ThreadPool(processes=3)
         results_async = [pool.apply_async(reset_contexts_loop) for _ in range(20)]
         _ = [res.get() for res in results_async]
