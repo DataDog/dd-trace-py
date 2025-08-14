@@ -3,6 +3,7 @@ import os
 from textwrap import dedent
 from typing import Optional
 
+import mock
 import pytest
 
 from ddtrace.ext import SpanTypes
@@ -12,6 +13,7 @@ from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -458,17 +460,49 @@ def test_structured_io_data(llmobs, llmobs_backend):
         assert events[0][0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
 
 
-def test_structured_prompt_data(llmobs, llmobs_backend):
+def test_structured_prompt_data_v1(llmobs, llmobs_backend):
     with llmobs.llm() as span:
         llmobs.annotate(span, prompt={"template": "test {{value}}"})
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
+            "prompt_id": "unnamed_prompt",
+            "prompt_name": "unnamed_prompt",
             "template": "test {{value}}",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
+            "prompt_version": "1.0.0",
         },
+    }
+
+
+def test_structured_prompt_data_v2(llmobs, llmobs_backend):
+    prompt = Prompt(
+        prompt_id="test",
+        prompt_name="test",
+        template="test {{value}}",
+        chat_template=[{"role": "user", "content": "test {{value}}"}],
+        variables={"value": "test"},
+    )
+    with llmobs.llm() as span:
+        llmobs.annotate(
+            span,
+            prompt=prompt,
+        )
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["input"] == {
+        "prompt": {
+            "prompt_id": "test",
+            "prompt_name": "test",
+            "prompt_version": "1.0.0",
+            "chat_template": [{"role": "user", "content": "test {{value}}"}],
+            "template": "test {{value}}",
+            "variables": {"value": "test"},
+            "_dd_context_variable_keys": ["context"],
+            "_dd_query_variable_keys": ["question"],
+        }
     }
 
 
