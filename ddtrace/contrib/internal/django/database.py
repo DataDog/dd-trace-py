@@ -1,4 +1,5 @@
-from types import FunctionType, ModuleType
+from types import FunctionType
+from types import ModuleType
 from typing import Any
 from typing import Dict
 from typing import Optional
@@ -19,8 +20,9 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Pin
+
 
 log = get_logger(__name__)
 

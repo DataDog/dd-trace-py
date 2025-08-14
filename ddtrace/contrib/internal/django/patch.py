@@ -28,7 +28,6 @@ from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import COMPONENT

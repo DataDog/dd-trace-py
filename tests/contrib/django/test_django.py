@@ -16,7 +16,6 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
