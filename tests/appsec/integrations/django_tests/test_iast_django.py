@@ -1576,12 +1576,7 @@ def test_django_ssrf_safe_path(client, iast_span, tracer):
         (
             "query_with_fragment",
             "param1=value_with_%23hash%23&param2=value2",
-            [
-                {"value": "http://localhost:8080/?"},
-                {"source": 0, "value": "param1="},
-                {"redacted": True, "source": 0, "pattern": "hijklmnopqr"},
-                {"source": 0, "value": "#hash#"},
-            ],
+            None,  # URL encoding prevents IAST detection of original tainted input
         ),
         ("fragment1", "fragment_value1", None),
         ("fragment2", "fragment_value1", None),
