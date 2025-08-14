@@ -3,18 +3,21 @@
 Extract debug symbols from wheels and create separate debug symbol packages.
 
 This script:
-1. Extracts debug symbols (.debug files on Linux, .dSYM bundles on macOS) from wheels
-2. Creates separate debug symbol packages
-3. Removes debug symbols from the original wheel
+1. Processes each .so file in the wheel
+2. Creates debug symbols (.debug files on Linux, .dSYM bundles on macOS) for each .so file
+3. Strips debug symbols from the .so files
+4. Packages debug symbols into a separate zip file
+5. Updates the wheel with stripped .so files
 """
 
 import argparse
-import csv
-import fnmatch
-import io
 import os
 from pathlib import Path
+import platform
+import shutil
+import subprocess
 import sys
+import tempfile
 from typing import List
 from typing import Tuple
 import zipfile
@@ -25,90 +28,151 @@ def get_debug_symbol_patterns():
     return ["*.debug", "*.dSYM/*"]
 
 
-def find_debug_symbols_in_wheel(wheel_path: str) -> List[Tuple[str, bytes]]:
-    """Find debug symbols in a wheel file."""
-    debug_symbols = []
-    patterns = get_debug_symbol_patterns()
+def create_and_strip_debug_symbols(so_file: str) -> str | None:
+    """
+    Create debug symbols from a shared object and strip them from the original.
+
+    This function replicates the logic from setup.py's try_strip_symbols method.
+    Returns the path to the created debug symbol file.
+    """
+    current_os = platform.system()
+
+    if current_os == "Linux":
+        objcopy = shutil.which("objcopy")
+        strip = shutil.which("strip")
+
+        if not objcopy:
+            print("WARNING: objcopy not found, skipping symbol stripping", file=sys.stderr)
+            return None
+
+        if not strip:
+            print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
+            return None
+
+        # Try removing the .llvmbc section from the .so file
+        subprocess.run([objcopy, "--remove-section", ".llvmbc", so_file], check=False)
+
+        # Then keep the debug symbols in a separate file
+        debug_out = f"{so_file}.debug"
+        subprocess.run([objcopy, "--only-keep-debug", so_file, debug_out], check=True)
+
+        # Strip the debug symbols from the .so file
+        subprocess.run([strip, "-g", so_file], check=True)
+
+        # Link the debug symbols to the .so file
+        subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
+
+        return debug_out
+
+    elif current_os == "Darwin":
+        dsymutil = shutil.which("dsymutil")
+        strip = shutil.which("strip")
+
+        debug_path = None
+        if dsymutil:
+            # 1) Emit dSYM
+            dsym_path = Path(so_file).with_suffix(".dSYM")
+            subprocess.run([dsymutil, so_file, "-o", str(dsym_path)], check=False)
+            debug_path = str(dsym_path)
+
+        if strip:
+            # Strip DWARF + local symbols
+            subprocess.run([strip, "-S", "-x", so_file], check=True)
+        else:
+            print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
+
+        return debug_path
+
+    return None
+
+
+def find_so_files_in_wheel(wheel_path: str) -> List[Tuple[str, bytes]]:
+    """Find and read .so files from a wheel file."""
+    so_files = []
 
     with zipfile.ZipFile(wheel_path, "r") as wheel:
         for file_info in wheel.infolist():
-            if any(fnmatch.fnmatch(file_info.filename, pattern) for pattern in patterns):
-                debug_symbols.append((file_info.filename, wheel.read(file_info.filename)))
+            if file_info.filename.endswith(".so"):
+                so_files.append((file_info.filename, wheel.read(file_info.filename)))
 
-    return debug_symbols
+    return so_files
 
 
-def create_debug_symbols_package(wheel_path: str, debug_symbols: List[Tuple[str, bytes]], output_dir: str):
+def process_so_file_from_wheel(so_filename: str, so_content: bytes, temp_dir: str) -> str | None:
+    """
+    Process a .so file from a wheel to create debug symbols.
+
+    Args:
+        so_filename: Original filename in the wheel
+        so_content: Binary content of the .so file
+        temp_dir: Temporary directory to work in
+
+    Returns:
+        Path to the created debug symbol file, or None if no debug symbols were created
+    """
+    # Create a temporary file for the .so to process it
+    so_path = os.path.join(temp_dir, os.path.basename(so_filename))
+    with open(so_path, "wb") as f:
+        f.write(so_content)
+
+    print(f"Processing .so file: {so_filename}")
+
+    try:
+        debug_file = create_and_strip_debug_symbols(so_path)
+        if debug_file:
+            print(f"Created debug symbols: {debug_file}")
+            return debug_file
+        return None
+    except Exception as e:
+        print(f"Error processing .so file {so_filename}: {e}")
+        return None
+
+
+def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output_dir: str) -> str:
     """Create a separate debug symbols package."""
     wheel_name = Path(wheel_path).stem
     debug_package_name = f"{wheel_name}-debug-symbols.zip"
     debug_package_path = os.path.join(output_dir, debug_package_name)
 
     with zipfile.ZipFile(debug_package_path, "w", zipfile.ZIP_DEFLATED) as debug_zip:
-        for filename, content in debug_symbols:
-            debug_zip.writestr(filename, content)
+        for debug_file in debug_files:
+            if os.path.exists(debug_file):
+                # Add the debug file to the zip with a relative path
+                arcname = os.path.basename(debug_file)
+                debug_zip.write(debug_file, arcname)
 
     print(f"Created debug symbols package: {debug_package_path}")
     return debug_package_path
 
 
-def remove_debug_symbols_from_wheel(wheel_path: str, debug_symbols: List[Tuple[str, bytes]]):
-    """Remove debug symbols from the original wheel and update RECORD file."""
-    if not debug_symbols:
-        return
-
+def update_wheel_with_stripped_so_files(wheel_path: str, temp_dir: str):
+    """Update the wheel with stripped .so files."""
     temp_wheel_path = f"{wheel_path}.tmp"
-    debug_filenames = [filename for filename, _ in debug_symbols]
 
-    # Read existing RECORD content
-    record_content = None
-    with zipfile.ZipFile(wheel_path, "r") as wheel:
-        for file_info in wheel.infolist():
-            if file_info.filename.endswith(".dist-info/RECORD"):
-                record_content = wheel.read(file_info.filename).decode("utf-8")
-                break
-
-    # Create new wheel without debug symbols
+    # Create new wheel with stripped .so files
     with zipfile.ZipFile(wheel_path, "r") as source_wheel, zipfile.ZipFile(
         temp_wheel_path, "w", zipfile.ZIP_DEFLATED
     ) as temp_wheel:
         for file_info in source_wheel.infolist():
-            if file_info.filename in debug_filenames:
-                continue
-            elif file_info.filename.endswith(".dist-info/RECORD") and record_content:
-                # Update RECORD file to remove debug symbol entries
-                updated_record = update_record_file(record_content, debug_filenames)
-                temp_wheel.writestr(file_info, updated_record)
+            if file_info.filename.endswith(".so"):
+                # Replace with stripped version
+                so_basename = os.path.basename(file_info.filename)
+                stripped_so_path = os.path.join(temp_dir, so_basename)
+                if os.path.exists(stripped_so_path):
+                    with open(stripped_so_path, "rb") as f:
+                        temp_wheel.writestr(file_info.filename, f.read())
+                else:
+                    # If stripping failed, keep original
+                    temp_wheel.writestr(file_info.filename, source_wheel.read(file_info.filename))
             else:
-                temp_wheel.writestr(file_info, source_wheel.read(file_info.filename))
+                temp_wheel.writestr(file_info.filename, source_wheel.read(file_info.filename))
 
-    # Replace original wheel with cleaned version
+    # Replace original wheel with updated version
     os.replace(temp_wheel_path, wheel_path)
-    print(f"Removed debug symbols from: {wheel_path}")
+    print(f"Updated wheel with stripped .so files: {wheel_path}")
 
 
-def update_record_file(record_content: str, files_to_remove: List[str]) -> str:
-    """Update the RECORD file to remove entries for deleted files."""
-    records = []
-    reader = csv.reader(io.StringIO(record_content))
-
-    for row in reader:
-        if not row:
-            continue
-        file_path = row[0]
-        if file_path not in files_to_remove:
-            records.append(row)
-
-    # Rebuild the RECORD content
-    output = io.StringIO()
-    writer = csv.writer(output, lineterminator="\n")
-    for record in records:
-        writer.writerow(record)
-
-    return output.getvalue()
-
-
-def process_wheel(wheel_path: str, output_dir: str = None):
+def process_wheel(wheel_path: str, output_dir: str = None) -> str | None:
     """Process a single wheel file."""
     if output_dir is None:
         output_dir = os.path.dirname(wheel_path)
@@ -117,22 +181,36 @@ def process_wheel(wheel_path: str, output_dir: str = None):
 
     print(f"Processing wheel: {wheel_path}")
 
-    # Find debug symbols in the wheel
-    debug_symbols = find_debug_symbols_in_wheel(wheel_path)
+    # Find and read .so files from the wheel
+    so_files = find_so_files_in_wheel(wheel_path)
 
-    if not debug_symbols:
-        print("No debug symbols found in wheel")
+    if not so_files:
+        print("No .so files found in wheel")
         return None
 
-    print(f"Found {len(debug_symbols)} debug symbol files")
+    print(f"Found {len(so_files)} .so files")
 
-    # Create separate debug symbols package
-    debug_package_path = create_debug_symbols_package(wheel_path, debug_symbols, output_dir)
+    # Create temporary directory for processing
+    with tempfile.TemporaryDirectory() as temp_dir:
+        debug_files = []
 
-    # Remove debug symbols from original wheel
-    remove_debug_symbols_from_wheel(wheel_path, debug_symbols)
+        # Process each .so file from the wheel
+        for so_filename, so_content in so_files:
+            debug_file = process_so_file_from_wheel(so_filename, so_content, temp_dir)
+            if debug_file:
+                debug_files.append(debug_file)
 
-    return debug_package_path
+        if not debug_files:
+            print("No debug symbols were created")
+            return None
+
+        # Create debug symbols package
+        debug_package_path = create_debug_symbols_package(wheel_path, debug_files, output_dir)
+
+        # Update wheel with stripped .so files
+        update_wheel_with_stripped_so_files(wheel_path, temp_dir)
+
+        return debug_package_path
 
 
 def main():
@@ -151,7 +229,7 @@ def main():
         if debug_package_path:
             print(f"Successfully processed wheel. Debug symbols saved to: {debug_package_path}")
         else:
-            print("No debug symbols found in wheel")
+            print("No debug symbols were created")
     except Exception as e:
         print(f"Error processing wheel: {e}")
         sys.exit(1)

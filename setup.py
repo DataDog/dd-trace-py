@@ -51,6 +51,7 @@ CURRENT_OS = platform.system()
 
 # ON Windows, we build with Release by default, and RelWithDebInfo for other platforms
 # to generate debug symbols for native extensions.
+# Note: We strip debug symbols when releasing wheels using scripts/extract_debug_symbols.py
 COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
@@ -524,52 +525,6 @@ class CustomBuildExt(build_ext):
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
 
-    @staticmethod
-    def try_strip_symbols(so_file):
-        if COMPILE_MODE.lower() == "debug":
-            return
-
-        if CURRENT_OS == "Linux":
-            objcopy = shutil.which("objcopy")
-            strip = shutil.which("strip")
-
-            if not objcopy:
-                print("WARNING: objcopy not found, skipping symbol stripping", file=sys.stderr)
-                return
-
-            if not strip:
-                print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
-                return
-
-            # Try removing the .llvmbc section from the .so file
-            subprocess.run([objcopy, "--remove-section", ".llvmbc", so_file], check=False)
-
-            # Then keep the debug symbols in a separate file
-            debug_out = f"{so_file}.debug"
-            subprocess.run([objcopy, "--only-keep-debug", so_file, debug_out], check=True)
-
-            # Strip the debug symbols from the .so file
-            subprocess.run([strip, "-g", so_file], check=True)
-
-            # Link the debug symbols to the .so file
-            subprocess.run([objcopy, "--add-gnu-debuglink", debug_out, so_file], check=True)
-
-        elif CURRENT_OS == "Darwin":
-            dsymutil = shutil.which("dsymutil")
-            strip = shutil.which("strip")
-
-            if dsymutil:
-                # 1) Emit dSYM
-                dsym_path = Path(so_file).with_suffix(".dSYM")
-                subprocess.run([dsymutil, so_file, "-o", str(dsym_path)], check=False)
-
-            if strip:
-                # Strip DWARF + local symbols
-                subprocess.run([strip, "-S", "-x", so_file], check=True)
-                pass
-            else:
-                print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
-
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
             try:
@@ -586,12 +541,6 @@ class CustomBuildExt(build_ext):
                 raise
         else:
             super().build_extension(ext)
-
-        if COMPILE_MODE.lower() != "debug":
-            try:
-                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
-            except Exception as e:
-                print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
