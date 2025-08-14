@@ -100,7 +100,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     completions = None
 
     integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+    integration.llmobs_set_prompt_tag(instance, span)
 
     try:
         completions = func(*args, **kwargs)
@@ -132,7 +132,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
     )
 
     integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+    integration.llmobs_set_prompt_tag(instance, span)
 
     completions = None
     try:
@@ -164,7 +164,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
     )
 
     integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+    integration.llmobs_set_prompt_tag(instance, span)
 
     chat_completions = None
     try:
@@ -196,7 +196,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
     )
 
     integration.record_instance(instance, span)
-    integration.llmobs_set_prompt_tag(instance, span, args, kwargs, None)
+    integration.llmobs_set_prompt_tag(instance, span)
 
     chat_completions = None
     try:
@@ -596,6 +596,41 @@ async def traced_llm_ainvoke(langchain, pin, func, instance, args, kwargs):
     return response
 
 
+@with_traced_module
+def traced_chat_model_invoke(langchain, pin, func, instance, args, kwargs):
+    """
+    Wrapper for BaseChatModel.invoke() method to handle prompt template metadata transfer.
+
+    BaseLLM.invoke() wraps BaseLLM.generate(), converting .invoke()'s input (often a PromptValue
+    with templating information) into a string.
+    While most tagging happens in the .generate() wrapper, we need to enter here to capture
+    that templating information before it is consumed.
+    Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
+    """
+    integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return func(*args, **kwargs)
+
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = func(*args, **kwargs)
+    return response
+
+
+@with_traced_module
+async def traced_chat_model_ainvoke(langchain, pin, func, instance, args, kwargs):
+    """
+    async version of above traced_chat_model_invoke
+    """
+    integration: LangChainIntegration = langchain._datadog_integration
+    if integration.llmobs_enabled is False:
+        return await func(*args, **kwargs)
+
+    integration.handle_llm_invoke(instance, args, kwargs)
+    response = await func(*args, **kwargs)
+    return response
+
+
+
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,
@@ -704,6 +739,16 @@ def patch():
         "langchain_core",
         "language_models.chat_models.BaseChatModel.agenerate",
         traced_chat_model_agenerate(langchain),
+    )
+    wrap(
+        "langchain_core",
+        "language_models.chat_models.BaseChatModel.invoke",
+        traced_chat_model_invoke(langchain),
+    )
+    wrap(
+        "langchain_core",
+        "language_models.chat_models.BaseChatModel.ainvoke",
+        traced_chat_model_ainvoke(langchain),
     )
     wrap(
         "langchain_core",
