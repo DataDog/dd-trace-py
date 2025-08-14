@@ -190,6 +190,7 @@ def override_global_config(values):
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
     from ddtrace.appsec._processor import AppSecSpanProcessor
+
     AppSecSpanProcessor.disable()
     if asm_config._asm_enabled:
         from ddtrace.appsec._listeners import load_appsec
@@ -202,9 +203,11 @@ def override_global_config(values):
             APIManager.disable()
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
         AppSecIastSpanProcessor.enable()
     else:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
         AppSecIastSpanProcessor.disable()
     try:
         core.dispatch("test.config.override")
