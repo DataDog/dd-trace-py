@@ -103,4 +103,6 @@ PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+EXPERIMENTS_INPUT = "_ml_obs.meta.input"
+EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"
