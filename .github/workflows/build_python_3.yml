@@ -27,7 +27,6 @@ jobs:
           python-version: "3.13"
       - run: |
           pip install cibuildwheel==2.23.3
-          pip install "auditwheel>=5.4.0" "pyelftools>=0.29"
       - id: set-matrix
         env:
           CIBW_BUILD: ${{ inputs.cibw_build }}
@@ -74,7 +73,8 @@ jobs:
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
         unzip -l {wheel} | grep '\.so' &&
-        auditwheel repair -w ./tempwheelhouse {wheel} &&
+        pip install --force-reinstall "auditwheel>=5.4.0" "pyelftools>=0.29" &&
+        python -m auditwheel repair -w ./tempwheelhouse {wheel} &&
         mv ./tempwheelhouse/*.whl {dest_dir} &&
         rm -rf ./tempwheelhouse
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
@@ -94,10 +94,6 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install auditwheel with compatible dependencies
-        run: |
-          pip install "auditwheel>=5.4.0" "pyelftools>=0.29"
-
       - name: Set up QEMU
         if: runner.os == 'Linux' && matrix.os != 'ubuntu-24.04-arm'
         uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3.6.0
@@ -110,9 +106,11 @@ jobs:
           only: ${{ matrix.only }}
 
       - name: Create debug symbols directory
+        if: runner.os != 'Windows'
         run: mkdir -p ./debugwheelhouse
 
       - name: Extract debug symbols from wheels
+        if: runner.os != 'Windows'
         run: |
           for wheel in ./wheelhouse/*.whl; do
             if [ -f "$wheel" ]; then
@@ -144,6 +142,7 @@ jobs:
           path: ./wheelhouse/*.whl
 
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}
           path: ./debugwheelhouse/*.zip
