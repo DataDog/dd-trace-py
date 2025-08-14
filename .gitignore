@@ -193,3 +193,4 @@ tests/appsec/iast/fixtures/taint_sinks/not_exists.txt
 .envrc
 
 *.debug
+*.dSYM/

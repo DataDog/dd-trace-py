@@ -47,7 +47,11 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "RelWithDebInfo"
+CURRENT_OS = platform.system()
+
+# ON Windows, we build with Release by default, and RelWithDebInfo for other platforms
+# to generate debug symbols for native extensions.
+COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
@@ -55,7 +59,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "RelWithDebInfo")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
@@ -78,8 +82,6 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 NATIVE_CRATE = HERE / "src" / "native"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
-
-CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.27.0"
 

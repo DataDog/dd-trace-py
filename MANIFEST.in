@@ -2,6 +2,6 @@ prune .riot/
 prune benchmarks/
 prune releasenotes/
 
-# Include debug files
+# Include debug files (will be extracted to separate packages later)
 global-include *.debug
 global-include *.dSYM

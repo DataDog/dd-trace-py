@@ -103,6 +103,18 @@ jobs:
         with:
           only: ${{ matrix.only }}
 
+      - name: Create debug symbols directory
+        run: mkdir -p ./debugwheelhouse
+
+      - name: Extract debug symbols from wheels
+        run: |
+          for wheel in ./wheelhouse/*.whl; do
+            if [ -f "$wheel" ]; then
+              echo "Extracting debug symbols from $(basename $wheel)..."
+              python scripts/extract_debug_symbols.py "$wheel" ./debugwheelhouse
+            fi
+          done
+
       - name: Validate wheel RECORD files
         shell: bash
         run: |
@@ -124,3 +136,8 @@ jobs:
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: debug-symbols-${{ env.ARTIFACT_NAME }}
+          path: ./debugwheelhouse/*.zip
