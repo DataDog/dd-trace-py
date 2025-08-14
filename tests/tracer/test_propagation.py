@@ -1612,7 +1612,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": None,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {},
         },
     ),
     (
@@ -2249,7 +2249,7 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
         },
     ),
     (
@@ -3797,6 +3797,5 @@ def test_datadog_extract_sampling_decision_tag_with_head_sampling():
     assert context_without_priority.span_id == 98765432103
     assert context_without_priority.sampling_priority is None
     assert context_without_priority.dd_origin == "rum"
-    # The key assertion: _dd.p.dm SHOULD be present when no sampling priority is propagated
-    assert SAMPLING_DECISION_TRACE_TAG_KEY in context_without_priority._meta
-    assert context_without_priority._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == "-3"
+    # The key assertion: _dd.p.dm should NOT be present during extraction
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta

@@ -1240,7 +1240,13 @@ class HTTPPropagator(object):
                     style = prop_style
                     if context:
                         _record_http_telemetry("context_header_style.extracted", prop_style)
-
+                        
+                        # If the context has a head sampling decision, remove LOCAL_USER_TRACE_SAMPLING_RULE _dd.p.dm tag
+                        if (context.sampling_priority is not None and 
+                            SAMPLING_DECISION_TRACE_TAG_KEY in context._meta and
+                            context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"):
+                            del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
+                            
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
                     break
@@ -1254,7 +1260,13 @@ class HTTPPropagator(object):
 
                 if contexts:
                     context = HTTPPropagator._resolve_contexts(contexts, styles_w_ctx, normalized_headers)
-
+                    
+                    # If the final context has a head sampling decision, remove LOCAL_USER_TRACE_SAMPLING_RULE _dd.p.dm tag
+                    if (context and context.sampling_priority is not None and 
+                        SAMPLING_DECISION_TRACE_TAG_KEY in context._meta and
+                        context._meta[SAMPLING_DECISION_TRACE_TAG_KEY] == f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"):
+                        del context._meta[SAMPLING_DECISION_TRACE_TAG_KEY]
+                    
                     if config._propagation_http_baggage_enabled is True:
                         _attach_baggage_to_context(normalized_headers, context)
 
