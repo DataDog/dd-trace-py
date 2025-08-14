@@ -934,7 +934,7 @@ def test_extract_dm(x_datadog_tags, expected_trace_tags):
     headers = {
         "x-datadog-trace-id": "1234",
         "x-datadog-parent-id": "5678",
-        "x-datadog-sampling-priority": "1",
+        "x-datadog-sampling-priority": "0",  # Use priority=0 so _dd.p.dm tags are preserved
         "x-datadog-origin": "synthetics",
         "x-datadog-tags": x_datadog_tags,
     }
@@ -3753,3 +3753,47 @@ def test_inject_span_without_sampling_priority():
     assert headers.get("x-datadog-sampling-priority") == str(
         parent.context.sampling_priority
     )  # Root span priority used
+
+
+def test_head_sampling_priority_removes_dd_p_dm_tag():
+    """Test that _dd.p.dm is not propagated when head sampling priority > 0 (APMAPI-1545)
+
+    This replicates the system test behavior where:
+    1. When sampling_priority = 1 (keep), _dd.p.dm should NOT be present
+    2. When sampling_priority = 0 (drop), _dd.p.dm should be present
+    """
+
+    # Case 1: sampling_priority = 1 (keep) - should NOT have _dd.p.dm
+    headers_keep = {
+        "x-datadog-trace-id": "12345678901",
+        "x-datadog-parent-id": "98765432101",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "rum",
+    }
+
+    context_keep = HTTPPropagator.extract(headers_keep)
+
+    # Assert the RUM origin is set
+    assert context_keep.dd_origin == "rum"
+    # Assert the propagated sampling priority is unaffected
+    assert context_keep.sampling_priority == 1
+    # Assert that there is no _dd.p.dm tag when priority > 0
+    assert "_dd.p.dm" not in context_keep._meta
+
+    # Case 2: sampling_priority = 0 (drop) - should have _dd.p.dm
+    headers_drop = {
+        "x-datadog-trace-id": "12345678902",
+        "x-datadog-parent-id": "98765432102",
+        "x-datadog-sampling-priority": "0",
+        "x-datadog-origin": "rum",
+    }
+
+    context_drop = HTTPPropagator.extract(headers_drop)
+
+    # Assert the RUM origin is set
+    assert context_drop.dd_origin == "rum"
+    # Assert the propagated sampling priority is unaffected
+    assert context_drop.sampling_priority == 0
+    # Assert that _dd.p.dm is present when priority <= 0
+    assert "_dd.p.dm" in context_drop._meta
+    assert context_drop._meta["_dd.p.dm"] == "-3"
