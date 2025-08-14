@@ -605,6 +605,35 @@ class TestLLMObsBedrock:
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
+    def test_llmobs_converse_tool_input_list(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
+        """Test that tool inputs can be both lists and strings and are concatenated correctly."""
+        request_params = create_bedrock_converse_request(**bedrock_converse_args_with_system_and_tool)
+        with request_vcr.use_cassette("bedrock_converse_tool_input_list.yaml"):
+            response = bedrock_client.converse_stream(**request_params)
+
+            # Simulate the bug scenario where tool input is a list
+            chunks = [
+                {"contentBlockStart": {"contentBlockIndex": 0, "start": {"toolUse": {"input": ["first input"]}}}},
+                {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"toolUse": {"input": "second input"}}}},
+                {"contentBlockDelta": {"contentBlockIndex": 0, "delta": {"toolUse": {"input": ["third", "fourth"]}}}},
+                {"messageStop": {}},
+            ]
+
+            # Process each chunk through the stream
+            for chunk in chunks:
+                response["stream"] = iter([chunk])
+                for _ in response["stream"]:
+                    pass
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert len(llmobs_events) == 1
+
+        # Verify the tool inputs were concatenated correctly
+        assert llmobs_events[0]["meta"]["output"]["messages"][0]["tool_calls"][0]["arguments"] == {
+            "concept": "distributed tracing"
+        }
+
+    @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_tool_result_json_non_text_or_json(
         self, bedrock_client, request_vcr, mock_tracer, llmobs_events
     ):
