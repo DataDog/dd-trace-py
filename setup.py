@@ -517,33 +517,17 @@ class CustomBuildExt(build_ext):
         elif CURRENT_OS == "Darwin":
             dsymutil = shutil.which("dsymutil")
             strip = shutil.which("strip")
-            llvm_objcopy = shutil.which("llvm-objcopy")
 
             if dsymutil:
                 # 1) Emit dSYM
-                subprocess.run([dsymutil, so_file, "-o", so_file.with_suffix(".dSYM")], check=False)
+                print(f"dsymutil {so_file} -o {Path(so_file).with_suffix('.dSYM')}")
+                subprocess.run([dsymutil, so_file, "-o", Path(so_file).with_suffix(".dSYM")], check=False)
 
             if strip:
                 # Strip DWARF + local symbols
                 subprocess.run([strip, "-S", "-x", so_file], check=True)
             else:
                 print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
-
-            # optionally prune embedded LLVM bitcode sections
-            if llvm_objcopy:
-                subprocess.run(
-                    [
-                        llvm_objcopy,
-                        "--remove-section",
-                        "__LLVM,__bitcode",
-                        "--remove-section",
-                        "__LLVM,__cmdline",
-                        so_file,
-                    ],
-                    check=False,
-                )
-            else:
-                print("INFO: llvm-objcopy not found, skipping symbol stripping", file=sys.stderr)
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
