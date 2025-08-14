@@ -790,10 +790,7 @@ class LangChainIntegration(BaseLLMIntegration):
         template, variables = None, None
         if hasattr(instance, "template") and isinstance(instance.template, str):
             template = instance.template
-        if args and len(args) > 0 and isinstance(args[0], dict):
-            variables = args[0]
-        elif "input" in kwargs:
-            variables = kwargs["input"]
+        variables = get_argument_value(args, kwargs, 0, "input")
 
         if not template or not variables:
             return
