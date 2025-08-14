@@ -131,7 +131,7 @@ class APIManager(Service):
     def _schema_callback(self, env):
         if env.span is None or not asm_config._api_security_feature_active:
             return
-        root = env.span._local_root or env.span
+        root = env.entry_span
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
         if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return

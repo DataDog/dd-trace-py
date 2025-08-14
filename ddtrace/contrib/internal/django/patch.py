@@ -6,6 +6,7 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+
 from collections.abc import Iterable
 import functools
 from inspect import getmro
@@ -99,6 +100,7 @@ config._add(
         ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
+        # DEV: Used only for testing purposes, do not use in production
         _tracer=None,
     ),
 )
@@ -988,9 +990,9 @@ def _patch(django):
         )
 
     if config_django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)
+        when_imported("django.template.base")(templates.instrument_module)
 
     if django.VERSION < (4, 0, 0):
         when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
