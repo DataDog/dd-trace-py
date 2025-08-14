@@ -71,12 +71,14 @@ def _build_resource():
         from opentelemetry.sdk.resources import Resource
 
         resource_attributes = {
-            "host.name": get_hostname(),
             **config.tags,
             "service.name": config.service,
             "service.version": config.version,
-            "deployment.environment": config.env,
+            "deployment.environment.name": config.env,
         }
+
+        if config._report_hostname and "host.name" not in resource_attributes:
+            resource_attributes["host.name"] = get_hostname()
 
         # Convert all attributes to strings, use empty string for None
         resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}

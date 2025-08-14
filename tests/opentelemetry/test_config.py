@@ -31,7 +31,7 @@ def _global_sampling_rule():
         "OTEL_METRICS_EXPORTER": "none",
         "DD_RUNTIME_METRICS_ENABLED": "True",
         "OTEL_LOGS_EXPORTER": "warning",
-        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,"
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "DD_TAGS": "env:staging",
         "OTEL_SDK_DISABLED": "True",
@@ -67,7 +67,7 @@ def test_dd_otel_mixed_env_configuration():
         "OTEL_TRACES_EXPORTER": "OTLP",
         "OTEL_METRICS_EXPORTER": "none",
         "OTEL_LOGS_EXPORTER": "warning",
-        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,"
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4",
         "OTEL_SDK_DISABLED": "False",
     },
@@ -251,7 +251,7 @@ def test_otel_logs_exporter_configuration():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,service.version=1.0"}
+    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,service.version=1.0"}
 )
 def test_otel_resource_attributes_unified_tags():
     from ddtrace import config
@@ -262,8 +262,8 @@ def test_otel_resource_attributes_unified_tags():
 
 
 @pytest.mark.subprocess(
-    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment:prod,service.name:bleh,service.version:1.0"},
-    err=b"Setting OTEL_RESOURCE_ATTRIBUTES to deployment.environment:prod,service.name:bleh,service.version:1.0"
+    env={"OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name:prod,service.name:bleh,service.version:1.0"},
+    err=b"Setting OTEL_RESOURCE_ATTRIBUTES to deployment.environment.name:prod,service.name:bleh,service.version:1.0"
     b" is not supported by ddtrace, this configuration will be ignored.\n",
 )
 def test_otel_resource_attributes_misconfigured_tags():
@@ -272,7 +272,7 @@ def test_otel_resource_attributes_misconfigured_tags():
 
 @pytest.mark.subprocess(
     env={
-        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,"
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4"
     }
 )
@@ -293,7 +293,7 @@ def test_otel_resource_attributes_mixed_tags():
 
 @pytest.mark.subprocess(
     env={
-        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment=prod,service.name=bleh,"
+        "OTEL_RESOURCE_ATTRIBUTES": "deployment.environment.name=prod,service.name=bleh,"
         "service.version=1.0,testtag1=random1,testtag2=random2,testtag3=random3,testtag4=random4,testtag5=random5,"
         "testtag6=random6,testtag7=random7,testtag8=random8"
     },

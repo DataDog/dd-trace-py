@@ -57,7 +57,7 @@ def find_log_correlation_attributes(captured_logs, log_message: str):
         for attr in resource_logs.resource.attributes:
             if attr.key == "service.name":
                 lc_attributes["service"] = attr.value.string_value
-            elif attr.key == "deployment.environment":
+            elif attr.key == "deployment.environment.name":
                 lc_attributes["env"] = attr.value.string_value
             elif attr.key == "service.version":
                 lc_attributes["version"] = attr.value.string_value
@@ -163,6 +163,7 @@ def test_otel_logs_support_not_enabled():
         "DD_SERVICE": "ddservice",
         "DD_VERSION": "ddv1",
         "DD_ENV": "ddenv",
+        "DD_TRACE_REPORT_HOSTNAME": "true",
         "DD_HOSTNAME": "ddhost",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/protobuf",
     },
@@ -210,7 +211,7 @@ def test_otel_logs_exporter_auto_configured_http():
     ), f"Expected service.name to be 'ddservice' but found: {lc_attributes['service']}"
     assert (
         lc_attributes["env"] == "ddenv"
-    ), f"Expected deployment.environment to be 'ddenv' but found: {lc_attributes['env']}"
+    ), f"Expected deployment.environment.name to be 'ddenv' but found: {lc_attributes['env']}"
     assert (
         lc_attributes["version"] == "ddv1"
     ), f"Expected service.version to be 'ddv1' but found: {lc_attributes['version']}"
@@ -235,6 +236,7 @@ def test_otel_logs_exporter_auto_configured_http():
     ddtrace_run=True,
     env={
         "DD_LOGS_OTEL_ENABLED": "true",
+        "DD_LOGS_INJECTION": "false",
         "OTEL_EXPORTER_OTLP_PROTOCOL": "http/json",
     },
     err=b"OpenTelemetry Logs exporter protocol 'http/json' is not supported. Use 'grpc' or 'http/protobuf'.\n",
@@ -304,8 +306,9 @@ def test_otel_logs_exporter_auto_configured_grpc():
         "DD_VERSION": "1.0",
         "DD_ENV": "test_env",
         "DD_HOSTNAME": "test_host",
+        "DD_TRACE_REPORT_HOSTNAME": "true",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=test_service2,service.version=2.0,"
-        "deployment.environment=test_env2,host.name=test_host2",
+        "deployment.environment.name=test_env2,host.name=test_host2",
     },
 )
 def test_ddtrace_log_correlation():
@@ -349,7 +352,7 @@ def test_ddtrace_log_correlation():
     ), f"Expected service.name to be 'test_service' but found: {lc_attributes['service']}"
     assert (
         lc_attributes["env"] == "test_env"
-    ), f"Expected deployment.environment to be 'test_env' but found: {lc_attributes['env']}"
+    ), f"Expected deployment.environment.name to be 'test_env' but found: {lc_attributes['env']}"
     assert (
         lc_attributes["version"] == "1.0"
     ), f"Expected service.version to be '1.0' but found: {lc_attributes['version']}"
@@ -374,7 +377,7 @@ def test_ddtrace_log_correlation():
         "DD_LOGS_OTEL_ENABLED": "true",
         "DD_TRACE_OTEL_ENABLED": "true",
         "OTEL_RESOURCE_ATTRIBUTES": "service.name=test_service,service.version=1.0,"
-        "deployment.environment=test_env,host.name=test_host",
+        "deployment.environment.name=test_env,host.name=test_host",
     },
 )
 def test_otel_trace_log_correlation():
@@ -420,7 +423,7 @@ def test_otel_trace_log_correlation():
     ), f"Expected service.name to be 'test_service' but found: {lc_attributes['service']}"
     assert (
         lc_attributes["env"] == "test_env"
-    ), f"Expected deployment.environment to be 'test_env' but found: {lc_attributes['env']}"
+    ), f"Expected deployment.environment.name to be 'test_env' but found: {lc_attributes['env']}"
     assert (
         lc_attributes["version"] == "1.0"
     ), f"Expected service.version to be '1.0' but found: {lc_attributes['version']}"
