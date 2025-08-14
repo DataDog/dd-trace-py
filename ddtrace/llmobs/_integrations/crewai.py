@@ -1,5 +1,5 @@
-import json
 from collections.abc import Iterable
+import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -188,25 +188,25 @@ class CrewAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.get("instance")
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
-        input = kwargs.get("input", "")
+        tool_input = kwargs.get("input", "")
         span._set_ctx_items(
             {
                 NAME: tool_name if tool_name else "CrewAI Tool",
                 METADATA: {"description": description},
-                INPUT_VALUE: input,
+                INPUT_VALUE: tool_input,
             }
         )
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
-        filtered_input = input
-        if isinstance(input, dict) and "security_context" in input:
-            filtered_input = {k: v for k, v in input.items() if k != "security_context"}
+        filtered_tool_input = tool_input
+        if isinstance(tool_input, dict) and "security_context" in tool_input:
+            filtered_tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, json.dumps(filtered_input), "function", span),
+            (tool_name, json.dumps(filtered_tool_input), "function", span),
         )
 
     def _tag_agent_manifest(self, span, agent):

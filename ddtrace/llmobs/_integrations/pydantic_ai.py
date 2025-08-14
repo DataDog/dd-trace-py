@@ -5,9 +5,10 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -18,15 +19,11 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
-from ddtrace.internal import core
-from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 
 
 # in some cases, PydanticAI uses a different provider name than what we expect
