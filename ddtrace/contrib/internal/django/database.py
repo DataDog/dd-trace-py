@@ -1,6 +1,7 @@
 from types import FunctionType, ModuleType
 from typing import Any
 from typing import Dict
+from typing import Optional
 from typing import Tuple
 from typing import cast
 
@@ -41,6 +42,75 @@ DB_CONN_ATTR_BY_TAG = {
 }
 
 
+def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
+    instance = args[0]
+
+    alias = getattr(instance, "alias", "default")
+    vendor = getattr(instance, "vendor", "db")
+
+    tags = {"django.db.vendor": vendor, "django.db.alias": alias}
+    _datadog_tags: Optional[Dict[str, Any]] = getattr(instance, "_datadog_tags", None)
+    if _datadog_tags:
+        tags.update(_datadog_tags)
+
+    cursor = func(*args, **kwargs)
+
+    # If the cursor is already wrapped, just update the pin to get Django service name and tags
+    if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_add_django_database_spans:
+        tracer = config_django._tracer or ddtrace.tracer
+
+        # Add Django tags onto any existing Pin
+        # TODO: Can we get this without the use of Pin?
+        pin = Pin.get_from(cursor.cursor)
+        if pin:
+            pin = pin.clone()
+            pin.tags.update(tags)
+        else:
+            pin = Pin(tags=tags)
+        pin._tracer = tracer
+        pin.onto(cursor.cursor)
+        return cursor
+
+    traced_cursor_cls = dbapi.TracedCursor
+    try:
+        if cursor.cursor.__class__.__module__.startswith("psycopg2."):
+            # Import lazily to avoid importing psycopg2 if not already imported.
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
+
+            traced_cursor_cls = Psycopg2TracedCursor
+        elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
+            # Import lazily to avoid importing psycopg if not already imported.
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
+
+            traced_cursor_cls = Psycopg3TracedCursor
+    except AttributeError:
+        pass
+
+    prefix = sqlx.normalize_vendor(vendor)
+
+    service = config_django.database_service_name
+    if not service:
+        database_prefix = config_django.database_service_name_prefix
+        service = "{}{}{}".format(database_prefix, alias, "db")
+        service = schematize_service_name(service)
+
+    # Each db alias will need its own config for dbapi
+    cfg = IntegrationConfig(
+        config_django.global_config,
+        "django-database",
+        _default_service=config.django._default_service,
+        _dbapi_span_name_prefix=prefix,
+        trace_fetch_methods=config_django.trace_fetch_methods,
+        _dbm_propagator=_DBM_Propagator(0, "query"),
+    )
+
+    tracer = config_django._tracer or ddtrace.tracer
+    pin = Pin(service, tags=tags)
+    pin._tracer = tracer
+
+    return traced_cursor_cls(cursor, pin, cfg)
+
+
 def patch_conn(conn: Any) -> Any:
     global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
 
@@ -69,74 +139,10 @@ def patch_conn(conn: Any) -> Any:
                 tags[tag] = str(conn.settings_dict.get(attr))
     conn._datadog_tags = tags
 
-    def cursor(func: FunctionType, instance: Any, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
-        alias = getattr(conn, "alias", "default")
-        vendor = getattr(conn, "vendor", "db")
-
-        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
-        tags.update(getattr(conn, "_datadog_tags", {}))
-
-        cursor = func(*args, **kwargs)
-
-        # If the cursor is already wrapped, just update the pin to get Django service name and tags
-        if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_add_django_database_spans:
-            tracer = config_django._tracer or ddtrace.tracer
-
-            # Add Django tags onto any existing Pin
-            # TODO: Can we get this without the use of Pin?
-            pin = Pin.get_from(cursor.cursor)
-            if pin:
-                pin = pin.clone()
-                pin.tags.update(tags)
-            else:
-                pin = Pin(tags=tags)
-            pin._tracer = tracer
-            pin.onto(cursor.cursor)
-            return cursor
-
-        traced_cursor_cls = dbapi.TracedCursor
-        try:
-            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
-                # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-
-                traced_cursor_cls = Psycopg2TracedCursor
-            elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
-                # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-
-                traced_cursor_cls = Psycopg3TracedCursor
-        except AttributeError:
-            pass
-
-        prefix = sqlx.normalize_vendor(vendor)
-
-        service = config_django.database_service_name
-        if not service:
-            database_prefix = config_django.database_service_name_prefix
-            service = "{}{}{}".format(database_prefix, alias, "db")
-            service = schematize_service_name(service)
-
-        # Each db alias will need its own config for dbapi
-        cfg = IntegrationConfig(
-            config_django.global_config,
-            "django-database",
-            _default_service=config.django._default_service,
-            _dbapi_span_name_prefix=prefix,
-            trace_fetch_methods=config_django.trace_fetch_methods,
-            _dbm_propagator=_DBM_Propagator(0, "query"),
-        )
-
-        tracer = config_django._tracer or ddtrace.tracer
-        pin = Pin(service, tags=tags)
-        pin._tracer = tracer
-
-        return traced_cursor_cls(cursor, pin, cfg)
-
-    # DEV: We cannot use `ddtrace.internal.wrapping.wrap` here since we need to wrap
-    #      a bound method, which is not supported by the bytecode wrapping.
-    if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, cursor)
+    # DEV: `conn` is an instance, and so `conn.cursor` is a bound method
+    #      we want to wrap the unbound method on the class once
+    if not is_wrapped_with(conn.__class__.cursor, cursor):
+        wrap(conn.__class__.cursor, cursor)
 
 
 def get_connection(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:

@@ -3,6 +3,7 @@ import itertools
 import os
 import subprocess
 
+from ddtrace.internal.wrapping import is_wrapped
 import django
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
@@ -2443,9 +2444,9 @@ def test_connections_patched():
 
     assert len(connections.all())
     for conn in connections.all():
-        assert isinstance(conn.cursor, wrapt.ObjectProxy)
+        assert is_wrapped(conn.cursor)
 
-    assert isinstance(connection.cursor, wrapt.ObjectProxy)
+    assert is_wrapped(connection.cursor)
 
 
 def test_django_get_user(client, test_spans):
