@@ -42,7 +42,9 @@ except ModuleNotFoundError:
 logger = get_logger(__name__)
 
 
-def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tuple[List[ToolCall], List[ToolResult]]:
+def _openai_extract_tool_calls_and_results_chat(
+    message: Dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+) -> Tuple[List[ToolCall], List[ToolResult]]:
     """
     Parses message object for tool calls and results.
     Compatible with OpenAI Chat and Response API formats.
@@ -53,23 +55,43 @@ def _openai_extract_tool_calls_and_results_chat(message: Dict[str, Any]) -> Tupl
     # chat completion tool call
     raw_tool_calls = _get_attr(message, "tool_calls", [])
     if raw_tool_calls:
-        for tool_call in raw_tool_calls:
-            arguments = _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}) or _get_attr(
-                tool_call, "arguments", {}
+        for raw in raw_tool_calls:
+            raw_args = (
+                _get_attr(_get_attr(raw, "function", {}), "arguments", None) or _get_attr(raw, "arguments", None) or ""
             )
+            tool_name = _get_attr(_get_attr(raw, "function", {}), "name", "") or _get_attr(raw, "name", "")
+            tool_id = _get_attr(raw, "id", "") or _get_attr(raw, "tool_call_id", "") or _get_attr(raw, "tool_id", "")
+            tool_type = _get_attr(raw, "type", "function")
+
+            parsed_arguments = raw_args
             try:
-                arguments = json.loads(arguments)
+                if isinstance(parsed_arguments, str):
+                    parsed_arguments = json.loads(parsed_arguments)
             except (json.JSONDecodeError, TypeError):
-                arguments = {"value": str(arguments)}
+                parsed_arguments = {"value": str(parsed_arguments)}
+
             tool_call_info = ToolCall(
-                name=_get_attr(_get_attr(tool_call, "function", {}), "name", "") or _get_attr(tool_call, "name", ""),
-                arguments=arguments,
-                tool_id=_get_attr(tool_call, "id", "")
-                or _get_attr(tool_call, "tool_call_id", "")
-                or _get_attr(tool_call, "tool_id", ""),
-                type=_get_attr(tool_call, "type", "function"),
+                name=tool_name,
+                arguments=parsed_arguments,
+                tool_id=tool_id,
+                type=tool_type,
             )
             tool_calls.append(tool_call_info)
+
+            if dispatch_llm_choice and llm_span is not None and tool_id:
+                tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
+                core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_id,
+                        tool_name,
+                        tool_args_str,
+                        {
+                            "trace_id": format_trace_id(llm_span.trace_id),
+                            "span_id": str(llm_span.span_id),
+                        },
+                    ),
+                )
     # chat completion tool result
     # seems like the fields in a tool_result for chat api are not very strictly defined
     if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
@@ -425,22 +447,9 @@ def openai_set_meta_tags_from_chat(
         role = _get_attr(choice_message, "role", "")
         content = _get_attr(choice_message, "content", "") or ""
 
-        extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(choice_message)
-
-        for tool_call in extracted_tool_calls:
-            if tool_call.get("tool_id"):
-                core.dispatch(
-                    DISPATCH_ON_LLM_TOOL_CHOICE,
-                    (
-                        tool_call["tool_id"],
-                        tool_call["name"],
-                        json.dumps(tool_call["arguments"]),
-                        {
-                            "trace_id": format_trace_id(span.trace_id),
-                            "span_id": str(span.span_id),
-                        },
-                    ),
-                )
+        extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+            choice_message, llm_span=span, dispatch_llm_choice=True
+        )
 
         message = {"content": content, "role": role}
         if extracted_tool_calls:
