@@ -128,6 +128,7 @@ class Span(object):
         "_context",
         "_parent_context",
         "_local_root_value",
+        "_service_entry_span_value",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -221,6 +222,7 @@ class Span(object):
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
+        self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[Dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
@@ -710,20 +712,27 @@ class Span(object):
 
     @property
     def _local_root(self) -> "Span":
-        if self._local_root_value is None:
-            return self
-        return self._local_root_value
+        return self._local_root_value or self
 
     @_local_root.setter
     def _local_root(self, value: "Span") -> None:
-        if value is not self:
-            self._local_root_value = value
-        else:
-            self._local_root_value = None
+        self._local_root_value = value if value is not self else None
 
     @_local_root.deleter
     def _local_root(self) -> None:
         del self._local_root_value
+
+    @property
+    def _service_entry_span(self) -> "Span":
+        return self._service_entry_span_value or self
+
+    @_service_entry_span.setter
+    def _service_entry_span(self, span: "Span") -> None:
+        self._service_entry_span_value = None if span is self else span
+
+    @_service_entry_span.deleter
+    def _service_entry_span(self) -> None:
+        del self._service_entry_span_value
 
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
@@ -859,7 +868,8 @@ class Span(object):
             f"metrics={self._metrics}, "
             f"links={self._links}, "
             f"events={self._events}, "
-            f"context={self._context})"
+            f"context={self._context}, "
+            f"service_entry_span_name={self._service_entry_span.name})"
         )
 
     def __str__(self) -> str:

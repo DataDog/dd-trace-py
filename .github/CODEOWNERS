@@ -193,6 +193,8 @@ tests/internal/remoteconfig         @DataDog/remote-config @DataDog/apm-core-pyt
 # API SDK
 ddtrace/trace/                                     @DataDog/apm-sdk-api-python
 ddtrace/_trace/                                    @DataDog/apm-sdk-api-python
+# File commonly updated for integrations, widen ownership to help with PR review
+ddtrace/_trace/trace_handlers.py                   @DataDog/apm-sdk-api-python @DataDog/apm-core-python @DataDog/apm-idm-python
 ddtrace/opentelemetry/                             @DataDog/apm-sdk-api-python
 ddtrace/internal/opentelemetry                     @DataDog/apm-sdk-api-python
 ddtrace/opentracer/                                @DataDog/apm-sdk-api-python
