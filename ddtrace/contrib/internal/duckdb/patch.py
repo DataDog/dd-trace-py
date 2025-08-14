@@ -1,6 +1,3 @@
-from ddtrace import config
-from ddtrace.internal.schema import schematize_service_name
-
 import os
 from typing import Dict
 

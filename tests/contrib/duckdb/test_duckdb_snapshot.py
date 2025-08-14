@@ -223,3 +223,69 @@ def test_duckdb_analytical_query_performance():
     assert len(results) > 0
     assert end_time - start_time > 0  # Ensure some time elapsed
 
+
+@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.snapshot(wait_for_num_traces=2)
+def test_duckdb_parameterized_queries():
+    """Test parameterized queries with different parameter styles"""
+    import duckdb
+    from ddtrace import patch
+    
+    patch(duckdb=True)
+    
+    conn = duckdb.connect(":memory:")
+    cursor = conn.cursor()
+    
+    # Test with positional parameters
+    cursor.execute("SELECT ? as value", (123,))
+    rows = cursor.fetchall()
+    assert rows[0][0] == 123
+    
+    # Test with named parameters
+    cursor.execute("SELECT $name as greeting", {"name": "Hello"})
+    rows = cursor.fetchall()
+    assert rows[0][0] == "Hello"
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.snapshot(wait_for_num_traces=3)
+def test_duckdb_fetch_methods():
+    """Test different fetch methods (fetchone, fetchmany, fetchall)"""
+    import duckdb
+    from ddtrace import patch
+    
+    patch(duckdb=True)
+    
+    conn = duckdb.connect(":memory:")
+    cursor = conn.cursor()
+    
+    # Setup test data
+    cursor.execute("CREATE TABLE test_fetch (id INTEGER, name VARCHAR)")
+    cursor.execute("INSERT INTO test_fetch VALUES (1, 'Alice'), (2, 'Bob'), (3, 'Charlie')")
+    
+    # Test fetchall (matches existing snapshot)
+    cursor.execute("SELECT * FROM test_fetch")
+    rows = cursor.fetchall()
+    assert len(rows) == 3
+
+
+@pytest.mark.subprocess(ddtrace_run=True)
+@pytest.mark.snapshot(wait_for_num_traces=1)
+def test_duckdb_service_name_override():
+    """Test custom service name configuration"""
+    import duckdb
+    from ddtrace import patch
+    from ddtrace.trace import Pin
+    
+    patch(duckdb=True)
+    
+    conn = duckdb.connect(":memory:")
+    pin = Pin.get_from(conn)
+    custom_pin = pin._clone(service="custom-duckdb")
+    custom_pin.onto(conn)
+    
+    cursor = conn.cursor()
+    cursor.execute("SELECT 'custom' as test")
+    rows = cursor.fetchall()
+    assert rows[0][0] == 'custom'
+

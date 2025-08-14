@@ -1,0 +1,62 @@
+baseline: &baseline
+  tracer_enabled: false
+  query_type: "simple"
+  dataset_size: 1000
+
+# Simple query benchmarks
+simple-baseline:
+  <<: *baseline
+  query_type: "simple"
+
+simple-traced:
+  <<: *baseline
+  tracer_enabled: true
+  query_type: "simple"
+
+# Bulk insert benchmarks
+bulk-insert-baseline:
+  <<: *baseline
+  query_type: "bulk_insert"
+  dataset_size: 1000
+
+bulk-insert-traced:
+  <<: *baseline
+  tracer_enabled: true
+  query_type: "bulk_insert"
+  dataset_size: 1000
+
+# Analytical query benchmarks
+analytical-small-baseline:
+  <<: *baseline
+  query_type: "analytical"
+  dataset_size: 5000
+
+analytical-small-traced:
+  <<: *baseline
+  tracer_enabled: true
+  query_type: "analytical"
+  dataset_size: 5000
+
+analytical-large-baseline:
+  <<: *baseline
+  query_type: "analytical"
+  dataset_size: 25000
+
+analytical-large-traced:
+  <<: *baseline
+  tracer_enabled: true
+  query_type: "analytical"
+  dataset_size: 25000
+
+# Complex JOIN benchmarks
+join-baseline:
+  <<: *baseline
+  query_type: "complex_join"
+  dataset_size: 10000
+
+join-traced:
+  <<: *baseline
+  tracer_enabled: true
+  query_type: "complex_join"
+  dataset_size: 10000
+
