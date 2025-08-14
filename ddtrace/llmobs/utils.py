@@ -27,6 +27,7 @@ ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id"
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict("Message", {"content": str, "role": str}, total=False)
 
+
 class Prompt:
     """
     Represents a prompt used for an LLM call.
@@ -44,6 +45,7 @@ class Prompt:
         rag_context_variable_keys (List[str]): A list of variable key names that contain ground truth context information.
         rag_query_variable_keys (List[str]): A list of variable key names that contain query information for an LLM call.
     """
+
     name: str
     version: Optional[str]
     prompt_template_id: str
@@ -56,17 +58,18 @@ class Prompt:
     rag_query_variable_keys: Optional[List[str]]
     ml_app: str
 
-    def __init__(self,
-                 name,
-                 version = "1.0.0",
-                 template = None,
-                 variables = None,
-                 example_variable_keys = None,
-                 constraint_variable_keys = None,
-                 rag_context_variable_keys = None,
-                 rag_query_variable_keys = None,
-                 ml_app=""):
-
+    def __init__(
+        self,
+        name,
+        version="1.0.0",
+        template=None,
+        variables=None,
+        example_variable_keys=None,
+        constraint_variable_keys=None,
+        rag_context_variable_keys=None,
+        rag_query_variable_keys=None,
+        ml_app="",
+    ):
         self.__dict__["_is_initialized"] = False
 
         if name is None:
@@ -139,7 +142,6 @@ class Prompt:
         rag_context_variable_keys = self.rag_context_variable_keys
         rag_query_variable_keys = self.rag_query_variable_keys
 
-
         if prompt_template_id is None:
             self.generate_ids()
         elif not isinstance(prompt_template_id, str):
@@ -160,18 +162,19 @@ class Prompt:
             version = ".".join(version_parts)
             # Official semver regex from https://semver.org/
             semver_regex = (
-                r'^(?P<major>0|[1-9]\d*)\.'
-                r'(?P<minor>0|[1-9]\d*)\.'
-                r'(?P<patch>0|[1-9]\d*)'
-                r'(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-]'
-                r'[0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-]'
-                r'[0-9a-zA-Z-]*))*))?'
-                r'(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+'
-                r'(?:\.[0-9a-zA-Z-]+)*))?$'
+                r"^(?P<major>0|[1-9]\d*)\."
+                r"(?P<minor>0|[1-9]\d*)\."
+                r"(?P<patch>0|[1-9]\d*)"
+                r"(?:-(?P<prerelease>(?:0|[1-9]\d*|\d*[a-zA-Z-]"
+                r"[0-9a-zA-Z-]*)(?:\.(?:0|[1-9]\d*|\d*[a-zA-Z-]"
+                r"[0-9a-zA-Z-]*))*))?"
+                r"(?:\+(?P<buildmetadata>[0-9a-zA-Z-]+"
+                r"(?:\.[0-9a-zA-Z-]+)*))?$"
             )
             if not bool(match(semver_regex, version)):
                 errors.append(
-                    "Prompt version must be semver compatible. Please check https://semver.org/ for more information.")
+                    "Prompt version must be semver compatible. Please check https://semver.org/ for more information."
+                )
 
         # Accept simple string templates
         if isinstance(template, str):
@@ -190,7 +193,12 @@ class Prompt:
         if not all(isinstance(k, str) for k in variables):
             errors.append("Prompt variable keys must be strings.")
 
-        for var_list in [example_variable_keys, constraint_variable_keys, rag_context_variable_keys, rag_query_variable_keys]:
+        for var_list in [
+            example_variable_keys,
+            constraint_variable_keys,
+            rag_context_variable_keys,
+            rag_query_variable_keys,
+        ]:
             if not all(isinstance(var, str) for var in var_list):
                 errors.append("All variable lists must contain strings only.")
 
@@ -246,8 +254,6 @@ class Prompt:
         super().__setattr__(name, value)
         if self.__dict__.get("_is_initialized"):
             self.generate_ids()
-
-
 
 
 class Messages:
