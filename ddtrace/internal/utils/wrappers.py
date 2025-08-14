@@ -20,4 +20,4 @@ def iswrapped(obj, attr=None):
 def unwrap(obj, attr):
     # type: (Any, str) -> None
     f = getattr(obj, attr)
-    setattr(obj, attr, f.__wrapped__)
+    setattr(obj, attr, getattr(f, "__wrapped__", f))
