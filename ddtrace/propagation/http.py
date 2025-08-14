@@ -363,7 +363,8 @@ class _DatadogMultiHeader:
         if not meta:
             meta = {}
 
-        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        # Only set sampling decision tag if there's no head sampling decision (no sampling_priority header)
+        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY) and sampling_priority is None:
             meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
