@@ -13,7 +13,6 @@ from typing import Union
 from urllib import parse
 
 import ddtrace
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace import config as ddconfig
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import ci
@@ -71,6 +70,7 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
