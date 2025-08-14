@@ -6,6 +6,7 @@ Django internals are instrumented via normal `patch()`.
 `django.apps.registry.Apps.populate` is patched to add instrumentation for any
 specific Django apps like Django Rest Framework (DRF).
 """
+
 from collections.abc import Iterable
 import functools
 from inspect import getmro
@@ -94,6 +95,8 @@ config._add(
         ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
+        # DEV: Used only for testing purposes, do not use in production
+        _tracer=None,
     ),
 )
 
@@ -360,11 +363,11 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config_django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx.span:
+        ) as ctx:
             resp = func(*args, **kwargs)
-            core.dispatch(
-                "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
-            )
+
+            # Tell finish span that we should collect the traceback
+            ctx.set_item("should_set_traceback", hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
             return resp
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -456,7 +459,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not gather some metadata on blocked request: %s", str(e))
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
 
 
@@ -965,9 +968,9 @@ def _patch(django):
         )
 
     if config_django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)
+        when_imported("django.template.base")(templates.instrument_module)
 
     if django.VERSION < (4, 0, 0):
         when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))
