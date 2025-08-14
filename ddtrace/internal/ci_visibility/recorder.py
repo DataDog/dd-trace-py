@@ -69,8 +69,8 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings import IntegrationConfig
 from ddtrace.internal.utils.formats import parse_tags_str
+from ddtrace.settings import IntegrationConfig
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.trace import Tracer
 
