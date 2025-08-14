@@ -337,7 +337,7 @@ def openai_set_meta_tags_from_chat(
             processed_message["tool_calls"] = []
         if role != "system":
             # ignore system messages as we may unintentionally parse instructions as tool calls
-            capture_plain_text_tool_call(processed_message["tool_calls"], content, span, is_input=True)
+            capture_plain_text_tool_call(list(processed_message["tool_calls"]), content, span, is_input=True)
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -385,7 +385,7 @@ def openai_set_meta_tags_from_chat(
     choices = _get_attr(messages, "choices", [])
     output_messages = []
     for idx, choice in enumerate(choices):
-        tool_calls_info = []
+        tool_calls_info: List[Dict[str, Any]] = []
         choice_message = _get_attr(choice, "message", {})
         role = _get_attr(choice_message, "role", "")
         content = _get_attr(choice_message, "content", "") or ""
