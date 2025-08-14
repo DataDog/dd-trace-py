@@ -635,7 +635,7 @@ class LLMObs(Service):
         if records is None:
             records = []
 
-        if cls._instance._dne_client._dataset_exists(name):
+        if cls._instance._dne_client._dataset_exists(name) is not None:
             raise ValueError(
                 f"Dataset '{name}' already exists. "
                 "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
@@ -663,6 +663,12 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
+
+        if cls._instance._dne_client._dataset_exists(dataset_name) is not None:
+            raise ValueError(
+                f"Dataset '{dataset_name}' already exists. "
+                "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
+            )
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later

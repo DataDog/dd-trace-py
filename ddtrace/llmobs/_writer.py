@@ -445,15 +445,22 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
-    def _dataset_exists(self, name: str) -> bool:
+    def _dataset_exists(self, name: str) -> Optional["Dataset"]:
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            return False
+            return None
 
         response_data = resp.get_json()
         data = response_data["data"]
-        return bool(data)
+        if not data:
+            return None
+
+        curr_version = data[0]["attributes"]["current_version"]
+        dataset_description = data[0]["attributes"].get("description", "")
+        dataset_id = data[0]["id"]
+
+        return Dataset(name, dataset_id, [], dataset_description, curr_version, _dne_client=self)
 
     def project_create_or_get(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"

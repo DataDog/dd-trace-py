@@ -57,7 +57,16 @@ def test_dataset_name(request) -> str:
 
 @pytest.fixture
 def test_dataset(llmobs, test_dataset_records, test_dataset_name) -> Generator[Dataset, None, None]:
-    ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=test_dataset_records)
+    ds = llmobs._instance._dne_client._dataset_exists(name=test_dataset_name)
+    if ds is None:
+        ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=[])
+    else:
+        llmobs._delete_dataset(dataset_id=ds._id)
+        wait_for_backend()
+        ds = llmobs.create_dataset(name=test_dataset_name, description="A test dataset", records=[])
+
+    for record in test_dataset_records:
+        ds.append(record)
 
     # When recording the requests, we need to wait for the dataset to be queryable.
     wait_for_backend()
@@ -72,10 +81,15 @@ def test_dataset_one_record(llmobs):
     records = [
         DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})
     ]
-    try:
+
+    ds = llmobs._instance._dne_client._dataset_exists(name="test-dataset-123")
+    if ds is None:
         ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
-    except ValueError:
-        ds = llmobs.pull_dataset(name="test-dataset-123")
+    else:
+        llmobs._delete_dataset(dataset_id=ds._id)
+        wait_for_backend()
+        ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
+
     # When recording the requests, we need to wait for the dataset to be queryable.
     wait_for_backend()
 
@@ -93,9 +107,6 @@ def test_dataset_create_delete(llmobs):
 
 
 def test_dataset_create_duplicate_name_error(llmobs, test_dataset_one_record):
-    existing_dataset = llmobs.pull_dataset(name=test_dataset_one_record.name)
-    assert existing_dataset.name == test_dataset_one_record.name
-
     expected_message = (
         f"Dataset '{test_dataset_one_record.name}' already exists. "
         "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
@@ -105,7 +116,6 @@ def test_dataset_create_duplicate_name_error(llmobs, test_dataset_one_record):
         match=re.escape(expected_message),
     ):
         llmobs.create_dataset(name=test_dataset_one_record.name)
-
 
 def test_dataset_url_diff_site(llmobs, test_dataset_one_record):
     with override_global_config(dict(_dd_site="us3.datadoghq.com")):
