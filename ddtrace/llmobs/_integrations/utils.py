@@ -428,9 +428,7 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
-def capture_plain_text_tool_call(
-    tool_calls_info: Any, content: str, span: Span, is_input: bool = False
-) -> None:
+def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span, is_input: bool = False) -> None:
     """
     Captures plain text tool calls from a content string.
 
