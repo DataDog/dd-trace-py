@@ -3,7 +3,6 @@ import itertools
 import os
 import subprocess
 
-from ddtrace.internal.wrapping import is_wrapped
 import django
 from django.core.signals import request_started
 from django.core.wsgi import get_wsgi_application
@@ -31,6 +30,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
