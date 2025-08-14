@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    AAP: Fixes an issue where security signals would be incorrectly reported on an inferred proxy
+    service instead of the current service.
