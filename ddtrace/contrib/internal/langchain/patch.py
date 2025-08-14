@@ -630,7 +630,6 @@ async def traced_chat_model_ainvoke(langchain, pin, func, instance, args, kwargs
     return response
 
 
-
 def _patch_embeddings_and_vectorstores():
     """
     Text embedding models override two abstract base methods instead of super calls,

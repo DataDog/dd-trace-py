@@ -188,7 +188,9 @@ def test_llmobs_string_prompt_template_direct_invoke(
     assert actual_prompt["variables"] == variable_dict
 
 
-def test_llmobs_string_prompt_template_invoke_chat_model(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+def test_llmobs_string_prompt_template_invoke_chat_model(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
     template_string = "You are a helpful assistant. Please answer this question: {question}"
     variable_dict = {"question": "What is machine learning?"}
     prompt_template = langchain_core.prompts.PromptTemplate(
