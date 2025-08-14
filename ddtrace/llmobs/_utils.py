@@ -236,13 +236,18 @@ def load_data_value(value):
             return value_str
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str, link_type: str = "data_flow", annotation: str = "") -> None:
     current_span_links = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
         {
             "span_id": span_id,
             "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
+            "attributes": {
+                "from": from_io,
+                "to": to_io,
+                "link_type": link_type,
+                "annotation": annotation,
+            },
         }
     )
     span._set_ctx_item(SPAN_LINKS, current_span_links)
@@ -318,6 +323,8 @@ class ToolCallTracker:
             tool_call.llm_span_context["trace_id"],
             "output",
             "input",
+            link_type="control_flow",
+            annotation=f"LLM span chose to execute {tool_name}",
         )
         self._tool_calls[tool_id].tool_span_context = {
             "span_id": str(tool_span.span_id),
@@ -350,4 +357,6 @@ class ToolCallTracker:
             tool_call.tool_span_context["trace_id"],
             "output",
             "input",
+            link_type="control_flow",
+            annotation=f"Tool {tool_call.tool_name} output used as part of LLM input",
         )
