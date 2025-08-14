@@ -114,6 +114,13 @@ class TestLLMObsLiteLLM:
                 "stream_options": {"include_usage": True},
                 "tool_choice": "auto",
             },
+            tool_definitions=[
+                {
+                    "name": tools[0]["function"]["name"],
+                    "description": tools[0]["function"]["description"],
+                    "schema": tools[0]["function"]["parameters"],
+                }
+            ],
             token_metrics=token_metrics,
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
