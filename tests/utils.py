@@ -205,7 +205,7 @@ def override_global_config(values):
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         AppSecIastSpanProcessor.enable()
-    else:
+    elif "_iast_enabled" in values:
         from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
 
         AppSecIastSpanProcessor.disable()
