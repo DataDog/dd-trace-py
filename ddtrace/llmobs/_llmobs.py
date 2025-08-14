@@ -635,9 +635,9 @@ class LLMObs(Service):
         if records is None:
             records = []
 
-        if cls._instance._dne_client._check_dataset_exists(name):
+        if cls._instance._dne_client._dataset_exists(name):
             raise ValueError(
-                f"Dataset '{name}' already exists. Use LLMObs.pull_dataset() to retrieve the existing dataset."
+                f"Dataset '{name}' already exists. Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
             )
 
         ds = cls._instance._dne_client.dataset_create(name, description)

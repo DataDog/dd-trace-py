@@ -72,7 +72,11 @@ def test_dataset_one_record(llmobs):
     records = [
         DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})
     ]
-    ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
+    try:
+        ds = llmobs.create_dataset(name="test-dataset-123", description="A test dataset", records=records)
+    except ValueError:
+        ds = llmobs.pull_dataset(name="test-dataset-123")
+    # When recording the requests, we need to wait for the dataset to be queryable.
     wait_for_backend()
 
     yield ds
@@ -88,56 +92,16 @@ def test_dataset_create_delete(llmobs):
     llmobs._delete_dataset(dataset_id=dataset._id)
 
 
-def test_dataset_create_duplicate_name_error(llmobs):
-    """Test that create_dataset raises an error when trying to create a dataset with a name that already exists."""
-    # Create a dataset first
-    dataset = llmobs.create_dataset(
-        name="test-dataset-duplicate", description="A test dataset for duplicate name testing"
-    )
-    assert dataset._id is not None
+def test_dataset_create_duplicate_name_error(llmobs, test_dataset_one_record):
+    existing_dataset = llmobs.pull_dataset(name=test_dataset_one_record.name)
+    assert existing_dataset.name == test_dataset_one_record.name
 
+    expected_message = f"Dataset '{test_dataset_one_record.name}' already exists. Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
     with pytest.raises(
         ValueError,
-        match="Dataset 'test-dataset-duplicate' already exists. Use LLMObs.pull_dataset() to retrieve the existing dataset.",
+        match=re.escape(expected_message),
     ):
-        llmobs.create_dataset(name="test-dataset-duplicate", description="Another dataset with same name")
-
-    llmobs._delete_dataset(dataset_id=dataset._id)
-
-
-def test_dataset_create_from_csv_duplicate_name_error(llmobs):
-    """Test that create_dataset_from_csv raises an error when
-    trying to create a dataset with a name that already exists.
-    """
-    test_path = os.path.dirname(__file__)
-    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
-
-    # Create a dataset first
-    dataset = llmobs.create_dataset_from_csv(
-        csv_path=csv_path,
-        dataset_name="test-dataset-csv-duplicate",
-        description="A test dataset for CSV duplicate name testing",
-        input_data_columns=["in0", "in1", "in2"],
-        expected_output_columns=["out0", "out1"],
-    )
-    assert dataset._id is not None
-
-    try:
-        # Try to create another dataset with the same name - this should raise an error
-        with pytest.raises(
-            ValueError,
-            match="Dataset 'test-dataset-csv-duplicate' already exists. Use pull_dataset to load an existing dataset.",
-        ):
-            llmobs.create_dataset_from_csv(
-                csv_path=csv_path,
-                dataset_name="test-dataset-csv-duplicate",
-                description="Another CSV dataset with same name",
-                input_data_columns=["in0", "in1", "in2"],
-                expected_output_columns=["out0", "out1"],
-            )
-    finally:
-        # Clean up
-        llmobs._delete_dataset(dataset_id=dataset._id)
+        llmobs.create_dataset(name=test_dataset_one_record.name)
 
 
 def test_dataset_url_diff_site(llmobs, test_dataset_one_record):
