@@ -14,6 +14,7 @@ class DjangoSimple(bm.Scenario):
     django_instrument_middleware: bool
     django_instrument_caches: bool
     django_instrument_databases: bool
+    always_add_django_database_spans: bool
     django_instrument_templates: bool
 
     def run(self):
@@ -21,6 +22,7 @@ class DjangoSimple(bm.Scenario):
         os.environ["DD_DJANGO_INSTRUMENT_MIDDLEWARE"] = "1" if self.django_instrument_middleware else "0"
         os.environ["DD_DJANGO_INSTRUMENT_CACHES"] = "1" if self.django_instrument_caches else "0"
         os.environ["DD_DJANGO_INSTRUMENT_DATABASES"] = "1" if self.django_instrument_databases else "0"
+        os.environ["DD_DJANGO_ALWAYS_ADD_DATABASE_SPANS"] = "1" if self.always_add_django_database_spans else "0"
         os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"] = "1" if self.django_instrument_templates else "0"
 
         if self.profiler_enabled:
@@ -56,3 +58,27 @@ class DjangoSimple(bm.Scenario):
                 client.get(self.path)
 
         yield _
+
+        # Try to clear any caches
+        # DEV: Some of these methods/caches only exist in some versions of the library
+        if self.django_instrument_databases:
+            try:
+                from ddtrace.contrib.internal.django.database import get_conn_config
+
+                get_conn_config.invalidate()
+            except Exception:
+                pass
+
+            try:
+                from ddtrace.contrib.internal.django.database import get_conn_service_name
+
+                get_conn_service_name.invalidate()
+            except Exception:
+                pass
+
+            try:
+                from ddtrace.contrib.internal.django.database import get_traced_cursor_cls
+
+                get_traced_cursor_cls.invalidate()
+            except Exception:
+                pass

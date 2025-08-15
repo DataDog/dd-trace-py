@@ -7,6 +7,7 @@ baseline: &baseline
   django_instrument_middleware: true
   django_instrument_caches: true
   django_instrument_databases: true
+  always_add_django_database_spans: true
   django_instrument_templates: true
 tracer: &tracer
   <<: *baseline
@@ -41,6 +42,9 @@ tracer-no-caches:
 tracer-no-databases:
   <<: *tracer
   django_instrument_databases: false
+tracer-disable-django-db-spans:
+  <<: *tracer
+  always_add_django_database_spans: false
 tracer-no-templates:
   <<: *tracer
   django_instrument_templates: false
