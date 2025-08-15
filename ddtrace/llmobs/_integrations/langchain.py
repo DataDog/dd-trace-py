@@ -34,6 +34,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -689,13 +690,10 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
-            tool_input = tool_inputs.get("input", {})
-            tool_name = tool_input.get("name") or ""
-            tool_args = tool_input.get("args", {})
-            tool_id = tool_input.get("id")
+            tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
             core.dispatch(
                 DISPATCH_ON_TOOL_CALL,
-                (tool_name, json.dumps(tool_args, separators=(",", ":")), "function", span, tool_id),
+                (tool_name, tool_args, "function", span, tool_id),
             )
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
@@ -729,6 +727,27 @@ class LangChainIntegration(BaseLLMIntegration):
         if model is not None:
             span.set_tag_str(MODEL, model)
 
+    def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
+        """
+        Extract tool name, tool id, and tool args from a tool call input.
+
+        If the tool input is a string, then the entire string is assumed to be the tool call args.
+        """
+        tool_input = tool_inputs.get("input", {})
+        tool_name, tool_id, tool_args = "", "", ""
+        if isinstance(tool_input, str):
+            tool_args = tool_input
+            try:
+                tool_info = tool_inputs.get("info", {})
+                tool_name = tool_info.get("name", "")
+            except AttributeError:
+                pass
+        else:
+            tool_name = _get_attr(tool_input, "name", "") or ""
+            tool_id = _get_attr(tool_input, "id", "") or ""
+            tool_args = json.dumps(_get_attr(tool_input, "args", {}) or {}, separators=(",", ":"))
+        return tool_name, tool_id, tool_args
+    
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
         llm_output = getattr(result, "llm_output", {})

@@ -226,13 +226,13 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
-        filtered_tool_input = tool_input
-        if isinstance(tool_input, dict):
-            filtered_tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
+        if isinstance(tool_input, str):
+            tool_input = json.loads(tool_input)
+        tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, json.dumps(filtered_tool_input), "function", span),
+            (tool_name, json.dumps(tool_input), "function", span),
         )
 
     def _tag_agent_manifest(self, span, agent):
