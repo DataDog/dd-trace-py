@@ -28,7 +28,7 @@ config._add(
 )
 
 
-def get_version():
+def get_version() -> str:
     # type: () -> str
     return getattr(redis, "__version__", "")
 

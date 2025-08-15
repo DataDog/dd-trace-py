@@ -17,6 +17,7 @@ from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
+from ddtrace._trace.utils_redis import _set_span_tags
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -777,6 +778,11 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, instance, cmd_string):
+    pass
+    # _set_span_tags(ctx.span, pin, config_integration, None, instance, cmd_string)
+
+
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
@@ -918,6 +924,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
@@ -974,6 +981,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "redis.execute_pipeline",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
