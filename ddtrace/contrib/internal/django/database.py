@@ -88,7 +88,7 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
     # Don't double wrap Django database cursors:
     #   If the underlying cursor is already wrapped (e.g. by another library),
     #   we just add the Django tags to the existing Pin (if any) and return
-    if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_add_django_database_spans:
+    if isinstance(cursor.cursor, wrapt.ObjectProxy) and not config_django.always_create_database_spans:
         instance = args[0]
         tags = {
             "django.db.vendor": getattr(instance, "vendor", "db"),
@@ -107,7 +107,7 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         return cursor
 
     # Always wrap Django database cursors:
-    #   If the underlying cursor is not already wrapped, or if `always_add_django_database_spans`
+    #   If the underlying cursor is not already wrapped, or if `always_create_database_spans`
     #   is set to True, we wrap the underlying cursor with our TracedCursor class
     #
     #   This allows us to get Database spans for any query executed where we don't

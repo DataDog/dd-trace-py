@@ -14,7 +14,7 @@ class DjangoSimple(bm.Scenario):
     django_instrument_middleware: bool
     django_instrument_caches: bool
     django_instrument_databases: bool
-    always_add_django_database_spans: bool
+    always_create_database_spans: bool
     django_instrument_templates: bool
 
     def run(self):
@@ -22,7 +22,7 @@ class DjangoSimple(bm.Scenario):
         os.environ["DD_DJANGO_INSTRUMENT_MIDDLEWARE"] = "1" if self.django_instrument_middleware else "0"
         os.environ["DD_DJANGO_INSTRUMENT_CACHES"] = "1" if self.django_instrument_caches else "0"
         os.environ["DD_DJANGO_INSTRUMENT_DATABASES"] = "1" if self.django_instrument_databases else "0"
-        os.environ["DD_DJANGO_ALWAYS_ADD_DATABASE_SPANS"] = "1" if self.always_add_django_database_spans else "0"
+        os.environ["DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS"] = "1" if self.always_create_database_spans else "0"
         os.environ["DD_DJANGO_INSTRUMENT_TEMPLATES"] = "1" if self.django_instrument_templates else "0"
 
         if self.profiler_enabled:
