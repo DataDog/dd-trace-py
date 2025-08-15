@@ -71,6 +71,8 @@ jobs:
       CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
         mkdir -p ./debugwheelhouse &&
         python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
+        cp -r ./debugwheelhouse {dest_dir} &&
+        rm -rf ./debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
         unzip -l {wheel} | grep '\.so' &&
@@ -106,6 +108,8 @@ jobs:
         uses: pypa/cibuildwheel@faf86a6ed7efa889faf6996aa23820831055001a # v2.23.3
         with:
           only: ${{ matrix.only }}
+
+
 
       - name: Validate wheel RECORD files
         shell: bash
