@@ -42,10 +42,10 @@ static PyMethodDef AspectsMethods[] = {
 };
 
 static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
-                                      .m_name = PY_MODULE_NAME_ASPECTS,
-                                      .m_doc = "Taint tracking Aspects",
-                                      .m_size = -1,
-                                      .m_methods = AspectsMethods };
+                                                            .m_name = PY_MODULE_NAME_ASPECTS,
+                                                            .m_doc = "Taint tracking Aspects",
+                                                            .m_size = -1,
+                                                            .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
@@ -54,10 +54,10 @@ static PyMethodDef OpsMethods[] = {
 };
 
 static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
-                                  .m_name = PY_MODULE_NAME_ASPECTS,
-                                  .m_doc = "Taint tracking operations",
-                                  .m_size = -1,
-                                  .m_methods = OpsMethods };
+                                                        .m_name = PY_MODULE_NAME_ASPECTS,
+                                                        .m_doc = "Taint tracking operations",
+                                                        .m_size = -1,
+                                                        .m_methods = OpsMethods };
 
 /**
  * This function initializes the native module.
