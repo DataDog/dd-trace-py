@@ -373,7 +373,7 @@ def openai_set_meta_tags_from_chat(
                         (
                             tool_id,
                             tool_name,
-                            tool_args,
+                            json.dumps(json.loads(tool_args), separators=(",", ":")),
                             {
                                 "trace_id": format_trace_id(span.trace_id),
                                 "span_id": str(span.span_id),
@@ -415,7 +415,7 @@ def openai_set_meta_tags_from_chat(
                 (
                     tool_id,
                     tool_name,
-                    tool_args,
+                    json.dumps(json.loads(tool_args), separators=(",", ":")),
                     {
                         "trace_id": format_trace_id(span.trace_id),
                         "span_id": str(span.span_id),
@@ -459,7 +459,7 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
                 (
                     tool_name + tool_input,
                     tool_name,
-                    tool_input,
+                    json.dumps(json.loads(tool_input), separators=(",", ":")),
                     {
                         "trace_id": format_trace_id(span.trace_id),
                         "span_id": str(span.span_id),

@@ -1,0 +1,125 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": null, "role": "assistant", "tool_calls": [{"type":
+      "function", "id": "call_rfY2nL9RIguD7uPr9sCeTZ3y", "function": {"name": "multiply",
+      "arguments": "{\"first_int\": 4, \"second_int\": 23}"}}]}, {"content": "92",
+      "role": "tool", "tool_call_id": "call_rfY2nL9RIguD7uPr9sCeTZ3y"}], "model":
+      "gpt-3.5-turbo", "n": 1, "stream": false, "temperature": 0.7, "tools": [{"type":
+      "function", "function": {"name": "multiply", "description": "multiply(first_int:
+      int, second_int: int) -> int - Multiply two integers together.", "parameters":
+      {"type": "object", "properties": {"first_int": {"type": "integer"}, "second_int":
+      {"type": "integer"}}, "required": ["first_int", "second_int"]}}}]}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '703'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.15
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-C4psueYUiedIbeB2GDzo7nEBX25Bj\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755268792,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"The result of multiplying 4 and 23
+        is 92.\",\n        \"refusal\": null,\n        \"annotations\": []\n      },\n
+        \     \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n    }\n  ],\n
+        \ \"usage\": {\n    \"prompt_tokens\": 85,\n    \"completion_tokens\": 14,\n
+        \   \"total_tokens\": 99,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 96f9719ed9e9d67c-IAD
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Fri, 15 Aug 2025 14:39:52 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=6jaBODn4TMq5RG0STOk4IvzEK6z3KH4OgY0W704ASTM-1755268792-1.0.1.1-GP1ou4EbYs.NWHe5wvisqr.zBBBZ7Ugx73t5F8mv8HT8LIeiyeBce7FmhcH_BiPfBbnPwuhjQQQh50kDgiIVF.ECYQEQoZ.wUunLphmKFmI;
+        path=/; expires=Fri, 15-Aug-25 15:09:52 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=EmXu_11ZDrp_Ee8SWc6YSjrLx5cfGgn45sMvHJTRDKU-1755268792920-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '642'
+      openai-project:
+      - proj_6cMiry5CHgK3zKotG0LtMb9H
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '675'
+      x-ratelimit-limit-requests:
+      - '15000'
+      x-ratelimit-limit-tokens:
+      - '2000000'
+      x-ratelimit-remaining-requests:
+      - '14999'
+      x-ratelimit-remaining-tokens:
+      - '1999996'
+      x-ratelimit-reset-requests:
+      - 4ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_7541fb12b7a341fc8d26f3858a00b52d
+    status:
+      code: 200
+      message: OK
+version: 1

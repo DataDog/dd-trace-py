@@ -692,8 +692,8 @@ class LangChainIntegration(BaseLLMIntegration):
             tool_info = tool_inputs.get("info", {})
             tool_name = tool_info.get("name") or ""
             tool_input = tool_inputs.get("input", {})
-            tool_id = tool_input.get("id") if isinstance(tool_input, dict) else None
-            core.dispatch(DISPATCH_ON_TOOL_CALL, (tool_name, tool_input, "function", span, tool_id))
+            tool_id = tool_input.get("id")
+            core.dispatch(DISPATCH_ON_TOOL_CALL, (tool_name, json.dumps(tool_input, separators=(",", ":")), "function", span, tool_id))
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
