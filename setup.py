@@ -961,8 +961,6 @@ setup(
         "ddtrace.internal.datadog.profiling": (
             ["libdd_wrapper*.*"] + ["ddtrace/internal/datadog/profiling/test/*"] if BUILD_PROFILING_NATIVE_TESTS else []
         ),
-        # Include debug files for native extensions
-        **({"": ["*.debug", "*.dSYM/*"]}),
     },
     zip_safe=False,
     # enum34 is an enum backport for earlier versions of python
