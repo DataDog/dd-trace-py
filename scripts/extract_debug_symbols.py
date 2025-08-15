@@ -109,8 +109,9 @@ def process_so_file_from_wheel(so_filename: str, so_content: bytes, temp_dir: st
     Returns:
         Path to the created debug symbol file, or None if no debug symbols were created
     """
-    # Create a temporary file for the .so to process it
-    so_path = os.path.join(temp_dir, os.path.basename(so_filename))
+    # Create a temporary file for the .so to process it, preserving directory structure
+    so_path = os.path.join(temp_dir, so_filename)
+    os.makedirs(os.path.dirname(so_path), exist_ok=True)
     with open(so_path, "wb") as f:
         f.write(so_content)
 
@@ -127,7 +128,7 @@ def process_so_file_from_wheel(so_filename: str, so_content: bytes, temp_dir: st
         return None
 
 
-def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output_dir: str) -> str:
+def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output_dir: str, temp_dir: str) -> str:
     """Create a separate debug symbols package."""
     wheel_name = Path(wheel_path).stem
     debug_package_name = f"{wheel_name}-debug-symbols.zip"
@@ -136,9 +137,10 @@ def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output
     with zipfile.ZipFile(debug_package_path, "w", zipfile.ZIP_DEFLATED) as debug_zip:
         for debug_file in debug_files:
             if os.path.exists(debug_file):
-                # Add the debug file to the zip with a relative path
-                arcname = os.path.basename(debug_file)
-                debug_zip.write(debug_file, arcname)
+                # Add the debug file to the zip, preserving directory structure
+                # The debug_file path is relative to temp_dir, so we need to extract the relative path
+                rel_path = os.path.relpath(debug_file, temp_dir)
+                debug_zip.write(debug_file, rel_path)
 
     print(f"Created debug symbols package: {debug_package_path}")
     return debug_package_path
@@ -154,9 +156,8 @@ def update_wheel_with_stripped_so_files(wheel_path: str, temp_dir: str):
     ) as temp_wheel:
         for file_info in source_wheel.infolist():
             if file_info.filename.endswith(".so"):
-                # Replace with stripped version
-                so_basename = os.path.basename(file_info.filename)
-                stripped_so_path = os.path.join(temp_dir, so_basename)
+                # Replace with stripped version, preserving directory structure
+                stripped_so_path = os.path.join(temp_dir, file_info.filename)
                 if os.path.exists(stripped_so_path):
                     with open(stripped_so_path, "rb") as f:
                         temp_wheel.writestr(file_info.filename, f.read())
@@ -204,7 +205,7 @@ def process_wheel(wheel_path: str, output_dir: Optional[str] = None) -> Optional
             return None
 
         # Create debug symbols package
-        debug_package_path = create_debug_symbols_package(wheel_path, debug_files, output_dir)
+        debug_package_path = create_debug_symbols_package(wheel_path, debug_files, output_dir, temp_dir)
 
         # Update wheel with stripped .so files
         update_wheel_with_stripped_so_files(wheel_path, temp_dir)
