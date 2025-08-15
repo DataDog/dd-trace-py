@@ -558,6 +558,11 @@ class LLMObs(Service):
 
         # FIXME: workaround to prevent noisy logs when using the experiments feature
         if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
+            log.debug(
+                "Tracing has been disabled: app key detected and DD_TRACE_ENABLED is not set to 'true' "
+                "(current value: DD_TRACE_ENABLED='%s')",
+                os.environ.get("DD_TRACE_ENABLED", ""),
+            )
             ddtrace.tracer.enabled = False
 
         error = None
