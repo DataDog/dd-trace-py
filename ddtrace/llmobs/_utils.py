@@ -234,6 +234,15 @@ def load_data_value(value):
             return json.loads(value_str)
         except json.JSONDecodeError:
             return value_str
+    
+
+def format_tool_call_arguments(tool_args: str) -> str:
+    """
+    Format tool call arguments as a JSON string with no unnecessary whitespace.
+
+    This is used to ensure that tool call arguments are properly formatted for span linking purposes.
+    """
+    return json.dumps(json.loads(tool_args), separators=(",", ":"))
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
@@ -294,17 +303,18 @@ class ToolCallTracker:
         We make the assumption that there is only one ongoing tool call per (tool_name, arguments) pair possible.
         This is to avoid some issues with parsing tool calls from ReAct agents which format tool calls as plain text.
         """
-        if self._lookup_tool_id.get((tool_name, arguments)):
+        formatted_arguments = format_tool_call_arguments(arguments)
+        if self._lookup_tool_id.get((tool_name, formatted_arguments)):
             return
 
         tool_call = TrackedToolCall(
             tool_id=tool_id,
             tool_name=tool_name,
-            arguments=arguments,
+            arguments=formatted_arguments,
             llm_span_context=llm_span_context,
         )
         self._tool_calls[tool_id] = tool_call
-        self._lookup_tool_id[(tool_name, arguments)] = tool_id
+        self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
     def on_tool_call(
         self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
@@ -317,7 +327,8 @@ class ToolCallTracker:
         If possible, we use the tool_id provided to lookup the tool call; otherwise, we perform a best effort
         lookup based on the tool_name and tool_arg.
         """
-        tool_id = tool_id or self._lookup_tool_id.get((tool_name, tool_arg))
+        formatted_tool_arg = format_tool_call_arguments(tool_arg)
+        tool_id = tool_id or self._lookup_tool_id.get((tool_name, formatted_tool_arg))
         if not tool_id:
             return
         tool_call = self._tool_calls.get(tool_id)
@@ -335,7 +346,7 @@ class ToolCallTracker:
             "trace_id": format_trace_id(tool_span.trace_id),
         }
         self._tool_calls[tool_id].tool_kind = tool_kind
-        self._lookup_tool_id.pop((tool_name, tool_arg), None)
+        self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
         """

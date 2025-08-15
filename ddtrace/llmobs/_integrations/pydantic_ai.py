@@ -123,7 +123,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_input: Any = {}
         if tool_call:
             tool_name = getattr(tool_call, "tool_name", "")
-            tool_input = getattr(tool_call, "args", {})
+            tool_input = getattr(tool_call, "args", "")
         tool_def = getattr(tool_instance, "tool_def", None)
         tool_description = (
             getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")

@@ -227,7 +227,7 @@ class CrewAIIntegration(BaseLLMIntegration):
         span._set_ctx_item(OUTPUT_VALUE, response)
 
         filtered_tool_input = tool_input
-        if isinstance(tool_input, dict) and "security_context" in tool_input:
+        if isinstance(tool_input, dict):
             filtered_tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
 
         core.dispatch(
