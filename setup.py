@@ -932,6 +932,9 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+        native_features.append("crashtracker")
+    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
+        native_features.append("profiling")
         ext_modules.append(
             CMakeExtension(
                 "ddtrace.internal.datadog.profiling.ddup._ddup",
