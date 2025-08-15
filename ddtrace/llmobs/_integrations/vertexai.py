@@ -185,19 +185,13 @@ class VertexAIIntegration(BaseLLMIntegration):
         tool_set.update(arg_tools)  # tools can be passed into model or generation call
         tool_definitions = []
         for tool in tool_set:
-            raw_tool = _get_attr(tool, "_raw_tool", None)
-            if raw_tool:
-                function_declarations = _get_attr(raw_tool, "function_declarations", [])
-                for function in function_declarations:
-                    schema = _get_attr(function, "parameters", {})
-                    if hasattr(schema, "to_dict"):
-                        schema = schema.to_dict()
-                    else:
-                        schema = {"value": repr(schema)}
-                    tool_definition_info = {
-                        "name": _get_attr(function, "name", ""),
-                        "description": _get_attr(function, "description", ""),
-                        "schema": schema,
-                    }
-                    tool_definitions.append(tool_definition_info)
+            tool_dict = tool.to_dict()
+            function_declarations = _get_attr(tool_dict, "function_declarations", [])
+            for function in function_declarations:
+                tool_definition_info = {
+                    "name": _get_attr(function, "name", "") or "",
+                    "description": _get_attr(function, "description", "") or "",
+                    "schema": _get_attr(function, "parameters", {}) or {},
+                }
+                tool_definitions.append(tool_definition_info)
         return tool_definitions
