@@ -30,7 +30,7 @@ class _EncoderBase(object):
     Encoder interface that provides the logic to encode traces and service.
     """
 
-    def encode_traces(self, traces: "List[List[Span]]") -> "Union[str, Tuple[str, int]]":
+    def encode_traces(self, traces: List[List[Span]]) -> Union[str, Tuple[str, int]]:
         """
         Encodes a list of traces, expecting a list of items where each items
         is a list of spans. Before dumping the string in a serialized format all
