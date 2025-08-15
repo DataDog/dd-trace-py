@@ -4,7 +4,7 @@ Debug Symbols Packaging
 dd-trace-py is built with debug symbols by default, and packaged separately from the main wheel files to reduce the size of the primary distribution packages.
 
 Debug Symbol Files
------------------
+------------------
 
 The project generates debug symbols during the build process:
 
@@ -22,7 +22,7 @@ For example:
 - `ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64.whl` → `ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64-debug-symbols.zip`
 
 Build Process
-------------
+-------------
 
 The debug symbols are handled automatically during the CI build process:
 
@@ -37,23 +37,6 @@ Usage
 To use debug symbols for debugging or crash analysis:
 
 1. Download the appropriate debug symbol package for your platform and Python version
-2. Extract the debug symbol files to the same directory as the corresponding `.so` files
+2. Extract the debug symbol files to the same directory as the corresponding `.so` files.
+   Typically, the site-packages directory where ddtrace is installed.
 3. Your debugger or crash analysis tool should automatically find the debug symbols
-
-For example, on Linux:
-```bash
-# Extract debug symbols
-unzip ddtrace-1.20.0-cp39-cp39-linux_x86_64-debug-symbols.zip
-
-# Debug symbols will be placed in the same directory structure as the wheel
-# The debugger will automatically find them when analyzing crashes
-```
-
-On macOS:
-```bash
-# Extract debug symbols
-unzip ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64-debug-symbols.zip
-
-# The .dSYM bundles will be placed in the same directory structure
-# Xcode and other debugging tools will automatically find them
-```
