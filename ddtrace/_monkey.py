@@ -259,8 +259,9 @@ def check_module_compatibility(
     return
 
 
-def _on_import_factory(module, path_f, raise_errors=True, patch_indicator=True):
-    # type: (str, str, bool, Union[bool, List[str]]) -> Callable[[Any], None]
+def _on_import_factory(
+    module: str, path_f: str, raise_errors: bool = True, patch_indicator: Union[bool, List[str]] = True
+) -> Callable[[Any], None]:
     """Factory to create an import hook for the provided module name"""
 
     def on_import(hook):
@@ -362,8 +363,7 @@ def _patch_all(**patch_modules: bool) -> None:
     load_common_appsec_modules()
 
 
-def patch(raise_errors=True, **patch_modules):
-    # type: (bool, Union[List[str], bool]) -> None
+def patch(raise_errors: bool = True, **patch_modules: Union[List[str], bool]) -> None:
     """Patch only a set of given modules.
 
     :param bool raise_errors: Raise error if one patch fail.

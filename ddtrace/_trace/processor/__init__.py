@@ -41,18 +41,14 @@ log = get_logger(__name__)
 
 class TraceProcessor(metaclass=abc.ABCMeta):
     def __init__(self) -> None:
-        """Default post initializer which logs the representation of the
-        TraceProcessor at the ``logging.DEBUG`` level.
+        """TraceFilter/TraceProcessor is used to filter/skip traces.
+        All implementations must inherit from this base class.
         """
         pass
 
     @abc.abstractmethod
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
-        """Processes a trace.
-
-        ``None`` can be returned to prevent the trace from being further
-        processed.
-        """
+    def process_trace(self, trace: "List[Span]") -> "Optional[List[Span]]":
+        """returns a modified list of spans or None to drop the trace."""
         pass
 
 

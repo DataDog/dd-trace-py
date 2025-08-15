@@ -19,8 +19,9 @@ from ddtrace.settings._core import DDConfig
 logger = get_logger(__name__)
 
 
-def _derive_default_heap_sample_size(heap_config, default_heap_sample_size=1024 * 1024):
-    # type: (ProfilingConfigHeap, int) -> int
+def _derive_default_heap_sample_size(
+    heap_config: "ProfilingConfigHeap", default_heap_sample_size: int = 1024 * 1024
+) -> int:
     heap_sample_size = heap_config._sample_size
     if heap_sample_size is not None:
         return heap_sample_size

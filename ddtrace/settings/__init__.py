@@ -1,9 +1,11 @@
+from typing import Any
+
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 
 from ..vendor.debtcollector import deprecate
 
 
-def __getattr__(name):
+def __getattr__(name: str) -> Any:
     if name in set(
         [
             "ConfigException",

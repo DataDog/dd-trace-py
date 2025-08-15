@@ -73,8 +73,7 @@ class CGroupInfo:
         )
 
     @classmethod
-    def from_line(cls, line):
-        # type: (str) -> Optional[CGroupInfo]
+    def from_line(cls, line: str) -> Optional["CGroupInfo"]:
         """
         Parse a new :class:`CGroupInfo` from the provided line
 
@@ -134,7 +133,7 @@ class CGroupInfo:
 
 
 @lru_cache(64)
-def get_container_info(pid: Union[Literal["self"], int] = "self") -> Optional[CGroupInfo]:
+def get_container_info(pid: Union[Literal["self"], int] = "self") -> Optional["CGroupInfo"]:
     """
     Helper to fetch the current container id, if we are running in a container.
 

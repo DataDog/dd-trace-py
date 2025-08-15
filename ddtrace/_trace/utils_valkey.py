@@ -25,7 +25,7 @@ format_command_args = stringify_cache_args
 
 def _set_span_tags(
     span, pin, config_integration, args: Optional[List], instance, query: Optional[List], is_cluster: bool = False
-):
+) -> None:  # Skip complex typing for span, pin, config_integration, instance to avoid third-party dependencies
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
     span.set_tag_str(COMPONENT, config_integration.integration_name)
     span.set_tag_str(db.SYSTEM, valkeyx.APP)

@@ -66,6 +66,7 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 from abc import ABC
 from abc import abstractmethod
 from typing import TYPE_CHECKING  # noqa:F401
+from typing import Optional  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
@@ -82,27 +83,42 @@ log = get_logger(__name__)
 
 
 class PubSub(ABC):
-    _shared_data = None  # type: PublisherSubscriberConnector
-    _publisher = None  # type: RemoteConfigPublisherBase
-    _subscriber = None  # type: RemoteConfigSubscriber
+    _shared_data: Optional[PublisherSubscriberConnector] = None
+    _publisher: Optional[RemoteConfigPublisherBase] = None
+    _subscriber: Optional[RemoteConfigSubscriber] = None
 
     @abstractmethod
     def __init__(self, *args, **kwargs) -> None:
         pass
 
     def start_subscriber(self):
+        if self._subscriber is None:
+            log.warning("Subscriber is not initialized")
+            return
         self._subscriber.start()
 
     def restart_subscriber(self, join=False):
+        if self._subscriber is None:
+            log.warning("Subscriber is not initialized")
+            return
         self._subscriber.force_restart(join)
 
     def _poll_data(self) -> None:
+        if self._subscriber is None:
+            log.warning("Subscriber is not initialized")
+            return
         self._subscriber._get_data_from_connector_and_exec()
 
     def stop(self, join: bool = False) -> None:
+        if self._subscriber is None:
+            log.warning("Subscriber is not initialized")
+            return
         self._subscriber.stop(join=join)
 
     def publish(self) -> None:
+        if self._publisher is None:
+            log.warning("Publisher is not initialized")
+            return
         self._publisher.dispatch(self)
 
     def append_and_publish(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
@@ -111,4 +127,7 @@ class PubSub(ABC):
         self.publish()
 
     def append(self, config_content: PayloadType, target: str, config_metadata: ConfigMetadata) -> None:
+        if self._publisher is None:
+            log.warning("Publisher is not initialized")
+            return
         self._publisher.append(config_content, target, config_metadata)

@@ -72,8 +72,7 @@ def set_argument_value(
     return args, kwargs
 
 
-def _get_metas_to_propagate(context):
-    # type: (Any) -> List[Tuple[str, str]]
+def _get_metas_to_propagate(context: Any) -> List[Tuple[str, str]]:
     metas_to_propagate = []
     # copying context._meta.items() to avoid RuntimeError: dictionary changed size during iteration
     for k, v in list(context._meta.items()):

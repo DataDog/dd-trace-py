@@ -726,7 +726,7 @@ class CIVisibility(Service):
 
     def _set_global_span_forwarder(self, span_forwarder: Optional[TraceFilter]) -> None:
         log.debug("Setting CI Visibility global span forwarder: %s", span_forwarder)
-        tracer_filters = ddtrace.tracer._span_aggregator.user_processors
+        tracer_filters: List[TraceFilter] = ddtrace.tracer._span_aggregator.user_processors
         tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
         if span_forwarder:
             tracer_filters.append(span_forwarder)

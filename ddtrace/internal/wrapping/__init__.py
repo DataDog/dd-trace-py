@@ -27,8 +27,8 @@ PY = sys.version_info[:2]
 class WrappedFunction(Protocol):
     """A wrapped function."""
 
-    __dd_wrapped__ = None  # type: Optional[FunctionType]
-    __dd_wrappers__ = None  # type: Optional[Dict[Any, Any]]
+    __dd_wrapped__: Optional[FunctionType] = None
+    __dd_wrappers__: Optional[Dict[Any, Any]] = None
 
     def __call__(self, *args, **kwargs):
         pass
@@ -109,8 +109,7 @@ else:
 FIRSTLINENO_OFFSET = int(PY >= (3, 11))
 
 
-def wrap_bytecode(wrapper, wrapped):
-    # type: (Wrapper, FunctionType) -> bc.Bytecode
+def wrap_bytecode(wrapper: Wrapper, wrapped: FunctionType) -> bc.Bytecode:
     """Wrap a function with a wrapper function.
 
     The wrapper function expects the wrapped function as the first argument,
@@ -212,8 +211,7 @@ def wrap_bytecode(wrapper, wrapped):
     return bc.Bytecode(instrs)
 
 
-def wrap(f, wrapper):
-    # type: (FunctionType, Wrapper) -> WrappedFunction
+def wrap(f: FunctionType, wrapper: Wrapper) -> WrappedFunction:
     """Wrap a function with a wrapper.
 
     The wrapper expects the function as first argument, followed by the tuple
@@ -301,8 +299,7 @@ def is_wrapped_with(f: FunctionType, wrapper: Wrapper) -> bool:
         return False
 
 
-def unwrap(wf, wrapper):
-    # type: (WrappedFunction, Wrapper) -> FunctionType
+def unwrap(wf: WrappedFunction, wrapper: Wrapper) -> FunctionType:
     """Unwrap a wrapped function.
 
     This is the reverse of :func:`wrap`. In case of multiple wrapping layers,

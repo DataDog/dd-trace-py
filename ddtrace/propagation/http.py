@@ -846,7 +846,7 @@ class _TraceContext:
         if meta is None:
             meta = {}
         origin = None
-        sampling_priority = trace_flag  # type: int
+        sampling_priority: Optional[int] = trace_flag
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"

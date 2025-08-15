@@ -109,6 +109,7 @@ from typing import Any  # noqa:F401
 from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
+from typing import Set  # noqa:F401
 
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -142,10 +143,10 @@ SPAN_DEPRECATION_MESSAGE = (
 SPAN_DEPRECATION_SUGGESTION = (
     "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
 )
-DEPRECATION_MEMO = set()
+DEPRECATION_MEMO: Set[int] = set()
 
 
-def _deprecate_span_kwarg(span):
+def _deprecate_span_kwarg(span) -> None:  # Skip complex typing to avoid circular imports
     if (
         span is not None
         and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO

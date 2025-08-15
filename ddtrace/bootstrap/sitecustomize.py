@@ -43,8 +43,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
 
 
 def cleanup_loaded_modules():
-    def drop(module_name):
-        # type: (str) -> None
+    def drop(module_name: str) -> None:
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)

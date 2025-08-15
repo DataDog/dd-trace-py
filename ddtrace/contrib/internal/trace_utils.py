@@ -239,8 +239,7 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
-def _sanitized_url(url):
-    # type: (str) -> str
+def _sanitized_url(url: str) -> str:
     """
     Sanitize url by removing parts with potential auth info
     """
@@ -267,7 +266,7 @@ def _sanitized_url(url):
     return url
 
 
-def with_traced_module(func):
+def with_traced_module(func):  # Skip complex typing for higher-order function wrapper
     """Helper for providing tracing essentials (module and pin) for tracing
     wrappers.
 
@@ -286,7 +285,7 @@ def with_traced_module(func):
             wrap(django.somefunc, my_traced_wrapper(django))
     """
 
-    def with_mod(mod):
+    def with_mod(mod):  # Skip complex typing for nested wrapper function
         def wrapper(wrapped, instance, args, kwargs):
             pin = Pin._find(instance, mod)
             if pin and not pin.enabled():
@@ -301,8 +300,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def distributed_tracing_enabled(int_config, default=False):
-    # type: (IntegrationConfig, bool) -> bool
+def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled

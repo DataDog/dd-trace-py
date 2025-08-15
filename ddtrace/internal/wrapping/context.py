@@ -414,9 +414,9 @@ class WrappingContext(BaseWrappingContext):
 class ContextWrappedFunction(Protocol):
     """A wrapped function."""
 
-    __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
+    __dd_context_wrapped__: t.Optional["_UniversalWrappingContext"] = None
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 

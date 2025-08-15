@@ -20,7 +20,7 @@ from ddtrace.internal.logger import get_logger
 log = get_logger(__name__)
 
 
-def _boto3_dynamodb_types_TypeSerializer_serialize(value):
+def _boto3_dynamodb_types_TypeSerializer_serialize(value):  # Skip typing to avoid boto3 dependencies
     # We need this serializer for some of the code below, but we don't want to
     # import boto3 things at the top level of this module since not everyone
     # who is using ddtrace also needs boto3. Any code that actually does reach
