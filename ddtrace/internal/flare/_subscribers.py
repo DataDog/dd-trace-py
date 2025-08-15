@@ -1,12 +1,12 @@
 from datetime import datetime
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Callable
+from typing import Optional
 
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.handler import _generate_tracer_flare
 from ddtrace.internal.flare.handler import _prepare_tracer_flare
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
+from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
 from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 

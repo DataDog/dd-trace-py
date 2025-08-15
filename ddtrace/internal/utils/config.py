@@ -1,6 +1,6 @@
 import os
 import sys
-import typing  # noqa:F401
+import typing
 
 
 def get_application_name() -> typing.Optional[str]:

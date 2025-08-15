@@ -1,12 +1,12 @@
 import sys
-from typing import Any  # noqa:F401
-from typing import Iterator  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Set  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Type  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Iterator
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Type
+from typing import Union
 
 import wrapt
 

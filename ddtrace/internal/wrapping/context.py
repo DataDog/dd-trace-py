@@ -10,7 +10,7 @@ import typing as t
 
 
 try:
-    from typing import Protocol  # noqa:F401
+    from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 

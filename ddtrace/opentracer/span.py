@@ -1,10 +1,10 @@
 import threading
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Text
+from typing import Union
 
 from opentracing import Span as OpenTracingSpan
 from opentracing.ext import tags as OTTags
@@ -12,18 +12,17 @@ from opentracing.ext import tags as OTTags
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
-from ddtrace.internal.compat import NumericType  # noqa:F401
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.constants import SPAN_API_OPENTRACING
-from ddtrace.trace import Context as DatadogContext  # noqa:F401
+from ddtrace.trace import Context as DatadogContext
 from ddtrace.trace import Span as DatadogSpan
 
 from .span_context import SpanContext
 from .tags import Tags
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Tracer  # noqa:F401
-
+if TYPE_CHECKING:
+    from ddtrace.opentracer import Tracer
 
 _TagNameType = Union[Text, bytes]
 

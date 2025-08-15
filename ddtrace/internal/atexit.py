@@ -8,7 +8,6 @@ import atexit
 import logging
 import signal
 import threading
-import typing  # noqa:F401
 
 from ddtrace.internal.utils import signals
 

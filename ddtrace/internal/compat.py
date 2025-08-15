@@ -2,11 +2,10 @@ import ipaddress
 import sys
 from types import TracebackType
 from typing import Any
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Type  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Optional
+from typing import Tuple
+from typing import Type
+from typing import Union
 
 
 __all__ = [

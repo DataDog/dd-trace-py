@@ -1,15 +1,15 @@
 import sys
 from types import FunctionType
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import cast  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import cast
 
 
 try:
-    from typing import Protocol  # noqa:F401
+    from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 

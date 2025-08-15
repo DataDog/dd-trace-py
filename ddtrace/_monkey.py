@@ -1,7 +1,9 @@
 import importlib
 import os
 from types import ModuleType
-from typing import TYPE_CHECKING  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import List
 from typing import Set
 from typing import Union
 
@@ -19,12 +21,6 @@ from .internal import telemetry
 from .internal.logger import get_logger
 from .internal.utils import formats
 from .internal.utils.deprecations import DDTraceDeprecationWarning  # noqa: E402
-
-
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Callable  # noqa:F401
-    from typing import List  # noqa:F401
 
 
 log = get_logger(__name__)

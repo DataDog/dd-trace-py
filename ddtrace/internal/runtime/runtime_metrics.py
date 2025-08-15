@@ -1,8 +1,8 @@
 import itertools
 import os
-from typing import ClassVar  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import ClassVar
+from typing import List
+from typing import Optional
 
 import ddtrace
 from ddtrace.internal import atexit

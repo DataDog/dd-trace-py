@@ -1,4 +1,4 @@
-from opentracing import ScopeManager  # noqa:F401
+from opentracing import ScopeManager
 
 from ddtrace._trace.provider import BaseContextProvider
 from ddtrace._trace.provider import DefaultContextProvider

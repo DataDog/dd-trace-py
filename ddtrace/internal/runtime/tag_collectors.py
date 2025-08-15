@@ -1,5 +1,5 @@
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import List
+from typing import Tuple
 
 from ddtrace.internal.runtime import get_runtime_id
 

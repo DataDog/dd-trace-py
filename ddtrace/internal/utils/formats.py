@@ -1,14 +1,13 @@
 import logging
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import TypeVar  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Text
+from typing import TypeVar
+from typing import Union
 
-from ddtrace.internal.constants import MAX_UINT_64BITS  # noqa:F401
+from ddtrace.internal.constants import MAX_UINT_64BITS
 
 from ..compat import ensure_text
 

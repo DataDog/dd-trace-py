@@ -1,13 +1,17 @@
 import json
 from typing import TYPE_CHECKING
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import Union
 
-from ..settings._agent import config as agent_config  # noqa:F401
+
+if TYPE_CHECKING:
+    from ddtrace._trace.span import Span
+
+from ..settings._agent import config
 from ._encoding import ListStringTable
 from ._encoding import MsgpackEncoderV04
 from ._encoding import MsgpackEncoderV05
@@ -17,9 +21,6 @@ from .logger import get_logger
 
 __all__ = ["MsgpackEncoderV04", "MsgpackEncoderV05", "ListStringTable", "MSGPACK_ENCODERS"]
 
-
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace._trace.span import Span  # noqa:F401
 
 log = get_logger(__name__)
 
@@ -85,7 +86,7 @@ class _EncoderBase(object):
         if span._links:
             d["span_links"] = [link.to_dict() for link in span._links]
 
-        if span._events and agent_config.trace_native_span_events:
+        if span._events and config.trace_native_span_events:
             d["span_events"] = [dict(event) for event in span._events]
 
         return d

@@ -1,6 +1,6 @@
 import abc
 import enum
-import typing  # noqa:F401
+import typing
 
 from . import forksafe
 

@@ -1,7 +1,7 @@
 import time as builtin_time
 from types import TracebackType
 from typing import Optional
-from typing import Type  # noqa:F401
+from typing import Type
 
 from ddtrace.internal.logger import get_logger
 

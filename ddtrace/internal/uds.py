@@ -1,6 +1,6 @@
 import http.client as httplib
 import socket
-from typing import Any  # noqa:F401
+from typing import Any
 
 from .http import HTTPConnectionMixin
 

@@ -5,10 +5,10 @@ from dataclasses import field
 import random
 import threading
 import time
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Union
 
 
 class RateLimiter(object):

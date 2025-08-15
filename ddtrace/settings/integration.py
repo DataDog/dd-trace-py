@@ -1,5 +1,5 @@
 import os
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.vendor.debtcollector import deprecate

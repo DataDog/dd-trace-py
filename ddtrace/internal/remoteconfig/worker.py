@@ -1,14 +1,14 @@
 import enum
 import os
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import Set  # noqa:F401
+from typing import Dict
+from typing import Iterable
+from typing import Set
 
 from ddtrace import config as ddconfig
 from ddtrace.internal import agent
 from ddtrace.internal import periodic
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.remoteconfig._pubsub import PubSub  # noqa:F401
+from ddtrace.internal.remoteconfig._pubsub import PubSub
 from ddtrace.internal.remoteconfig.client import RemoteConfigClient
 from ddtrace.internal.remoteconfig.client import config as rc_config
 from ddtrace.internal.remoteconfig.constants import REMOTE_CONFIG_AGENT_ENDPOINT

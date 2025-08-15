@@ -1,21 +1,22 @@
 from contextlib import contextmanager
 from dataclasses import dataclass
 from email.encoders import encode_noop
+import http.client as httplib
 from json import loads
 import logging
 import os
 import re
 from typing import TYPE_CHECKING
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import ContextManager  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Generator  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Pattern  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import ContextManager
+from typing import Dict
+from typing import Generator
+from typing import List
+from typing import Optional
+from typing import Pattern
+from typing import Tuple
+from typing import Union
 from urllib import parse
 
 from ddtrace.constants import _USER_ID_KEY
@@ -27,21 +28,20 @@ from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_ORIGIN_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_PARENT_ID_KEY
 from ddtrace.internal.constants import W3C_TRACESTATE_SAMPLING_PRIORITY_KEY
+from ddtrace.internal.http import HTTPConnection
+from ddtrace.internal.http import HTTPSConnection
+from ddtrace.internal.uds import UDSHTTPConnection
 from ddtrace.internal.utils import _get_metas_to_propagate
 from ddtrace.internal.utils.cache import cached
+
+
+if TYPE_CHECKING:
+    from ddtrace._trace.context import Context
 
 
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_VALUE = re.compile(r",|;|~|[^\x20-\x7E]+")
 _W3C_TRACESTATE_INVALID_CHARS_REGEX_KEY = re.compile(r",| |=|[^\x20-\x7E]+")
 
-
-if TYPE_CHECKING:
-    import http.client as httplib
-
-    from ddtrace._trace.context import Context
-    from ddtrace.internal.http import HTTPConnection
-    from ddtrace.internal.http import HTTPSConnection
-    from ddtrace.internal.uds import UDSHTTPConnection
 
 ConnectionType = Union["HTTPSConnection", "HTTPConnection", "UDSHTTPConnection"]
 Connector = Callable[[], ContextManager["httplib.HTTPConnection"]]
@@ -135,8 +135,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     """
 
     @contextmanager
-    def _connector_context():
-        # type: () -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]
+    def _connector_context() -> Generator[Union[httplib.HTTPConnection, httplib.HTTPSConnection], None, None]:
         connection = get_connection(url, **kwargs)
         yield connection
         connection.close()

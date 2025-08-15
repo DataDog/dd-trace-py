@@ -1,4 +1,4 @@
-from typing import Dict  # noqa:F401
+from typing import Dict
 
 from opentracing import InvalidCarrierException
 

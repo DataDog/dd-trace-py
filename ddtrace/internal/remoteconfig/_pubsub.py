@@ -65,25 +65,25 @@ remoteconfig_poller.register("DI_2_PRODUCT", di_callback_2)
 
 from abc import ABC
 from abc import abstractmethod
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.remoteconfig import ConfigMetadata
 from ddtrace.internal.remoteconfig import PayloadType
-from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase  # noqa:F401
-from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber  # noqa:F401
+from ddtrace.internal.remoteconfig._publishers import RemoteConfigPublisherBase
+from ddtrace.internal.remoteconfig._subscribers import RemoteConfigSubscriber
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector  # noqa:F401
-    from ddtrace.trace import Tracer  # noqa:F401
+if TYPE_CHECKING:
+    from ddtrace.internal.remoteconfig._connectors import PublisherSubscriberConnector
+
 
 log = get_logger(__name__)
 
 
 class PubSub(ABC):
-    _shared_data: Optional[PublisherSubscriberConnector] = None
+    _shared_data: Optional["PublisherSubscriberConnector"] = None
     _publisher: Optional[RemoteConfigPublisherBase] = None
     _subscriber: Optional[RemoteConfigSubscriber] = None
 

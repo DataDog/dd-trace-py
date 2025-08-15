@@ -1,14 +1,14 @@
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Union
 from urllib.parse import urlparse
 
 import opentracing
 from opentracing import Format
-from opentracing import Scope  # noqa:F401
-from opentracing import ScopeManager  # noqa:F401
+from opentracing import Scope
+from opentracing import ScopeManager
 from opentracing.scope_managers import ThreadLocalScopeManager
 
 import ddtrace
@@ -17,7 +17,7 @@ from ddtrace.internal.constants import SPAN_API_OPENTRACING
 from ddtrace.internal.utils.config import get_application_name
 from ddtrace.internal.writer import AgentWriterInterface
 from ddtrace.settings.exceptions import ConfigException
-from ddtrace.trace import Context as DatadogContext  # noqa:F401
+from ddtrace.trace import Context as DatadogContext
 from ddtrace.trace import Span as DatadogSpan
 from ddtrace.trace import Tracer as DatadogTracer
 
@@ -263,7 +263,7 @@ class Tracer(opentracing.Tracer):
         ot_parent = None  # 'ot_parent' is more readable than 'child_of'
         ot_parent_context = None  # the parent span's context
         # dd_parent: the child_of to pass to the ddtracer
-        dd_parent = None  # type: Optional[Union[DatadogSpan, DatadogContext]]
+        dd_parent: Optional[Union[DatadogSpan, DatadogContext]] = None
 
         if child_of is not None:
             ot_parent = child_of  # 'ot_parent' is more readable than 'child_of'

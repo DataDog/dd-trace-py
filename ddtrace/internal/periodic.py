@@ -1,6 +1,6 @@
 # -*- encoding: utf-8 -*-
 import atexit
-import typing  # noqa:F401
+import typing
 
 from ddtrace.internal import forksafe
 from ddtrace.internal import service

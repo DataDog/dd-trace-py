@@ -6,14 +6,13 @@ import sys
 import time
 import traceback
 from types import TracebackType
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Set  # noqa:F401
-from typing import Tuple  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
+from typing import Union
 import urllib.parse as parse
 
 from ddtrace.internal.logger import get_logger
@@ -31,7 +30,7 @@ from ..utils.time import StopWatch
 from ..utils.version import version as tracer_version
 from . import modules
 from .constants import TELEMETRY_APM_PRODUCT
-from .constants import TELEMETRY_LOG_LEVEL  # noqa:F401
+from .constants import TELEMETRY_LOG_LEVEL
 from .constants import TELEMETRY_NAMESPACE
 from .constants import TELEMETRY_TYPE_DISTRIBUTION
 from .constants import TELEMETRY_TYPE_GENERATE_METRICS

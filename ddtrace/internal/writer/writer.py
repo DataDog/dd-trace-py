@@ -40,6 +40,7 @@ from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
 from ..utils.formats import parse_tags_str
+from ..utils.http import ConnectionType
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -48,15 +49,9 @@ from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
-    from ddtrace.trace import Span  # noqa:F401
+if TYPE_CHECKING:
+    from ddtrace.trace import Span
     from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from .utils.http import ConnectionType  # noqa:F401
-
 
 log = get_logger(__name__)
 

@@ -1,5 +1,5 @@
-from typing import Optional  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Optional
+from typing import Tuple
 
 import ddtrace.vendor.packaging.version as packaging_version
 from ddtrace.version import get_version

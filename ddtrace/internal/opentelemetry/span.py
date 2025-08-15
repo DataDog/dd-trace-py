@@ -1,6 +1,8 @@
 from time import time_ns
 import traceback
-from typing import TYPE_CHECKING
+from typing import Mapping
+from typing import Optional
+from typing import Union
 
 from opentelemetry.trace import Span as OtelSpan
 from opentelemetry.trace import SpanContext
@@ -9,12 +11,16 @@ from opentelemetry.trace import Status
 from opentelemetry.trace import StatusCode
 from opentelemetry.trace.span import TraceFlags
 from opentelemetry.trace.span import TraceState
+from opentelemetry.util.types import Attributes
+from opentelemetry.util.types import AttributeValue
 
 from ddtrace import config
+from ddtrace._trace.span import Span as DDSpan
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
+from ddtrace.internal.compat import NumericType
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import flatten_key_value
 from ddtrace.internal.utils.formats import is_sequence
@@ -22,22 +28,10 @@ from ddtrace.internal.utils.http import w3c_tracestate_add_p
 from ddtrace.trace import tracer as ddtracer
 
 
-if TYPE_CHECKING:
-    from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Union  # noqa:F401
-
-    from opentelemetry.util.types import Attributes  # noqa:F401
-    from opentelemetry.util.types import AttributeValue  # noqa:F401
-
-    from ddtrace._trace.span import Span as DDSpan  # noqa:F401
-    from ddtrace.internal.compat import NumericType  # noqa:F401
-
-
 log = get_logger(__name__)
 
 
-def _ddmap(span: "DDSpan", attribute: str, value: "Union[bytes, NumericType]") -> "DDSpan":
+def _ddmap(span: DDSpan, attribute: str, value: Union[bytes, NumericType]) -> DDSpan:
     if attribute.startswith("meta") or attribute.startswith("metrics"):
         meta_key = attribute.split("'")[1] if len(attribute.split("'")) == 3 else None
         if meta_key:

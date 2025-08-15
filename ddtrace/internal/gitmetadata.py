@@ -1,4 +1,4 @@
-import typing  # noqa:F401
+import typing
 
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA

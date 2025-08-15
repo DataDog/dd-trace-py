@@ -1,11 +1,10 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Tuple
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions

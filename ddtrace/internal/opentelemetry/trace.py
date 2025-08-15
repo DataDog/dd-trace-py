@@ -1,8 +1,14 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import Dict
+from typing import Iterator
+from typing import Mapping
+from typing import Optional
+from typing import Sequence
+from typing import Union
 
 from opentelemetry import version
-from opentelemetry.context import Context as OtelContext  # noqa:F401
+from opentelemetry.context import Context as OtelContext
+from opentelemetry.trace import Link as OtelLink
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -10,28 +16,15 @@ from opentelemetry.trace import use_span
 from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
+from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
 import ddtrace
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import Tracer as DDTracer
 
 from .span import Span
-
-
-if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
-    from typing import Iterator  # noqa:F401
-    from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Sequence  # noqa:F401
-    from typing import Union  # noqa:F401
-
-    from opentelemetry.trace import Link as OtelLink  # noqa:F401
-    from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
-
-    from ddtrace._trace.span import _MetaDictType  # noqa:F401
-    from ddtrace.trace import Tracer as DDTracer  # noqa:F401
 
 
 log = get_logger(__name__)

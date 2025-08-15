@@ -3,10 +3,10 @@ import logging
 import os
 import platform
 import sys
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Union  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import Union
 
 import ddtrace
 from ddtrace.internal.packages import get_distributions
@@ -19,8 +19,8 @@ from ddtrace.settings.asm import config as asm_config
 from .logger import get_logger
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.trace import Tracer  # noqa:F401
+if TYPE_CHECKING:
+    from ddtrace.trace import Tracer
 
 
 logger = get_logger(__name__)

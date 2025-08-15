@@ -4,12 +4,12 @@ from typing import Callable
 from typing import List
 from typing import Optional
 
+from ddtrace.propagation.http import HTTPPropagator
+
 
 if TYPE_CHECKING:
     from ddtrace._trace.context import Context
     from ddtrace._trace.span import Span
-
-from ddtrace.propagation.http import HTTPPropagator
 
 
 def extract_DD_context_from_messages(messages: List[Any], extract_from_message: Callable) -> Optional["Context"]:

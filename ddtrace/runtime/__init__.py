@@ -1,4 +1,4 @@
-from typing import Optional  # noqa:F401
+from typing import Optional
 
 import ddtrace.internal.runtime.runtime_metrics
 from ddtrace.internal.telemetry import telemetry_writer
