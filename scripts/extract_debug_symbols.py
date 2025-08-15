@@ -18,8 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
-from typing import List
-from typing import Tuple
+from typing import List, Tuple, Union, Optional
 import zipfile
 
 
@@ -28,7 +27,7 @@ def get_debug_symbol_patterns():
     return ["*.debug", "*.dSYM/*"]
 
 
-def create_and_strip_debug_symbols(so_file: str) -> str | None:
+def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
     """
     Create debug symbols from a shared object and strip them from the original.
 
@@ -98,7 +97,7 @@ def find_so_files_in_wheel(wheel_path: str) -> List[Tuple[str, bytes]]:
     return so_files
 
 
-def process_so_file_from_wheel(so_filename: str, so_content: bytes, temp_dir: str) -> str | None:
+def process_so_file_from_wheel(so_filename: str, so_content: bytes, temp_dir: str) -> Union[str, None]:
     """
     Process a .so file from a wheel to create debug symbols.
 
@@ -172,7 +171,7 @@ def update_wheel_with_stripped_so_files(wheel_path: str, temp_dir: str):
     print(f"Updated wheel with stripped .so files: {wheel_path}")
 
 
-def process_wheel(wheel_path: str, output_dir: str = None) -> str | None:
+def process_wheel(wheel_path: str, output_dir: Optional[str] = None) -> Optional[str]:
     """Process a single wheel file."""
     if output_dir is None:
         output_dir = os.path.dirname(wheel_path)
