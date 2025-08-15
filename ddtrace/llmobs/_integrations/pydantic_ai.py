@@ -6,10 +6,8 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 
-from ddtrace.contrib.internal.pydantic_ai.patch import get_version
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import AGENT_MANIFEST
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -27,8 +25,6 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
-
-PYDANTIC_AI_VERSION = parse_version(get_version())
 
 # in some cases, PydanticAI uses a different provider name than what we expect
 PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
@@ -122,8 +118,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        arg_name = "call" if PYDANTIC_AI_VERSION >= (0, 4, 4) else "message"
-        tool_call = get_argument_value(args, kwargs, 0, arg_name, optional=True)
+        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(args, kwargs, 0, "message", optional=True)
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         tool_id = ""
