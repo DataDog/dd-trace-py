@@ -99,12 +99,11 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         # TODO: Can we get this without the use of Pin?
         pin = Pin.get_from(cursor.cursor)
         if pin:
-            pin = pin.clone()
             pin.tags.update(tags)
         else:
             pin = Pin(tags=tags)
+            pin.onto(cursor.cursor)
         pin._tracer = config_django._tracer or ddtrace.tracer
-        pin.onto(cursor.cursor)
         return cursor
 
     # Always wrap Django database cursors:
