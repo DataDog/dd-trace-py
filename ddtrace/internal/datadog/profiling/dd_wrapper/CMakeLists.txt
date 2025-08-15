@@ -122,12 +122,6 @@ if(LIB_INSTALL_DIR)
         LIBRARY DESTINATION ${LIB_INSTALL_DIR}/..
         ARCHIVE DESTINATION ${LIB_INSTALL_DIR}/..
         RUNTIME DESTINATION ${LIB_INSTALL_DIR}/..)
-
-    # Install debug files if they exist (created by objcopy)
-    install(
-        FILES $<TARGET_FILE:dd_wrapper>.debug
-        DESTINATION ${LIB_INSTALL_DIR}/..
-        OPTIONAL)
 endif()
 
 # Configure cppcheck
@@ -144,24 +138,6 @@ add_cppcheck_target(
 # Static analysis
 add_infer_target(dd_wrapper)
 add_clangtidy_target(dd_wrapper)
-
-# Generate debug files on Linux when not in debug mode We handle this here in CMakefile instead of in setup.py because
-# dd_wrapper is built as a shared library to be depended by other native extensions.
-if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
-    find_program(OBJCOPY_EXECUTABLE objcopy)
-    find_program(STRIP_EXECUTABLE strip)
-
-    if(OBJCOPY_EXECUTABLE AND STRIP_EXECUTABLE)
-        # Create debug file after build
-        add_custom_command(
-            TARGET dd_wrapper
-            POST_BUILD
-            COMMAND ${OBJCOPY_EXECUTABLE} --only-keep-debug $<TARGET_FILE:dd_wrapper> $<TARGET_FILE:dd_wrapper>.debug
-            COMMAND ${STRIP_EXECUTABLE} -g $<TARGET_FILE:dd_wrapper>
-            COMMAND ${OBJCOPY_EXECUTABLE} --add-gnu-debuglink $<TARGET_FILE:dd_wrapper>.debug $<TARGET_FILE:dd_wrapper>
-            COMMENT "Creating debug symbols for dd_wrapper")
-    endif()
-endif()
 
 # Add the tests
 if(BUILD_TESTING)
