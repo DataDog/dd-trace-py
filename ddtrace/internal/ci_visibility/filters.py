@@ -21,7 +21,7 @@ class TraceCiVisibilityFilter(TraceProcessor):
         self._tags = tags
         self._service = service
 
-    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+    def process_trace(self, trace: List["Span"]) -> Optional[List["Span"]]:
         if not trace:
             return trace
 

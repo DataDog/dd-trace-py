@@ -1,6 +1,7 @@
 import platform
 import sys
 import sysconfig
+from typing import Any
 from typing import Dict
 from typing import Iterable
 from typing import List
@@ -15,7 +16,7 @@ from ddtrace.version import get_version
 from ..hostname import get_hostname
 
 
-def _format_version_info(vi: sys._version_info) -> str:
+def _format_version_info(vi: Any) -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
