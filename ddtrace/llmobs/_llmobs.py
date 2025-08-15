@@ -409,7 +409,9 @@ class LLMObs(Service):
 
     @staticmethod
     def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+        dd_tags = config.tags
         tags = {
+            **dd_tags,
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
