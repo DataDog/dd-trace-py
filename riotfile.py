@@ -2902,6 +2902,7 @@ venv = Venv(
                 "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
                 "langchain_openai": latest,
                 "langchain_core": latest,
+                "langchain": latest,
             },
         ),
         Venv(

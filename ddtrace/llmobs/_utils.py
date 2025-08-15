@@ -335,7 +335,7 @@ class ToolCallTracker:
             "trace_id": format_trace_id(tool_span.trace_id),
         }
         self._tool_calls[tool_id].tool_kind = tool_kind
-        self._lookup_tool_id.pop((tool_name, tool_arg))
+        self._lookup_tool_id.pop((tool_name, tool_arg), None)
 
     def on_tool_call_output_used(self, tool_id: str, llm_span: Span) -> None:
         """
