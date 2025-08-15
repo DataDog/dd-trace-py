@@ -259,26 +259,21 @@ def extract_message_from_part_gemini_vertexai(part, role=None):
             type="function_call",
         )
         message["tool_calls"] = [tool_call_info]
-    # if function_response:
-    #     function_response_dict = function_response
-    #     if not isinstance(function_response, dict):
-    #         function_response_dict = type(function_response).to_dict(function_response)
-    #     result = function_response_dict.get("response", "")
-    #     if not isinstance(result, str):
-    #         result = json.dumps(result)
-    #     tool_result_info = ToolResult(
-    #         name=function_response_dict.get("name", ""),
-    #         result=result,
-    #         tool_id=function_response_dict.get("id", ""),
-    #         type="function_response",
-    #     )
-    #     message["tool_results"] = [tool_result_info]
-    #     message["role"] = "user"
     if function_response:
         function_response_dict = function_response
         if not isinstance(function_response, dict):
             function_response_dict = type(function_response).to_dict(function_response)
-        message["content"] = "[tool result: {}]".format(function_response_dict.get("response", ""))
+        result = function_response_dict.get("response", "")
+        if not isinstance(result, str):
+            result = json.dumps(result)
+        tool_result_info = ToolResult(
+            name=function_response_dict.get("name", ""),
+            result=result,
+            tool_id=function_response_dict.get("id", ""),
+            type="function_response",
+        )
+        message["tool_results"] = [tool_result_info]
+        message["role"] = "user"
     return message
 
 
