@@ -603,7 +603,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             elif span_kind == "embedding":
                 assert len(call_args["meta"]["input"]["documents"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
-    
+
     def _assert_llm_tool_links_from_writer_call_args(self):
         assert self.mock_llmobs_span_writer.enqueue.call_count == 6
 
@@ -628,12 +628,11 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         second_llm_span["span_links"][0]["attributes"]["from"] == "output"
         second_llm_span["span_links"][0]["attributes"]["to"] == "input"
 
-
     @staticmethod
     def _call_openai_llm(OpenAI):
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
-    
+
     @staticmethod
     def _call_openai_chat_with_tools(ChatOpenAI):
         @tool
@@ -648,14 +647,12 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
             msgs = [msg]
             for tool_call in getattr(msg, "tool_calls", []):
                 tool_result = multiply.invoke(tool_call["args"])
-                msgs.append(
-                    ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"])
-                )
+                msgs.append(ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"]))
             return msgs
 
         chain = llm_with_tools | maybe_call_tool | llm_with_tools
         chain.invoke("What's 4 * 23")
-    
+
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
         embedding = OpenAIEmbeddings(base_url="http://localhost:9126/vcr/openai")
@@ -688,7 +685,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-    
+
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_openai_enabled_tool_calls(self):
         from langchain_openai import ChatOpenAI
@@ -697,7 +694,7 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_chat_with_tools(ChatOpenAI)
         self._assert_llm_tool_links_from_writer_call_args()
-    
+
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled_non_ascii_value(self):
         """Regression test to ensure that non-ascii text values for workflow spans are not encoded."""
