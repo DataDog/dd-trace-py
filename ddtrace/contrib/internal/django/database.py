@@ -166,7 +166,7 @@ def get_conn_pin(conn: Any) -> Pin:
             except Exception:
                 tags[tag] = str(conn.settings_dict.get(attr))
 
-    service = get_conn_service_name(vendor)
+    service = get_conn_service_name(alias)
     tracer = config_django._tracer or ddtrace.tracer
     pin = Pin(service, tags=tags)
     pin._tracer = tracer
