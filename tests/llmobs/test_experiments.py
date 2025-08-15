@@ -21,11 +21,12 @@ import pytest
 
 from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
+from tests.utils import override_global_config
 
 
-def wait_for_backend():
+def wait_for_backend(sleep_dur=2):
     if os.environ.get("RECORD_REQUESTS", "0") != "0":
-        time.sleep(2)
+        time.sleep(sleep_dur)
 
 
 def dummy_task(input_data, config):
@@ -85,6 +86,18 @@ def test_dataset_create_delete(llmobs):
     assert dataset.url == f"https://app.datadoghq.com/llm/datasets/{dataset._id}"
 
     llmobs._delete_dataset(dataset_id=dataset._id)
+
+
+def test_dataset_url_diff_site(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="us3.datadoghq.com")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://us3.datadoghq.com/llm/datasets/{dataset._id}"
+
+
+def test_dataset_url_diff_site_eu(llmobs, test_dataset_one_record):
+    with override_global_config(dict(_dd_site="datadoghq.eu")):
+        dataset = test_dataset_one_record
+        assert dataset.url == f"https://app.datadoghq.eu/llm/datasets/{dataset._id}"
 
 
 def test_dataset_as_dataframe(llmobs, test_dataset_one_record):
@@ -162,6 +175,45 @@ def test_dataset_csv_empty_csv(llmobs):
             input_data_columns=["in0", "in1", "in2"],
             expected_output_columns=["out0"],
         )
+
+
+def test_dataset_csv_no_expected_output(llmobs):
+    test_path = os.path.dirname(__file__)
+    csv_path = os.path.join(test_path, "static_files/good_dataset.csv")
+    dataset_id = None
+    try:
+        dataset = llmobs.create_dataset_from_csv(
+            csv_path=csv_path,
+            dataset_name="test-dataset-good-csv-without-expected-output",
+            description="A good csv dataset without expected_output columns",
+            input_data_columns=["in0", "in1", "in2"],
+        )
+        dataset_id = dataset._id
+        assert len(dataset) == 2
+        assert len(dataset[0]["input_data"]) == 3
+        assert dataset[0]["input_data"]["in0"] == "r0v1"
+        assert dataset[0]["input_data"]["in1"] == "r0v2"
+        assert dataset[0]["input_data"]["in2"] == "r0v3"
+        assert dataset[1]["input_data"]["in0"] == "r1v1"
+        assert dataset[1]["input_data"]["in1"] == "r1v2"
+        assert dataset[1]["input_data"]["in2"] == "r1v3"
+
+        assert len(dataset[0]["expected_output"]) == 0
+
+        assert dataset.description == "A good csv dataset without expected_output columns"
+
+        assert dataset._id is not None
+
+        wait_for_backend(4)
+        ds = llmobs.pull_dataset(name=dataset.name)
+
+        assert len(ds) == len(dataset)
+        assert ds.name == dataset.name
+        assert ds.description == dataset.description
+        assert ds._version == 1
+    finally:
+        if dataset_id:
+            llmobs._delete_dataset(dataset_id=dataset_id)
 
 
 def test_dataset_csv(llmobs):
@@ -282,6 +334,90 @@ def test_dataset_pull_exists_with_record(llmobs, test_dataset_one_record):
 
 @pytest.mark.parametrize(
     "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of China?"}, expected_output={"answer": "Beijing"}
+            ),
+        ]
+    ],
+)
+def test_dataset_modify_records_multiple_times(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
+    test_dataset.update(
+        0,
+        DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}),
+    )
+
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert "metadata" not in test_dataset[0]
+    assert test_dataset[0]["record_id"] != ""
+
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of China?"}
+    assert test_dataset[1]["expected_output"] == {"answer": "Beijing"}
+    assert "metadata" not in test_dataset[1]
+    assert test_dataset[1]["record_id"] != ""
+
+    test_dataset.update(0, {"expected_output": {"answer": "Berlin"}})
+    test_dataset.update(
+        1, {"input_data": {"prompt": "What is the capital of Mexico?"}, "metadata": {"difficulty": "easy"}}
+    )
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
+    assert "metadata" not in test_dataset[0]
+    assert test_dataset[0]["record_id"] != ""
+
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Mexico?"}
+    assert test_dataset[1]["expected_output"] == {"answer": "Beijing"}
+    assert test_dataset[1]["metadata"] == {"difficulty": "easy"}
+    assert test_dataset[1]["record_id"] != ""
+
+    test_dataset.update(1, {"expected_output": None})
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Mexico?"}
+    assert test_dataset[1]["expected_output"] is None
+    assert test_dataset[1]["metadata"] == {"difficulty": "easy"}
+    assert test_dataset[1]["record_id"] != ""
+
+    test_dataset.push()
+    assert len(test_dataset) == 2
+    assert test_dataset._version == 2
+
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
+    assert "metadata" not in test_dataset[0]
+    assert test_dataset[0]["record_id"] != ""
+
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Mexico?"}
+    assert test_dataset[1]["expected_output"] is None
+    assert test_dataset[1]["metadata"] == {"difficulty": "easy"}
+    assert test_dataset[1]["record_id"] != ""
+
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # assert that the version is consistent with a new pull
+
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    sds = sorted(ds, key=lambda r: r["input_data"]["prompt"])
+    assert sds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert sds[0]["expected_output"] == {"answer": "Berlin"}
+    assert sds[0]["metadata"] == {}
+
+    assert sds[1]["input_data"] == {"prompt": "What is the capital of Mexico?"}
+    assert sds[1]["expected_output"] == ""
+    assert sds[1]["metadata"] == {"difficulty": "easy"}
+    assert len(ds) == 2
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+    assert ds._version == 2
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
 def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records):
@@ -291,12 +427,17 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
         0,
         DatasetRecord(input_data={"prompt": "What is the capital of Germany?"}, expected_output={"answer": "Berlin"}),
     )
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
+    assert "metadata" not in test_dataset[0]
+
     test_dataset.push()
     assert len(test_dataset) == 1
     assert test_dataset._version == 2
 
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert test_dataset[0]["expected_output"] == {"answer": "Berlin"}
+    assert "metadata" not in test_dataset[0]
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
 
@@ -306,6 +447,97 @@ def test_dataset_modify_single_record(llmobs, test_dataset, test_dataset_records
     ds = llmobs.pull_dataset(name=test_dataset.name)
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Germany?"}
     assert ds[0]["expected_output"] == {"answer": "Berlin"}
+    assert len(ds) == 1
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+    assert ds._version == 2
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
+    with pytest.raises(
+        ValueError,
+        match="invalid update, record should contain at least one of "
+        "input_data, expected_output, or metadata to update",
+    ):
+        test_dataset.update(0, {})
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_modify_single_record_on_optional_field(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
+    test_dataset.update(0, {"expected_output": None})
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] is None
+    assert "metadata" not in test_dataset[0]
+
+    test_dataset.push()
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 2
+
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] is None
+    assert "metadata" not in test_dataset[0]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # assert that the version is consistent with a new pull
+
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert ds[0]["expected_output"] == ""
+    assert len(ds) == 1
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+    assert ds._version == 2
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of France?"},
+                expected_output={"answer": "Paris"},
+                metadata={"difficulty": "easy"},
+            )
+        ]
+    ],
+)
+def test_dataset_modify_single_record_on_input_should_not_effect_others(llmobs, test_dataset, test_dataset_records):
+    assert test_dataset._version == 1
+
+    test_dataset.update(0, {"input_data": "A"})
+    assert test_dataset[0]["input_data"] == "A"
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert test_dataset[0]["metadata"] == {"difficulty": "easy"}
+
+    test_dataset.push()
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 2
+
+    assert test_dataset[0]["input_data"] == "A"
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert test_dataset[0]["metadata"] == {"difficulty": "easy"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # assert that the version is consistent with a new pull
+
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds[0]["input_data"] == "A"
+    assert ds[0]["expected_output"] == {"answer": "Paris"}
+    assert ds[0]["metadata"] == {"difficulty": "easy"}
     assert len(ds) == 1
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
@@ -327,7 +559,9 @@ def test_dataset_append(llmobs, test_dataset):
     test_dataset.push()
     assert len(test_dataset) == 2
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
     assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[1]["expected_output"] == {"answer": "Rome"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
     assert test_dataset._version == 2
@@ -340,6 +574,40 @@ def test_dataset_append(llmobs, test_dataset):
     # note: it looks like dataset order is not deterministic
     assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
+def test_dataset_append_no_expected_output(llmobs, test_dataset):
+    test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
+    assert len(test_dataset) == 2
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Sealand?"}
+    assert "expected_output" not in test_dataset[1]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+    assert test_dataset._version == 2
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 2
+    # note: it looks like dataset order is not deterministic
+    assert ds[1]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert ds[1]["expected_output"] == {"answer": "Paris"}
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Sealand?"}
+    assert ds[0]["expected_output"] is None
     assert ds.name == test_dataset.name
     assert ds.description == test_dataset.description
 
@@ -363,6 +631,7 @@ def test_dataset_delete(llmobs, test_dataset):
     assert test_dataset._version == 2
     assert len(test_dataset) == 1
     assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
     assert test_dataset.name == test_dataset.name
     assert test_dataset.description == test_dataset.description
 
@@ -372,16 +641,134 @@ def test_dataset_delete(llmobs, test_dataset):
     assert ds._version == 2
     assert len(ds) == 1
     assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds[0]["expected_output"] == {"answer": "Rome"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of Nauru?"}),
+            DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}),
+        ],
+    ],
+)
+def test_dataset_delete_no_expected_output(llmobs, test_dataset):
+    test_dataset.delete(1)
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Nauru?"}
+    assert "expected_output" not in test_dataset[0]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 1
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Nauru?"}
+    assert ds[0]["expected_output"] is None
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+        ],
+    ],
+)
+def test_dataset_delete_after_update(llmobs, test_dataset):
+    test_dataset.update(0, {"input_data": "A"})
+    assert test_dataset[0]["input_data"] == "A"
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert "metadata" not in test_dataset[0]
+    assert len(test_dataset) == 2
+
+    test_dataset.delete(0)
+    assert len(test_dataset) == 1
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 1
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 1
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds[0]["expected_output"] == {"answer": "Rome"}
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"}),
+            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+        ],
+    ],
+)
+def test_dataset_delete_after_append(llmobs, test_dataset):
+    test_dataset.append({"input_data": "A", "expected_output": 1})
+    test_dataset.append({"input_data": "B", "expected_output": 2})
+    test_dataset.append({"input_data": {"prompt": "What is the capital of Sweden?"}})
+
+    test_dataset.delete(2)
+    test_dataset.delete(2)
+    test_dataset.delete(0)
+    # all that remains should be Italy and Sweden questions
+    assert len(test_dataset) == 2
+    assert test_dataset._version == 1
+
+    assert len(test_dataset._new_records_by_record_id) == 1
+    assert len(test_dataset._deleted_record_ids) == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert test_dataset._version == 2
+    assert len(test_dataset) == 2
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Rome"}
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert "expected_output" not in test_dataset[1]
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 2
+    sds = sorted(ds, key=lambda r: r["input_data"]["prompt"])
+    assert sds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert sds[0]["expected_output"] == {"answer": "Rome"}
+    assert sds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert sds[1]["expected_output"] is None
 
 
 def test_project_create_new_project(llmobs):
     project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project-dne-sdk")
-    assert project_id == "29892594-46a2-4539-893d-5dc75f5968b7"
+    assert project_id == "905824bc-ccec-4444-a48d-401931d5065b"
 
 
 def test_project_get_existing_project(llmobs):
     project_id = llmobs._instance._dne_client.project_create_or_get(name="test-project")
-    assert project_id == "dc4158e7-c60f-446e-bcf1-540aa68ffa0f"
+    assert project_id == "f0a6723e-a7e8-4efd-a94a-b892b7b6fbf9"
 
 
 def test_experiment_invalid_task_type_raises(llmobs, test_dataset_one_record):
@@ -738,9 +1125,9 @@ def test_experiment_span_written_to_experiment_scope(llmobs, llmobs_events, test
     for key in ("span_id", "trace_id", "parent_id", "start_ns", "duration", "metrics"):
         assert event[key] == mock.ANY
     assert event["status"] == "ok"
-    assert event["meta"]["input"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["output"] == {"value": '{"prompt": "What is the capital of France?"}'}
-    assert event["meta"]["expected_output"] == {"answer": "Paris"}
+    assert event["meta"]["input"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["output"] == '{"prompt": "What is the capital of France?"}'
+    assert event["meta"]["expected_output"] == '{"answer": "Paris"}'
     assert "dataset_id:{}".format(test_dataset_one_record._id) in event["tags"]
     assert "dataset_record_id:{}".format(test_dataset_one_record._records[0]["record_id"]) in event["tags"]
     assert "experiment_id:1234567890" in event["tags"]

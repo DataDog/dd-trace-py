@@ -8,5 +8,5 @@ disable_warnings = couldnt-parse
 [paths]
 source =
     ./
-    /home/circleci/project/
     /root/project/
+    /home/bits/project

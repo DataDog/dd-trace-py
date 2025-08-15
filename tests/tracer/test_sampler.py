@@ -371,21 +371,33 @@ def test_sampling_rule_init_via_env():
         sampling_rules = DatadogSampler().rules
     assert sampling_rules[0].sample_rate == 1
 
-    with pytest.raises(KeyError) as excinfo:
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(dict(_trace_sampling_rules='[{"service":"xyz","name":"abc"}]')):
             sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
-    assert '"service": "xyz"' in str(excinfo.value)
-    assert '"name": "abc"' in str(excinfo.value)
-
-    with pytest.raises(ValueError) as excinfo:
-        with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
-            sampling_rule = DatadogSampler().rules
-    assert 'Unable to parse DD_TRACE_SAMPLING_RULES=["sample_rate":1.0,"service":"xyz","name":"abc"]' == str(
-        excinfo.value
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "xyz", "name": "abc"},
+            )
+        ]
     )
 
-    with pytest.raises(KeyError) as excinfo:
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
+        with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
+            sampling_rule = DatadogSampler().rules
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
+                '["sample_rate":1.0,"service":"xyz","name":"abc"]',
+                [],
+                exc_info=True,
+            )
+        ]
+    )
+
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(
             dict(
                 _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
@@ -393,9 +405,14 @@ def test_sampling_rule_init_via_env():
             )
         ):
             sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
-    assert '"service": "my-service"' in str(excinfo.value)
-    assert '"name": "my-name"' in str(excinfo.value)
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "my-service", "name": "my-name"},
+            )
+        ]
+    )
 
 
 @pytest.mark.parametrize(
@@ -546,6 +563,38 @@ def test_rate_limit_without_sampling_rules_warning():
     from ddtrace import config
 
     assert config._trace_rate_limit == 2
+
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_PARTIAL_FLUSH_ENABLED": "true",
+        "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "5",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate":0, "name":"root_span"}, {"sample_rate":1, "name":"child_span1"}]',
+    },
+)
+def test_partial_flush_with_sampling_rules():
+    """
+    Detects a bug where the local root span is not used to make sampling decisions when a trace is partially flushed.
+    """
+    from ddtrace import tracer
+
+    with tracer.trace("root_span") as root_span:
+        with tracer.trace("child_span1") as child_span1:
+            for _ in range(4):
+                with tracer.trace("span"):
+                    pass
+
+        with tracer.trace("child_span2") as child_span2:
+            for _ in range(4):
+                with tracer.trace("span"):
+                    pass
+
+    assert root_span.get_metric("_dd.rule_psr") == 0, repr(root_span)
+    assert child_span1.get_metric("_dd.py.partial_flush") == 5, repr(child_span1)
+    assert child_span2.get_metric("_dd.py.partial_flush") == 5, repr(child_span2)
+
+    for span in (root_span, child_span1, child_span2):
+        assert span.context.sampling_priority == -1, repr(span)
 
 
 def test_datadog_sampler_init():
