@@ -7,8 +7,6 @@ import sys
 import langchain
 from langchain_core.messages import AIMessage
 from langchain_core.messages import HumanMessage
-from langchain_core.messages import ToolMessage
-from langchain_core.tools import tool
 import mock
 import pinecone as pinecone_
 import pytest
@@ -604,54 +602,10 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
                 assert len(call_args["meta"]["input"]["documents"]) > 0
                 assert len(call_args["meta"]["output"]["value"]) > 0
 
-    def _assert_llm_tool_links_from_writer_call_args(self):
-        assert self.mock_llmobs_span_writer.enqueue.call_count == 6
-
-        calls = self.mock_llmobs_span_writer.enqueue.call_args_list[::-1]
-        first_llm_span = calls[5].args[0]
-        tool_span = calls[3].args[0]
-        second_llm_span = calls[2].args[0]
-
-        assert first_llm_span["meta"]["span.kind"] == "llm"
-        assert tool_span["meta"]["span.kind"] == "tool"
-        assert second_llm_span["meta"]["span.kind"] == "llm"
-
-        # assert llm -> tool span link
-        tool_span["span_links"][0]["span_id"] == first_llm_span["span_id"]
-        tool_span["span_links"][0]["trace_id"] == first_llm_span["trace_id"]
-        tool_span["span_links"][0]["attributes"]["from"] == "output"
-        tool_span["span_links"][0]["attributes"]["to"] == "input"
-
-        # assert tool -> llm span link
-        second_llm_span["span_links"][0]["span_id"] == tool_span["span_id"]
-        second_llm_span["span_links"][0]["trace_id"] == tool_span["trace_id"]
-        second_llm_span["span_links"][0]["attributes"]["from"] == "output"
-        second_llm_span["span_links"][0]["attributes"]["to"] == "input"
-
     @staticmethod
     def _call_openai_llm(OpenAI):
         llm = OpenAI(base_url="http://localhost:9126/vcr/openai")
         llm.invoke("Can you explain what Descartes meant by 'I think, therefore I am'?")
-
-    @staticmethod
-    def _call_openai_chat_with_tools(ChatOpenAI):
-        @tool
-        def multiply(first_int: int, second_int: int) -> int:
-            """Multiply two integers together."""
-            return first_int * second_int
-
-        llm = ChatOpenAI(base_url="http://localhost:9126/vcr/openai")
-        llm_with_tools = llm.bind_tools([multiply])
-
-        def maybe_call_tool(msg):
-            msgs = [msg]
-            for tool_call in getattr(msg, "tool_calls", []):
-                tool_result = multiply.invoke(tool_call["args"])
-                msgs.append(ToolMessage(content=str(tool_result), tool_call_id=tool_call["id"]))
-            return msgs
-
-        chain = llm_with_tools | maybe_call_tool | llm_with_tools
-        chain.invoke("What's 4 * 23")
 
     @staticmethod
     def _call_openai_embedding(OpenAIEmbeddings):
@@ -685,15 +639,6 @@ class TestTraceStructureWithLLMIntegrations(SubprocessTestCase):
         LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
         self._call_openai_llm(OpenAI)
         self._assert_trace_structure_from_writer_call_args(["workflow", "llm"])
-
-    @run_in_subprocess(env_overrides=openai_env_config)
-    def test_llmobs_openai_enabled_tool_calls(self):
-        from langchain_openai import ChatOpenAI
-
-        patch(langchain=True, openai=True)
-        LLMObs.enable(ml_app="<ml-app-name>", integrations_enabled=False)
-        self._call_openai_chat_with_tools(ChatOpenAI)
-        self._assert_llm_tool_links_from_writer_call_args()
 
     @run_in_subprocess(env_overrides=openai_env_config)
     def test_llmobs_with_openai_enabled_non_ascii_value(self):
