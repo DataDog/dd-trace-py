@@ -11,6 +11,7 @@ from urllib import parse
 
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -112,7 +113,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
+    # Look for the tracer in the context, or fallback to the global tracer
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
@@ -161,6 +163,8 @@ def _finish_span(
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
     span.finish()
 
 
@@ -546,11 +550,6 @@ def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
             ctx.span._ignore_exception(exc)
 
 
-def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
-    if should_set_traceback:
-        ctx.span.set_traceback()
-
-
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
     for tk, tv in metadata.items():
         ctx.span.set_tag_str(tk, tv)
@@ -890,7 +889,6 @@ def listen():
     core.on("django.start_response", _on_django_start_response)
     core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -989,7 +987,7 @@ def listen():
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("django.template.render",):
+    for name in ("django.template.render", "django.process_exception"):
         core.on(f"context.ended.{name}", _finish_span)
 
 

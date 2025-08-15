@@ -77,6 +77,8 @@ jobs:
           pip install twine readme_renderer[md]
           twine check dist/*.tar.gz
       - name: Install source package
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
         run: pip install dist/*.tar.gz
 
       - name: Test the source package

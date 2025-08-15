@@ -45,13 +45,6 @@ from urllib.error import HTTPError
 from urllib.request import urlretrieve
 
 
-# workaround for ModuleNotFound.
-sys.path.insert(0, str(Path(__file__).parent.resolve()))
-
-from build_libnative import build_crate
-from build_libnative import clean_crate
-
-
 HERE = Path(__file__).resolve().parent
 
 COMPILE_MODE = "Release"
@@ -187,14 +180,24 @@ class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
         super().__init__(attrs)
         # Tell ext_hashes about your manually-built Rust artifact
+
+        # setuptools-rust started to support passing extra env vars from 1.11.0
+        # but at the same time dropped support for Python 3.8. So we'd need to
+        # make sure that this env var is set to install the ffi headers in the
+        # right place.
+        os.environ["CARGO_TARGET_DIR"] = str(NATIVE_CRATE.absolute() / "target")
         self.rust_extensions = [
             RustExtension(
                 # The Python import path of your extension:
                 "ddtrace.internal.native._native",
                 # Path to your Cargo.toml so setuptools-rust can infer names
                 path=str(Path(__file__).parent / "src" / "native" / "Cargo.toml"),
-                # Use no-binding if you don't need PyO3 bindings
-                binding=Binding.NoBinding,
+                py_limited_api="auto",
+                binding=Binding.PyO3,
+                debug=COMPILE_MODE.lower() == "debug",
+                features=(
+                    ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
+                ),
             )
         ]
 
@@ -238,6 +241,70 @@ class ExtensionHashes(build_ext):
         except Exception as e:
             print("WARNING: Failed to compute extension hashes: %s" % e)
             raise e
+
+
+class CustomBuildRust(build_rust):
+    """Custom build_rust command that handles dedup_headers and header copying."""
+
+    def initialize_options(self):
+        super().initialize_options()
+
+    def is_installed(self, bin_file):
+        """Check if a binary is installed in PATH."""
+        for path in os.environ.get("PATH", "").split(os.pathsep):
+            if os.path.isfile(os.path.join(path, bin_file)):
+                return True
+        return False
+
+    def install_dedup_headers(self):
+        """Install dedup_headers if not already installed."""
+        if not self.is_installed("dedup_headers"):
+            subprocess.run(
+                [
+                    "cargo",
+                    "install",
+                    "--git",
+                    "https://github.com/DataDog/libdatadog",
+                    "--bin",
+                    "dedup_headers",
+                    "tools",
+                ],
+                check=True,
+            )
+
+    def run(self):
+        """Run the build process with additional post-processing."""
+
+        has_profiling_feature = False
+        for ext in self.distribution.rust_extensions:
+            if ext.features and "profiling" in ext.features:
+                has_profiling_feature = True
+                break
+
+        if IS_EDITABLE:
+            self.inplace = True
+
+        super().run()
+
+        # Check if profiling is enabled and run dedup_headers
+        if has_profiling_feature:
+            self.install_dedup_headers()
+
+            # Add cargo binary folder to PATH
+            home = os.path.expanduser("~")
+            cargo_bin = os.path.join(home, ".cargo", "bin")
+            dedup_env = os.environ.copy()
+            dedup_env["PATH"] = cargo_bin + os.pathsep + os.environ["PATH"]
+
+            # Run dedup_headers on the generated headers
+            include_dir = NATIVE_CRATE.absolute() / "target" / "include" / "datadog"
+            if include_dir.exists():
+                subprocess.run(
+                    ["dedup_headers", "common.h", "profiling.h"],
+                    cwd=str(include_dir),
+                    check=True,
+                    env=dedup_env,
+                )
 
 
 class LibraryDownload:
@@ -404,7 +471,14 @@ class CleanLibraries(CleanCommand):
 
     @staticmethod
     def remove_rust():
-        clean_crate(NATIVE_CRATE)
+        """Clean the Rust crate using cargo clean."""
+        target_dir = NATIVE_CRATE / "target"
+        if target_dir.exists():
+            subprocess.run(
+                ["cargo", "clean"],
+                cwd=str(NATIVE_CRATE),
+                check=True,
+            )
 
     def run(self):
         CleanLibraries.remove_rust()
@@ -422,67 +496,31 @@ class CustomBuildExt(build_ext):
             self.build_extension(ext)
 
     def build_rust(self):
-        is_release = True
-        build_crate(NATIVE_CRATE, is_release, native_features)
-
-        target_dir = NATIVE_CRATE / "target"
-        if sys.platform == "win32" and not is_64_bit_python():
-            target_dir = target_dir / "i686-pc-windows-msvc"
-        if is_release:
-            target_dir = target_dir / "release"
-        else:
-            target_dir = target_dir / "debug"
-
-        library = None
-        link_file = None
-        if sys.platform == "win32":
-            try:
-                (library,) = target_dir.glob("_native.dll")
-            except StopIteration:
-                raise RuntimeError(f"Could not find _native.dll in {target_dir}")
-
-            try:
-                link_file = next(target_dir.glob("_native.dll.lib"))
-            except StopIteration:
-                raise RuntimeError(f"Could not find _native.dll.lib in {target_dir}")
-        elif sys.platform == "darwin":
-            library = next(target_dir.glob("lib_native.dylib"))
-        else:
-            library = next(target_dir.glob("lib_native.so"))
-
-        if not library:
-            raise RuntimeError("Not able to find native library")
+        """Build the Rust component using CustomBuildRust command."""
+        # Create and run the CustomBuildRust command
+        build_rust_cmd = CustomBuildRust(self.distribution)
+        build_rust_cmd.initialize_options()
+        build_rust_cmd.finalize_options()
+        build_rust_cmd.run()
 
         self.suffix = sysconfig.get_config_var("EXT_SUFFIX")
         native_name = f"_native{self.suffix}"
-
-        # Set SONAME (needed for auditwheel)
-        if sys.platform.startswith("linux"):
-            subprocess.run(["patchelf", "--set-soname", native_name, str(library)], check=True)
-        elif sys.platform == "darwin":
-            subprocess.run(["install_name_tool", "-id", native_name, str(library)], check=True)
 
         if IS_EDITABLE or getattr(self, "inplace", False):
             self.output_dir = Path(__file__).parent / "ddtrace" / "internal" / "native"
         else:
             self.output_dir = Path(__file__).parent / Path(self.build_lib) / "ddtrace" / "internal" / "native"
 
-        destination = self.output_dir / native_name
-        self.output_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(library, destination)
+        library = self.output_dir / native_name
 
-        # Rename .lib file so it has the same base name as the dll.
-        self.windows_link_file = None
-        if link_file is not None:
-            new_link_file = (target_dir / native_name).with_suffix(".lib")
-            shutil.copy2(link_file, new_link_file)
-            self.windows_link_file = new_link_file
+        if not library.exists():
+            raise RuntimeError("Not able to find native library")
 
-    @staticmethod
-    def is_installed(bin_file):
-        for path in os.environ.get("PATH", "").split(os.pathsep):
-            return os.path.isfile(os.path.join(path, bin_file))
-        return False
+        # Set SONAME (needed for auditwheel, and alpine source build to work)
+        if CURRENT_OS == "Linux":
+            subprocess.run(["patchelf", "--set-soname", native_name, library], check=True)
+        elif CURRENT_OS == "Darwin":
+            subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
 
     @staticmethod
     def try_strip_symbols(so_file):
@@ -584,11 +622,6 @@ class CustomBuildExt(build_ext):
             "-DEXTENSION_SUFFIX={}".format(self.suffix),
             "-DNATIVE_EXTENSION_LOCATION={}".format(self.output_dir),
         ]
-
-        if self.windows_link_file is not None:
-            cmake_args += [
-                "-DNATIVE_IMPLIB={}".format(self.windows_link_file),
-            ]
 
         if BUILD_PROFILING_NATIVE_TESTS:
             cmake_args += ["-DBUILD_TESTING=ON"]
@@ -722,7 +755,7 @@ def debug_build_extension(fn):
 if DebugMetadata.enabled:
     DebugMetadata.start_ns = time.time_ns()
     CustomBuildExt.build_extension = debug_build_extension(CustomBuildExt.build_extension)
-    build_rust.build_extension = debug_build_extension(build_rust.build_extension)
+    build_rust.build_extension = debug_build_extension(CustomBuildRust.build_extension)
     atexit.register(DebugMetadata.dump_metadata)
 
 
@@ -842,7 +875,6 @@ else:
 
 
 if not IS_PYSTON:
-    native_features = []
     ext_modules: t.List[t.Union[Extension, Cython.Distutils.Extension, RustExtension]] = [
         Extension(
             "ddtrace.profiling.collector._memalloc",
@@ -933,7 +965,6 @@ if not IS_PYSTON:
 
 else:
     ext_modules = []
-    native_features = []
 
 interpose_sccache()
 setup(
@@ -954,7 +985,7 @@ setup(
     cmdclass={
         "build_ext": CustomBuildExt,
         "build_py": LibraryDownloader,
-        "build_rust": build_rust,
+        "build_rust": CustomBuildRust,
         "clean": CleanLibraries,
         "ext_hashes": ExtensionHashes,
     },
