@@ -1,4 +1,4 @@
 ---
-other:
+fix:
   - |
-    LLM Observability: adds support for parsing ``DD_TAGS`` onto span events' tags.
+    LLM Observability: Properly parse ``DD_TAGS`` onto LLM Observability span events' tags.

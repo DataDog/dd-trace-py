@@ -109,7 +109,6 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.internal.utils.formats import parse_tags_str
 
 
 log = get_logger(__name__)
