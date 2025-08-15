@@ -109,6 +109,7 @@ from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
 from ddtrace.propagation.http import HTTPPropagator
+from ddtrace.internal.utils.formats import parse_tags_str
 
 
 log = get_logger(__name__)
@@ -409,7 +410,9 @@ class LLMObs(Service):
 
     @staticmethod
     def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+        dd_tags = parse_tags_str(os.environ.get("DD_TAGS"))
         tags = {
+            **dd_tags,
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
