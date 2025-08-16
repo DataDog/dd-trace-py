@@ -424,6 +424,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
+        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "default", "value": False},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
