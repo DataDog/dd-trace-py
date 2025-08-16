@@ -3520,6 +3520,7 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(
@@ -3572,6 +3573,7 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(
@@ -3621,6 +3623,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(

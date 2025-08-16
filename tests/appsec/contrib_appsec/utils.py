@@ -322,7 +322,7 @@ class Contrib_TestClass_For_Threats:
                         ("rate_limited", "false"),
                     ),
                 ),
-            ]
+            ], args_list
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -1358,7 +1358,13 @@ class Contrib_TestClass_For_Threats:
     @pytest.mark.parametrize("priority", ["keep", "drop"])
     @pytest.mark.parametrize("delay", [0.0, 120.0])
     def test_api_security_sampling(self, interface: Interface, get_entry_span_tag, apisec_enabled, priority, delay):
+        from ddtrace.appsec._api_security.api_manager import APIManager
         from ddtrace.ext import http
+
+        # clear the hashtable to avoid collisions with previous tests
+        if apisec_enabled:
+            assert APIManager._instance
+            APIManager._instance._hashtable.clear()
 
         payload = {"mastercard": "5123456789123456"}
         with override_global_config(
