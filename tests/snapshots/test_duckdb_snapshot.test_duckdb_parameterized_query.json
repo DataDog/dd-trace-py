@@ -1,0 +1,32 @@
+[[
+  {
+    "name": "duckdb.query",
+    "service": "duckdb",
+    "resource": "SELECT ? as value",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "sql",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ddtrace_subprocess_dir",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68935f6800000000",
+      "component": "duckdb",
+      "db.name": ":memory:",
+      "db.system": "duckdb",
+      "language": "python",
+      "runtime-id": "b880395928484058a3d7f4bfa09ff023",
+      "span.kind": "client"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "db.row_count": -1,
+      "process_id": 10526
+    },
+    "duration": 1675917,
+    "start": 1754488680459278042
+  }]]
