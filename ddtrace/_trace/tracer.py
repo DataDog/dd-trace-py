@@ -201,7 +201,7 @@ class Tracer(object):
         return None
 
     @_agent_url.setter
-    def _agent_url(self, value: str):
+    def _agent_url(self, value: str) -> None:
         if isinstance(self._span_aggregator.writer, (HTTPWriter, AgentWriterInterface)):
             self._span_aggregator.writer.intake_url = value
 
@@ -235,7 +235,7 @@ class Tracer(object):
         core.reset_listeners("trace.span_start", callback=func)
         return func
 
-    def sample(self, span):
+    def sample(self, span: Span) -> None:
         self._sampler.sample(span)
 
     def _sample_before_fork(self) -> None:
@@ -246,7 +246,7 @@ class Tracer(object):
             self.sample(span)
 
     @contextmanager
-    def _activate_context(self, context: Context):
+    def _activate_context(self, context: Context):  # Skip typing for contextmanager due to complex generator type
         prev_active = self.context_provider.active()
         context._reactivate = True
         self.context_provider.activate(context)
@@ -257,15 +257,15 @@ class Tracer(object):
             self.context_provider.activate(prev_active)
 
     @property
-    def _sampler(self):
+    def _sampler(self):  # Skip typing to avoid circular import with sampler
         return self._span_aggregator.sampling_processor.sampler
 
     @_sampler.setter
-    def _sampler(self, value):
+    def _sampler(self, value) -> None:  # Skip parameter typing to avoid circular import
         self._span_aggregator.sampling_processor.sampler = value
 
     @property
-    def debug_logging(self):
+    def debug_logging(self) -> bool:
         return log.isEnabledFor(logging.DEBUG)
 
     def current_trace_context(self, *args, **kwargs) -> Optional[Context]:

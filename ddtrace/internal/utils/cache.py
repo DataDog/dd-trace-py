@@ -3,11 +3,11 @@ from inspect import FullArgSpec
 from inspect import getfullargspec
 from inspect import isgeneratorfunction
 from threading import RLock
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Type  # noqa:F401
-from typing import TypeVar  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Type
+from typing import TypeVar
 
 
 miss = object()
@@ -26,14 +26,12 @@ class LFUCache(dict):
     cache when it grows beyond the requested size is O(log(size)).
     """
 
-    def __init__(self, maxsize=256):
-        # type: (int) -> None
+    def __init__(self, maxsize: int = 256) -> None:
         self.maxsize = maxsize
         self.lock = RLock()
         self.count_lock = RLock()
 
-    def get(self, key, f):  # type: ignore[override]
-        # type: (T, F) -> Any
+    def get(self, key: T, f: F) -> Any:  # type: ignore[override]
         """Get a value from the cache.
 
         If the value with the given key is not in the cache, the expensive
@@ -69,16 +67,13 @@ class LFUCache(dict):
             return value
 
 
-def cached(maxsize=256):
-    # type: (int) -> Callable[[F], F]
+def cached(maxsize: int = 256) -> Callable[[F], F]:
     """Decorator for memoizing functions of a single argument (LFU policy)."""
 
-    def cached_wrapper(f):
-        # type: (F) -> F
+    def cached_wrapper(f: F) -> F:
         cache = LFUCache(maxsize)
 
-        def cached_f(key):
-            # type: (T) -> Any
+        def cached_f(key: T) -> Any:
             return cache.get(key, f)
 
         cached_f.invalidate = cache.clear  # type: ignore[attr-defined]
@@ -89,31 +84,27 @@ def cached(maxsize=256):
 
 
 class CachedMethodDescriptor(object):
-    def __init__(self, method, maxsize):
-        # type: (M, int) -> None
+    def __init__(self, method: M, maxsize: int) -> None:
         self._method = method
         self._maxsize = maxsize
 
-    def __get__(self, obj, objtype=None):
-        # type: (Any, Optional[Type]) -> F
+    def __get__(self, obj: Any, objtype: Optional[Type] = None) -> F:
         cached_method = cached(self._maxsize)(self._method.__get__(obj, objtype))
         setattr(obj, self._method.__name__, cached_method)
         return cached_method
 
 
-def cachedmethod(maxsize=256):
-    # type: (int) -> Callable[[M], CachedMethodDescriptor]
+def cachedmethod(maxsize: int = 256) -> Callable[[M], CachedMethodDescriptor]:
     """Decorator for memoizing methods of a single argument (LFU policy)."""
 
-    def cached_wrapper(f):
-        # type: (M) -> CachedMethodDescriptor
+    def cached_wrapper(f: M) -> CachedMethodDescriptor:
         return CachedMethodDescriptor(f, maxsize)
 
     return cached_wrapper
 
 
-def is_not_void_function(f, argspec: FullArgSpec):
-    return (
+def is_not_void_function(f: Callable, argspec: FullArgSpec) -> bool:
+    return bool(
         argspec.args
         or argspec.varargs
         or argspec.varkw
@@ -124,8 +115,7 @@ def is_not_void_function(f, argspec: FullArgSpec):
     )
 
 
-def callonce(f):
-    # type: (Callable[[], Any]) -> Callable[[], Any]
+def callonce(f: Callable[[], Any]) -> Callable[[], Any]:
     """Decorator for executing a function only the first time."""
     argspec = getfullargspec(f)
     if is_not_void_function(f, argspec):

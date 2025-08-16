@@ -24,8 +24,7 @@ config._add("sanic", dict(_default_service=schematize_service_name("sanic"), dis
 SANIC_VERSION = (0, 0, 0)
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(sanic, "__version__", "")
 
 

@@ -1,12 +1,11 @@
-import typing  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Optional
+from typing import Tuple
 
 import ddtrace.vendor.packaging.version as packaging_version
 from ddtrace.version import get_version
 
 
-def parse_version(version):
-    # type: (str) -> typing.Tuple[int, int, int]
+def parse_version(version: str) -> Tuple[int, int, int]:
     """Convert a version string to a tuple of (major, minor, micro)
 
     Examples::
@@ -51,8 +50,7 @@ def parse_version(version):
     )
 
 
-def _pep440_to_semver(version=None):
-    # type: (Optional[str]) -> str
+def _pep440_to_semver(version: Optional[str] = None) -> str:
     # The library uses a PEP 440-compliant (https://peps.python.org/pep-0440/) versioning
     # scheme, but the Agent spec requires that we use a SemVer-compliant version.
     #

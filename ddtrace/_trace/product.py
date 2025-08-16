@@ -28,7 +28,7 @@ class _Config(En):
 _config = _Config()
 
 
-def post_preload():
+def post_preload() -> None:
     if _config.enabled:
         from ddtrace._monkey import _patch_all
 
@@ -38,7 +38,7 @@ def post_preload():
         _patch_all(**modules_to_bool)
 
 
-def start():
+def start() -> None:
     if _config.enabled:
         from ddtrace.settings._config import config
 

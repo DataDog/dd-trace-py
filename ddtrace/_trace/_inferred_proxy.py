@@ -27,7 +27,9 @@ supported_proxies: Dict[str, Dict[str, str]] = {
 }
 
 
-def create_inferred_proxy_span_if_headers_exist(ctx, headers, child_of, tracer) -> None:
+def create_inferred_proxy_span_if_headers_exist(
+    ctx, headers, child_of, tracer
+) -> None:  # Skip parameter typing to avoid third-party dependencies
     if not headers:
         return None
 

@@ -1,10 +1,10 @@
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import Optional
 
 from opentracing import SpanContext as OpenTracingSpanContext
 
-from ddtrace.internal.compat import NumericType  # noqa:F401
+from ddtrace.internal.compat import NumericType
 from ddtrace.trace import Context as DatadogContext
 
 
@@ -13,13 +13,12 @@ class SpanContext(OpenTracingSpanContext):
 
     def __init__(
         self,
-        trace_id=None,  # type: Optional[int]
-        span_id=None,  # type: Optional[int]
-        sampling_priority=None,  # type: Optional[NumericType]
-        baggage=None,  # type: Optional[Dict[str, Any]]
-        ddcontext=None,  # type: Optional[DatadogContext]
-    ):
-        # type: (...) -> None
+        trace_id: Optional[int] = None,
+        span_id: Optional[int] = None,
+        sampling_priority: Optional[NumericType] = None,
+        baggage: Optional[Dict[str, Any]] = None,
+        ddcontext: Optional["DatadogContext"] = None,
+    ) -> None:
         # create a new dict for the baggage if it is not provided
         # NOTE: it would be preferable to use opentracing.SpanContext.EMPTY_BAGGAGE
         #       but it is mutable.
@@ -38,20 +37,17 @@ class SpanContext(OpenTracingSpanContext):
         self._baggage = dict(baggage)
 
     @property
-    def baggage(self):
-        # type: () -> Dict[str, Any]
+    def baggage(self) -> Dict[str, Any]:
         return self._baggage
 
-    def set_baggage_item(self, key, value):
-        # type: (str, Any) -> None
+    def set_baggage_item(self, key: str, value: Any) -> None:
         """Sets a baggage item in this span context.
 
         Note that this operation mutates the baggage of this span context
         """
         self.baggage[key] = value
 
-    def with_baggage_item(self, key, value):
-        # type: (str, Any) -> SpanContext
+    def with_baggage_item(self, key: str, value: Any) -> "SpanContext":
         """Returns a copy of this span with a new baggage item.
 
         Useful for instantiating new child span contexts.
@@ -60,7 +56,6 @@ class SpanContext(OpenTracingSpanContext):
         baggage[key] = value
         return SpanContext(ddcontext=self._dd_context, baggage=baggage)
 
-    def get_baggage_item(self, key):
-        # type: (str) -> Optional[Any]
+    def get_baggage_item(self, key: str) -> Optional[Any]:
         """Gets a baggage item in this span context."""
         return self.baggage.get(key, None)

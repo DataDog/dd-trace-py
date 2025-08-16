@@ -5,25 +5,23 @@ from typing import Optional  # noqa:F401
 from typing import Union  # noqa:F401
 
 import ddtrace
+from ddtrace._trace.processor import TraceProcessor
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import ci
 from ddtrace.internal.constants import SamplingMechanism
 from ddtrace.internal.sampling import _set_sampling_tags
-from ddtrace.trace import TraceFilter
 
 
 if TYPE_CHECKING:
     from ddtrace.trace import Span  # noqa:F401
 
 
-class TraceCiVisibilityFilter(TraceFilter):
-    def __init__(self, tags, service):
-        # type: (Dict[Union[str, bytes], str], str) -> None
+class TraceCiVisibilityFilter(TraceProcessor):
+    def __init__(self, tags: Dict[Union[str, bytes], str], service: str) -> None:
         self._tags = tags
         self._service = service
 
-    def process_trace(self, trace):
-        # type: (List[Span]) -> Optional[List[Span]]
+    def process_trace(self, trace: List["Span"]) -> Optional[List["Span"]]:
         if not trace:
             return trace
 

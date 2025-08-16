@@ -115,7 +115,8 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
                 except Exception:
                     log.debug("Cannot upload logs payload", exc_info=True)
 
-    on_shutdown = periodic
+    def on_shutdown(self):
+        self.periodic()
 
     @classmethod
     def get_collector(cls) -> SignalCollector:

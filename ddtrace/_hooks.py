@@ -1,10 +1,10 @@
 import collections
 from copy import deepcopy
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import DefaultDict  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Set  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import DefaultDict
+from typing import Optional
+from typing import Set
 
 from .internal.logger import get_logger
 
@@ -36,10 +36,9 @@ class Hooks:
 
     def register(
         self,
-        hook,  # type: Any
-        func=None,  # type: Optional[Callable]
-    ):
-        # type: (...) -> Optional[Callable[..., Any]]
+        hook: Any,
+        func: Optional[Callable] = None,
+    ) -> Optional[Callable[..., Any]]:
         """
         Function used to register a hook for the provided name.
 
@@ -83,10 +82,9 @@ class Hooks:
 
     def deregister(
         self,
-        hook,  # type: Any
-        func,  # type: Callable
-    ):
-        # type: (...) -> None
+        hook: Any,
+        func: Callable,
+    ) -> None:
         """
         Function to deregister a function from a hook it was registered under
 
@@ -111,11 +109,10 @@ class Hooks:
 
     def emit(
         self,
-        hook,  # type: Any
-        *args,  # type: Any
-        **kwargs,  # type: Any
-    ):
-        # type: (...) -> None
+        hook: Any,
+        *args: Any,
+        **kwargs: Any,
+    ) -> None:
         """
         Function used to call registered hook functions.
 
