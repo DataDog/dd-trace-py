@@ -27,26 +27,20 @@ MemorySample = namedtuple(
 )
 
 
-class MemoryCollector(collector.PeriodicCollector):
+class MemoryCollector:
     """Memory allocation collector."""
-
-    _DEFAULT_INTERVAL = 0.5
 
     def __init__(
         self,
-        _interval: float = _DEFAULT_INTERVAL,
         max_nframe: Optional[int] = None,
         heap_sample_size: Optional[int] = None,
         ignore_profiler: Optional[bool] = None,
     ):
-        super().__init__()
-        self._interval: float = _interval
-        # TODO make this dynamic based on the 1. interval and 2. the max number of events allowed in the Recorder
         self.max_nframe: int = max_nframe if max_nframe is not None else config.max_frames
         self.heap_sample_size: int = heap_sample_size if heap_sample_size is not None else config.heap.sample_size
         self.ignore_profiler: bool = ignore_profiler if ignore_profiler is not None else config.ignore_profiler
 
-    def _start_service(self):
+    def start(self):
         # type: (...) -> None
         """Start collecting memory profiles."""
         if _memalloc is None:
@@ -61,10 +55,16 @@ class MemoryCollector(collector.PeriodicCollector):
             _memalloc.stop()
             _memalloc.start(self.max_nframe, self.heap_sample_size)
 
-        super(MemoryCollector, self)._start_service()
+    def __enter__(self):
+        self.start()
 
-    @staticmethod
-    def on_shutdown():
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.stop()
+
+    def join(self):
+        pass
+
+    def stop(self):
         # type: () -> None
         if _memalloc is not None:
             try:
