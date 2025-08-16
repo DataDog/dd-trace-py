@@ -10,9 +10,12 @@ from langgraph.graph import END
 from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
-
+from ddtrace.contrib.internal.langchain.patch import patch as patch_langchain
+from ddtrace.contrib.internal.langchain.patch import unpatch as unpatch_langchain
 from ddtrace.contrib.internal.langgraph.patch import patch
 from ddtrace.contrib.internal.langgraph.patch import unpatch
+from ddtrace.contrib.internal.openai.patch import patch as patch_openai
+from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.llmobs import LLMObs as llmobs_service
 from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
@@ -35,6 +38,27 @@ def langgraph(monkeypatch, mock_tracer):
     pin._override(langgraph, tracer=mock_tracer)
     yield langgraph
     unpatch()
+
+
+@pytest.fixture
+def openai(monkeypatch, mock_tracer):
+    patch_openai()
+    import openai
+
+    pin = Pin.get_from(openai)
+    pin._override(openai, tracer=mock_tracer)
+    yield openai
+    unpatch_openai()
+
+@pytest.fixture
+def langchain(mock_tracer):
+    patch_langchain()
+    import langchain
+
+    pin = Pin.get_from(langchain)
+    pin._override(langchain, tracer=mock_tracer)
+    yield langchain
+    unpatch_langchain()
 
 
 def default_global_config():
@@ -273,6 +297,32 @@ def agent_from_create_react_agent(langgraph):
         model=model,
         tools=[add],
         prompt="You are a helpful assistant who talks with a Boston accent but is also very nice. You speak in full sentences with at least 15 words.",  # noqa: E501
+        name="not_your_average_bostonian",
+    )
+
+    yield agent
+
+
+@pytest.fixture
+def agent_from_create_react_agent_integrations_enabled(langgraph, openai, langchain):
+    from langgraph.prebuilt import create_react_agent
+
+    @tool
+    def add(a: int, b: int) -> int:
+        """Adds two numbers together"""
+        return a + b
+
+    model = ChatOpenAI(
+        model="gpt-4o-mini",
+        temperature=0.5,
+        base_url="http://127.0.0.1:9126/vcr/openai",
+        api_key=os.getenv("OPENAI_API_KEY", "<not-a-real-key>"),
+    )
+
+    agent = create_react_agent(
+        model=model,
+        tools=[add],
+        prompt="You are a helpful assistant who talks with a Boston accent but is also very nice. Please use the provided tool to answer the user's question.",  # noqa: E501
         name="not_your_average_bostonian",
     )
 

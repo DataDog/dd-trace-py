@@ -313,17 +313,20 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
+        content = str(_get_attr(m, "content", ""))
+        role = str(_get_attr(m, "role", ""))
         processed_message = {
-            "content": str(_get_attr(m, "content", "")),
-            "role": str(_get_attr(m, "role", "")),
+            "content": content,
+            "role": role,
         }  # type: dict[str, Union[str, list[dict[str, dict]]]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
             processed_message["tool_id"] = tool_call_id
         tool_calls = _get_attr(m, "tool_calls", [])
+        formatted_tool_calls: List[Dict[str, Any]] = []
         if tool_calls:
-            processed_message["tool_calls"] = [
+            formatted_tool_calls = [
                 {
                     "name": _get_attr(_get_attr(tool_call, "function", {}), "name", ""),
                     "arguments": _get_attr(_get_attr(tool_call, "function", {}), "arguments", {}),
@@ -332,6 +335,11 @@ def openai_set_meta_tags_from_chat(
                 }
                 for tool_call in tool_calls
             ]
+        if role != "system":
+            # ignore system messages as we may unintentionally parse instructions as tool calls
+            capture_plain_text_tool_call(formatted_tool_calls, content, span, is_input=True)
+        if formatted_tool_calls:
+            processed_message["tool_calls"] = formatted_tool_calls
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
@@ -345,25 +353,46 @@ def openai_set_meta_tags_from_chat(
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
-            message = {"content": streamed_message.get("content", ""), "role": role}
+            content = streamed_message.get("content", "")
+            message = {"content": content, "role": role}
+            message_tool_calls = []
             tool_calls = streamed_message.get("tool_calls", [])
             if tool_calls:
-                message["tool_calls"] = [
-                    {
-                        "name": tool_call.get("name", ""),
-                        "arguments": json.loads(tool_call.get("arguments", "")),
-                        "tool_id": tool_call.get("tool_id", ""),
-                        "type": tool_call.get("type", ""),
-                    }
-                    for tool_call in tool_calls
-                ]
+                for tool_call in tool_calls:
+                    tool_id = tool_call.get("tool_id", "")
+                    tool_name = tool_call.get("name", "")
+                    tool_args = tool_call.get("arguments", "")
+                    tool_type = tool_call.get("type", "")
+                    message_tool_calls.append(
+                        {
+                            "name": tool_name,
+                            "arguments": json.loads(tool_args),
+                            "tool_id": tool_id,
+                            "type": tool_type,
+                        }
+                    )
+                    core.dispatch(
+                        DISPATCH_ON_LLM_TOOL_CHOICE,
+                        (
+                            tool_id,
+                            tool_name,
+                            tool_args,
+                            {
+                                "trace_id": format_trace_id(span.trace_id),
+                                "span_id": str(span.span_id),
+                            },
+                        ),
+                    )
+            capture_plain_text_tool_call(message_tool_calls, content, span)
+            if message_tool_calls:
+                message["tool_calls"] = message_tool_calls
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
         return
     choices = _get_attr(messages, "choices", [])
     output_messages = []
     for idx, choice in enumerate(choices):
-        tool_calls_info = []
+        tool_calls_info: List[Dict[str, Any]] = []
         choice_message = _get_attr(choice, "message", {})
         role = _get_attr(choice_message, "role", "")
         content = _get_attr(choice_message, "content", "") or ""
@@ -374,6 +403,7 @@ def openai_set_meta_tags_from_chat(
             function_call_info = {"name": function_name, "arguments": arguments}
             output_messages.append({"content": content, "role": role, "tool_calls": [function_call_info]})
             continue
+        capture_plain_text_tool_call(tool_calls_info, content, span)
         tool_calls = _get_attr(choice_message, "tool_calls", []) or []
         for tool_call in tool_calls:
             tool_args = getattr(tool_call.function, "arguments", "")
@@ -403,6 +433,45 @@ def openai_set_meta_tags_from_chat(
             continue
         output_messages.append({"content": content, "role": role})
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
+
+
+def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span, is_input: bool = False) -> None:
+    """
+    Captures plain text tool calls from a content string.
+
+    This is useful for extracting tool calls from ReAct agents which format tool calls as plain text.
+    In this framework, the tool call is formatted within the content string as:
+    ```
+    Action: <tool_name>
+    Action Input: <tool_input>
+    ```
+    """
+    if not content:
+        return
+
+    regex = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
+    action_match = re.search(regex, content, re.DOTALL)
+    if action_match and isinstance(tool_calls_info, list):
+        tool_name = action_match.group(1).strip().strip("*").strip()
+        tool_input = action_match.group(2).split("\nObservation")[0].strip("`").strip().strip(" ").strip('"')
+        tool_calls_info.append(
+            {"name": tool_name, "arguments": json.loads(tool_input), "tool_id": "", "type": "function"}
+        )
+        if is_input:
+            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
+        else:
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_name + tool_input,
+                    tool_name,
+                    tool_input,
+                    {
+                        "trace_id": format_trace_id(span.trace_id),
+                        "span_id": str(span.span_id),
+                    },
+                ),
+            )
 
 
 def get_metadata_from_kwargs(

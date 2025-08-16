@@ -46,7 +46,6 @@ def expected_run_agent_span_event(
     instructions=None,
     system_prompt=None,
     model_settings=None,
-    span_links=None,
     tools=None,
 ):
     return _expected_llmobs_non_llm_span_event(
@@ -57,11 +56,10 @@ def expected_run_agent_span_event(
         metadata=expected_agent_metadata(instructions, system_prompt, model_settings, tools),
         token_metrics=token_metrics,
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
-        span_links=span_links,
     )
 
 
-def expected_run_tool_span_event(span, input_value='{"x":2}', output="4", span_links=None):
+def expected_run_tool_span_event(span, input_value='{"x":2}', output="4"):
     return _expected_llmobs_non_llm_span_event(
         span,
         "tool",
@@ -69,7 +67,6 @@ def expected_run_tool_span_event(span, input_value='{"x":2}', output="4", span_l
         output_value=output,
         metadata={"description": "Calculates the square of a number"},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
-        span_links=span_links,
     )
 
 
