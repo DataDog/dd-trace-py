@@ -91,6 +91,7 @@ from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
+from ddtrace.llmobs._utils import SpanLinker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
@@ -214,6 +215,7 @@ class LLMObs(Service):
 
         forksafe.register(self._child_after_fork)
 
+        self._span_linker = SpanLinker()
         self._link_tracker = LinkTracker()
         self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
@@ -228,6 +230,7 @@ class LLMObs(Service):
 
     def _on_span_finish(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
+            self._span_linker.remove_child_spans(span)
             self._submit_llmobs_span(span)
             telemetry.record_span_created(span)
 
@@ -252,6 +255,8 @@ class LLMObs(Service):
     def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
+        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
+        self._span_linker.add_span_links(span, span_kind, parent_id)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
 
@@ -384,7 +389,6 @@ class LLMObs(Service):
             )
 
         span._set_ctx_item(ML_APP, ml_app)
-        parent_id = span._get_ctx_item(PARENT_ID_KEY) or ROOT_PARENT_ID
 
         llmobs_trace_id = span._get_ctx_item(LLMOBS_TRACE_ID)
         if llmobs_trace_id is None:
