@@ -47,7 +47,12 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "Release"
+CURRENT_OS = platform.system()
+
+# ON Windows, we build with Release by default, and RelWithDebInfo for other platforms
+# to generate debug symbols for native extensions.
+# Note: We strip debug symbols when releasing wheels using scripts/extract_debug_symbols.py
+COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
@@ -55,7 +60,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
@@ -78,8 +83,6 @@ STACK_V2_DIR = HERE / "ddtrace" / "internal" / "datadog" / "profiling" / "stack_
 NATIVE_CRATE = HERE / "src" / "native"
 
 BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower() in ("1", "yes", "on", "true")
-
-CURRENT_OS = platform.system()
 
 LIBDDWAF_VERSION = "1.27.0"
 
@@ -522,20 +525,6 @@ class CustomBuildExt(build_ext):
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
 
-    @staticmethod
-    def try_strip_symbols(so_file):
-        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
-            try:
-                subprocess.run(["strip", "-g", so_file], check=True)
-            except subprocess.CalledProcessError as e:
-                print(
-                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-                )
-            except Exception as e:
-                print(
-                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-                )
-
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
             try:
@@ -552,12 +541,6 @@ class CustomBuildExt(build_ext):
                 raise
         else:
             super().build_extension(ext)
-
-        if COMPILE_MODE.lower() in ("release", "minsizerel"):
-            try:
-                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
-            except Exception as e:
-                print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
@@ -870,6 +853,9 @@ else:
                 # Cython is not deprecation-proof
                 "-Wno-deprecated-declarations",
             ]
+    elif COMPILE_MODE.lower() == "relwithdebinfo":
+        # Only add debug symbols, let individual extensions handle optimizations and warnings
+        debug_compile_args = ["-g"]
     else:
         debug_compile_args = []
 
@@ -902,7 +888,7 @@ if not IS_PYSTON:
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
-                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                debug_compile_args + ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
@@ -994,11 +980,13 @@ setup(
                 "ddtrace.internal._rand",
                 sources=["ddtrace/internal/_rand.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
             Extension(
                 "ddtrace.internal._encoding",
@@ -1006,11 +994,13 @@ setup(
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
+                extra_compile_args=debug_compile_args,
             ),
             Extension(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector.stack",
@@ -1020,22 +1010,27 @@ setup(
                 # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
                 # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
                 # everything else is on a GNU-like toolchain
-                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+                extra_compile_args=debug_compile_args
+                + extra_compile_args
+                + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
                 sources=["ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
                 sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._task",
                 sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
+                extra_compile_args=debug_compile_args,
             ),
         ],
         compile_time_env={

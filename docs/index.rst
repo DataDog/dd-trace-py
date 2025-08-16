@@ -283,6 +283,7 @@ Indices and tables
     basic_usage
     advanced_usage
     build_system
+    debug_symbols
     benchmarks
     contributing
     troubleshooting

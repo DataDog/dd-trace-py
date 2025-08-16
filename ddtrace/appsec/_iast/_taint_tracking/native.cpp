@@ -41,11 +41,11 @@ static PyMethodDef AspectsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
-static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
-                                      .m_name = PY_MODULE_NAME_ASPECTS,
-                                      .m_doc = "Taint tracking Aspects",
-                                      .m_size = -1,
-                                      .m_methods = AspectsMethods };
+static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                            .m_name = PY_MODULE_NAME_ASPECTS,
+                                                            .m_doc = "Taint tracking Aspects",
+                                                            .m_size = -1,
+                                                            .m_methods = AspectsMethods };
 
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
@@ -53,11 +53,11 @@ static PyMethodDef OpsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
-static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
-                                  .m_name = PY_MODULE_NAME_ASPECTS,
-                                  .m_doc = "Taint tracking operations",
-                                  .m_size = -1,
-                                  .m_methods = OpsMethods };
+static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
+                                                        .m_name = PY_MODULE_NAME_ASPECTS,
+                                                        .m_doc = "Taint tracking operations",
+                                                        .m_size = -1,
+                                                        .m_methods = OpsMethods };
 
 /**
  * This function initializes the native module.
@@ -88,4 +88,9 @@ PYBIND11_MODULE(_native, m)
 
     PyObject* hm_ops = PyModule_Create(&ops);
     m.add_object("ops", hm_ops);
+
+    // Explicitly reference the module definitions to prevent them from being stripped
+    // This ensures the symbols are preserved even when debug symbols are stripped
+    (void)&ops;
+    (void)&aspects;
 }
