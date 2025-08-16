@@ -14,6 +14,37 @@ from tests.utils import TracerTestCase
 from tests.utils import override_third_party_packages
 
 
+def test_tb_frames_from_exception_chain():
+    def a(v, d=None):
+        if not v:
+            raise ValueError("hello", v)
+
+    def b(bar):
+        m = 4
+        try:
+            a(bar % m)
+        except ValueError:
+            raise KeyError("chain it")
+
+    def c(foo=42):
+        sh = 3
+        b(foo << sh)
+
+    try:
+        c()
+    except Exception as e:
+        chain, _ = replay.unwind_exception_chain(e, e.__traceback__)
+        frames = replay.get_tb_frames_from_exception_chain(chain)
+        # There are two tracebacks in the chain: one for KeyError and one for
+        # ValueError. The innermost goes from the call to a in b up to the point
+        # where the exception is raised in a. The outermost goes from the call
+        # in this test function up to the point in b where the exception from a
+        # is caught and the the KeyError is raised.
+        assert len(frames) == 2 + 3
+        assert [f.tb_frame.f_code.co_name for f in frames[:-1]] == ["a", "b", "b", "c"]
+        assert frames[-1].tb_frame.f_code.co_name.startswith("test_")
+
+
 def test_exception_replay_config_enabled(monkeypatch):
     monkeypatch.setenv("DD_EXCEPTION_REPLAY_ENABLED", "1")
 
@@ -126,13 +157,13 @@ class ExceptionReplayTestCase(TracerTestCase):
 
                 exc_id = span.get_tag(replay.EXCEPTION_ID_TAG)
 
-                info = {k: v for k, v in enumerate(["c", "b", "a"][n:], start=1)}
+                info = {k: v for k, v in enumerate(["a", "b", "c"][:-n], start=1)}
 
                 for i in range(1, len(info) + 1):
                     fn = info[i]
 
                     # Check that we have all the tags for each snapshot
-                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots
+                    assert span.get_tag("_dd.debug.error.%d.snapshot_id" % i) in snapshots, span._meta
                     assert span.get_tag("_dd.debug.error.%d.file" % i) == __file__.replace(".pyc", ".py"), span.get_tag(
                         "_dd.debug.error.%d.file" % i
                     )
@@ -185,7 +216,7 @@ class ExceptionReplayTestCase(TracerTestCase):
 
             snapshots = {str(s.uuid): s for s in uploader.collector.queue}
 
-            stacks = [["b_chain", "a", "c", "b_chain"], ["b_chain", "a"], ["a"]]
+            stacks = [["a", "b_chain", "b_chain", "c"], ["a", "b_chain"], ["a"]]
             number_of_exc_ids = 1
 
             for n, span in enumerate(self.spans):
@@ -355,7 +386,9 @@ class ExceptionReplayTestCase(TracerTestCase):
             n = uploader.collector.queue
             assert len(n) == config.max_frames
 
+            assert root is not None
             assert root.get_metric(replay.SNAPSHOT_COUNT_TAG) == config.max_frames
+            assert all(root.get_tag(f"_dd.debug.error.{i + 1}.function") == "r" for i in range(config.max_frames))
 
     def test_debugger_exception_replay_single_non_user_snapshot(self):
         def a(v, d=None):

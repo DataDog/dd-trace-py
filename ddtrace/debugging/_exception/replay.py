@@ -141,6 +141,22 @@ def unwind_exception_chain(
     return chain, exc_id
 
 
+def get_tb_frames_from_exception_chain(chain: ExceptionChain) -> t.List[TracebackType]:
+    """Get the frames from the exception chain."""
+    frames: t.List[TracebackType] = []
+
+    for _, tb in chain:
+        if tb is None or tb.tb_frame is None:
+            continue
+
+        _tb: t.Optional[TracebackType] = tb
+        while _tb is not None:
+            frames.append(_tb)
+            _tb = _tb.tb_next
+
+    return frames[::-1]
+
+
 class SpanExceptionProbe(LogLineProbe):
     @classmethod
     def build(cls, exc_id: uuid.UUID, frame: FrameType) -> "SpanExceptionProbe":
@@ -224,8 +240,14 @@ class SpanExceptionHandler:
 
     _instance: t.Optional["SpanExceptionHandler"] = None
 
-    def _capture_tb_frame_for_span(
-        self, span: Span, tb: TracebackType, exc_id: uuid.UUID, seq_nr: int = 1, only_user_code: bool = True
+    def _attach_tb_frame_snapshot_to_span(
+        self,
+        span: Span,
+        tb: TracebackType,
+        exc_id: uuid.UUID,
+        seq_nr: int = 1,
+        only_user_code: bool = True,
+        cached_only: bool = False,
     ) -> bool:
         frame = tb.tb_frame
         code = frame.f_code
@@ -236,6 +258,12 @@ class SpanExceptionHandler:
         snapshot_id = frame.f_locals.get(SNAPSHOT_KEY, None)
         if snapshot_id is None:
             # We don't have a snapshot for the frame so we create one
+            if cached_only:
+                # If we only want a cached snapshot we return True as a signal
+                # that we would have captured, but we actually skip generating
+                # a new snapshot.
+                return True
+
             snapshot = SpanExceptionSnapshot(
                 probe=SpanExceptionProbe.build(exc_id, frame),
                 frame=frame,
@@ -286,24 +314,29 @@ class SpanExceptionHandler:
 
         frames_captured = get_snapshot_count(span)
 
-        while chain and frames_captured < config.max_frames:
-            exc, _tb = chain.pop()  # LIFO: reverse the chain
+        # Capture more frames if we have budget left, otherwise set just the
+        # tags on the span for those frames that we have already captured.
+        for _tb in get_tb_frames_from_exception_chain(chain):
+            has_snapshot_budget = frames_captured < config.max_frames
+            has_captured = self._attach_tb_frame_snapshot_to_span(
+                span, _tb, exc_id, next(seq), cached_only=not has_snapshot_budget
+            )
+            if not has_snapshot_budget and has_captured:
+                # We would need to capture new frames at this point but we don't
+                # have budget left so we stop capturing.
+                break
 
-            if _tb is None or _tb.tb_frame is None:
-                # If we don't have a traceback there isn't much we can do
-                continue
+            frames_captured += has_captured
 
-            # DEV: We go from the handler up to the root exception
-            while _tb and frames_captured < config.max_frames:
-                frames_captured += self._capture_tb_frame_for_span(span, _tb, exc_id, next(seq))
-
-                # Move up the traceback
-                _tb = _tb.tb_next
+            if has_captured and frames_captured >= config.max_frames:
+                # The last capture has saturated the budget so we can stop
+                # capturing
+                break
 
         if not frames_captured and tb is not None:
             # Ensure we capture at least one frame if we have a traceback,
             # the one potentially closer to user code.
-            frames_captured += self._capture_tb_frame_for_span(span, tb, exc_id, only_user_code=False)
+            frames_captured += self._attach_tb_frame_snapshot_to_span(span, tb, exc_id, only_user_code=False)
 
         if frames_captured:
             span.set_tag_str(DEBUG_INFO_TAG, "true")
