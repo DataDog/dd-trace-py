@@ -15,7 +15,6 @@ from django.utils.functional import SimpleLazyObject
 from django.views.generic import TemplateView
 import mock
 import pytest
-import wrapt
 
 from ddtrace import config
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
@@ -31,6 +30,7 @@ from ddtrace.ext import http
 from ddtrace.ext import user
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.wrapping import is_wrapped
 from ddtrace.propagation._utils import get_wsgi_header
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_SAMPLING_PRIORITY
@@ -2443,9 +2443,9 @@ def test_connections_patched():
 
     assert len(connections.all())
     for conn in connections.all():
-        assert isinstance(conn.cursor, wrapt.ObjectProxy)
+        assert is_wrapped(conn.cursor)
 
-    assert isinstance(connection.cursor, wrapt.ObjectProxy)
+    assert is_wrapped(connection.cursor)
 
 
 def test_django_get_user(client, test_spans):
