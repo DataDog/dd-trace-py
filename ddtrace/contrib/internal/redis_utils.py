@@ -4,9 +4,12 @@ from typing import List
 from typing import Optional
 from typing import Union
 
+from ddtrace.contrib import trace_utils
+from ddtrace.ext import SpanTypes
 from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
+from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import stringify_cache_args
 
 
@@ -87,14 +90,13 @@ async def _run_redis_command_async(ctx: core.ExecutionContext, func, args, kwarg
 
 @contextmanager
 def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance, is_cluster=False):
-    assert False
     cmd_string = resource = "\n".join(cmds)
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
     with core.context_with_data(
         "redis.execute_pipeline",
-        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,

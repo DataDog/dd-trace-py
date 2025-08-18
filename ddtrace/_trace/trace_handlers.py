@@ -779,8 +779,7 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
 
 
 def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, instance, cmd_string):
-    pass
-    # _set_span_tags(ctx.span, pin, config_integration, None, instance, cmd_string)
+    _set_span_tags(ctx.span, pin, config_integration, None, instance, cmd_string)
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
