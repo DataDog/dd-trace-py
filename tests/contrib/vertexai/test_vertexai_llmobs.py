@@ -56,6 +56,7 @@ class TestLLMObsVertexai:
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
+            tools=[weather_tool],
         )
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
@@ -230,7 +231,7 @@ class TestLLMObsVertexai:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
 
     async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
-        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
+        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
         ]
@@ -249,7 +250,7 @@ class TestLLMObsVertexai:
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_stream_span_event(span))
 
     async def test_completion_async_stream_error(self, vertexai, mock_llmobs_writer, mock_tracer):
-        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash", tools=[weather_tool])
+        llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_async_client.responses["stream_generate_content"] = [
             _async_streamed_response(MOCK_COMPLETION_STREAM_CHUNKS)
         ]
@@ -356,6 +357,7 @@ class TestLLMObsVertexai:
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
+            tools=[weather_tool],
         )
 
         span = mock_tracer.pop_traces()[0][0]
@@ -551,6 +553,7 @@ class TestLLMObsVertexai:
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
             ),
             stream=True,
+            tools=[weather_tool],
         )
         async for _ in response:
             pass
@@ -606,6 +609,8 @@ def expected_llmobs_tool_span_event(span):
                         "arguments": {
                             "location": "New York City, NY",
                         },
+                        "tool_id": "",
+                        "type": "function_call",
                     }
                 ],
             }
@@ -613,6 +618,27 @@ def expected_llmobs_tool_span_event(span):
         metadata={"temperature": 1.0, "max_output_tokens": 30},
         token_metrics={"input_tokens": 43, "output_tokens": 11, "total_tokens": 54},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "schema": {
+                    "type_": "OBJECT",
+                    "properties": {
+                        "location": {
+                            "type_": "STRING",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {
+                            "type_": "STRING",
+                            "enum": ["celsius", "fahrenheit"],
+                        },
+                    },
+                    "required": ["location"],
+                    "property_ordering": ["location", "unit"],
+                },
+            }
+        ],
     )
 
 
