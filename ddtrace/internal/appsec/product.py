@@ -18,11 +18,6 @@ def start():
 
         load_appsec()
 
-    if config._iast_enabled:
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        AppSecIastSpanProcessor.enable()
-
 
 def restart(join=False):
     if config._asm_rc_enabled:

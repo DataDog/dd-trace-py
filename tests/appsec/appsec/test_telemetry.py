@@ -280,6 +280,13 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
         ({APPSEC_ENV: "true"}, True, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        (
+            {APPSEC_ENV: "true"},
+            False,
+            True,
+            0,
+            APPSEC.ENABLED_ORIGIN_ENV,
+        ),  # 0 because RC should not change the value if env var is set
     ),
 )
 def test_appsec_enabled_metric(
