@@ -181,7 +181,7 @@ class VertexAIIntegration(BaseLLMIntegration):
 
     def _extract_tools(self, instance, arg_tools):
         """
-        Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we 
+        Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we
         handle both cases and remove duplicates.
         """
         tools = _get_attr(instance, "_tools", []) or []
