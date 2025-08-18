@@ -71,7 +71,8 @@ jobs:
       CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
         mkdir -p ./debugwheelhouse &&
         python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
-        cp -r ./debugwheelhouse {dest_dir} &&
+        mkdir -p {dest_dir}/debugwheelhouse &&
+        cp -r ./debugwheelhouse/* {dest_dir}/debugwheelhouse/ &&
         rm -rf ./debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
@@ -82,6 +83,9 @@ jobs:
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
         mkdir -p ./debugwheelhouse &&
         python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
+        mkdir -p {dest_dir}/debugwheelhouse &&
+        cp -r ./debugwheelhouse/* {dest_dir}/debugwheelhouse/ &&
+        rm -rf ./debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
@@ -135,4 +139,4 @@ jobs:
         if: runner.os != 'Windows'
         with:
           name: debug-symbols-${{ env.ARTIFACT_NAME }}
-          path: ./debugwheelhouse/*.zip
+          path: ./wheelhouse/debugwheelhouse/*.zip
