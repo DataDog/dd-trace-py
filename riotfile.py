@@ -3413,13 +3413,11 @@ venv = Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
                 "requests": latest,
-                "hypothesis": latest,
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3471,10 +3469,7 @@ venv = Venv(
             name="appsec_integrations_langchain",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
             pkgs={
-                "pytest": latest,
                 "pytest-asyncio": latest,
-                "pytest-cov": latest,
-                "hypothesis": latest,
                 "pytest-randomly": latest,
             },
             env={
