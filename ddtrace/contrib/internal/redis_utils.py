@@ -118,3 +118,20 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
     ) as ctx, ctx.span as span:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, args, instance, query])
         yield ctx
+
+
+@contextmanager
+def _instrument_redis_execute_async_cluster_pipeline(pin, config_integration, cmds, instance):
+    cmd_string = resource = "\n".join(cmds)
+    if config_integration.resource_only_command:
+        resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
+
+    with core.context_with_data(
+        "redis.async_cluster_pipeline.execute",
+        span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        resource=resource,
+        service=trace_utils.ext_service(pin, config_integration),
+        span_type=SpanTypes.REDIS,
+    ) as span:
+        core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
+        yield span
