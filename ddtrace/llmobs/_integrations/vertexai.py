@@ -180,9 +180,13 @@ class VertexAIIntegration(BaseLLMIntegration):
         return messages
 
     def _extract_tools(self, instance, arg_tools):
+        """
+        Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we 
+        handle both cases and remove duplicates.
+        """
         tools = _get_attr(instance, "_tools", []) or []
-        tool_set = set(tools)  # set to remove duplicates
-        tool_set.update(arg_tools)  # tools can be passed into model or generation call
+        tool_set = set(tools)
+        tool_set.update(arg_tools)
         tool_definitions = []
         for tool in tool_set:
             tool_dict = tool.to_dict()
