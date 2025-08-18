@@ -182,7 +182,7 @@ def instrumented_execute_pipeline(integration_config, is_cluster=False):
                 stringify_cache_args(c, cmd_max_len=integration_config.cmd_max_length)
                 for c, _ in instance.command_stack
             ]
-        with _instrument_redis_execute_pipeline(pin, integration_config, cmds, instance, is_cluster):
+        with _instrument_redis_execute_pipeline(pin, integration_config, cmds, instance):
             return func(*args, **kwargs)
 
     return _instrumented_execute_pipeline

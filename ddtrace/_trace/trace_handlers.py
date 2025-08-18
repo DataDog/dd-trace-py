@@ -1002,7 +1002,6 @@ def listen():
         "botocore.patched_bedrock_api_call",
         "redis.command",
         "redis.execute_pipeline",
-        "redis.async_cluster_pipeline.execute",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
