@@ -103,3 +103,18 @@ def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance, 
     ) as ctx, ctx.span as span:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, instance, cmd_string])
         yield span
+
+
+@contextmanager
+def _instrument_redis_cmd(pin, config_integration, instance, args):
+    query = stringify_cache_args(args, cmd_max_len=config_integration.cmd_max_length)
+    with core.context_with_data(
+        "redis.command",
+        span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+        pin=pin,
+        service=trace_utils.ext_service(pin, config_integration),
+        span_type=SpanTypes.REDIS,
+        resource=query.split(" ")[0] if config_integration.resource_only_command else query,
+    ) as ctx, ctx.span as span:
+        _set_span_tags(span, pin, config_integration, args, instance, query)
+        yield ctx

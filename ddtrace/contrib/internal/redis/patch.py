@@ -5,8 +5,8 @@ import redis
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import determine_row_count
 from ddtrace.contrib.internal.trace_utils import unwrap

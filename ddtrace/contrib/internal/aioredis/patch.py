@@ -7,11 +7,11 @@ import aioredis
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _instrument_redis_cmd
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.redis_utils import ROW_RETURNING_COMMANDS
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.contrib.internal.redis_utils import determine_row_count
