@@ -108,7 +108,7 @@ def cursor(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any]) -> Any:
         else:
             pin = Pin(tags=tags)
             pin.onto(cursor.cursor)
-        pin._tracer = config_django._tracer or ddtrace.tracer
+        pin._tracer = config_django._tracer or pin._tracer or ddtrace.tracer
         return cursor
 
     # Always wrap Django database cursors:
