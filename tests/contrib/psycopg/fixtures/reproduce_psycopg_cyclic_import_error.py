@@ -4,8 +4,8 @@ Reproduction script for psycopg circular import issue.
 Run with: ddtrace-run python reproduce_psycopg_cyclic_import_error.py
 """
 
-import sys
 import os
+import sys
 
 
 def clear_psycopg_modules():
@@ -17,7 +17,7 @@ def clear_psycopg_modules():
 
 def main():
     clear_psycopg_modules()
-    import psycopg2
+    import psycopg2  # noqa:F401
 
 
 if __name__ == "__main__":
