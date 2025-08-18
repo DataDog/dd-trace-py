@@ -149,7 +149,6 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
-            root_ctx = chunk_root._context
 
             if self.apm_opt_out:
                 for span in trace:
@@ -157,18 +156,21 @@ class TraceSamplingProcessor(TraceProcessor):
                         span.set_metric(MK_APM_ENABLED, 0)
 
             # only trace sample if we haven't already sampled
-            if root_ctx and root_ctx.sampling_priority is None:
-                self.sampler.sample(trace[0]._local_root)
+            if chunk_root.context.sampling_priority is None:
+                self.sampler.sample(chunk_root._local_root)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces. When using the NativeWriter this is handled by native code.
-            if not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out:
-                priority = root_ctx.sampling_priority if root_ctx is not None else None
-                if priority is not None and priority <= 0:
-                    # When any span is marked as keep by a single span sampling
-                    # decision then we still send all and only those spans.
-                    single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-
-                    return single_spans or None
+            if (
+                not config._trace_writer_native
+                and self._compute_stats_enabled
+                and not self.apm_opt_out
+                and chunk_root.context.sampling_priority is not None
+                and chunk_root.context.sampling_priority <= 0
+            ):
+                # When any span is marked as keep by a single span sampling
+                # decision then we still send all and only those spans.
+                single_spans = [_ for _ in trace if is_single_span_sampled(_)]
+                return single_spans or None
 
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
@@ -183,9 +185,7 @@ class TraceSamplingProcessor(TraceProcessor):
                                 if config._trace_compute_stats:
                                     span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                                 break
-
             return trace
-
         return None
 
 
@@ -227,10 +227,6 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         chunk_root = trace[0]
-        ctx = chunk_root._context
-        if not ctx:
-            return trace
-
         chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
