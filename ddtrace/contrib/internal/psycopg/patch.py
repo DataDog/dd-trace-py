@@ -137,7 +137,7 @@ def _patch(psycopg_module):
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
         _get_psycopg3_original_methods()
-        
+
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
