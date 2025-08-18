@@ -176,16 +176,17 @@ class TraceSamplingProcessor(TraceProcessor):
                 for span in trace:
                     for rule in self.single_span_rules:
                         if rule.match(span):
-                            # Sampling a span does NOT effect the sampling priotiy. This operation
-                            # simply sets tags to mark a span as single-span sampled.
+                            # Sampling a span here does NOT effect the sampling priotiy. This operation
+                            # simply marks a span as single-span sampled.
                             rule.sample(span)
                             if can_drop_trace:
                                 single_spans.append(span)
                             break
-                if can_drop_trace and single_spans:
-                    # Ensure a sampling priority is set for the first span in the trace.
-                    # This is important espesically if the local root span is dropped.
-                    single_spans[0].set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
+                if can_drop_trace:
+                    if single_spans:
+                        # Ensure a sampling priority is set for the first span in the trace.
+                        # This is important espesically if the local root span is dropped.
+                        single_spans[0]._metrics[_SAMPLING_PRIORITY_KEY] = USER_KEEP
                     return single_spans
             return trace
         return None
@@ -382,7 +383,7 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans is not None:
+                if spans:
                     for span in spans:
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
