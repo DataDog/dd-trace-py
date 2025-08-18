@@ -78,8 +78,10 @@ jobs:
         mv ./tempwheelhouse/*.whl {dest_dir} &&
         rm -rf ./tempwheelhouse
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
-        mkdir -p {dest_dir}/debugwheelhouse &&
-        python scripts/extract_debug_symbols.py {wheel} --output-dir {dest_dir}/debugwheelhouse &&
+        mkdir -p ./debugwheelhouse &&
+        python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
+        cp -r ./debugwheelhouse {dest_dir} &&
+        rm -rf ./debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
