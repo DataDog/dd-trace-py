@@ -39,4 +39,3 @@ class TestPsycopgPatch(PatchTestCase.Base):
         assert versions.get("psycopg")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg"])
         unpatch()
-
