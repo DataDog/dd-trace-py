@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    psycopg: This fix resolves a potential circular import with the psycopg3 contrib.
