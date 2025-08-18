@@ -778,8 +778,8 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
-def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, instance, cmd_string):
-    _set_span_tags(ctx.span, pin, config_integration, None, instance, cmd_string)
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, cmd_string):
+    _set_span_tags(ctx.span, pin, config_integration, args, instance, cmd_string)
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
@@ -981,6 +981,7 @@ def listen():
         "botocore.patched_bedrock_api_call",
         "redis.command",
         "redis.execute_pipeline",
+        "redis.async_cluster_pipeline.execute",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",

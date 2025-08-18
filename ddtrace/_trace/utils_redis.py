@@ -53,11 +53,12 @@ def _instrument_redis_execute_async_cluster_pipeline(pin, config_integration, cm
     if config_integration.resource_only_command:
         resource = "\n".join([cmd.split(" ")[0] for cmd in cmds])
 
-    with pin.tracer.trace(
-        schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
+    with core.context_with_data(
+        "redis.async_cluster_pipeline.execute",
+        span_name=schematize_cache_operation(redisx.CMD, cache_provider=redisx.APP),
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
     ) as span:
-        _set_span_tags(span, pin, config_integration, None, instance, cmd_string)
+        core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
         yield span
