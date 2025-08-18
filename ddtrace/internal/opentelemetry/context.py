@@ -1,5 +1,4 @@
 from ddtrace._trace.context import Context as DDContext
-from ddtrace._trace.provider import BaseContextProvider as DDBaseContextProvider  # noqa:F401
 from ddtrace._trace.span import Span as DDSpan
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext

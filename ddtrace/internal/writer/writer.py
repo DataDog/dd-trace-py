@@ -40,6 +40,7 @@ from ..serverless import in_gcp_function
 from ..service import ServiceStatusError
 from ..sma import SimpleMovingAverage
 from ..utils.formats import parse_tags_str
+from ..utils.http import ConnectionType
 from ..utils.http import Response
 from ..utils.http import verify_url
 from ..utils.time import StopWatch
@@ -48,15 +49,9 @@ from .writer_client import AgentWriterClientV4
 from .writer_client import WriterClientBase
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from typing import Any  # noqa:F401
-    from typing import Tuple  # noqa:F401
-
-    from ddtrace.trace import Span  # noqa:F401
+if TYPE_CHECKING:
+    from ddtrace.trace import Span
     from ddtrace.vendor.dogstatsd import DogStatsd
-
-    from .utils.http import ConnectionType  # noqa:F401
-
 
 log = get_logger(__name__)
 
@@ -97,8 +92,7 @@ class TraceWriter(metaclass=abc.ABCMeta):
         pass
 
     @abc.abstractmethod
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: Optional["List[Span]"] = None) -> None:
         pass
 
     @abc.abstractmethod
@@ -126,12 +120,11 @@ class LogWriter(TraceWriter):
     def stop(self, timeout: Optional[float] = None) -> None:
         return
 
-    def write(self, spans=None):
-        # type: (Optional[List[Span]]) -> None
+    def write(self, spans: "Optional[List[Span]]" = None) -> None:
         if not spans:
             return
         encoded = self.encoder.encode_traces([spans])
-        self.out.write(encoded + "\n")
+        self.out.write(encoded[0] + "\n")
         self.out.flush()
 
     def flush_queue(self) -> None:
@@ -311,19 +304,19 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
         if response.status not in (404, 415) and response.status >= 400:
             msg = "failed to send traces to intake at %s: HTTP error status %s, reason %s"
-            log_args = (
+            log_args = [
                 self._intake_endpoint(client),
                 response.status,
                 response.reason,
-            )  # type: Tuple[Any, Any, Any]
+            ]
             # Append the payload if requested
             if config._trace_writer_log_err_payload:
                 msg += ", payload %s"
                 # If the payload is bytes then hex encode the value before logging
                 if isinstance(payload, bytes):
-                    log_args += (binascii.hexlify(payload).decode(),)  # type: ignore
+                    log_args.append(binascii.hexlify(payload).decode())
                 else:
-                    log_args += (payload,)
+                    log_args.append(payload)
 
             log.error(msg, *log_args)
             self._metrics_dist("http.dropped.bytes", len(payload))
@@ -336,8 +329,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
         if self._sync_mode:
             self.flush_queue()
 
-    def _write_with_client(self, client, spans=None):
-        # type: (WriterClientBase, Optional[List[Span]]) -> None
+    def _write_with_client(self, client: "WriterClientBase", spans: "Optional[List[Span]]" = None) -> None:
         if spans is None:
             return
 

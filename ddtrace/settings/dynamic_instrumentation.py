@@ -15,8 +15,7 @@ DEFAULT_MAX_PROBES = 100
 DEFAULT_GLOBAL_RATE_LIMIT = 100.0
 
 
-def _derive_tags(c):
-    # type: (DDConfig) -> str
+def _derive_tags(c: DDConfig) -> str:
     _tags = dict(env=ddconfig.env, version=ddconfig.version, debugger_version=get_version())
     _tags.update(ddconfig.tags)
 

@@ -1,8 +1,10 @@
 import abc
 import contextvars
+import threading
 from typing import Any
 from typing import Optional
 from typing import Union
+from weakref import WeakValueDictionary
 
 from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span
@@ -57,6 +59,8 @@ class DefaultContextProvider(BaseContextProvider):
 
     def __init__(self) -> None:
         super(DefaultContextProvider, self).__init__()
+        self._local = threading.local()
+        self._local._contexts = WeakValueDictionary()
 
     def _has_active_context(self) -> bool:
         """Returns whether there is an active context in the current execution."""

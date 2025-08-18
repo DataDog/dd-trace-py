@@ -1,9 +1,17 @@
+from typing import TYPE_CHECKING
+from typing import Any
 from typing import Callable
+from typing import List
+from typing import Optional
 
 from ddtrace.propagation.http import HTTPPropagator
 
 
-def extract_DD_context_from_messages(messages, extract_from_message: Callable):
+if TYPE_CHECKING:
+    from ddtrace._trace.context import Context
+
+
+def extract_DD_context_from_messages(messages: List[Any], extract_from_message: Callable) -> Optional["Context"]:
     ctx = None
     if len(messages) >= 1:
         message = messages[0]

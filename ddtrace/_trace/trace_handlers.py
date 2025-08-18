@@ -151,7 +151,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 def _finish_span(
     ctx: core.ExecutionContext,
     exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
-):
+) -> None:
     """
     Finish the span in the context.
     If no span is present, do nothing.
@@ -168,14 +168,14 @@ def _finish_span(
     span.finish()
 
 
-def _set_web_frameworks_tags(ctx, span, int_config):
+def _set_web_frameworks_tags(ctx, span, int_config) -> None:
     span.set_tag_str(COMPONENT, int_config.integration_name)
     span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
     # PERF: avoid setting via Span.set_tag
     span.set_metric(_SPAN_MEASURED_KEY, 1)
 
 
-def _on_web_framework_start_request(ctx, int_config):
+def _on_web_framework_start_request(ctx, int_config) -> None:
     request_span = ctx.get_item("req_span")
     _set_web_frameworks_tags(ctx, request_span, int_config)
 

@@ -6,7 +6,7 @@ from typing import Union
 
 # TypedDict was added to typing in python 3.8
 try:
-    from typing import TypedDict  # noqa:F401
+    from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
 

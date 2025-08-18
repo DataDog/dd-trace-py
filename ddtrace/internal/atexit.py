@@ -8,7 +8,6 @@ import atexit
 import logging
 import signal
 import threading
-import typing  # noqa:F401
 
 from ddtrace.internal.utils import signals
 
@@ -21,8 +20,8 @@ unregister = atexit.unregister
 
 
 # registers a function to be called when an exit signal (TERM or INT) or received.
-def register_on_exit_signal(f):
-    def handle_exit(sig, frame):
+def register_on_exit_signal(f) -> None:
+    def handle_exit(sig, frame) -> None:
         f()
 
     if threading.current_thread() is threading.main_thread():

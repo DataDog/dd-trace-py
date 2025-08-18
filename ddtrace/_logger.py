@@ -24,8 +24,7 @@ class LogInjectionState(object):
     STRUCTURED = "structured"
 
 
-def configure_ddtrace_logger():
-    # type: () -> None
+def configure_ddtrace_logger() -> None:
     """Configures ddtrace log levels and file paths.
 
     Customization is possible with the environment variables:
@@ -101,8 +100,7 @@ def _add_file_handler(
     return ddtrace_file_handler
 
 
-def set_log_formatting():
-    # type: () -> None
+def set_log_formatting() -> None:
     """Sets the log format for the ddtrace logger."""
     ddtrace_logger = logging.getLogger("ddtrace")
     for handler in ddtrace_logger.handlers:

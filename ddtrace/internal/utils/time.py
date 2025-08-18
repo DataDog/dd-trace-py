@@ -1,7 +1,7 @@
 import time as builtin_time
 from types import TracebackType
 from typing import Optional
-from typing import Type  # noqa:F401
+from typing import Type
 
 from ddtrace.internal.logger import get_logger
 
@@ -44,8 +44,7 @@ class StopWatch(object):
         self._started_at: Optional[float] = None
         self._stopped_at: Optional[float] = None
 
-    def start(self):
-        # type: () -> StopWatch
+    def start(self) -> "StopWatch":
         """Starts the watch."""
         self._started_at = Time.monotonic()
         return self
@@ -65,8 +64,7 @@ class StopWatch(object):
             now = self._stopped_at
         return now - self._started_at
 
-    def __enter__(self):
-        # type: () -> StopWatch
+    def __enter__(self) -> "StopWatch":
         """Starts the watch."""
         self.start()
         return self
@@ -77,8 +75,7 @@ class StopWatch(object):
         """Stops the watch."""
         self.stop()
 
-    def stop(self):
-        # type: () -> StopWatch
+    def stop(self) -> "StopWatch":
         """Stops the watch."""
         if self._started_at is None:
             raise RuntimeError("Can not stop a stopwatch that has not been started")
@@ -109,17 +106,14 @@ class HourGlass(object):
 
         self.trickling = self._trickling  # type: ignore[method-assign]
 
-    def trickling(self):
-        # type: () -> bool
+    def trickling(self) -> bool:
         """Check if sand is still trickling."""
         return False
 
-    def _trickled(self):
-        # type: () -> bool
+    def _trickled(self) -> bool:
         return False
 
-    def _trickling(self):
-        # type: () -> bool
+    def _trickling(self) -> bool:
         if Time.monotonic() < self._end_at:
             return True
 
@@ -128,12 +122,13 @@ class HourGlass(object):
 
         return False
 
-    def __enter__(self):
-        # type: () -> HourGlass
+    def __enter__(self) -> "HourGlass":
         self.turn()
         return self
 
-    def __exit__(self, tp, value, traceback):
+    def __exit__(
+        self, tp: Optional[Type[BaseException]], value: Optional[BaseException], traceback: Optional[TracebackType]
+    ) -> None:
         pass
 
     def __lt__(self, other) -> bool:

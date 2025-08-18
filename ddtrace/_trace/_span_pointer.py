@@ -57,11 +57,19 @@ class _SpanPointer(SpanLink):
 
         self.kind = SpanLinkKind.SPAN_POINTER.value
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         # Do not want to do the trace_id and span_id checks that SpanLink does.
         pass
 
-    def __repr__(self):
+    @property
+    def direction(self) -> str:
+        return self.attributes.get("ptr.dir", "")
+
+    @property
+    def hash(self) -> str:
+        return self.attributes.get("ptr.hash", "")
+
+    def __repr__(self) -> str:
         return (
             f"SpanPointer(trace_id={self.trace_id}, span_id={self.span_id}, kind={self.kind}, "
             f"direction={self.direction}, hash={self.hash}, attributes={self.attributes})"

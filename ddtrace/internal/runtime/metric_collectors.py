@@ -1,6 +1,8 @@
 import os
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import List
+from typing import Optional
+from typing import Set
+from typing import Tuple
 
 from .collector import ValueCollector
 from .constants import CPU_PERCENT
@@ -16,7 +18,7 @@ from .constants import THREAD_COUNT
 
 
 class RuntimeMetricCollector(ValueCollector):
-    value = []  # type: List[Tuple[str, str]]
+    value: List[Tuple[str, str]] = []
     periodic = True
 
 
@@ -28,7 +30,7 @@ class GCRuntimeMetricCollector(RuntimeMetricCollector):
 
     required_modules = ["gc"]
 
-    def collect_fn(self, keys):
+    def collect_fn(self, keys: Optional[Set[str]] = None) -> Optional[List[Tuple[str, str]]]:
         gc = self.modules.get("gc")
 
         counts = gc.get_count()

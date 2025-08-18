@@ -13,10 +13,9 @@ class HTTPConnectionMixin:
     - update headers with container info
     """
 
-    _base_path = "/"  # type: str
+    _base_path: str = "/"
 
-    def putrequest(self, method, url, skip_host=False, skip_accept_encoding=False):
-        # type: (str, str, bool, bool) -> None
+    def putrequest(self, method: str, url: str, skip_host: bool = False, skip_accept_encoding: bool = False) -> None:
         url = parse.urljoin(self._base_path, url)
         return super().putrequest(  # type: ignore[misc]
             method, url, skip_host=skip_host, skip_accept_encoding=skip_accept_encoding

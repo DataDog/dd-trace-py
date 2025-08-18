@@ -1,8 +1,8 @@
 import itertools
 import os
-from typing import ClassVar  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import ClassVar
+from typing import List
+from typing import Optional
 
 import ddtrace
 from ddtrace.internal import atexit
@@ -83,7 +83,7 @@ class RuntimeWorker(periodic.PeriodicService):
     """
 
     enabled = False
-    _instance = None  # type: ClassVar[Optional[RuntimeWorker]]
+    _instance: ClassVar[Optional["RuntimeWorker"]] = None
     _lock = forksafe.Lock()
 
     def __init__(self, interval=_get_interval_or_default(), tracer=None, dogstatsd_url=None) -> None:
@@ -108,7 +108,6 @@ class RuntimeWorker(periodic.PeriodicService):
 
     @classmethod
     def disable(cls):
-        # type: () -> None
         with cls._lock:
             if cls._instance is None:
                 return
@@ -134,8 +133,12 @@ class RuntimeWorker(periodic.PeriodicService):
         cls.enable()
 
     @classmethod
-    def enable(cls, flush_interval=None, tracer=None, dogstatsd_url=None):
-        # type: (Optional[float], Optional[ddtrace.trace.Tracer], Optional[str]) -> None
+    def enable(
+        cls,
+        flush_interval: Optional[float] = None,
+        tracer: Optional[ddtrace.trace.Tracer] = None,
+        dogstatsd_url: Optional[str] = None,
+    ) -> None:
         with cls._lock:
             if cls._instance is not None:
                 return
@@ -151,7 +154,6 @@ class RuntimeWorker(periodic.PeriodicService):
             cls.enabled = True
 
     def flush(self):
-        # type: () -> None
         # Ensure runtime metrics have up-to-date tags (ex: service, env, version)
         rumtime_tags = self._format_tags(TracerTags()) + self._platform_tags
         log.debug("Sending runtime metrics with the following tags: %s", rumtime_tags)
@@ -163,7 +165,6 @@ class RuntimeWorker(periodic.PeriodicService):
                 self.send_metric(key, value)
 
     def _stop_service(self):
-        # type: (...) -> None
         # De-register span hook
         super(RuntimeWorker, self)._stop_service()
 
@@ -171,5 +172,9 @@ class RuntimeWorker(periodic.PeriodicService):
         # DEV: ddstatsd expects tags in the form ['key1:value1', 'key2:value2', ...]
         return ["{}:{}".format(k, v) for k, v in tags]
 
-    periodic = flush
-    on_shutdown = flush
+    def periodic(self) -> None:
+        self.flush()
+
+    @staticmethod
+    def on_shutdown():
+        RuntimeWorker.flush()

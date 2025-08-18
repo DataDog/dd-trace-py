@@ -5,7 +5,6 @@ import hashlib
 import json
 import os
 import re
-from typing import TYPE_CHECKING  # noqa:F401
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -263,7 +262,7 @@ class RemoteConfigClient:
 
     def update_product_callback(self, product_name: str, callback: Callable) -> bool:
         pubsub_instance = self._products.get(product_name)
-        if pubsub_instance:
+        if pubsub_instance and pubsub_instance._subscriber:
             pubsub_instance._subscriber._callback = callback
             if not self.is_subscriber_running(pubsub_instance):
                 pubsub_instance.start_subscriber()

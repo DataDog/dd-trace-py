@@ -1,11 +1,11 @@
 import platform
 import sys
 import sysconfig
-from typing import TYPE_CHECKING  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import Iterable  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Any
+from typing import Dict
+from typing import Iterable
+from typing import List
+from typing import Tuple
 
 from ddtrace.internal.constants import DEFAULT_SERVICE_NAME
 from ddtrace.internal.packages import get_module_distribution_versions
@@ -16,14 +16,12 @@ from ddtrace.version import get_version
 from ..hostname import get_hostname
 
 
-def _format_version_info(vi):
-    # type: (sys._version_info) -> str
+def _format_version_info(vi: Any) -> str:
     """Converts sys.version_info into a string with the format x.x.x"""
     return "%d.%d.%d" % (vi.major, vi.minor, vi.micro)
 
 
-def _get_container_id():
-    # type: () -> str
+def _get_container_id() -> str:
     """Get ID from docker container"""
     container_info = get_container_info()
     if container_info:
@@ -31,8 +29,7 @@ def _get_container_id():
     return ""
 
 
-def _get_os_version():
-    # type: () -> str
+def _get_os_version() -> str:
     """Returns the os version for applications running on Mac or Windows 32-bit"""
     try:
         mver, _, _ = platform.mac_ver()
@@ -50,8 +47,7 @@ def _get_os_version():
 
 
 @cached()
-def _get_application(key):
-    # type: (Tuple[str, str, str]) -> Dict
+def _get_application(key: Tuple[str, str, str]) -> Dict:
     """
     This helper packs and unpacks get_application arguments to support caching.
     Cached() annotation only supports functions with one argument
@@ -91,8 +87,7 @@ def update_imported_dependencies(already_imported: Dict[str, str], new_modules: 
     return deps
 
 
-def get_application(service, version, env):
-    # type: (str, str, str) -> Dict
+def get_application(service: str, version: str, env: str) -> Dict:
     """Creates a dictionary to store application data using ddtrace configurations and the System-Specific module"""
     # We cache the application dict to reduce overhead since service, version, or env configurations
     # can change during runtime
@@ -102,8 +97,7 @@ def get_application(service, version, env):
 _host_info = None
 
 
-def get_host_info():
-    # type: () -> Dict
+def get_host_info() -> Dict:
     """Creates a dictionary to store host data using the platform module"""
     global _host_info
     if _host_info is None:

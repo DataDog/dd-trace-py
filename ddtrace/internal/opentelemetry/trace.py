@@ -1,8 +1,14 @@
 from contextlib import contextmanager
-from typing import TYPE_CHECKING
+from typing import Dict
+from typing import Iterator
+from typing import Mapping
+from typing import Optional
+from typing import Sequence
+from typing import Union
 
 from opentelemetry import version
-from opentelemetry.context import Context as OtelContext  # noqa:F401
+from opentelemetry.context import Context as OtelContext
+from opentelemetry.trace import Link as OtelLink
 from opentelemetry.trace import SpanKind as OtelSpanKind
 from opentelemetry.trace import Tracer as OtelTracer
 from opentelemetry.trace import TracerProvider as OtelTracerProvider
@@ -10,28 +16,15 @@ from opentelemetry.trace import use_span
 from opentelemetry.trace.propagation import get_current_span
 from opentelemetry.trace.span import INVALID_SPAN
 from opentelemetry.trace.span import Span as OtelSpan
+from opentelemetry.util.types import AttributeValue as OtelAttributeValue
 
 import ddtrace
 from ddtrace.internal.constants import SPAN_API_OTEL
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import _TraceContext
+from ddtrace.trace import Tracer as DDTracer
 
 from .span import Span
-
-
-if TYPE_CHECKING:
-    from typing import Dict  # noqa:F401
-    from typing import Iterator  # noqa:F401
-    from typing import Mapping  # noqa:F401
-    from typing import Optional  # noqa:F401
-    from typing import Sequence  # noqa:F401
-    from typing import Union  # noqa:F401
-
-    from opentelemetry.trace import Link as OtelLink  # noqa:F401
-    from opentelemetry.util.types import AttributeValue as OtelAttributeValue  # noqa:F401
-
-    from ddtrace._trace.span import _MetaDictType  # noqa:F401
-    from ddtrace.trace import Tracer as DDTracer  # noqa:F401
 
 
 log = get_logger(__name__)
@@ -56,12 +49,11 @@ class TracerProvider(OtelTracerProvider):
         # The new signature includes an `attributes` parameter which is used by opentelemetry internals.
         def get_tracer(
             self,
-            instrumenting_module_name,
-            instrumenting_library_version=None,
-            schema_url=None,
-            attributes=None,
-        ):
-            # type: (str, Optional[str], Optional[str], Optional[Dict]) -> OtelTracer
+            instrumenting_module_name: str,
+            instrumenting_library_version: "Optional[str]" = None,
+            schema_url: "Optional[str]" = None,
+            attributes: "Optional[Dict]" = None,
+        ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
             return Tracer(self._ddtracer)
 
@@ -69,11 +61,10 @@ class TracerProvider(OtelTracerProvider):
 
         def get_tracer(  # type: ignore[misc]
             self,
-            instrumenting_module_name,
-            instrumenting_library_version=None,
-            schema_url=None,
-        ):
-            # type: (str, Optional[str], Optional[str]) -> OtelTracer
+            instrumenting_module_name: str,
+            instrumenting_library_version: "Optional[str]" = None,
+            schema_url: "Optional[str]" = None,
+        ) -> OtelTracer:
             """Returns an opentelemetry compatible Tracer."""
             return Tracer(self._ddtracer)
 
@@ -81,29 +72,27 @@ class TracerProvider(OtelTracerProvider):
 class Tracer(OtelTracer):
     """Starts and/or activates OpenTelemetry compatible Spans using the global Datadog Tracer."""
 
-    def __init__(self, datadog_tracer):
-        # type: (DDTracer) -> None
+    def __init__(self, datadog_tracer: "DDTracer") -> None:
         self._tracer = datadog_tracer
         super(Tracer, self).__init__()
 
     def start_span(
         self,
-        name,  # type: str
-        context=None,  # type: Optional[OtelContext]
-        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
-        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
-        links=None,  # type: Optional[Sequence[OtelLink]]
-        start_time=None,  # type: Optional[int]
-        record_exception=True,  # type: bool
-        set_status_on_exception=True,  # type: bool
-    ):
-        # type: (...) -> OtelSpan
+        name: str,
+        context: "Optional[OtelContext]" = None,
+        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
+        attributes: "Optional[Mapping[str, OtelAttributeValue]]" = None,
+        links: "Optional[Sequence[OtelLink]]" = None,
+        start_time: "Optional[int]" = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+    ) -> OtelSpan:
         """Creates and starts an opentelemetry span."""
         # Get active otel span
         curr_otel_span = get_current_span(context)
         if curr_otel_span is INVALID_SPAN:
             # There is no active datadog/otel span
-            dd_active = None  # type: Optional[Union[ddtrace.trace.Context, ddtrace.trace.Span]]
+            dd_active: Optional[Union[ddtrace.trace.Context, ddtrace.trace.Span]] = None
         elif isinstance(curr_otel_span, Span):
             # Get underlying ddtrace span from the active otel span
             dd_active = curr_otel_span._ddspan
@@ -144,17 +133,16 @@ class Tracer(OtelTracer):
     @contextmanager
     def start_as_current_span(
         self,
-        name,  # type: str
-        context=None,  # type: Optional[OtelContext]
-        kind=OtelSpanKind.INTERNAL,  # type: OtelSpanKind
-        attributes=None,  # type: Optional[Mapping[str, OtelAttributeValue]]
-        links=None,  # type: Optional[Sequence[OtelLink]]
-        start_time=None,  # type: Optional[int]
-        record_exception=True,  # type: bool
-        set_status_on_exception=True,  # type: bool
-        end_on_exit=True,  # type: bool
-    ):
-        # type: (...) -> Iterator[OtelSpan]
+        name: str,
+        context: "Optional[OtelContext]" = None,
+        kind: OtelSpanKind = OtelSpanKind.INTERNAL,
+        attributes: "Optional[Mapping[str, OtelAttributeValue]]" = None,
+        links: "Optional[Sequence[OtelLink]]" = None,
+        start_time: Optional[int] = None,
+        record_exception: bool = True,
+        set_status_on_exception: bool = True,
+        end_on_exit: bool = True,
+    ) -> "Iterator[OtelSpan]":
         """Context manager for creating and activating a new opentelemetry span."""
         # Create a new non-active OTel span wrapper
         span = self.start_span(

@@ -5,17 +5,15 @@ import opentracing
 import ddtrace
 
 
-if TYPE_CHECKING:  # pragma: no cover
-    from ddtrace.opentracer import Tracer  # noqa:F401
-
+if TYPE_CHECKING:
+    from ddtrace.opentracer import Tracer
 
 """
 Helper routines for Datadog OpenTracing.
 """
 
 
-def set_global_tracer(tracer):
-    # type: (Tracer) -> None
+def set_global_tracer(tracer: "Tracer") -> None:
     """Sets the global tracers to the given tracer."""
 
     # overwrite the opentracer reference

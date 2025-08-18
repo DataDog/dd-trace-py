@@ -73,20 +73,20 @@ class SpanEvent:
         self.time_unix_nano: int = time_unix_nano
         self.attributes: dict = attributes if attributes else {}
 
-    def __dict__(self):
+    def to_dict(self) -> Dict[str, Any]:
         d = {"name": self.name, "time_unix_nano": self.time_unix_nano}
         if self.attributes:
             d["attributes"] = self.attributes
         return d
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         """
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
         return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
 
-    def __iter__(self):
+    def __iter__(self) -> Any:
         yield "name", self.name
         yield "time_unix_nano", self.time_unix_nano
         if self.attributes:
@@ -203,9 +203,9 @@ class Span(object):
         if trace_id is not None:
             self.trace_id: int = trace_id
         elif config._128_bit_trace_id_enabled:
-            self.trace_id: int = _rand128bits()  # type: ignore[no-redef]
+            self.trace_id = _rand128bits()
         else:
-            self.trace_id: int = _rand64bits()  # type: ignore[no-redef]
+            self.trace_id = _rand64bits()
         self.span_id: int = span_id or _rand64bits()
         self.parent_id: Optional[int] = parent_id
         self._on_finish_callbacks = [] if on_finish is None else on_finish
@@ -327,7 +327,7 @@ class Span(object):
         for cb in self._on_finish_callbacks:
             cb(self)
 
-    def _override_sampling_decision(self, decision: Optional[NumericType]):
+    def _override_sampling_decision(self, decision: Optional[NumericType]) -> None:
         self.context.sampling_priority = decision
         self._set_sampling_decision_maker(SamplingMechanism.MANUAL)
         if self._local_root:
@@ -500,7 +500,7 @@ class Span(object):
     ) -> None:
         self._events.append(SpanEvent(name, attributes, timestamp))
 
-    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]):
+    def _add_on_finish_exception_callback(self, callback: Callable[["Span"], None]) -> None:
         """Add an errortracking related callback to the on_finish_callback array"""
         self._on_finish_callbacks.insert(0, callback)
 
@@ -508,7 +508,7 @@ class Span(object):
         """Return all metrics."""
         return self._metrics.copy()
 
-    def set_traceback(self, limit: Optional[int] = None):
+    def set_traceback(self, limit: Optional[int] = None) -> None:
         """If the current stack has an exception, tag the span with the
         relevant error info. If not, tag it with the current python stack.
         """

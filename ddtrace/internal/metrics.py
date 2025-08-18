@@ -1,5 +1,5 @@
-from typing import Dict  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Dict
+from typing import Optional
 
 from ddtrace.internal.dogstatsd import get_dogstatsd_client
 from ddtrace.settings._agent import config as agent_config
@@ -24,8 +24,7 @@ class Metrics(object):
             >>> writer_meter.increment('success')  # won't be emitted
     """
 
-    def __init__(self, dogstats_url=None, namespace=None):
-        # type: (Optional[str], Optional[str]) -> None
+    def __init__(self, dogstats_url: Optional[str] = None, namespace: Optional[str] = None) -> None:
         self.dogstats_url = dogstats_url
         self.namespace = namespace
         self.enabled = False
@@ -33,13 +32,11 @@ class Metrics(object):
         self._client = get_dogstatsd_client(dogstats_url or agent_config.dogstatsd_url, namespace=namespace)
 
     class Meter(object):
-        def __init__(self, metrics, name):
-            # type: (Metrics, str) -> None
+        def __init__(self, metrics: "Metrics", name: str) -> None:
             self.metrics = metrics
             self.name = name
 
-        def increment(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+        def increment(self, name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
@@ -47,8 +44,7 @@ class Metrics(object):
                 ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
             )
 
-        def gauge(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+        def gauge(self, name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
@@ -56,8 +52,7 @@ class Metrics(object):
                 ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
             )
 
-        def histogram(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+        def histogram(self, name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
@@ -65,8 +60,7 @@ class Metrics(object):
                 ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
             )
 
-        def distribution(self, name, value=1.0, tags=None):
-            # type: (str, float, Optional[Dict[str, str]]) -> None
+        def distribution(self, name: str, value: float = 1.0, tags: Optional[Dict[str, str]] = None) -> None:
             if not self.metrics.enabled:
                 return None
 
@@ -74,14 +68,11 @@ class Metrics(object):
                 ".".join((self.name, name)), value, [":".join(_) for _ in tags.items()] if tags else None
             )
 
-    def enable(self):
-        # type: () -> None
+    def enable(self) -> None:
         self.enabled = True
 
-    def disable(self):
-        # type: () -> None
+    def disable(self) -> None:
         self.enabled = False
 
-    def get_meter(self, name):
-        # type: (str) -> Metrics.Meter
+    def get_meter(self, name: str) -> "Metrics.Meter":
         return self.Meter(self, name)

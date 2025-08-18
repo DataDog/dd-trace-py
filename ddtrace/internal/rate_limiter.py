@@ -5,9 +5,10 @@ from dataclasses import field
 import random
 import threading
 import time
-from typing import Any  # noqa:F401
-from typing import Callable  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import Any
+from typing import Callable
+from typing import Optional
+from typing import Union
 
 
 class RateLimiter(object):
@@ -42,15 +43,15 @@ class RateLimiter(object):
         """
         self.rate_limit = rate_limit
         self.time_window = time_window
-        self.tokens = rate_limit  # type: float
+        self.tokens: Union[int, float] = rate_limit
         self.max_tokens = rate_limit
 
         self.last_update_ns = time.monotonic_ns()
 
-        self.current_window_ns = 0  # type: float
+        self.current_window_ns = 0
         self.tokens_allowed = 0
         self.tokens_total = 0
-        self.prev_window_rate = None  # type: Optional[float]
+        self.prev_window_rate: Optional[float] = None
 
         self._lock = threading.Lock()
 

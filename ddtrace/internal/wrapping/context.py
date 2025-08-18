@@ -10,7 +10,7 @@ import typing as t
 
 
 try:
-    from typing import Protocol  # noqa:F401
+    from typing import Protocol
 except ImportError:
     from typing_extensions import Protocol  # type: ignore[assignment]
 
@@ -414,9 +414,9 @@ class WrappingContext(BaseWrappingContext):
 class ContextWrappedFunction(Protocol):
     """A wrapped function."""
 
-    __dd_context_wrapped__ = None  # type: t.Optional[_UniversalWrappingContext]
+    __dd_context_wrapped__: t.Optional["_UniversalWrappingContext"] = None
 
-    def __call__(self, *args, **kwargs):
+    def __call__(self, *args: t.Any, **kwargs: t.Any) -> t.Any:
         pass
 
 

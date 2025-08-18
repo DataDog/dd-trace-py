@@ -101,14 +101,16 @@ like this::
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
 
+import contextvars
 import logging
 import sys
 import types
-import typing
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Optional  # noqa:F401
+from typing import TYPE_CHECKING
+from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Set
 
 from ddtrace.vendor.debtcollector import deprecate
 
@@ -122,10 +124,8 @@ from .event_hub import on  # noqa:F401
 from .event_hub import reset as reset_listeners  # noqa:F401
 
 
-if typing.TYPE_CHECKING:
-    from ddtrace._trace.span import Span  # noqa:F401
-
-import contextvars
+if TYPE_CHECKING:
+    from ddtrace.trace import Span
 
 
 _MISSING = object()
@@ -142,10 +142,10 @@ SPAN_DEPRECATION_MESSAGE = (
 SPAN_DEPRECATION_SUGGESTION = (
     "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
 )
-DEPRECATION_MEMO = set()
+DEPRECATION_MEMO: Set[int] = set()
 
 
-def _deprecate_span_kwarg(span):
+def _deprecate_span_kwarg(span) -> None:
     if (
         span is not None
         and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO

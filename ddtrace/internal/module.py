@@ -1,6 +1,7 @@
 import abc
 from collections import defaultdict
 from importlib._bootstrap import _init_module_attrs
+from importlib.abc import Loader
 from importlib.machinery import ModuleSpec
 from importlib.util import find_spec
 from pathlib import Path
@@ -14,10 +15,6 @@ from weakref import WeakValueDictionary as wvdict
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping.context import WrappingContext
-
-
-if t.TYPE_CHECKING:
-    from importlib.abc import Loader
 
 
 ModuleHookType = t.Callable[[ModuleType], None]

@@ -286,7 +286,7 @@ class ModuleCodeCollector(ModuleWatchdog):
             {
                 "filename": <String>,
                 "segments": [
-                    [Int, Int, Int, Int, Int],  # noqa:F401
+                    [Int, Int, Int, Int, Int],
                 ]
             },
             ...
