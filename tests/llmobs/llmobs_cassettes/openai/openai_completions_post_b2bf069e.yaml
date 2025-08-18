@@ -1,0 +1,117 @@
+interactions:
+- request:
+    body: "{\"model\":\"gpt-3.5-turbo-instruct\",\"prompt\":[\"\uC548\uB155,\\n \uC9C0\uAE08
+      \uBA87 \uC2DC\uC57C?\"],\"frequency_penalty\":0,\"logprobs\":null,\"max_tokens\":256,\"n\":1,\"presence_penalty\":0,\"seed\":null,\"temperature\":0.7,\"top_p\":1}"
+    headers:
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate, zstd
+      ? !!python/object/new:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '198'
+      ? !!python/object/new:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/new:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.91.0
+      X-Stainless-Arch:
+      - arm64
+      X-Stainless-Async:
+      - 'false'
+      X-Stainless-Lang:
+      - python
+      X-Stainless-OS:
+      - MacOS
+      X-Stainless-Package-Version:
+      - 1.91.0
+      X-Stainless-Runtime:
+      - CPython
+      X-Stainless-Runtime-Version:
+      - 3.12.9
+      x-stainless-retry-count:
+      - '0'
+    method: POST
+    uri: https://api.openai.com/v1/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"cmpl-Brcl2daX6ZxClad9cssLBPTkYalqD\",\n  \"object\":
+        \"text_completion\",\n  \"created\": 1752120068,\n  \"model\": \"gpt-3.5-turbo-instruct:20230824-v2\",\n
+        \ \"choices\": [\n    {\n      \"text\": \"\\n\uC548\uB155\uD558\uC138\uC694.
+        \uC800\uB294 \uC778\uACF5\uC9C0\uB2A5 \uC5B8\uC5B4\uBAA8\uB378\uC785\uB2C8\uB2E4.
+        \uC800\uB294 \uC2DC\uACC4 \uAE30\uB2A5\uC744 \uAC00\uC9C0\uACE0 \uC788\uC9C0
+        \uC54A\uAE30 \uB54C\uBB38\uC5D0 \uD604\uC7AC \uC2DC\uAC04\uC744 \uC54C\uB824\uB4DC\uB9AC\uC9C0
+        \uBABB\uD574\uC694. \uC774 \uC810 \uC591\uD574 \uBD80\uD0C1\uB4DC\uB9BD\uB2C8\uB2E4.\",\n
+        \     \"index\": 0,\n      \"logprobs\": null,\n      \"finish_reason\": \"stop\"\n
+        \   }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 13,\n    \"completion_tokens\":
+        73,\n    \"total_tokens\": 86\n  }\n}\n"
+    headers:
+      CF-RAY:
+      - 95cd286d7b6a901d-BOS
+      Cache-Control:
+      - no-cache, must-revalidate
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Thu, 10 Jul 2025 04:01:08 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - __cf_bm=q4OaAKUOnXJ6fe6G5.OYQt2D2_SbLcCwvMKF88QaIcg-1752120068-1.0.1.1-YcMyvF2vshEGE5CFDqyUS4b1rf46YVRfsVU7__NvozfoH7QWhTce.MemMyD8rHfYaMrgHgA3Ltt9PnFYGn6B2FR85BZOfLaCMvlQsLz7b4E;
+        path=/; expires=Thu, 10-Jul-25 04:31:08 GMT; domain=.api.openai.com; HttpOnly;
+        Secure; SameSite=None
+      - _cfuvid=MNOk5TsH8Km1JdFt0fN4.jtnyoSdfFgQmCJsAW8f0G4-1752120068703-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-allow-origin:
+      - '*'
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-model:
+      - gpt-3.5-turbo-instruct:20230824-v2
+      openai-organization:
+      - datadog-4
+      openai-processing-ms:
+      - '1002'
+      openai-version:
+      - '2020-10-01'
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      via:
+      - envoy-router-7d69876c55-67fvn
+      x-envoy-upstream-service-time:
+      - '1017'
+      x-ratelimit-limit-requests:
+      - '3500'
+      x-ratelimit-limit-tokens:
+      - '90000'
+      x-ratelimit-remaining-requests:
+      - '3499'
+      x-ratelimit-remaining-tokens:
+      - '89992'
+      x-ratelimit-reset-requests:
+      - 17ms
+      x-ratelimit-reset-tokens:
+      - 4ms
+      x-request-id:
+      - req_98d3be59a96f90b7080b3fe8c6501b45
+    status:
+      code: 200
+      message: OK
+version: 1

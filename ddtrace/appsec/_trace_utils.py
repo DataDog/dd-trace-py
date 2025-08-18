@@ -37,7 +37,7 @@ def _asm_manual_keep(span: Span) -> None:
     span.context._meta[APPSEC.PROPAGATION_HEADER] = "02"
 
 
-def _handle_metadata(root_span: Span, prefix: str, metadata: dict) -> None:
+def _handle_metadata(entry_span: Span, prefix: str, metadata: dict) -> None:
     MAX_DEPTH = 6
     if metadata is None:
         return
@@ -55,7 +55,7 @@ def _handle_metadata(root_span: Span, prefix: str, metadata: dict) -> None:
         else:
             if isinstance(data, bool):
                 data = "true" if data else "false"
-            root_span.set_tag_str(f"{prefix}", str(data))
+            entry_span.set_tag_str(f"{prefix}", str(data))
 
 
 def _track_user_login_common(
@@ -69,7 +69,9 @@ def _track_user_login_common(
     span: Optional[Span] = None,
 ) -> Optional[Span]:
     if span is None:
-        span = core.get_root_span()
+        span = _asm_request_context.get_entry_span()
+    if not span and (current_span := core.get_span()):
+        span = current_span._service_entry_span
     if span:
         success_str = "success" if success else "failure"
         tag_prefix = "%s.%s" % (APPSEC.USER_LOGIN_EVENT_PREFIX, success_str)
@@ -237,7 +239,7 @@ def track_user_signup_event(
     login: Optional[str] = None,
     login_events_mode: str = LOGIN_EVENTS_MODE.SDK,
 ) -> None:
-    span = core.get_root_span()
+    span = _asm_request_context.get_entry_span()
     if span:
         success_str = "true" if success else "false"
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, success_str)
@@ -286,7 +288,7 @@ def track_custom_event(tracer: Any, event_name: str, metadata: Dict[str, Any]) -
         log.warning("Empty metadata given to track_custom_event. Skipping setting tags.")
         return
 
-    span = core.get_root_span()
+    span = _asm_request_context.get_entry_span()
     if not span:
         log.warning(
             "No root span in the current execution. Skipping track_custom_event tags. "
@@ -337,7 +339,7 @@ def block_request() -> None:
     meaning that if you capture the exception the request blocking could not work.
     """
     if not asm_config._asm_enabled:
-        log.warning("block_request() is disabled. To use this feature please enable" "Application Security Monitoring")
+        log.warning("block_request() is disabled. To use this feature please enable, Application Security Monitoring")
         return
 
     _asm_request_context.block_request()
@@ -361,16 +363,16 @@ def block_request_if_user_blocked(
         return
     if mode == LOGIN_EVENTS_MODE.AUTO:
         mode = asm_config._user_event_mode
-    root_span = core.get_root_span()
-    if root_span:
-        root_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+    entry_span = _asm_request_context.get_entry_span()
+    if entry_span:
+        entry_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
         if userid:
             if mode == LOGIN_EVENTS_MODE.ANON:
                 userid = _hash_user_id(str(userid))
-            root_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
+            entry_span.set_tag_str(APPSEC.AUTO_LOGIN_EVENTS_COLLECTION_MODE, mode)
             if mode != LOGIN_EVENTS_MODE.SDK:
-                root_span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(userid))
-            root_span.set_tag_str(user.ID, str(userid))
+                entry_span.set_tag_str(APPSEC.USER_LOGIN_USERID, str(userid))
+            entry_span.set_tag_str(user.ID, str(userid))
     if should_block_user(None, userid, session_id):
         _asm_request_context.block_request()
 
@@ -453,14 +455,16 @@ def get_user_info(info_retriever, django_config, kwargs={}):
     return user_id_found or user_id, user_extra
 
 
-def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriever, django_config):
+def _on_django_process(result_user, session_key, mode, kwargs, info_retriever, django_config):
     if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)
     user_login = user_extra.get("login")
     res = None
     if result_user and result_user.is_authenticated:
-        span = core.get_root_span()
+        span = _asm_request_context.get_entry_span()
+        if span is None:
+            return
         if mode == LOGIN_EVENTS_MODE.ANON:
             hash_id = ""
             if isinstance(user_id, str):
@@ -507,7 +511,9 @@ def _on_django_signup_user(django_config, pin, func, instance, args, kwargs, use
         return
     user_id, user_extra = get_user_info(info_retriever, django_config)
     if user:
-        span = core.get_root_span()
+        span = _asm_request_context.get_entry_span()
+        if span is None:
+            return
         _asm_manual_keep(span)
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT_MODE, str(asm_config._user_event_mode))
         span.set_tag_str(APPSEC.USER_SIGNUP_EVENT, "true")

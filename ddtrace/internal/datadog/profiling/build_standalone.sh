@@ -5,6 +5,7 @@ set -euo pipefail
 MY_DIR=$(dirname $(realpath $0))
 MY_NAME="$0"
 BUILD_DIR="build"
+BUILD_MODE="Debug"
 
 ### Compiler discovery
 # Initialize variables to store the highest versions
@@ -75,7 +76,6 @@ CLANGTIDY_CMD=${highest_clangxx/clang++/clang-tidy}
 # Targets to target dirs
 declare -A target_dirs
 target_dirs["ddup"]="ddup"
-target_dirs["crashtracker"]="crashtracker"
 target_dirs["stack_v2"]="stack_v2"
 target_dirs["dd_wrapper"]="dd_wrapper"
 
@@ -104,6 +104,8 @@ cmake_args=(
   -DCMAKE_VERBOSE_MAKEFILE=ON
   -DLIB_INSTALL_DIR=$(realpath $MY_DIR)/lib
   -DPython3_ROOT_DIR=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('prefix'))")
+  -DNATIVE_EXTENSION_LOCATION=$(realpath $MY_DIR)/../../native
+  -DEXTENSION_SUFFIX=$(python3 -c "import sysconfig; print(sysconfig.get_config_var('EXT_SUFFIX'))")
 )
 
 # Initial build targets; start out empty
@@ -217,8 +219,6 @@ print_help() {
   echo "  stack_v2_test (also builds dd_wrapper_test)"
   echo "  ddup (also builds dd_wrapper)"
   echo "  ddup_test (also builds dd_wrapper_test)"
-  echo "  crashtracker (also builds dd_wrapper)"
-  echo "  crashtracker_test (also builds dd_wrapper_test)"
 }
 
 print_cmake_args() {
@@ -319,6 +319,7 @@ add_build_mode() {
   case "$1" in
     Debug|Release|RelWithDebInfo)
       cmake_args+=(-DCMAKE_BUILD_TYPE=$1)
+      BUILD_MODE=$1
       ;;
     ""|--)
       cmake_args+=(-DCMAKE_BUILD_TYPE=Debug)
@@ -342,7 +343,6 @@ add_target() {
     all|--)
       targets+=("stack_v2")
       targets+=("ddup")
-      targets+=("crashtracker")
       ;;
     dd_wrapper)
       # `dd_wrapper` is a dependency of other targets, but the overall structure is weird when it's given explicitly
@@ -355,14 +355,18 @@ add_target() {
     ddup)
       targets+=("ddup")
       ;;
-    crashtracker)
-      targets+=("crashtracker")
-      ;;
     *)
       echo "Unknown target: $1"
       exit 1
       ;;
   esac
+}
+
+#Build rust dependencies
+build_rust() {
+    echo "Building Rust dependencies"
+    pip3 install cmake setuptools_rust cython
+    DD_COMPILE_MODE=$BUILD_MODE python3 setup.py build_rust --inplace
 }
 
 
@@ -382,6 +386,8 @@ add_target "$3"
 print_cmake_args
 
 print_ctest_args
+
+build_rust
 
 # Run cmake
 for target in "${targets[@]}"; do

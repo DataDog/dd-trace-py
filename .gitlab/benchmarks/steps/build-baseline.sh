@@ -13,7 +13,7 @@ else
   echo "Building wheel for ${BASELINE_BRANCH}:${BASELINE_COMMIT_SHA}"
   git checkout "${BASELINE_COMMIT_SHA}"
   mkdir ./tmp
-  python3.9 -m pip wheel --no-deps -w ./tmp/ ./
+  PYO3_PYTHON=python3.9 CIBW_BUILD=1 python3.9 -m pip wheel --no-deps -w ./tmp/ ./
   for wheel in ./tmp/*.whl;
   do
     auditwheel repair "$wheel" --plat "manylinux2014_x86_64" -w ./
