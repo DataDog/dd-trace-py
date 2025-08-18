@@ -97,7 +97,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
     )
     try:
         resp = await func(*args, **kwargs)
-        return make_traced_stream(resp, GoogleGenAIAsyncStreamHandler(integration, span, args, kwargs), is_async=True)
+        return make_traced_stream(resp, GoogleGenAIAsyncStreamHandler(integration, span, args, kwargs))
     except Exception:
         span.set_exc_info(*sys.exc_info())
         integration.llmobs_set_tags(span, args=args, kwargs=kwargs, response=None, operation="llm")

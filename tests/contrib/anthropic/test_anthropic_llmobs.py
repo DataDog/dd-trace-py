@@ -8,6 +8,8 @@ from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 from tests.llmobs._utils import iterate_stream
@@ -612,7 +614,8 @@ class TestLLMObsAnthropic:
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    def test_tools_sync_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_tools_sync_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -626,8 +629,7 @@ class TestLLMObsAnthropic:
                 tools=tools,
                 stream=True,
             )
-            for _ in stream:
-                pass
+            consume_stream(stream)
 
         message = [
             # this message output differs from the other weather outputs since it was produced from a different
@@ -723,8 +725,9 @@ class TestLLMObsAnthropic:
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_tools_async_stream_helper(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -738,8 +741,7 @@ class TestLLMObsAnthropic:
                 messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
             ) as stream:
-                async for _ in stream.text_stream:
-                    pass
+                await consume_stream(stream.text_stream)
 
             message = await stream.get_final_message()
             assert message is not None
@@ -796,8 +798,7 @@ class TestLLMObsAnthropic:
                 ],
                 tools=tools,
             ) as stream:
-                async for _ in stream.text_stream:
-                    pass
+                await consume_stream(stream.text_stream)
 
             message_2 = await stream.get_final_message()
             assert message_2 is not None

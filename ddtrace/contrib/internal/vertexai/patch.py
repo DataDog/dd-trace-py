@@ -115,7 +115,6 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
                 VertexAIAsyncStreamHandler(
                     integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
                 ),
-                is_async=True,
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())

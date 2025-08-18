@@ -8,9 +8,6 @@ from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 class BaseLangchainStreamHandler:
-    def initialize_chunk_storage(self):
-        return []
-
     def _process_chunk(self, chunk):
         self.chunks.append(chunk)
         chunk_callback = self.options.get("chunk_callback", None)
@@ -69,7 +66,6 @@ def shared_stream(
                 LangchainAsyncStreamHandler(
                     integration, span, args, kwargs, on_span_finish=on_span_finished, chunk_callback=chunk_callback
                 ),
-                is_async=True,
             )
         return make_traced_stream(
             resp,

@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
@@ -16,6 +18,9 @@ def extract_host_tag(kwargs):
 
 
 class BaseLiteLLMStreamHandler:
+    def initialize_chunk_storage(self):
+        return defaultdict(list)
+
     def add_span(self, span, kwargs, instance):
         kwargs[LITELLM_ROUTER_INSTANCE_KEY] = instance
         self.spans.append((span, kwargs))

@@ -3,9 +3,6 @@ from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 
 
 class BaseVertexAIStreamHandler:
-    def initialize_chunk_storage(self):
-        return []
-
     def _process_chunk(self, chunk):
         # only keep track of the first chunk for chat messages since
         # it is modified during the streaming process

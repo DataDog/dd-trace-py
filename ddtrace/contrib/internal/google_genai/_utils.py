@@ -57,9 +57,6 @@ def _join_chunks(chunks: List[Any]) -> Optional[Dict[str, Any]]:
 
 
 class BaseGoogleGenAIStreamHandler:
-    def initialize_chunk_storage(self):
-        return []
-
     def finalize_stream(self, exception=None):
         self.integration.llmobs_set_tags(
             self.primary_span,

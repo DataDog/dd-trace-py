@@ -43,16 +43,12 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
         traced_stream = make_traced_stream(
             resp,
             AnthropicAsyncStreamHandler(integration, span, args, kwargs),
-            is_async=True,
             on_stream_created=add_async_text_stream,
         )
         return traced_stream
 
 
 class BaseAnthropicStreamHandler:
-    def initialize_chunk_storage(self):
-        return []
-
     def finalize_stream(self, exception=None):
         _process_finished_stream(
             self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks

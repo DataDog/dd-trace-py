@@ -91,7 +91,6 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
                 GoogleGenerativeAIAsyncStreamHandler(
                     integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
                 ),
-                is_async=True,
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())

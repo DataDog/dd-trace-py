@@ -79,7 +79,7 @@ async def traced_acompletion(litellm, pin, func, instance, args, kwargs):
     try:
         resp = await func(*args, **kwargs)
         if stream:
-            return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs), is_async=True)
+            return make_traced_stream(resp, LiteLLMAsyncStreamHandler(integration, span, args, kwargs))
         return resp
     except Exception:
         span.set_exc_info(*sys.exc_info())

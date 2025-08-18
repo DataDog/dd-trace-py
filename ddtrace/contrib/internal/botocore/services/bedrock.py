@@ -68,9 +68,6 @@ def traced_stream_readlines(traced_stream, original_readlines):
 
 
 class BotocoreStreamingBodyStreamHandler(StreamHandler):
-    def initialize_chunk_storage(self):
-        return []
-
     def process_chunk(self, chunk, iterator=None):
         self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
 

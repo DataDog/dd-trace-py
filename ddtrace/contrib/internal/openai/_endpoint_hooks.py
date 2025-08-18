@@ -97,7 +97,6 @@ class _BaseCompletionHook(_EndpointHook):
                 return make_traced_stream(
                     resp,
                     OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type),
-                    is_async=True,
                 )
             elif _is_generator(resp):
                 return make_traced_stream(

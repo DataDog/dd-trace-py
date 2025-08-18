@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import AsyncGenerator
 from typing import Generator
 
@@ -25,6 +26,9 @@ class BaseOpenAIStreamHandler:
 
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
+    def initialize_chunk_storage(self):
+        return defaultdict(list)
+
     def process_chunk(self, chunk, iterator=None):
         self._extract_token_chunk(chunk, iterator)
         _loop_handler(self.primary_span, chunk, self.chunks)

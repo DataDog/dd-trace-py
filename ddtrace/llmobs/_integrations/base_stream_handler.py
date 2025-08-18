@@ -5,7 +5,6 @@ factory function along with the stream to wrap.
 """
 from abc import ABC
 from abc import abstractmethod
-from collections import defaultdict
 import sys
 from typing import Union
 
@@ -29,7 +28,7 @@ class BaseStreamHandler(ABC):
         self.chunks = self.initialize_chunk_storage()
 
     def initialize_chunk_storage(self):
-        return defaultdict(list)
+        return []
 
     def add_span(self, span, kwargs):
         """
@@ -272,12 +271,11 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 def make_traced_stream(
         wrapped,
         handler: Union[StreamHandler, AsyncStreamHandler],
-        is_async=False,
         on_stream_created=None
 ):
     """
     Create a TracedStream or TracedAsyncStream object from a stream object and a stream handler.
     """
-    if is_async:
+    if isinstance(handler, AsyncStreamHandler):
         return TracedAsyncStream(wrapped, handler, on_stream_created)
     return TracedStream(wrapped, handler, on_stream_created)
