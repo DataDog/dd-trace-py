@@ -4,7 +4,6 @@ Reproduction script for psycopg circular import issue.
 Run with: ddtrace-run python reproduce_psycopg_cyclic_import_error.py
 """
 
-import os
 import sys
 
 
