@@ -17,7 +17,7 @@ from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers
 from ddtrace._trace._span_pointer import _SpanPointerDescription
 from ddtrace._trace.span import Span
 from ddtrace._trace.utils import extract_DD_context_from_messages
-from ddtrace._trace.utils_redis import _set_span_tags
+from ddtrace._trace.utils_redis import _extract_conn_tags
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -30,6 +30,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -42,6 +43,7 @@ from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -778,8 +780,27 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
-def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, cmd_string):
-    _set_span_tags(ctx.span, pin, config_integration, args, instance, cmd_string)
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+    span = ctx.span
+    span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
+    span.set_tag_str(COMPONENT, config_integration.integration_name)
+    span.set_tag_str(db.SYSTEM, redisx.APP)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
+    if query is not None:
+        span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
+        span.set_tag_str(span_name, query)
+    if pin.tags:
+        span.set_tags(pin.tags)
+    # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
+    if hasattr(instance, "connection_pool"):
+        span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
+    if args is not None:
+        span.set_metric(redisx.ARGS_LEN, len(args))
+    else:
+        for attr in ("command_stack", "_command_stack"):
+            if hasattr(instance, attr):
+                span.set_metric(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):

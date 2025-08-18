@@ -34,23 +34,6 @@ MULTI_KEY_COMMANDS = ["MGET"]
 ROW_RETURNING_COMMANDS = SINGLE_KEY_COMMANDS + MULTI_KEY_COMMANDS
 
 
-def _extract_conn_tags(conn_kwargs):
-    """Transform redis conn info into dogtrace metas"""
-    try:
-        conn_tags = {
-            net.TARGET_HOST: conn_kwargs["host"],
-            net.TARGET_PORT: conn_kwargs["port"],
-            net.SERVER_ADDRESS: conn_kwargs["host"],
-            redisx.DB: conn_kwargs.get("db") or 0,
-        }
-        client_name = conn_kwargs.get("client_name")
-        if client_name:
-            conn_tags[redisx.CLIENT_NAME] = client_name
-        return conn_tags
-    except Exception:
-        return {}
-
-
 def determine_row_count(redis_command: str, result: Optional[Union[List, Dict, str]]) -> int:
     empty_results = [b"", [], {}, None]
     # result can be an empty list / dict / string
