@@ -180,12 +180,12 @@ class TraceSamplingProcessor(TraceProcessor):
                             # simply sets tags to mark a span as single-span sampled.
                             rule.sample(span)
                             if can_drop_trace:
-                                # Is this needed? The agent should honour the sample decision maker tags. Setting
-                                # priority to user_keep only when the trace is partially dropped does not make sense.
-                                span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                                 single_spans.append(span)
                             break
-                if can_drop_trace:
+                if can_drop_trace and single_spans:
+                    # Ensure a sampling priority is set for the first span in the trace.
+                    # This is important espesically if the local root span is dropped.
+                    single_spans[0].set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                     return single_spans
             return trace
         return None

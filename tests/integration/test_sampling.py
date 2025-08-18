@@ -368,3 +368,88 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
     assert span_m29.context.sampling_priority > 0
     assert span_m30.context.sampling_priority > 0
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "_DD_TRACE_WRITER_NATIVE": "false",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+)
+def test_single_span_and_trace_sampling_match_non_root_span():
+    """Validates that a single span sampling rule applied to a non-root span does not
+    override the trace sampling decision.
+    """
+
+    from ddtrace import config
+    from ddtrace.trace import tracer
+
+    with tracer.trace("non_monkey") as root:
+        with tracer.trace("monkey", resource="non_root_span") as span2:
+            with tracer.trace("human_monkey") as span3:
+                pass
+        with tracer.trace("donkey_monkey") as span4:
+            pass
+    tracer.flush()
+
+    # Trace level sampling decision tags should be the same.
+    for span in [root, span2, span3, span4]:
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # Span 1 was sampled via trace sampling rule
+    assert root.get_metric("_dd.rule_psr") == 0
+    # Span 2 was sampled via single span sampling rule
+    assert span2.get_metric("_dd.span_sampling.mechanism") == 8
+    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1
+    assert "_dd.rule_psr" not in span2.get_metrics()
+    if config._trace_compute_stats:
+        # If stats computation is enabled, the local root span will not be sent to the agent.
+        # and the first span in the trace will be span2. We need to ensure the first span in the trace
+        # has a sampling priority set.
+        assert span2.get_metric("_sampling_priority_v1") == 2, repr(span2)
+    else:
+        assert "_sampling_priority_v1" not in span2.get_metrics(), repr(span2)
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1",
+        "_DD_TRACE_WRITER_NATIVE": "false",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+)
+def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
+    """Validates that a single span sampling rule applied to a root span does not
+    override the trace sampling decision, even when traces are partially flushed.
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace("monkey") as root:
+        pass
+    tracer.flush()
+    with tracer.start_span("non_monkey", child_of=root) as span2:
+        pass
+    tracer.flush()
+
+    for span in [root, span2]:
+        # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # Span 1 was sampled via single span sampling rule
+    assert root.get_metric("_dd.span_sampling.mechanism") == 8
+    assert root.get_metric("_dd.span_sampling.rule_rate") == 1
+    # Regardless of whether stats computation is enabled or disabled,
+    # if the trace matched a trace sampling rule `_dd.rule_psr` should be set.
+    assert root.get_metric("_dd.rule_psr") == 0, repr(root)

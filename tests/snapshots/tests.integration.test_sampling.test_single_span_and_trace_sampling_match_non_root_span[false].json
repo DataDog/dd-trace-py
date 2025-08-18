@@ -10,24 +10,24 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
-      "_dd.p.tid": "68a3856d00000000",
+      "_dd.p.tid": "68a3a34f00000000",
       "language": "python",
-      "runtime-id": "2324ed51088046819f9237a9a8a4825e"
+      "runtime-id": "f4636fe49f8644a0ab43e931624236d6"
     },
     "metrics": {
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 14020
+      "process_id": 21541
     },
-    "duration": 66000,
-    "start": 1755546989385203000
+    "duration": 67000,
+    "start": 1755554639113445000
   },
      {
        "name": "monkey",
        "service": "animals",
-       "resource": "monkey",
+       "resource": "non_root_span",
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
@@ -38,7 +38,7 @@
          "_dd.span_sampling.rule_rate": 1
        },
        "duration": 27000,
-       "start": 1755546989385227000
+       "start": 1755554639113471000
      },
         {
           "name": "human_monkey",
@@ -50,7 +50,7 @@
           "type": "",
           "error": 0,
           "duration": 6000,
-          "start": 1755546989385240000
+          "start": 1755554639113484000
         },
      {
        "name": "donkey_monkey",
@@ -62,5 +62,5 @@
        "type": "",
        "error": 0,
        "duration": 4000,
-       "start": 1755546989385261000
+       "start": 1755554639113505000
      }]]
