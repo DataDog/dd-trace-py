@@ -639,6 +639,96 @@ class NativeWriterTests(AgentWriterTests):
     def test_gzip_compression_exception_logging_and_metrics(self):
         pytest.skip()
 
+    @mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+    def test_telemetry_enabled_on_linux(self, mock_builder_class):
+        """Test that telemetry is enabled for native writer on Linux platforms."""
+
+        mock_builder = mock.Mock()
+        mock_builder_class.return_value = mock_builder
+        mock_exporter = mock.Mock()
+        mock_builder.build.return_value = mock_exporter
+
+        for method_name in [
+            "set_url",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ]:
+            getattr(mock_builder, method_name).return_value = mock_builder
+
+        with mock_sys_platform("linux"):
+            with override_global_config(dict(_telemetry_enabled=True)):
+                _writer = self.WRITER_CLASS("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+                mock_builder.enable_telemetry.assert_called_once()
+                mock_builder.enable_telemetry.assert_called_once_with(60000, get_runtime_id())
+
+    @mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+    def test_telemetry_disabled_on_non_linux(self, mock_builder_class):
+        """Test that telemetry is not enabled for native writer on non-Linux platforms."""
+        mock_builder = mock.Mock()
+        mock_builder_class.return_value = mock_builder
+        mock_exporter = mock.Mock()
+        mock_builder.build.return_value = mock_exporter
+
+        for method_name in [
+            "set_url",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ]:
+            getattr(mock_builder, method_name).return_value = mock_builder
+
+        platforms = ["win32", "darwin"]
+        for platform in platforms:
+            with mock_sys_platform(platform):
+                with override_global_config(dict(_telemetry_enabled=True)):
+                    _writer = self.WRITER_CLASS("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+                    mock_builder.enable_telemetry.assert_not_called()
+
+            mock_builder.enable_telemetry.reset_mock()
+
+    @mock.patch("ddtrace.internal.native.TraceExporterBuilder")
+    def test_telemetry_disabled_when_config_disabled(self, mock_builder_class):
+        """Test that telemetry is not enabled when DD_INSTRUMENTATION_TELEMETRY_ENABLED=false."""
+        mock_builder = mock.Mock()
+        mock_builder_class.return_value = mock_builder
+        mock_exporter = mock.Mock()
+        mock_builder.build.return_value = mock_exporter
+
+        for method_name in [
+            "set_url",
+            "set_language",
+            "set_language_version",
+            "set_language_interpreter",
+            "set_tracer_version",
+            "set_git_commit_sha",
+            "set_client_computed_top_level",
+            "set_input_format",
+            "set_output_format",
+            "enable_telemetry",
+        ]:
+            getattr(mock_builder, method_name).return_value = mock_builder
+
+        with mock_sys_platform("linux"):
+            with override_global_config(dict(_telemetry_enabled=False)):
+                _writer = self.WRITER_CLASS("http://localhost:8126/v0.5/traces", sync_mode=True)
+
+                mock_builder.enable_telemetry.assert_not_called()
+
 
 class CIVisibilityWriterTests(AgentWriterTests):
     WRITER_CLASS = CIVisibilityWriter
