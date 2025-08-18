@@ -165,7 +165,7 @@ class TraceSamplingProcessor(TraceProcessor):
                 and self._compute_stats_enabled
                 and not self.apm_opt_out
                 and chunk_root.context.sampling_priority is not None
-                and chunk_root.context.sampling_priority < 0
+                and chunk_root.context.sampling_priority <= 0
             ):
                 # When any span is marked as keep by a single span sampling
                 # decision then we still send all and only those spans.
