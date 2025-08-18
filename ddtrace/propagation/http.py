@@ -926,7 +926,7 @@ class _BaggageHeader:
                 # Record telemetry for baggage item count exceeding limit
                 telemetry_writer.add_count_metric(
                     namespace=TELEMETRY_NAMESPACE.TRACERS,
-                    name="context_header_style.truncated",
+                    name="context_header.truncated",
                     value=1,
                     tags=(("truncation_reason", "baggage_item_count_exceeded"),),
                 )
@@ -942,7 +942,7 @@ class _BaggageHeader:
                     # Record telemetry for baggage header size exceeding limit
                     telemetry_writer.add_count_metric(
                         namespace=TELEMETRY_NAMESPACE.TRACERS,
-                        name="context_header_style.truncated",
+                        name="context_header.truncated",
                         value=1,
                         tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
                     )
