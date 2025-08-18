@@ -208,3 +208,45 @@ def test_agent_sample_rate_reject():
     assert span.get_metric("_dd.agent_psr") == pytest.approx(0.0001)
     assert span.get_metric("_sampling_priority_v1") == AUTO_REJECT
     assert span.get_tag("_dd.p.dm") == "-1"
+
+
+@pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.snapshot()
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "_DD_TRACE_WRITER_NATIVE": "false",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["false", "true"]},
+)
+def test_single_span_and_trace_sampling_snapshot():
+    from ddtrace import config
+    from ddtrace.trace import tracer
+
+    with tracer.trace("non_monkey") as span1:
+        with tracer.trace("monkey") as span2:
+            with tracer.trace("human_monkey") as span3:
+                pass
+        with tracer.trace("donkey_monkey") as span4:
+            pass
+    tracer.flush()
+
+    # Trace level sampling decision tags should be the same.
+    for span in [span1, span2, span3, span4]:
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # Span 1 was sampled via trace sampling rule
+    assert span1.get_metric("_dd.rule_psr") == 0
+    # Span 2 was sampled via single span sampling rule
+    assert span2.get_metric("_dd.span_sampling.mechanism") == 8
+    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1
+    assert "_dd.rule_psr" not in span2.get_metrics()
+    if config._trace_compute_stats:
+        # If stats computation is enabled, the span sampling priority should be 2
+        # Not sure why this is the case, but it's the legacy behavior.
+        assert span2.get_metric("_sampling_priority_v1") == 2, repr(span2)
+    else:
+        assert "_sampling_priority_v1" not in span2.get_metrics(), repr(span2)
