@@ -50,8 +50,7 @@ aioredis_version = parse_version(aioredis_version_str)
 V2 = parse_version("2.0")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return aioredis_version_str
 
 
