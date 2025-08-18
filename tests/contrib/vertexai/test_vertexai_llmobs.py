@@ -6,9 +6,11 @@ from tests.contrib.vertexai.utils import MOCK_COMPLETION_SIMPLE_2
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_STREAM_CHUNKS
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL
 from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS
+from tests.contrib.vertexai.utils import MOCK_COMPLETION_TOOL_RESULT
 from tests.contrib.vertexai.utils import _async_streamed_response
 from tests.contrib.vertexai.utils import _mock_completion_response
 from tests.contrib.vertexai.utils import _mock_completion_stream_chunk
+from tests.contrib.vertexai.utils import get_current_weather
 from tests.contrib.vertexai.utils import weather_tool
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
@@ -51,7 +53,7 @@ class TestLLMObsVertexai:
     def test_completion_tool(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
         llm._prediction_client.responses["generate_content"].append(_mock_completion_response(MOCK_COMPLETION_TOOL))
-        llm.generate_content(
+        response = llm.generate_content(
             "What is the weather like in New York City?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
@@ -61,6 +63,30 @@ class TestLLMObsVertexai:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+
+        # Execute the weather function with the tool call arguments
+        tool_call = response.candidates[0].content.parts[0].function_call
+        weather_result = get_current_weather(tool_call.args["location"])
+
+        # Second call - tool result
+        llm._prediction_client.responses["generate_content"].append(
+            _mock_completion_response(MOCK_COMPLETION_TOOL_RESULT)
+        )
+        tool_result_part = vertexai.generative_models.Part.from_function_response(
+            name="get_current_weather", response=weather_result
+        )
+        llm.generate_content(
+            [tool_result_part],
+            generation_config=vertexai.generative_models.GenerationConfig(
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            ),
+            tools=[weather_tool],
+        )
+
+        # Validate second call (tool result)
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
     def test_completion_multiple_messages(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -173,12 +199,47 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        for _ in response:
-            pass
+
+        chunks = []
+        for chunk in response:
+            chunks.append(chunk)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+
+        tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
+        weather_result = get_current_weather(tool_call["args"]["location"])
+
+        llm._prediction_client.responses["stream_generate_content"] = [
+            (
+                _mock_completion_stream_chunk(chunk)
+                for chunk in [
+                    {
+                        "text": MOCK_COMPLETION_TOOL_RESULT["candidates"][0]["content"]["parts"][0]["text"],
+                        "finish_reason": "STOP",
+                        "usage_metadata": MOCK_COMPLETION_TOOL_RESULT["usage_metadata"],
+                    }
+                ]
+            )
+        ]
+        tool_result_part = vertexai.generative_models.Part.from_function_response(
+            name="get_current_weather", response=weather_result
+        )
+        response2 = llm.generate_content(
+            [tool_result_part],
+            generation_config=vertexai.generative_models.GenerationConfig(
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            ),
+            tools=[weather_tool],
+            stream=True,
+        )
+        for _ in response2:
+            pass
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
     async def test_completion_async(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -219,7 +280,7 @@ class TestLLMObsVertexai:
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_TOOL)
         )
-        await llm.generate_content_async(
+        response = await llm.generate_content_async(
             "What is the weather like in New York City?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0
@@ -229,6 +290,27 @@ class TestLLMObsVertexai:
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+
+        tool_call = response.candidates[0].content.parts[0].function_call
+        weather_result = get_current_weather(tool_call.args["location"])
+
+        llm._prediction_async_client.responses["generate_content"].append(
+            _mock_completion_response(MOCK_COMPLETION_TOOL_RESULT)
+        )
+        tool_result_part = vertexai.generative_models.Part.from_function_response(
+            name="get_current_weather", response=weather_result
+        )
+        await llm.generate_content_async(
+            [tool_result_part],
+            generation_config=vertexai.generative_models.GenerationConfig(
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            ),
+            tools=[weather_tool],
+        )
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
     async def test_completion_async_stream(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -282,12 +364,45 @@ class TestLLMObsVertexai:
             ),
             stream=True,
         )
-        async for _ in response:
-            pass
+        chunks = []
+        async for chunk in response:
+            chunks.append(chunk)
 
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_span_event(span))
+
+        tool_call = MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS[0]["function_call"]
+        weather_result = get_current_weather(tool_call["args"]["location"])
+
+        llm._prediction_async_client.responses["stream_generate_content"] = [
+            _async_streamed_response(
+                [
+                    {
+                        "text": MOCK_COMPLETION_TOOL_RESULT["candidates"][0]["content"]["parts"][0]["text"],
+                        "finish_reason": "STOP",
+                        "usage_metadata": MOCK_COMPLETION_TOOL_RESULT["usage_metadata"],
+                    }
+                ]
+            )
+        ]
+        tool_result_part = vertexai.generative_models.Part.from_function_response(
+            name="get_current_weather", response=weather_result
+        )
+        response2 = await llm.generate_content_async(
+            [tool_result_part],
+            generation_config=vertexai.generative_models.GenerationConfig(
+                stop_sequences=["x"], max_output_tokens=30, temperature=1.0
+            ),
+            tools=[weather_tool],
+            stream=True,
+        )
+        async for _ in response2:
+            pass
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+        mock_llmobs_writer.enqueue.assert_called_with(expected_llmobs_tool_result_span_event(span))
 
     def test_chat(self, vertexai, mock_llmobs_writer, mock_tracer):
         llm = vertexai.generative_models.GenerativeModel("gemini-1.5-flash")
@@ -721,4 +836,53 @@ def expected_llmobs_no_generation_config_span_event(span):
         metadata={},
         token_metrics={"input_tokens": 14, "output_tokens": 16, "total_tokens": 30},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+    )
+
+
+def expected_llmobs_tool_result_span_event(span):
+    return _expected_llmobs_llm_span_event(
+        span,
+        model_name="gemini-1.5-flash",
+        model_provider="google",
+        input_messages=[
+            {
+                "content": "",
+                "role": "user",
+                "tool_results": [
+                    {
+                        "name": "get_current_weather",
+                        "result": '{"description": "Sunny", "temperature": "22", "unit": "fahrenheit"}',
+                        "tool_id": "",
+                        "type": "function_response",
+                    }
+                ],
+            }
+        ],
+        output_messages=[
+            {"content": MOCK_COMPLETION_TOOL_RESULT["candidates"][0]["content"]["parts"][0]["text"], "role": "model"},
+        ],
+        metadata={"temperature": 1.0, "max_output_tokens": 30},
+        token_metrics={"input_tokens": 50, "output_tokens": 20, "total_tokens": 70},
+        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.vertexai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Get the current weather in a given location",
+                "schema": {
+                    "type_": "OBJECT",
+                    "properties": {
+                        "location": {
+                            "type_": "STRING",
+                            "description": "The city and state, e.g. San Francisco, CA",
+                        },
+                        "unit": {
+                            "type_": "STRING",
+                            "enum": ["celsius", "fahrenheit"],
+                        },
+                    },
+                    "required": ["location"],
+                    "property_ordering": ["location", "unit"],
+                },
+            }
+        ],
     )
