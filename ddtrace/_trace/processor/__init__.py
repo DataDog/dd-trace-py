@@ -157,7 +157,7 @@ class TraceSamplingProcessor(TraceProcessor):
 
             # only trace sample if we haven't already sampled
             if chunk_root.context.sampling_priority is None:
-                self.sampler.sample(chunk_root)
+                self.sampler.sample(chunk_root._local_root)
             # When stats computation is enabled in the tracer then we can
             # safely drop the traces. When using the NativeWriter this is handled by native code.
             if (
