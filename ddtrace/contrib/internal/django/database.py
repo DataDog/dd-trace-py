@@ -72,6 +72,11 @@ def get_traced_cursor_cls(cursor_type: Type[Any]) -> Type[dbapi.TracedCursor]:
             from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
 
             traced_cursor_cls = Psycopg2TracedCursor
+        elif cursor_type.__name__ == "Psycopg2TracedCursor":
+            # Import lazily to avoid importing psycopg if not already imported.
+            from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
+
+            traced_cursor_cls = Psycopg2TracedCursor
         elif cursor_type.__name__ == "Psycopg3TracedCursor":
             # Import lazily to avoid importing psycopg if not already imported.
             from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
