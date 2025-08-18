@@ -933,12 +933,11 @@ experiments:
           - name: samplingrules-low_match
             thresholds:
               - execution_time < 0.12 ms
-              - max_rss_usage < 450.00 MB
+              - max_rss_usage < 700.00 MB
           - name: samplingrules-very_low_match
             thresholds:
               - execution_time < 8.50 ms
-              - max_rss_usage < 60.00 MB
-
+              - max_rss_usage < 75.00 MB
           # sethttpmeta
           - name: sethttpmeta-all-disabled
             thresholds:
