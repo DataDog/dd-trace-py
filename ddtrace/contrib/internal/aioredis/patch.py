@@ -179,7 +179,7 @@ def traced_13_execute_command(func, instance, args, kwargs):
             if redis_command in ROW_RETURNING_COMMANDS:
                 span.set_metric(db.ROWCOUNT, determine_row_count(redis_command=redis_command, result=future.result()))
         # CancelledError exceptions extend from BaseException as of Python 3.8, instead of usual Exception
-        except (Exception, aioredis.CancelledError):
+        except (Exception, asyncio.CancelledError):
             span.set_exc_info(*sys.exc_info())
             if redis_command in ROW_RETURNING_COMMANDS:
                 span.set_metric(db.ROWCOUNT, 0)
