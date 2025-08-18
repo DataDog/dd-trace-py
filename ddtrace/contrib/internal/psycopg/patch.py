@@ -26,17 +26,22 @@ from ddtrace.propagation._database_monitoring import default_sql_injector as _de
 from ddtrace.trace import Pin
 
 
-try:
-    psycopg_import = import_module("psycopg")
+# These will be initialized lazily to avoid circular imports
+_original_connect = None
+_original_async_connect = None
 
-    # must get the original connect class method from the class __dict__ to use later in unpatch
-    # Python 3.11 and wrapt result in the class method being rebinded as an instance method when
-    # using unwrap
-    _original_connect = psycopg_import.Connection.__dict__["connect"]
-    _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
-# AttributeError can happen due to circular imports under certain integration methods
-except (ImportError, AttributeError):
-    pass
+
+def _get_psycopg3_original_methods():
+    """Get psycopg3 original method references, avoiding top-level evaluation to avoid circular imports"""
+    global _original_connect, _original_async_connect
+    if _original_connect is None or _original_async_connect is None:
+        try:
+            psycopg_import = import_module("psycopg")
+            _original_connect = psycopg_import.Connection.__dict__["connect"]
+            _original_async_connect = psycopg_import.AsyncConnection.__dict__["connect"]
+        # AttributeError can happen due to circular imports under certain integration methods
+        except (ImportError, AttributeError):
+            pass
 
 
 def _psycopg_sql_injector(dbm_comment, sql_statement):
@@ -131,6 +136,8 @@ def _patch(psycopg_module):
 
         config.psycopg["_patched_modules"].add(psycopg_module)
     else:
+        _get_psycopg3_original_methods()
+
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
         _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module, "AsyncCursor", init_cursor_from_connection_factory(psycopg_module))
@@ -162,8 +169,10 @@ def _unpatch(psycopg_module):
 
             # _u throws an attribute error for Python 3.11, no __get__ on the BoundFunctionWrapper
             # unlike Python Class Methods which implement __get__
-            psycopg_module.Connection.connect = _original_connect
-            psycopg_module.AsyncConnection.connect = _original_async_connect
+            if _original_connect is not None:
+                psycopg_module.Connection.connect = _original_connect
+            if _original_async_connect is not None:
+                psycopg_module.AsyncConnection.connect = _original_async_connect
 
         pin = Pin.get_from(psycopg_module)
         if pin:
