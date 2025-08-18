@@ -2,6 +2,9 @@
 # script. If you want to make changes to it, you should make sure that you have
 # removed the ``_generated`` suffix from the file name, to prevent the content
 # from being overwritten by future re-generations.
+import os
+import subprocess
+import sys
 
 from ddtrace.contrib.internal.psycopg.patch import get_version
 from ddtrace.contrib.internal.psycopg.patch import get_versions
@@ -41,80 +44,35 @@ class TestPsycopgPatch(PatchTestCase.Base):
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg"])
         unpatch()
 
-    def test_circular_import_protection(self):
-        """Test that psycopg patch module can be imported without circular import errors.
-        
-        This test ensures that the fix for the circular import issue that caused
-        "partially initialized module has no attribute 'patch'" errors continues to work.
-        """
-        import sys
-        import importlib
-        
-        modules_to_remove = [name for name in list(sys.modules.keys())
-                            if 'psycopg' in name and not name.startswith('ddtrace')]
-        for module in modules_to_remove:
-            if module in sys.modules:
-                del sys.modules[module]
-        
-        try:
-            patch_module = importlib.import_module('ddtrace.contrib.internal.psycopg.patch')
-            assert hasattr(patch_module, 'patch'), "patch function should be available"
-            assert callable(patch_module.patch), "patch function should be callable"
-            patch_module.patch()
-            
-        except AttributeError as e:
-            if "has no attribute 'patch'" in str(e):
-                self.fail(f"Circular import issue detected: {e}")
-            else:
-                raise
-        except ImportError:
-            pass
-        finally:
-            try:
-                if unpatch:
-                    unpatch()
-            except Exception:
-                pass
 
-    def test_monkey_patching_circular_import_protection(self):
-        """Test that the monkey patching system can handle psycopg patch module correctly.
+
+    def test_psycopg_circular_import_fix(self):
+        fixture_path = os.path.join(
+            os.path.dirname(__file__), 
+            'fixtures', 
+            'reproduce_psycopg_cyclic_import_error.py'
+        )
         
-        This specifically tests the scenario that caused the original issue where the 
-        monkey patching system called imported_module.patch() but the module was 
-        partially initialized due to circular imports.
-        """
-        import sys
-        from ddtrace._monkey import _on_import_factory
-        
-        # Clean up any existing psycopg modules
-        modules_to_remove = [name for name in list(sys.modules.keys()) 
-                            if 'psycopg' in name and not name.startswith('ddtrace')]
-        for module in modules_to_remove:
-            if module in sys.modules:
-                del sys.modules[module]
-        
-        try:
-            on_import_func = _on_import_factory(
-                "psycopg", 
-                "ddtrace.contrib.internal.%s.patch",
-                raise_errors=False
-            )
-            
-            class MockHook:
-                __name__ = "test_hook"
-            
-            on_import_func(MockHook())
-            
-        except AttributeError as e:
-            if "has no attribute 'patch'" in str(e) and "circular import" in str(e):
-                self.fail(f"Monkey patching circular import issue detected: {e}")
-            else:
-                raise
-        except Exception:
-            pass
-        finally:
-            try:
-                if unpatch:
-                    unpatch()
-            except Exception:
-                pass
+        env = os.environ.copy()
+        codebase_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+        env['PYTHONPATH'] = os.pathsep.join([codebase_root, env.get('PYTHONPATH', '')])
+
+        # Run the reproduction script with ddtrace-run
+        # Note: tried with @run_in_subprocess but that fails to reproduce the error in the affected version
+        # (v3.10.2) for some reason while running the separate script works.
+        result = subprocess.run(
+            [sys.executable, "-m", "ddtrace.commands.ddtrace_run", "python", fixture_path],
+            capture_output=True,
+            text=True,
+            env=env,
+            timeout=30
+        )
+
+        full_output = result.stdout + result.stderr
+        if "failed to enable ddtrace support for psycopg: partially initialized module" in full_output:
+            self.fail("Circular import issue detected: the original bug is present and should be fixed")
+        elif "psycopg2" in full_output and "ImportError" in full_output:
+            self.skipTest("psycopg2 not available for testing")
+        elif result.returncode != 0:
+            self.fail(f"Reproduction script failed unexpectedly: "
+                     f"returncode={result.returncode}, stdout={result.stdout}, stderr={result.stderr}")
