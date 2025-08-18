@@ -47,7 +47,7 @@ def _openai_extract_tool_calls_and_results_chat(
 ) -> Tuple[List[ToolCall], List[ToolResult]]:
     """
     Parses message object for tool calls and results.
-    Compatible with OpenAI Chat and Response API formats.
+    Used to parse OpenAI Chat API formats.
     """
     tool_calls = []
     tool_results = []
@@ -400,7 +400,7 @@ def openai_set_meta_tags_from_chat(
         processed_message = {
             "content": str(_get_attr(m, "content", "")),
             "role": str(_get_attr(m, "role", "")),
-        }  # type: dict[str, Any]
+        }  # type: dict[str, Union[str, ToolCall, ToolResult]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -417,8 +417,8 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if kwargs.get("tools") or kwargs.get("functions"):
-        tools = openai_get_tool_definitions(kwargs.get("tools", []))
-        tools.extend(openai_get_tool_definitions(kwargs.get("functions", [])))
+        tools = _openai_get_tool_definitions(kwargs.get("tools", []))
+        tools.extend(_openai_get_tool_definitions(kwargs.get("functions", [])))
         if tools:
             span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
@@ -665,12 +665,12 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    tools = openai_get_tool_definitions(kwargs.get("tools", []))
+    tools = _openai_get_tool_definitions(kwargs.get("tools", []))
     if tools:
         span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
 
-def openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
+def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
         # chat API tool definitions

@@ -21,7 +21,6 @@ from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
 
 
-# Constant for tool definitions used across multiple tests
 EXPECTED_TOOL_DEFINITIONS = [
     {
         "name": "extract_student_info",
