@@ -35,7 +35,6 @@ if TYPE_CHECKING:
     # perf[severless]: Avoid importing httplib at the top level
     import http.client as httplib
 
-    from ddtrace._trace.context import Context
     from ddtrace.internal.http import HTTPConnection
     from ddtrace.internal.http import HTTPSConnection
     from ddtrace.internal.uds import UDSHTTPConnection
@@ -145,7 +144,7 @@ def connector(url: str, **kwargs: Any) -> Connector:
     return _connector_context
 
 
-def w3c_get_dd_list_member(context: "Context") -> str:
+def w3c_get_dd_list_member(context) -> str:  # Avoids typing Context due to circular import
     tags = []
     if context.sampling_priority is not None:
         tags.append("{}:{}".format(W3C_TRACESTATE_SAMPLING_PRIORITY_KEY, context.sampling_priority))
