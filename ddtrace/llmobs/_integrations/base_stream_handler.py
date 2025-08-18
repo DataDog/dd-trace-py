@@ -169,8 +169,6 @@ class TracedStream(wrapt.ObjectProxy):
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
-        if not hasattr(self.__wrapped__, "__enter__"):
-            return self
         result = self.__wrapped__.__enter__()
         if result is self.__wrapped__:
             return self
@@ -182,8 +180,7 @@ class TracedStream(wrapt.ObjectProxy):
         return traced_stream
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if hasattr(self.__wrapped__, "__exit__"):
-            return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
+        return self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
     @property
     def handler(self):
@@ -247,8 +244,6 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 
         If the stream is not wrapped by a stream manager, the stream will be returned as is.
         """
-        if not hasattr(self.__wrapped__, "__aenter__"):
-            return self
         result = await self.__wrapped__.__aenter__()
         if result is self.__wrapped__:
             return self
@@ -260,8 +255,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return traced_stream
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if hasattr(self.__wrapped__, "__aexit__"):
-            return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+        return await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
 
     @property
     def handler(self):

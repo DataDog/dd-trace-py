@@ -28,6 +28,12 @@ async def _async_text_stream_generator(traced_stream):
 
 
 def handle_streamed_response(integration, resp, args, kwargs, span):
+    """
+    Creates a traced stream with a callback that adds a text_stream attribute
+    to the underlying stream object when it is created.
+
+    The text_stream attribute must be overridden so we can trace the yielded chunks.
+    """
     def add_text_stream(stream):
         stream.text_stream = _text_stream_generator(stream)
 

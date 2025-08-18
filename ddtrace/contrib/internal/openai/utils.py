@@ -13,6 +13,9 @@ log = get_logger(__name__)
 
 
 class BaseOpenAIStreamHandler:
+    def initialize_chunk_storage(self):
+        return defaultdict(list)
+    
     def finalize_stream(self, exception=None):
         if not exception:
             _process_finished_stream(
@@ -26,9 +29,6 @@ class BaseOpenAIStreamHandler:
 
 
 class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
-    def initialize_chunk_storage(self):
-        return defaultdict(list)
-
     def process_chunk(self, chunk, iterator=None):
         self._extract_token_chunk(chunk, iterator)
         _loop_handler(self.primary_span, chunk, self.chunks)

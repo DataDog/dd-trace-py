@@ -87,21 +87,6 @@ class BotocoreStreamingBodyStreamHandler(StreamHandler):
         )
 
 
-def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
-    original_read = getattr(streaming_body, "read", None)
-    original_readlines = getattr(streaming_body, "readlines", None)
-    traced_stream = make_traced_stream(
-        streaming_body,
-        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
-    )
-    # add bedrock-specific methods to the traced stream
-    if original_read:
-        traced_stream.read = lambda amt=None: traced_stream_read(traced_stream, original_read, amt)
-    if original_readlines:
-        traced_stream.readlines = lambda: traced_stream_readlines(traced_stream, original_readlines)
-    return traced_stream
-
-
 class BotocoreConverseStreamHandler(StreamHandler):
     def process_chunk(self, chunk: Dict[str, Any], iterator=None):
         stream_processor = self.options.get("stream_processor", None)
@@ -119,6 +104,21 @@ class BotocoreConverseStreamHandler(StreamHandler):
         stream_processor = self.options.get("stream_processor", None)
         execution_ctx = self.options.get("execution_ctx", {})
         core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+
+
+def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
+    original_read = getattr(streaming_body, "read", None)
+    original_readlines = getattr(streaming_body, "readlines", None)
+    traced_stream = make_traced_stream(
+        streaming_body,
+        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
+    )
+    # add bedrock-specific methods to the traced stream
+    if original_read:
+        traced_stream.read = lambda amt=None: traced_stream_read(traced_stream, original_read, amt)
+    if original_readlines:
+        traced_stream.readlines = lambda: traced_stream_readlines(traced_stream, original_readlines)
+    return traced_stream
 
 
 def make_botocore_converse_traced_stream(stream, execution_ctx):
