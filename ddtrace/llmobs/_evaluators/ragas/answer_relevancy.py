@@ -76,8 +76,8 @@ class RagasAnswerRelevancyEvaluator(BaseRagasEvaluator):
         if not self.ragas_answer_relevancy_instance:
             return "fail_answer_relevancy_is_none", {}
 
-        evaluation_metadata: dict[str, Union[str, dict, list]] = {}
-        trace_metadata: dict[str, Union[str, dict, list]] = {}
+        evaluation_metadata = {}  # type: dict[str, Union[str, dict, list]]
+        trace_metadata = {}  # type: dict[str, Union[str, dict, list]]
 
         # initialize data we annotate for tracing ragas
         score, answer_classifications = (math.nan, None)

@@ -35,6 +35,7 @@ if TYPE_CHECKING:
     from ddtrace.llmobs._writer import LLMObsExperimentEvalMetricEvent
     from ddtrace.llmobs._writer import LLMObsExperimentsClient
 
+
 logger = get_logger(__name__)
 
 JSONType = Union[str, int, float, bool, None, List["JSONType"], Dict[str, "JSONType"]]
@@ -226,7 +227,7 @@ class Dataset:
         column_tuples = set()
         data_rows = []
         for record in self._records:
-            flat_record: Dict[Union[str, Tuple[str, str]], Any] = {}
+            flat_record = {}  # type: Dict[Union[str, Tuple[str, str]], Any]
 
             input_data = record.get("input_data", {})
             if isinstance(input_data, dict):

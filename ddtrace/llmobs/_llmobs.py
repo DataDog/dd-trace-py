@@ -176,7 +176,7 @@ class LLMObsSpan:
 
 
 class LLMObs(Service):
-    _instance: "LLMObs" = None  # type: ignore[assignment]
+    _instance = None  # type: LLMObs
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
@@ -449,15 +449,14 @@ class LLMObs(Service):
         # only do the annotations if it matches the context
         if span.span_type != SpanTypes.LLM:  # do this check to avoid the warning log in `annotate`
             return
-        current_context = self._instance.tracer.current_trace_context() if self._instance else None
+        current_context = self._instance.tracer.current_trace_context()
         if current_context is None:
             return
         current_context_id = current_context.get_baggage_item(ANNOTATIONS_CONTEXT_ID)
         with self._annotation_context_lock:
-            if self._instance:
-                for _, context_id, annotation_kwargs in self._instance._annotations:
-                    if current_context_id == context_id:
-                        self.annotate(span, **annotation_kwargs)
+            for _, context_id, annotation_kwargs in self._instance._annotations:
+                if current_context_id == context_id:
+                    self.annotate(span, **annotation_kwargs)
 
     def _child_after_fork(self) -> None:
         self._llmobs_span_writer = self._llmobs_span_writer.recreate()
@@ -482,9 +481,8 @@ class LLMObs(Service):
         try:
             self._evaluator_runner.stop()
             # flush remaining evaluation spans & evaluations
-            if self._instance:
-                self._instance._llmobs_span_writer.periodic()
-                self._instance._llmobs_eval_metric_writer.periodic()
+            self._instance._llmobs_span_writer.periodic()
+            self._instance._llmobs_eval_metric_writer.periodic()
         except ServiceStatusError:
             log.debug("Error stopping evaluator runner")
 
@@ -640,15 +638,11 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, name: str) -> Dataset:
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         ds = cls._instance._dne_client.dataset_get_with_records(name)
         return ds
 
     @classmethod
     def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         if records is None:
             records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
@@ -673,8 +667,6 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
@@ -727,8 +719,6 @@ class LLMObs(Service):
 
     @classmethod
     def _delete_dataset(cls, dataset_id: str) -> None:
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         return cls._instance._dne_client.dataset_delete(dataset_id)
 
     @classmethod
@@ -793,8 +783,6 @@ class LLMObs(Service):
         :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan or None.
                          If None is returned, the span will be omitted and not sent to LLMObs.
         """
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         cls._instance._user_span_processor = processor
 
     @classmethod
@@ -811,8 +799,7 @@ class LLMObs(Service):
         log.debug("Disabling %s", cls.__name__)
         atexit.unregister(cls.disable)
 
-        if cls._instance:
-            cls._instance.stop()
+        cls._instance.stop()
         cls.enabled = False
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
@@ -934,16 +921,14 @@ class LLMObs(Service):
 
         error = None
         try:
-            if cls._instance:
-                cls._instance._evaluator_runner.periodic()
+            cls._instance._evaluator_runner.periodic()
         except Exception:
             error = "evaluator_flush_error"
             log.warning("Failed to run evaluator runner.", exc_info=True)
 
         try:
-            if cls._instance:
-                cls._instance._llmobs_span_writer.periodic()
-                cls._instance._llmobs_eval_metric_writer.periodic()
+            cls._instance._llmobs_span_writer.periodic()
+            cls._instance._llmobs_eval_metric_writer.periodic()
         except Exception:
             error = "writer_flush_error"
             log.warning("Failed to flush LLMObs spans and evaluation metrics.", exc_info=True)
@@ -978,10 +963,6 @@ class LLMObs(Service):
         If no span is provided, the current active LLMObs-type span will be used.
         """
         if span is None:
-            if cls._instance is None:
-                telemetry.record_span_exported(span, "no_instance")
-                log.warning("LLMObs is not enabled. Call LLMObs.enable() first.")
-                return None
             span = cls._instance._current_span()
             if span is None:
                 telemetry.record_span_exported(span, "no_active_span")
@@ -1106,8 +1087,6 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         if model_name is None:
             model_name = "custom"
         if model_provider is None:
@@ -1142,8 +1121,6 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         return cls._instance._start_span("tool", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod
@@ -1166,8 +1143,6 @@ class LLMObs(Service):
         """
         if cls.enabled is False:
             log.warning(SPAN_START_WHILE_DISABLED_WARNING)
-        if cls._instance is None:
-            raise RuntimeError("LLMObs is not enabled. Call LLMObs.enable() first.")
         return cls._instance._start_span("task", name=name, session_id=session_id, ml_app=ml_app, _decorator=_decorator)
 
     @classmethod

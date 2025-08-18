@@ -3,8 +3,6 @@ from itertools import product
 import os
 from pathlib import Path
 import sys
-from typing import Optional
-from typing import Union
 from unittest.mock import MagicMock
 
 
@@ -30,10 +28,10 @@ sys.modules["ddtrace._trace.span"] = MagicMock()
 class Span(object):
     def __init__(
         self,
-        span_id: Optional[int] = None,
-        service: Union[None, str, bytes] = None,
-        span_type: Union[None, str, bytes] = None,
-        _local_root: Optional["Span"] = None,
+        span_id=None,  # type: Optional[int]
+        service=None,  # type: Union[None, str, bytes]
+        span_type=None,  # type: Union[None, str, bytes]
+        _local_root=None,  # type: Optional[Span]
     ):
         self.span_id = span_id
         self.service = service

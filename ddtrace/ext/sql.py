@@ -10,7 +10,8 @@ log = get_logger(__name__)
 DB = "sql.db"  # the name of the database
 
 
-def normalize_vendor(vendor: str) -> str:
+def normalize_vendor(vendor):
+    # type: (str) -> str
     """Return a canonical name for a type of database."""
     if not vendor:
         return "db"  # should this ever happen?
@@ -22,7 +23,8 @@ def normalize_vendor(vendor: str) -> str:
         return vendor
 
 
-def _dd_parse_pg_dsn(dsn: str) -> Dict[str, str]:
+def _dd_parse_pg_dsn(dsn):
+    # type: (str) -> Dict[str, str]
     """
     Return a dictionary of the components of a postgres DSN.
     >>> parse_pg_dsn('user=dog port=1543 dbname=dogdata')

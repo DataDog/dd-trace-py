@@ -42,7 +42,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 
 
 def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
-    validated_prompt: Dict[str, Union[str, dict, List[str]]] = {}
+    validated_prompt = {}  # type: Dict[str, Union[str, dict, List[str]]]
     if not isinstance(prompt, dict):
         raise TypeError("Prompt must be a dictionary")
     variables = prompt.get("variables")

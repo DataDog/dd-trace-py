@@ -272,7 +272,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             unsupported_content_messages.append(
                 {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
             )
-    message: Dict[str, Union[str, List[Dict[str, Any]]]] = {}
+    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
     if content_blocks:
@@ -313,10 +313,10 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        processed_message: Dict[str, Any] = {
+        processed_message = {
             "content": str(_get_attr(m, "content", "")),
             "role": str(_get_attr(m, "role", "")),
-        }
+        }  # type: dict[str, Union[str, list[dict[str, dict]]]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -686,10 +686,10 @@ def update_proxy_workflow_input_output_value(span: Span, span_kind: str = ""):
     if span_kind != "workflow":
         return
     input_messages = span._get_ctx_item(INPUT_MESSAGES)
-    output_messages: Any = span._get_ctx_item(OUTPUT_MESSAGES)
+    output_messages = span._get_ctx_item(OUTPUT_MESSAGES)
     if input_messages:
         span._set_ctx_item(INPUT_VALUE, input_messages)
-    if output_messages and isinstance(output_messages, list):
+    if output_messages:
         span._set_ctx_item(OUTPUT_VALUE, output_messages)
 
 
@@ -1174,7 +1174,8 @@ def _compute_completion_tokens(completions_or_messages, model_name):
     return estimated, num_completion_tokens
 
 
-def _compute_token_count(content: Union[str, List[int]], model: Optional[str]) -> Tuple[bool, int]:
+def _compute_token_count(content, model):
+    # type: (Union[str, List[int]], Optional[str]) -> Tuple[bool, int]
     """
     Takes in prompt/response(s) and model pair, and returns a tuple of whether or not the number of prompt
     tokens was estimated, and the estimated/calculated prompt token count.
@@ -1199,7 +1200,8 @@ def _compute_token_count(content: Union[str, List[int]], model: Optional[str]) -
     return estimated, _est_tokens(content)
 
 
-def _est_tokens(prompt: Union[str, List[int]]) -> int:
+def _est_tokens(prompt):
+    # type: (Union[str, List[int]]) -> int
     """
     Provide a very rough estimate of the number of tokens in a string prompt.
     Note that if the prompt is passed in as a token array (list of ints), the token count

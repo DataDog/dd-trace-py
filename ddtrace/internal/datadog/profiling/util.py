@@ -1,5 +1,5 @@
 from sys import version_info
-from typing import Any
+from typing import Any  # noqa:F401
 
 from ddtrace.internal.logger import get_logger
 
@@ -8,7 +8,8 @@ LOG = get_logger(__name__)
 
 
 # 3.11 and above
-def _sanitize_string_check(value: Any) -> str:
+def _sanitize_string_check(value):
+    # type: (Any) -> str
     if isinstance(value, str):
         return value
     elif value is None:
@@ -21,7 +22,8 @@ def _sanitize_string_check(value: Any) -> str:
 
 
 # 3.10 and below (the noop version)
-def _sanitize_string_identity(value: Any) -> str:
+def _sanitize_string_identity(value):
+    # type: (Any) -> str
     return value or ""
 
 
