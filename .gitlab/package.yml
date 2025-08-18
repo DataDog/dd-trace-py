@@ -28,7 +28,7 @@ download_dependency_wheels:
   stage: package
   needs: [ download_ddtrace_artifacts ]
   variables:
-    - PIP_CACHE_DIR=${CI_PROJECT_DIR}/.cache/pip
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.8"
