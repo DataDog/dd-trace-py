@@ -32,7 +32,7 @@ _original_async_connect = None
 
 
 def _get_psycopg3_original_methods():
-    """Get psycopg3 original method references, handling circular imports gracefully"""
+    """Get psycopg3 original method references, avoiding top-level evaluation to avoid circular imports"""
     global _original_connect, _original_async_connect
     if _original_connect is None or _original_async_connect is None:
         try:
