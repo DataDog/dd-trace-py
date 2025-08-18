@@ -512,7 +512,7 @@ class TraceMiddleware:
             parent_span = request_span
 
         with core.context_with_data(
-            "asgi.websocket.send_message",
+            "asgi.websocket.send.message",
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.send",
@@ -546,7 +546,7 @@ class TraceMiddleware:
             parent_span = request_span
 
         with core.context_with_data(
-            "asgi.websocket.close_message",
+            "asgi.websocket.close.message",
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
