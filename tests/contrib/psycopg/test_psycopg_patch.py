@@ -44,18 +44,12 @@ class TestPsycopgPatch(PatchTestCase.Base):
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg"])
         unpatch()
 
-
-
     def test_psycopg_circular_import_fix(self):
-        fixture_path = os.path.join(
-            os.path.dirname(__file__), 
-            'fixtures', 
-            'reproduce_psycopg_cyclic_import_error.py'
-        )
-        
+        fixture_path = os.path.join(os.path.dirname(__file__), "fixtures", "reproduce_psycopg_cyclic_import_error.py")
+
         env = os.environ.copy()
         codebase_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-        env['PYTHONPATH'] = os.pathsep.join([codebase_root, env.get('PYTHONPATH', '')])
+        env["PYTHONPATH"] = os.pathsep.join([codebase_root, env.get("PYTHONPATH", "")])
 
         # Run the reproduction script with ddtrace-run
         # Note: tried with @run_in_subprocess but that fails to reproduce the error in the affected version
@@ -65,7 +59,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
             capture_output=True,
             text=True,
             env=env,
-            timeout=30
+            timeout=30,
         )
 
         full_output = result.stdout + result.stderr
@@ -74,5 +68,7 @@ class TestPsycopgPatch(PatchTestCase.Base):
         elif "psycopg2" in full_output and "ImportError" in full_output:
             self.skipTest("psycopg2 not available for testing")
         elif result.returncode != 0:
-            self.fail(f"Reproduction script failed unexpectedly: "
-                     f"returncode={result.returncode}, stdout={result.stdout}, stderr={result.stderr}")
+            self.fail(
+                f"Reproduction script failed unexpectedly: "
+                f"returncode={result.returncode}, stdout={result.stdout}, stderr={result.stderr}"
+            )
