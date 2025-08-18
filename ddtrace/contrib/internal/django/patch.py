@@ -22,7 +22,6 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
-from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
