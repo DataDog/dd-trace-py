@@ -25,9 +25,6 @@ from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_RESOURCE
-from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_SERVICE
 from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
@@ -140,12 +137,6 @@ def _parse_response_cookies(response_headers: Mapping[str, str]) -> Mapping[str,
     except Exception:
         log.debug("failed to extract response cookies", exc_info=True)
     return cookies
-
-
-def _inherit_sampling_tags(span: Span, source: Span):
-    span.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
-    span.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)
-    span.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _set_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
@@ -366,7 +357,7 @@ class TraceMiddleware:
                     return await receive()
 
                 with core.context_with_data(
-                    "asgi.websocket.receive_message",
+                    "asgi.websocket.receive.message",
                     tracer=self.tracer,
                     integration_config=self.integration_config,
                     span_name="websocket.receive",
@@ -382,7 +373,7 @@ class TraceMiddleware:
                         message = await receive()
 
                         if scope["type"] == "websocket" and message["type"] == "websocket.receive":
-                            self._handle_websocket_receive_message(scope, message, recv_span, span)
+                            self._handle_websocket_receive_message(ctx, scope, message, recv_span, span)
 
                         elif message["type"] == "websocket.disconnect":
                             self._handle_websocket_disconnect_message(scope, message, span)
@@ -605,28 +596,29 @@ class TraceMiddleware:
             core.dispatch("asgi.start_response", ("asgi",))
 
     def _handle_websocket_receive_message(
-        self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
+        self, ctx, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
     ):
         _cleanup_previous_receive(scope)
+        # core.dispatch("asgi.websocket.receive.message", (ctx, scope, message, self.integration_config))
 
-        recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-        recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-        recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
+        # recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+        # recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+        # recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
 
-        _set_message_tags_on_span(recv_span, message)
+        # _set_message_tags_on_span(recv_span, message)
 
-        recv_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+        # recv_span.set_metric(websocket.MESSAGE_FRAMES, 1)
 
-        recv_span.set_link(
-            trace_id=request_span.trace_id,
-            span_id=request_span.span_id,
-            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
-        )
+        # recv_span.set_link(
+        #     trace_id=request_span.trace_id,
+        #     span_id=request_span.span_id,
+        #     attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+        # )
 
-        if self.integration_config.asgi_websocket_messages_inherit_sampling:
-            _inherit_sampling_tags(recv_span, request_span._local_root)
+        # if self.integration_config.asgi_websocket_messages_inherit_sampling:
+        #     _inherit_sampling_tags(recv_span, request_span._local_root)
 
-        _copy_trace_level_tags(recv_span, request_span)
+        # _copy_trace_level_tags(recv_span, request_span)
 
         scope["datadog"]["current_receive_span"] = recv_span
 
@@ -635,9 +627,10 @@ class TraceMiddleware:
     ):
         _cleanup_previous_receive(scope)
 
+        # TODO: check can we use the core.dispatch instead?
         # Create the span when the handler is invoked (when receive() is called)
         with core.context_with_data(
-            "asgi.websocket.disconnect_message",
+            "asgi.websocket.disconnect.message",
             tracer=self.tracer,
             integration_config=self.integration_config,
             span_name="websocket.close",
@@ -648,20 +641,23 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
-        ) as ctx, ctx.span as disconnect_span:
-            disconnect_span.set_link(
-                trace_id=request_span.trace_id,
-                span_id=request_span.span_id,
-                attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
-            )
+        ) as ctx, ctx.span:
+            # core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message, self.integration_config))
 
-            if self.integration_config.asgi_websocket_messages_inherit_sampling:
-                _inherit_sampling_tags(disconnect_span, request_span._local_root)
+            # disconnect_span.set_link(
+            #     trace_id=request_span.trace_id,
+            #     span_id=request_span.span_id,
+            #     attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
+            # )
 
-            _copy_trace_level_tags(disconnect_span, request_span)
-            _set_websocket_close_tags(disconnect_span, message)
+            # if self.integration_config.asgi_websocket_messages_inherit_sampling:
+            #     _inherit_sampling_tags(disconnect_span, request_span._local_root)
 
-        # The context system automatically finishes the disconnect_span
-        # Only finish the main span if needed
+            # _copy_trace_level_tags(disconnect_span, request_span)
+            # _set_websocket_close_tags(disconnect_span, message)
+
+            # The context system automatically finishes the disconnect_span
+            # Only finish the main span if needed
+            return message
         if request_span and request_span.error == 0:
             request_span.finish()

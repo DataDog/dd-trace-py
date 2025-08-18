@@ -5,6 +5,7 @@ from typing import Any
 from typing import Callable
 from typing import Dict
 from typing import List
+from typing import Mapping
 from typing import Optional
 from typing import Tuple
 from urllib import parse
@@ -24,11 +25,16 @@ from ddtrace.constants import ERROR_TYPE
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.botocore.constants import BOTOCORE_STEPFUNCTIONS_INPUT_KEY
+
+# from ddtrace.internal.utils import _copy_trace_level_tags
+from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.contrib.internal.trace_utils import _set_url_tag
 from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext import websocket
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -41,6 +47,7 @@ from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
@@ -871,6 +878,84 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
+def _set_websocket_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
+    if "text" in message:
+        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "text")
+        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
+    elif "binary" in message:
+        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "binary")
+        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
+
+
+def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
+    code = message.get("code")
+    reason = message.get("reason")
+    if code is not None:
+        span.set_metric(websocket.CLOSE_CODE, code)
+    if reason:
+        span.set_tag(websocket.CLOSE_REASON, reason)
+
+
+def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
+    """
+    Handle websocket receive message events.
+
+    This handler is called when a websocket receive message event is dispatched.
+    It sets up the span with appropriate tags, metrics, and links.
+    """
+    span = ctx.span
+
+    # Set standard component and span kind tags
+    span.set_tag_str(COMPONENT, integration_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+    span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
+
+    # Set message-specific tags
+    _set_websocket_message_tags_on_span(span, message)
+
+    span.set_metric(websocket.MESSAGE_FRAMES, 1)
+
+    if hasattr(ctx, "parent") and ctx.parent.span:
+        span.set_link(
+            trace_id=ctx.parent.span.trace_id,
+            span_id=ctx.parent.span.span_id,
+            attributes={SpanLinkKind.EXECUTED: SpanLinkKind.EXECUTED},
+        )
+
+        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
+            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+
+        _copy_trace_level_tags(span, ctx.parent.span)
+
+
+def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_config):
+    """
+    Handle websocket disconnect message events.
+
+    This handler is called when a websocket disconnect message event is dispatched.
+    It sets up the span with appropriate tags, metrics, and links.
+    """
+    span = ctx.span
+
+    span.set_tag_str(COMPONENT, integration_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
+
+    _set_websocket_close_tags(span, message)
+
+    # Set links to parent span if available
+    if hasattr(ctx, "parent") and ctx.parent.span:
+        span.set_link(
+            trace_id=ctx.parent_span.trace_id,
+            span_id=ctx.parent_span.span_id,
+            attributes={SpanLinkKind.EXECUTED: SpanLinkKind.EXECUTED},
+        )
+
+        if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
+            _inherit_sampling_tags(span, ctx.parent.span._local_root)
+
+        _copy_trace_level_tags(span, ctx.parent.span)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -925,6 +1010,8 @@ def listen():
     core.on("azure.functions.trigger_call_modifier", _on_azure_functions_trigger_span_modifier)
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
+    core.on("asgi.websocket.receive.message", _on_asgi_websocket_receive_message)
+    core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
@@ -958,8 +1045,8 @@ def listen():
         "asgi.__call__",
         "asgi.websocket.close_message",
         "asgi.websocket.disconnect_message",
-        "asgi.websocket.receive_message",
-        "asgi.websocket.send_message",
+        "asgi.websocket.receive.message",
+        "asgi.websocket.send.message",
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",
