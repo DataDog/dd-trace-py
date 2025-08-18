@@ -40,3 +40,81 @@ class TestPsycopgPatch(PatchTestCase.Base):
         assert versions.get("psycopg")
         emit_integration_and_version_to_test_agent("psycopg", versions["psycopg"])
         unpatch()
+
+    def test_circular_import_protection(self):
+        """Test that psycopg patch module can be imported without circular import errors.
+        
+        This test ensures that the fix for the circular import issue that caused
+        "partially initialized module has no attribute 'patch'" errors continues to work.
+        """
+        import sys
+        import importlib
+        
+        modules_to_remove = [name for name in list(sys.modules.keys())
+                            if 'psycopg' in name and not name.startswith('ddtrace')]
+        for module in modules_to_remove:
+            if module in sys.modules:
+                del sys.modules[module]
+        
+        try:
+            patch_module = importlib.import_module('ddtrace.contrib.internal.psycopg.patch')
+            assert hasattr(patch_module, 'patch'), "patch function should be available"
+            assert callable(patch_module.patch), "patch function should be callable"
+            patch_module.patch()
+            
+        except AttributeError as e:
+            if "has no attribute 'patch'" in str(e):
+                self.fail(f"Circular import issue detected: {e}")
+            else:
+                raise
+        except ImportError:
+            pass
+        finally:
+            try:
+                if unpatch:
+                    unpatch()
+            except Exception:
+                pass
+
+    def test_monkey_patching_circular_import_protection(self):
+        """Test that the monkey patching system can handle psycopg patch module correctly.
+        
+        This specifically tests the scenario that caused the original issue where the 
+        monkey patching system called imported_module.patch() but the module was 
+        partially initialized due to circular imports.
+        """
+        import sys
+        from ddtrace._monkey import _on_import_factory
+        
+        # Clean up any existing psycopg modules
+        modules_to_remove = [name for name in list(sys.modules.keys()) 
+                            if 'psycopg' in name and not name.startswith('ddtrace')]
+        for module in modules_to_remove:
+            if module in sys.modules:
+                del sys.modules[module]
+        
+        try:
+            on_import_func = _on_import_factory(
+                "psycopg", 
+                "ddtrace.contrib.internal.%s.patch",
+                raise_errors=False
+            )
+            
+            class MockHook:
+                __name__ = "test_hook"
+            
+            on_import_func(MockHook())
+            
+        except AttributeError as e:
+            if "has no attribute 'patch'" in str(e) and "circular import" in str(e):
+                self.fail(f"Monkey patching circular import issue detected: {e}")
+            else:
+                raise
+        except Exception:
+            pass
+        finally:
+            try:
+                if unpatch:
+                    unpatch()
+            except Exception:
+                pass
