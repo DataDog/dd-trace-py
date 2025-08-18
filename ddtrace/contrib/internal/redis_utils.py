@@ -6,7 +6,6 @@ from typing import Union
 
 from ddtrace.contrib import trace_utils
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import net
 from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_cache_operation
@@ -98,7 +97,7 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-    ) as ctx, ctx.span as span:
+    ) as ctx, ctx.span:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, args, instance, query])
         yield ctx
 
@@ -115,6 +114,6 @@ def _instrument_redis_execute_async_cluster_pipeline(pin, config_integration, cm
         resource=resource,
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
-    ) as span:
+    ) as ctx, ctx.span as span:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
         yield span
