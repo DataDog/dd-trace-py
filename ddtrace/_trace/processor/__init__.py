@@ -149,7 +149,6 @@ class TraceSamplingProcessor(TraceProcessor):
     def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
         if trace:
             chunk_root = trace[0]
-            root_ctx = chunk_root._context
 
             if self.apm_opt_out:
                 for span in trace:
@@ -157,18 +156,21 @@ class TraceSamplingProcessor(TraceProcessor):
                         span.set_metric(MK_APM_ENABLED, 0)
 
             # only trace sample if we haven't already sampled
-            if root_ctx and root_ctx.sampling_priority is None:
-                self.sampler.sample(trace[0])
+            if chunk_root.context.sampling_priority is None:
+                self.sampler.sample(chunk_root._local_root)
             # When stats computation is enabled in the tracer then we can
-            # safely drop the traces.
-            if self._compute_stats_enabled and not self.apm_opt_out:
-                priority = root_ctx.sampling_priority if root_ctx is not None else None
-                if priority is not None and priority <= 0:
-                    # When any span is marked as keep by a single span sampling
-                    # decision then we still send all and only those spans.
-                    single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-
-                    return single_spans or None
+            # safely drop the traces. When using the NativeWriter this is handled by native code.
+            if (
+                not config._trace_writer_native
+                and self._compute_stats_enabled
+                and not self.apm_opt_out
+                and chunk_root.context.sampling_priority is not None
+                and chunk_root.context.sampling_priority <= 0
+            ):
+                # When any span is marked as keep by a single span sampling
+                # decision then we still send all and only those spans.
+                single_spans = [_ for _ in trace if is_single_span_sampled(_)]
+                return single_spans or None
 
             # single span sampling rules are applied after trace sampling
             if self.single_span_rules:
@@ -183,9 +185,7 @@ class TraceSamplingProcessor(TraceProcessor):
                                 if config._trace_compute_stats:
                                     span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
                                 break
-
             return trace
-
         return None
 
 
@@ -207,7 +207,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span.set_metric("_dd.top_level", 1)
+            span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
 
 
 class TraceTagsProcessor(TraceProcessor):
@@ -227,10 +227,6 @@ class TraceTagsProcessor(TraceProcessor):
             return trace
 
         chunk_root = trace[0]
-        ctx = chunk_root._context
-        if not ctx:
-            return trace
-
         chunk_root._update_tags_from_context()
         self._set_git_metadata(chunk_root)
         chunk_root.set_tag_str("language", "python")
@@ -260,6 +256,14 @@ class SpanAggregator(SpanProcessor):
         - A minimum threshold of spans (``partial_flush_min_spans``) have been
           finished in the collection and ``partial_flush_enabled`` is True.
     """
+
+    SPAN_FINISH_DEBUG_MESSAGE = (
+        "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+        "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
+        "(partial flush triggered: %s)"
+    )
+
+    SPAN_START_DEBUG_MESSAGE = "Starting span: %s, trace has %d spans in the span aggregator"
 
     def __init__(
         self,
@@ -311,6 +315,7 @@ class SpanAggregator(SpanProcessor):
 
             self._span_metrics["spans_created"][integration_name] += 1
             self._queue_span_count_metrics("spans_created", "integration_name")
+        log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
         with self._lock:
@@ -327,12 +332,13 @@ class SpanAggregator(SpanProcessor):
                 return
 
             trace = self._traces[span.trace_id]
+            num_buffered = len(trace.spans)
             trace.num_finished += 1
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            if trace.num_finished == len(trace.spans) or should_partial_flush:
+            if trace.num_finished == num_buffered or should_partial_flush:
                 trace_spans = trace.spans
                 trace.spans = []
-                if trace.num_finished < len(trace_spans):
+                if trace.num_finished < num_buffered:
                     finished = []
                     for s in trace_spans:
                         if s.finished:
@@ -360,8 +366,9 @@ class SpanAggregator(SpanProcessor):
 
                 # Set partial flush tag on the first span
                 if should_partial_flush:
-                    log.debug("Partially flushing %d spans for trace %d", num_finished, span.trace_id)
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                    finished[0]._metrics[
+                        "_dd.py.partial_flush"
+                    ] = num_finished  # PERF: avoid setting via Span.set_metric
 
                 spans: Optional[List[Span]] = finished
                 for tp in chain(
@@ -380,10 +387,19 @@ class SpanAggregator(SpanProcessor):
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer
                             config._add_extra_service(span.service)
-                self.writer.write(spans)
-                return
 
-            log.debug("trace %d has %d spans, %d finished", span.trace_id, len(trace.spans), trace.num_finished)
+                    log.debug(
+                        self.SPAN_FINISH_DEBUG_MESSAGE,
+                        len(spans),
+                        num_buffered,
+                        num_finished - len(spans),
+                        num_buffered - num_finished,
+                        span.trace_id,
+                        spans[0].name,
+                        should_partial_flush,
+                    )
+                    self.writer.write(spans)
+                return
             return None
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:

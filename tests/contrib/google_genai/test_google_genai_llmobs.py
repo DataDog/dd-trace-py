@@ -218,6 +218,176 @@ class TestLLMObsGoogleGenAI:
         expected_second_event = expected_llmobs_tool_response_span_event(second_span)
         assert llmobs_events[1] == expected_second_event
 
+    def test_generate_content_stream_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream_with_tools
+    ):
+        response = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        function_call_part = response.function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response.candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_stream_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        async for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        async for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
     def test_code_execution(self, genai_client_vcr, llmobs_events):
         genai_client_vcr.models.generate_content(
             model="gemini-2.5-flash",
@@ -281,11 +451,35 @@ def expected_llmobs_tool_call_span_event(span):
             {"content": "What is the weather like in Boston?", "role": "user"},
         ],
         output_messages=[
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            }
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 
@@ -298,14 +492,27 @@ def expected_llmobs_tool_response_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "What is the weather like in Boston?", "role": "user"},
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            },
             {
                 "role": "tool",
-                "content": (
-                    "{'result': {'location': 'Boston', 'temperature': 72, 'unit': 'fahrenheit', "
-                    "'forecast': 'Sunny with light breeze'}}"
-                ),
-                "tool_id": None,
+                "tool_results": [
+                    {
+                        "name": "get_current_weather",
+                        "result": '{"result": {"location": "Boston", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny with light breeze"}}',  # noqa: E501
+                        "tool_id": "",
+                        "type": "function_response",
+                    }
+                ],
             },
         ],
         output_messages=[
@@ -320,6 +527,20 @@ def expected_llmobs_tool_response_span_event(span):
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 

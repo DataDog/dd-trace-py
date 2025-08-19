@@ -1,0 +1,120 @@
+interactions:
+- request:
+    body: '{"messages": [{"content": "When do you use ''whom'' instead of ''who''?",
+      "role": "user"}], "model": "gpt-3.5-turbo", "max_tokens": 256, "n": 1, "stream":
+      false, "temperature": 0.0}'
+    headers:
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - gzip, deflate
+      ? !!python/object/apply:multidict._multidict.istr
+      - Connection
+      : - keep-alive
+      Content-Length:
+      - '177'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      ? !!python/object/apply:multidict._multidict.istr
+      - User-Agent
+      : - OpenAI/Python 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Arch
+      : - arm64
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Async
+      : - 'false'
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Lang
+      : - python
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-OS
+      : - MacOS
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Package-Version
+      : - 1.30.3
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime
+      : - CPython
+      ? !!python/object/apply:multidict._multidict.istr
+      - X-Stainless-Runtime-Version
+      : - 3.10.13
+    method: POST
+    uri: https://api.openai.com/v1/chat/completions
+  response:
+    body:
+      string: "{\n  \"id\": \"chatcmpl-C47Kt2QYa3uJViWwsuFiXR3JdnZ9t\",\n  \"object\":
+        \"chat.completion\",\n  \"created\": 1755097547,\n  \"model\": \"gpt-3.5-turbo-0125\",\n
+        \ \"choices\": [\n    {\n      \"index\": 0,\n      \"message\": {\n        \"role\":
+        \"assistant\",\n        \"content\": \"'Whom' is used as the object of a verb
+        or preposition, while 'who' is used as the subject of a verb. \\n\\nFor example:\\n-
+        Whom did you invite to the party? (object of the verb 'invite')\\n- To whom
+        did you give the gift? (object of the preposition 'to')\\n\\nIn contrast:\\n-
+        Who is coming to the party? (subject of the verb 'is coming')\\n- Who gave
+        you the gift? (subject of the verb 'gave')\",\n        \"refusal\": null,\n
+        \       \"annotations\": []\n      },\n      \"logprobs\": null,\n      \"finish_reason\":
+        \"stop\"\n    }\n  ],\n  \"usage\": {\n    \"prompt_tokens\": 20,\n    \"completion_tokens\":
+        105,\n    \"total_tokens\": 125,\n    \"prompt_tokens_details\": {\n      \"cached_tokens\":
+        0,\n      \"audio_tokens\": 0\n    },\n    \"completion_tokens_details\":
+        {\n      \"reasoning_tokens\": 0,\n      \"audio_tokens\": 0,\n      \"accepted_prediction_tokens\":
+        0,\n      \"rejected_prediction_tokens\": 0\n    }\n  },\n  \"service_tier\":
+        \"default\",\n  \"system_fingerprint\": null\n}\n"
+    headers:
+      CF-RAY:
+      - 96e91cd90e70db40-EWR
+      Connection:
+      - keep-alive
+      Content-Encoding:
+      - gzip
+      Content-Type:
+      - application/json
+      Date:
+      - Wed, 13 Aug 2025 15:05:49 GMT
+      Server:
+      - cloudflare
+      Set-Cookie:
+      - _cfuvid=rF1OywKI3Hhi4gJdewLNPYuRBgnYSY2q03JcKm2Nxu4-1755097549389-0.0.1.1-604800000;
+        path=/; domain=.api.openai.com; HttpOnly; Secure; SameSite=None
+      Strict-Transport-Security:
+      - max-age=31536000; includeSubDomains; preload
+      Transfer-Encoding:
+      - chunked
+      X-Content-Type-Options:
+      - nosniff
+      access-control-expose-headers:
+      - X-Request-ID
+      alt-svc:
+      - h3=":443"; ma=86400
+      cf-cache-status:
+      - DYNAMIC
+      openai-organization:
+      - datadog-staging
+      openai-processing-ms:
+      - '1568'
+      openai-project:
+      - proj_gt6TQZPRbZfoY2J9AQlEJMpd
+      openai-version:
+      - '2020-10-01'
+      x-envoy-upstream-service-time:
+      - '1594'
+      x-ratelimit-limit-requests:
+      - '10000'
+      x-ratelimit-limit-tokens:
+      - '50000000'
+      x-ratelimit-remaining-requests:
+      - '9999'
+      x-ratelimit-remaining-tokens:
+      - '49999987'
+      x-ratelimit-reset-requests:
+      - 6ms
+      x-ratelimit-reset-tokens:
+      - 0s
+      x-request-id:
+      - req_3d9730ef22f44bebb81e8cec8fa56df8
+    status:
+      code: 200
+      message: OK
+version: 1

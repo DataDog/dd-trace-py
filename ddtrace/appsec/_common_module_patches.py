@@ -75,16 +75,27 @@ def _must_block(actions: Iterable[str]) -> bool:
     return any(action in (WAF_ACTIONS.BLOCK_ACTION, WAF_ACTIONS.REDIRECT_ACTION) for action in actions)
 
 
+def _get_rasp_capability(capability: str) -> bool:
+    """Check if the RASP capability is enabled."""
+    if asm_config._asm_enabled and asm_config._ep_enabled:
+        from ddtrace.appsec._asm_request_context import in_asm_context
+
+        if not in_asm_context():
+            return False
+
+        from ddtrace.appsec._processor import AppSecSpanProcessor
+
+        return AppSecSpanProcessor._instance is not None and getattr(
+            AppSecSpanProcessor._instance, f"rasp_{capability}_enabled", False
+        )
+    return False
+
+
 def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs):
     """
     wrapper for open file function
     """
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None
-        and core.tracer._appsec_processor.rasp_lfi_enabled
-    ):
+    if _get_rasp_capability("lfi"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -131,12 +142,7 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
         # TODO: IAST SSRF sink to be added
         pass
 
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None
-        and core.tracer._appsec_processor.rasp_ssrf_enabled
-    ):
+    if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -175,12 +181,7 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
 
         _iast_report_ssrf(original_request_callable, *args, **kwargs)
 
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None
-        and core.tracer._appsec_processor.rasp_ssrf_enabled
-    ):
+    if _get_rasp_capability("ssrf"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -211,12 +212,7 @@ def wrapped_system_5542593D237084A7(command: str) -> None:
     """
     wrapper for os.system function
     """
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None  # type: ignore
-        and core.tracer._appsec_processor.rasp_shi_enabled  # type: ignore
-    ):
+    if _get_rasp_capability("shi"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -242,12 +238,7 @@ def popen_FD233052260D8B4D(arg_list: Union[List[str], str]) -> None:
     """
     listener for subprocess.Popen class
     """
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None  # type: ignore
-        and core.tracer._appsec_processor.rasp_cmdi_enabled  # type: ignore
-    ):
+    if _get_rasp_capability("cmdi"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context
@@ -287,12 +278,7 @@ def execute_4C9BAC8E228EB347(instrument_self, query, args, kwargs) -> None:
     parameters are ignored as they are properly handled by the dbapi without risk of injections
     """
 
-    if (
-        asm_config._asm_enabled
-        and asm_config._ep_enabled
-        and core.tracer._appsec_processor is not None  # type: ignore
-        and core.tracer._appsec_processor.rasp_sqli_enabled  # type: ignore
-    ):
+    if _get_rasp_capability("sqli"):
         try:
             from ddtrace.appsec._asm_request_context import call_waf_callback
             from ddtrace.appsec._asm_request_context import in_asm_context

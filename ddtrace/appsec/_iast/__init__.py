@@ -26,9 +26,8 @@ def wrapped_function(wrapped, instance, args, kwargs):
         evidence_value=evidence,
     )
     return wrapped(*args, **kwargs)
-"""  # noqa: RST201, RST213, RST210
+"""
 
-import inspect
 import os
 import sys
 import types
@@ -58,6 +57,12 @@ def ddtrace_iast_flask_patch():
     if not asm_config._iast_enabled:
         return
 
+    # Import inspect locally to avoid gevent compatibility issues.
+    # Top-level imports of inspect can interfere with gevent's monkey patching
+    # and cause sporadic worker timeouts in Gunicorn applications.
+    # See ddtrace/internal/iast/product.py for detailed explanation.
+    import inspect
+
     from ._ast.ast_patching import astpatch_module
 
     module_name = inspect.currentframe().f_back.f_globals["__name__"]
@@ -85,16 +90,17 @@ def enable_iast_propagation():
     """Add IAST AST patching in the ModuleWatchdog"""
     # DEV: These imports are here to avoid _ast.ast_patching import in the top level
     # because they are slow and affect serverless startup time
-    from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
-    from ddtrace.appsec._iast._loader import _exec_iast_patched_module
+    if asm_config._iast_propagation_enabled:
+        from ddtrace.appsec._iast._ast.ast_patching import _should_iast_patch
+        from ddtrace.appsec._iast._loader import _exec_iast_patched_module
 
-    global _iast_propagation_enabled
-    if _iast_propagation_enabled:
-        return
+        global _iast_propagation_enabled
+        if _iast_propagation_enabled:
+            return
 
-    log.debug("iast::instrumentation::starting IAST")
-    ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
-    _iast_propagation_enabled = True
+        log.debug("iast::instrumentation::starting IAST")
+        ModuleWatchdog.register_pre_exec_module_hook(_should_iast_patch, _exec_iast_patched_module)
+        _iast_propagation_enabled = True
 
 
 def _iast_pytest_activation():
@@ -102,7 +108,6 @@ def _iast_pytest_activation():
     if _iast_propagation_enabled:
         return
     os.environ["DD_IAST_ENABLED"] = os.environ.get("DD_IAST_ENABLED") or "1"
-    os.environ["_DD_IAST_USE_ROOT_SPAN"] = os.environ.get("_DD_IAST_USE_ROOT_SPAN") or "true"
     os.environ["DD_IAST_REQUEST_SAMPLING"] = os.environ.get("DD_IAST_REQUEST_SAMPLING") or "100.0"
     os.environ["_DD_APPSEC_DEDUPLICATION_ENABLED"] = os.environ.get("_DD_APPSEC_DEDUPLICATION_ENABLED") or "false"
     os.environ["DD_IAST_VULNERABILITIES_PER_REQUEST"] = os.environ.get("DD_IAST_VULNERABILITIES_PER_REQUEST") or "1000"
@@ -112,7 +117,6 @@ def _iast_pytest_activation():
     asm_config._deduplication_enabled = False
     asm_config._iast_max_vulnerabilities_per_requests = 1000
     asm_config._iast_max_concurrent_requests = 1000
-    enable_iast_propagation()
     oce.reconfigure()
 
 

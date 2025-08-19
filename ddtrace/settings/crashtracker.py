@@ -21,9 +21,12 @@ def _derive_stacktrace_resolver(config: "CrashtrackingConfig") -> t.Optional[str
 
 
 def _check_for_crashtracking_available() -> bool:
-    from ddtrace.internal.datadog.profiling import crashtracker
+    try:
+        from ddtrace.internal.native._native import crashtracker_init  # noqa: F401
 
-    return crashtracker.is_available
+        return True
+    except ImportError:
+        return False
 
 
 def _derive_crashtracking_enabled(config: "CrashtrackingConfig") -> bool:

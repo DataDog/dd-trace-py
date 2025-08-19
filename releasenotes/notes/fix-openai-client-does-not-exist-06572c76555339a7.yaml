@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: Resolves an issue where an uninitialized ``OpenAI/AsyncOpenAI`` client would result in an ``AttributeError``.

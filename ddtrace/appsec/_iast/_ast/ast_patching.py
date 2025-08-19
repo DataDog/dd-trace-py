@@ -1,5 +1,6 @@
 import ast
 import os
+import sys
 import textwrap
 from types import ModuleType
 from typing import Optional
@@ -22,7 +23,7 @@ from .visitor import AstVisitor
 _VISITOR = AstVisitor()
 
 _PREFIX = IAST.PATCH_ADDED_SYMBOL_PREFIX
-
+IAST_PATCHING_LAZY_LOADED = True
 
 log = get_logger(__name__)
 
@@ -57,10 +58,26 @@ def initialize_iast_lists():
     The function specifically:
     1. Builds the user allowlist from _DD_IAST_PATCH_MODULES environment variable
     2. Builds the user denylist from _DD_IAST_DENY_MODULES environment variable
+    3. Imports and sets the packages_distributions function for first-party package detection
 
     This approach is safer than C-level initialization in init_globals() which can
     lead to inconsistent state or crashes due to GIL-related issues.
     """
+    # Import and set the packages_distributions function for the C extension
+    try:
+        if sys.version_info < (3, 10):
+            import importlib_metadata as metadata
+        else:
+            import importlib.metadata as metadata
+        result = set(metadata.packages_distributions())
+        iastpatch.set_packages_distributions(result)
+    except ImportError:
+        # If metadata module is not available, the C extension will handle
+        # first-party detection gracefully by returning False
+        log.debug("Could not import metadata module for first-party detection")
+    except Exception:
+        log.debug("Failed to set packages in C extension", exc_info=True)
+
     iastpatch.build_list_from_env(IAST.PATCH_MODULES)
     iastpatch.build_list_from_env(IAST.DENY_MODULES)
 
@@ -97,6 +114,10 @@ def _should_iast_patch(module_name: str) -> bool:
         When asm_config._iast_debug is True, the function will log detailed information about
         why a module was allowed or denied patching.
     """
+    global IAST_PATCHING_LAZY_LOADED
+    if IAST_PATCHING_LAZY_LOADED:
+        initialize_iast_lists()
+        IAST_PATCHING_LAZY_LOADED = False
     result = False
     try:
         result = iastpatch.should_iast_patch(module_name)
@@ -233,20 +254,17 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     module_origin = origin(module)
     if module_origin is None:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"could not find the module: {module_name}")
+        iast_compiling_debug_log(f"could not find the module: {module_name}")
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"empty file: {module_path}")
+            iast_compiling_debug_log(f"empty file: {module_path}")
             return "", None
     except OSError:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
+        iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -256,26 +274,22 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
+        iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
     with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
+            iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
             return "", None
         except Exception:
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
+            iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"Empty file: {module_path}")
+        iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
@@ -288,11 +302,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         module_name=module_name,
     )
     if new_ast is None:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"file not ast patched: {module_path}")
+        iast_compiling_debug_log(f"file not ast patched: {module_path}")
         return "", None
 
     return module_path, new_ast
-
-
-initialize_iast_lists()

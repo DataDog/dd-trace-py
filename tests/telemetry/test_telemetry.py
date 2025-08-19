@@ -353,3 +353,33 @@ def test_installed_excepthook():
     assert telemetry_writer._enabled is True
     telemetry_writer.uninstall_excepthook()
     assert sys.excepthook.__name__ != "_telemetry_excepthook"
+
+
+def test_telemetry_multiple_sources(test_agent_session, run_python_code_in_subprocess):
+    """Test that a config is submitted for multiple sources with increasing seq_id"""
+
+    env = os.environ.copy()
+    env["OTEL_TRACES_EXPORTER"] = "none"
+    env["DD_TRACE_ENABLED"] = "false"
+    env["_DD_INSTRUMENTATION_TELEMETRY_TESTS_FORCE_APP_STARTED"] = "true"
+
+    _, err, status, _ = run_python_code_in_subprocess(
+        "from ddtrace import config; config._tracing_enabled = True", env=env
+    )
+    assert status == 0, err
+
+    configs = test_agent_session.get_configurations(name="DD_TRACE_ENABLED", remove_seq_id=False, effective=False)
+    assert len(configs) == 4, configs
+
+    sorted_configs = sorted(configs, key=lambda x: x["seq_id"])
+    assert sorted_configs[0]["value"] is True
+    assert sorted_configs[0]["origin"] == "default"
+
+    assert sorted_configs[1]["value"] == "none"
+    assert sorted_configs[1]["origin"] == "otel_env_var"
+
+    assert sorted_configs[2]["value"] is False
+    assert sorted_configs[2]["origin"] == "env_var"
+
+    assert sorted_configs[3]["value"] is True
+    assert sorted_configs[3]["origin"] == "code"

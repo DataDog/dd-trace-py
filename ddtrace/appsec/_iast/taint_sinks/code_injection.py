@@ -1,4 +1,3 @@
-import inspect
 from typing import Text
 
 from ddtrace.appsec._constants import IAST
@@ -12,7 +11,6 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_CODE_INJECTION
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -24,8 +22,19 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
+_IS_PATCHED = False
+
+
 def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function("builtins", "eval", _iast_coi)
@@ -46,8 +55,13 @@ class CodeInjection(VulnerabilityBase):
 def _iast_coi(wrapped, instance, args, kwargs):
     if len(args) >= 1:
         _iast_report_code_injection(args[0])
-
     try:
+        # Import inspect locally to avoid gevent compatibility issues.
+        # Top-level imports of inspect can interfere with gevent's monkey patching
+        # and cause sporadic worker timeouts in Gunicorn applications.
+        # See ddtrace/internal/iast/product.py for detailed explanation.
+        import inspect
+
         caller_frame = None
         if len(args) > 1:
             func_globals = args[1]
