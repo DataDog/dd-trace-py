@@ -88,7 +88,8 @@ SPAN_LINKS = "_ml_obs.span_links"
 NAME = "_ml_obs.name"
 
 # Prompt constants
-DEFAULT_PROMPT_NAME = "unnamed_prompt"
+DEFAULT_PROMPT_NAME = "unnamed-prompt"
+DEFAULT_PROMPT_ML_APP = "unnamed-ml-app"
 
 DECORATOR = "_ml_obs.decorator"
 INTEGRATION = "_ml_obs.integration"
