@@ -85,11 +85,11 @@ def verify_debug_file(debug_path: Path) -> bool:
     # Check if the debug file contains debug sections using objdump
     try:
         result = subprocess.run(["objdump", "-h", str(debug_path)], capture_output=True, text=True, check=True)
-        debug_sections = [line for line in result.stdout.split('\n') if '.debug_' in line]
+        debug_sections = [line for line in result.stdout.split("\n") if ".debug_" in line]
         print(f"  Found {len(debug_sections)} debug sections")
 
         if debug_sections:
-            print(f"  Debug sections found:")
+            print("  Debug sections found:")
             for section in debug_sections[:5]:  # Show first 5 sections
                 print(f"    {section.strip()}")
             if len(debug_sections) > 5:
@@ -99,19 +99,19 @@ def verify_debug_file(debug_path: Path) -> bool:
             # Some debug files might contain other types of debug information
             if file_size > 1000:  # More than 1KB
                 print(f"  Warning: No debug sections found, but file has substantial content ({file_size} bytes)")
-                print(f"  Accepting debug file as it may contain other debug information")
+                print("  Accepting debug file as it may contain other debug information")
             else:
                 print(f"  Error: Debug file contains no debug sections and is too small: {debug_path}")
                 os.remove(debug_path)
                 return False
 
     except (subprocess.CalledProcessError, FileNotFoundError):
-        print(f"  Warning: Could not verify debug sections with objdump")
+        print("  Warning: Could not verify debug sections with objdump")
         # If we can't verify with objdump, just check that the file has content
         if file_size > 0:
             print(f"  Debug file has content ({file_size} bytes), assuming it's valid")
         else:
-            print(f"  Error: Debug file appears to be empty")
+            print("  Error: Debug file appears to be empty")
             os.remove(debug_path)
             return False
 
@@ -138,7 +138,7 @@ def verify_dsym_bundle(dsym_path: Path) -> bool:
     if not dwarf_dir.exists():
         print(f"  Error: DWARF directory does not exist: {dwarf_dir}")
         # List what's actually in the .dSYM bundle
-        print(f"  Contents of .dSYM bundle:")
+        print("  Contents of .dSYM bundle:")
         for item in dsym_path.rglob("*"):
             print(f"    {item}")
         shutil.rmtree(dsym_path, ignore_errors=True)
