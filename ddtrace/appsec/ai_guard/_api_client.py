@@ -14,6 +14,8 @@ try:
     from typing import TypedDict
 except ImportError:
     from typing_extensions import TypedDict
+from typing import Optional  # noqa:F401
+
 from typing_extensions import NotRequired
 
 from ddtrace import config
@@ -68,19 +70,19 @@ class AIGuardWorkflow:
         self._client = client
         self._history: List[Evaluation] = []
 
-    def add_system_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_system_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a system prompt to the history of the workflow"""
         return self.add_prompt("system", content, output)
 
-    def add_user_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_user_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a user prompt to the history of the workflow"""
         return self.add_prompt("user", content, output)
 
-    def add_assistant_prompt(self, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_assistant_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add an assistant prompt to the history of the workflow"""
         return self.add_prompt("assistant", content, output)
 
-    def add_prompt(self, role: str, content: str, output: str = None) -> "AIGuardWorkflow":
+    def add_prompt(self, role: str, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a prompt to the history of the workflow"""
         current = Prompt(role=role, content=content)
         if output is not None:
@@ -89,7 +91,7 @@ class AIGuardWorkflow:
         return self
 
     def add_tool(
-        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: str = None
+        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: Optional[str] = None
     ) -> "AIGuardWorkflow":
         """Add a tool execution to the history of the workflow"""
         current = ToolCall(tool_name=tool_name, tool_args=tool_args)
@@ -102,14 +104,12 @@ class AIGuardWorkflow:
         self,
         tool_name: str,
         tool_args: Dict[Union[Text, bytes], Any],
-        output: str = None,
-        tags: Dict[Union[Text, bytes], Any] = None,
+        output: Optional[str] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
         return self._client.evaluate_tool(tool_name, tool_args, output=output, history=self._history, tags=tags)
 
-    def evaluate_prompt(
-        self, role: str, content: str, tags: Dict[Union[Text, bytes], Any] = None
-    ) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Optional[Dict[Union[Text, bytes], Any]] = None) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -148,9 +148,9 @@ class AIGuardClient:
         self,
         tool_name: str,
         tool_args: Dict[Union[Text, bytes], Any],
-        output: str = None,
-        history: List[Evaluation] = None,
-        tags: Dict[Union[Text, bytes], Any] = None,
+        output: Optional[str] = None,
+        history: Optional[List[Evaluation]] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
@@ -181,9 +181,9 @@ class AIGuardClient:
         self,
         role: str,
         content: str,
-        output: str = None,
-        history: List[Evaluation] = None,
-        tags: Dict[Union[Text, bytes], Any] = None,
+        output: Optional[str] = None,
+        history: Optional[List[Evaluation]] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
@@ -209,7 +209,9 @@ class AIGuardClient:
             prompt["output"] = output
         return self._evaluate(prompt, history, tags)
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
+    def _evaluate(
+        self, current: Evaluation, history: Optional[List[Evaluation]], tags: Dict[Union[Text, bytes], Any]
+    ) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace("ai_guard") as span:
             span.set_tags(tags)
