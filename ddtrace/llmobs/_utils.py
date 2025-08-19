@@ -73,8 +73,9 @@ def _validate_prompt(
         raise ValueError("Only one of 'template' or 'chat_template' can be provided, not both.")
 
     # Stage 3: Set defaults
-    final_prompt_id = prompt_id or prompt_name or DEFAULT_PROMPT_NAME
+    final_ml_app = ml_app or DEFAULT_PROMPT_ML_APP
     final_name = prompt_name or prompt_id or DEFAULT_PROMPT_NAME
+    final_prompt_id = prompt_id or f"{final_ml_app}_{final_name}"
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
