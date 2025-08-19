@@ -97,9 +97,9 @@ from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
-from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import _strict_validate_prompt
 from ddtrace.llmobs._utils import _validate_prompt
+from ddtrace.llmobs._utils import enforce_message_role
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
@@ -319,7 +319,7 @@ class LLMObs(Service):
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
 
         if span._get_ctx_item(INPUT_PROMPT) is not None:
-            prompt_dict = span._get_ctx_item(INPUT_PROMPT)
+            prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
                 log.warning(
                     "Dropping prompt on non-LLM span kind, annotating prompts is only supported for LLM span kinds."

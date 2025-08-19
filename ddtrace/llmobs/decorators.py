@@ -101,7 +101,7 @@ def _inner_model_fn(operation_kind, **llmobs_kwargs):
                 }
                 if operation_kind == "llm" and prompt is not None:
                     span_kwargs["prompt"] = prompt
-                with traced_operation(**span_kwargs) as span:
+                with traced_operation(**span_kwargs):
                     return await func(*args, **kwargs)
 
         else:
@@ -152,7 +152,7 @@ def _inner_model_fn(operation_kind, **llmobs_kwargs):
                 }
                 if operation_kind == "llm" and prompt is not None:
                     span_kwargs["prompt"] = prompt
-                with traced_operation(**span_kwargs) as span:
+                with traced_operation(**span_kwargs):
                     return func(*args, **kwargs)
 
         return generator_wrapper if (isgeneratorfunction(func) or isasyncgenfunction(func)) else wrapper

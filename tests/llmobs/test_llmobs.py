@@ -3,7 +3,6 @@ import os
 from textwrap import dedent
 from typing import Optional
 
-import mock
 import pytest
 
 from ddtrace.ext import SpanTypes

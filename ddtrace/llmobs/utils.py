@@ -60,7 +60,8 @@ class Prompt(TypedDict, total=False):
         prompt_version: str - user tag for the version of the prompt.
         variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
-            - A list of dicts of (role,template) where role is the role of the prompt and template is the template string
+            - A list of dicts of (role,template)
+            where role is the role of the prompt and template is the template string
         template: Optional[str]
             - It also accepts a string that represents the template for the prompt. Will default to "user" for a role
         tags: Optional[Dict[str, str]]
