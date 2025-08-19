@@ -10,6 +10,7 @@ from langgraph.graph import END
 from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
+
 from ddtrace.contrib.internal.langchain.patch import patch as patch_langchain
 from ddtrace.contrib.internal.langchain.patch import unpatch as unpatch_langchain
 from ddtrace.contrib.internal.langgraph.patch import patch

@@ -26,6 +26,7 @@ from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
+
 # in some cases, PydanticAI uses a different provider name than what we expect
 PYDANTIC_AI_SYSTEM_TO_PROVIDER = {
     "google-gla": "google",
