@@ -43,6 +43,7 @@ logger = get_logger(__name__)
 
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
+    _agent_manifests: Dict[str, Dict[str, Any]] = {}
 
     def __init__(self, integration_config):
         super().__init__(integration_config)
@@ -262,9 +263,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
+        agent_manifest = self._agent_manifests.pop(oai_span.from_agent, {})
+        handoffs = agent_manifest.get("handoffs", [])
+        handoff_names = [handoff.get("agent_name", "") for handoff in handoffs]
+        link_annotation = f"{oai_span.from_agent} chose to handoff to {oai_span.to_agent} out of {handoff_names}"
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span),
+            (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span, link_annotation),
         )
 
     def _llmobs_set_agent_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
@@ -307,8 +312,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
 
         manifest = {}
         manifest["framework"] = "OpenAI"
+        agent_name = None
         if hasattr(agent, "name"):
-            manifest["name"] = agent.name
+            agent_name = agent.name
+            manifest["name"] = agent_name
         if hasattr(agent, "instructions"):
             manifest["instructions"] = agent.instructions
         if hasattr(agent, "handoff_description"):
@@ -333,6 +340,8 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if guardrails:
             manifest["guardrails"] = guardrails
 
+        if agent_name:
+            self._agent_manifests[agent_name] = manifest
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
     def _extract_model_settings_from_agent(self, agent):

@@ -305,7 +305,7 @@ class ToolCallTracker:
         self._tool_calls[tool_id] = tool_call
         self._lookup_tool_id[(tool_name, arguments)] = tool_id
 
-    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span) -> None:
+    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, link_annotation: str = "") -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
         of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
@@ -324,7 +324,7 @@ class ToolCallTracker:
             "output",
             "input",
             link_type="control_flow",
-            annotation=f"LLM span chose to execute {tool_name}",
+            annotation=link_annotation,
         )
         self._tool_calls[tool_id].tool_span_context = {
             "span_id": str(tool_span.span_id),
