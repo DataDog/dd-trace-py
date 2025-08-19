@@ -7,7 +7,6 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
-from collections.abc import Iterable
 import functools
 from inspect import getmro
 from inspect import unwrap
@@ -220,66 +219,6 @@ def instrument_dbs(django):
 
 
 @trace_utils.with_traced_module
-def traced_cache(django, pin, func, instance, args, kwargs):
-    from . import utils
-
-    if not config_django.instrument_caches:
-        return func(*args, **kwargs)
-
-    cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-    tags = {COMPONENT: config_django.integration_name, "django.cache.backend": cache_backend}
-    if args:
-        keys = utils.quantize_key_values(args[0])
-        tags["django.cache.key"] = keys
-
-    with core.context_with_data(
-        "django.cache",
-        span_name="django.cache",
-        span_type=SpanTypes.CACHE,
-        service=schematize_service_name(config_django.cache_service_name),
-        resource=utils.resource_from_cache_prefix(func_name(func), instance),
-        tags=tags,
-        pin=pin,
-    ) as ctx, ctx.span:
-        result = func(*args, **kwargs)
-        rowcount = 0
-        if func.__name__ == "get_many":
-            rowcount = sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-        elif func.__name__ == "get":
-            try:
-                # check also for special case for Django~3.2 that returns an empty Sentinel
-                # object for empty results
-                # also check if result is Iterable first since some iterables return ambiguous
-                # truth results with ``==``
-                if result is None or (
-                    not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
-                ):
-                    rowcount = 0
-                else:
-                    rowcount = 1
-            except (AttributeError, NotImplementedError, ValueError):
-                pass
-        core.dispatch("django.cache", (ctx, rowcount))
-        return result
-
-
-def instrument_caches(django):
-    cache_backends = set([cache["BACKEND"] for cache in django.conf.settings.CACHES.values()])
-    for cache_path in cache_backends:
-        split = cache_path.split(".")
-        cache_module = ".".join(split[:-1])
-        cache_cls = split[-1]
-        for method in ["get", "set", "add", "delete", "incr", "decr", "get_many", "set_many", "delete_many"]:
-            try:
-                cls = django.utils.module_loading.import_string(cache_path)
-                # DEV: this can be removed when we add an idempotent `wrap`
-                if not trace_utils.iswrapped(cls, method):
-                    trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
-            except Exception:
-                log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
-
-
-@trace_utils.with_traced_module
 def traced_populate(django, pin, func, instance, args, kwargs):
     """django.apps.registry.Apps.populate is the method used to populate all the apps.
 
@@ -317,6 +256,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Instrument caches
     if config_django.instrument_caches:
         try:
+            from .cache import instrument_caches
+
             instrument_caches(django)
         except Exception:
             log.debug("Error instrumenting Django caches", exc_info=True)
