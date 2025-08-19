@@ -424,7 +424,7 @@ def openai_set_meta_tags_from_chat(
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
-    if kwargs.get("tools") or kwargs.get("functions"):
+    if kwargs.get("tools") or kwargs.get("functions") g:
         tools = _openai_get_tool_definitions(kwargs.get("tools", []) or [])
         tools.extend(_openai_get_tool_definitions(kwargs.get("functions", []) or []))
         if tools:
@@ -673,7 +673,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    tools = _openai_get_tool_definitions(kwargs.get("tools", []))
+    tools = _openai_get_tool_definitions(kwargs.get("tools", []) or [])
     if tools:
         span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
@@ -695,7 +695,7 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=_get_attr(custom_tool, "name", ""),
                 description=_get_attr(custom_tool, "description", ""),
-                schema=_get_attr(custom_tool, "format", {}), #format is a dict
+                schema=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
         # only handles FunctionToolParam for response API for now
