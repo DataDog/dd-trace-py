@@ -988,7 +988,7 @@ def test_cors_options_request(client, tracer, test_spans):
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers": "content-type,x-token"
     }
-    response = client.options("/items/142fa839-cf6a-47ab-94e1-74354137a947", headers=preflight_headers)
+    response = client.options("/items/19fb3c87-1b69-490a-a9b7-62e30db55a99", headers=preflight_headers)
     assert response.status_code == 200
 
 
@@ -996,7 +996,7 @@ def test_cors_options_request(client, tracer, test_spans):
     request_span = spans[0][0]
     assert request_span.name == "fastapi.request"
 
-    assert request_span.resource == "OPTIONS /items/142fa839-cf6a-47ab-94e1-74354137a947"
+    assert request_span.resource == "OPTIONS /items/19fb3c87-1b69-490a-a9b7-62e30db55a99"
     assert request_span.get_tag("http.method") == "OPTIONS"
     assert request_span.get_tag("http.status_code") == "200"
 
