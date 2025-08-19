@@ -34,6 +34,7 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
     if (own_params) {
         Py_DECREF(params);
     }
+    // result is a new reference from PyUnicode_Format/PyNumber_Remainder; return as-is
     return result;
 }
 
@@ -46,64 +47,66 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     }
     PyObject* candidate_text = args[0];
     PyObject* candidate_tuple = args[1];
-    PyObject* result = args[2];
+    PyObject* candidate_result = args[2]; // borrowed from caller
 
-    const auto py_candidate_text = py::reinterpret_borrow<py::object>(candidate_text);
-    auto py_candidate_tuple = py::reinterpret_borrow<py::object>(candidate_tuple);
-    // Lambda to get the result of the modulo operation (lean, no extra probing)
-    auto get_result = [&]() -> PyObject* { return do_modulo(candidate_text, candidate_tuple); };
+    // Helper: return the precomputed result safely (INCREF because it's a borrowed ref)
+    auto return_candidate_result = [&]() -> PyObject* {
+        if (candidate_result == nullptr) {
+            // propagate error if any
+            return nullptr;
+        }
+        Py_INCREF(candidate_result);
+        return candidate_result;
+    };
 
     const auto tx_map = Initializer::get_tainting_map();
     if (!tx_map || tx_map->empty()) {
-        return get_result();
+        return return_candidate_result();
     }
 
-    TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
-        const auto py_str_type = get_pytext_type(args[0]);
-        if (py_str_type == PyTextType::OTHER) {
-            try {
-                return get_result();
-            } catch (py::error_already_set& e) {
-                e.restore();
-                return nullptr;
-            }
+    const auto py_candidate_text = py::reinterpret_borrow<py::object>(candidate_text);
+    auto py_candidate_tuple = py::reinterpret_borrow<py::object>(candidate_tuple);
+
+    const auto py_str_type = get_pytext_type(candidate_text);
+    if (py_str_type == PyTextType::OTHER) {
+        // Not a text formatting case; use the already computed result
+        return return_candidate_result();
+    }
+
+    const py::tuple parameters =
+      py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
+
+    auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters);
+
+    if (ranges_orig.empty()) {
+        return return_candidate_result();
+    }
+
+    auto std_candidate_text = py_candidate_text.cast<string>();
+    auto fmttext = as_formatted_evidence(std_candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
+    py::list list_formatted_parameters;
+
+    for (const py::handle& param_handle : parameters) {
+        if (is_text(param_handle.ptr())) {
+            auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
+            string n_parameter =
+              as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
+            list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
+        } else {
+            list_formatted_parameters.append(param_handle);
         }
+    }
+    py::tuple formatted_parameters(list_formatted_parameters);
 
-        const py::tuple parameters =
-          py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
+    PyObject* applied_params = do_modulo(StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr());
+    if (applied_params == nullptr) {
+        return return_candidate_result();
+    }
 
-        auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters);
-
-        if (ranges_orig.empty()) {
-            return get_result();
-        }
-
-        auto std_candidate_text = py_candidate_text.cast<string>();
-        auto fmttext = as_formatted_evidence(std_candidate_text, candidate_text_ranges, TagMappingMode::Mapper);
-        py::list list_formatted_parameters;
-
-        for (const py::handle& param_handle : parameters) {
-            if (is_text(param_handle.ptr())) {
-                auto [ranges, ranges_error] = get_ranges(param_handle.ptr(), tx_map);
-                string n_parameter =
-                  as_formatted_evidence(AnyTextObjectToString(param_handle), ranges, TagMappingMode::Mapper, nullopt);
-                list_formatted_parameters.append(StringToPyObject(n_parameter, py_str_type));
-            } else {
-                list_formatted_parameters.append(param_handle);
-            }
-        }
-        py::tuple formatted_parameters(list_formatted_parameters);
-
-        PyObject* applied_params = do_modulo(StringToPyObject(fmttext, py_str_type).ptr(), formatted_parameters.ptr());
-        if (applied_params == nullptr) {
-            return get_result();
-        }
-
-        auto res_pyobject = api_convert_escaped_text_to_taint_text(applied_params, ranges_orig, py_str_type);
-        Py_DECREF(applied_params);
-        if (res_pyobject == nullptr) {
-            return get_result();
-        }
-        return res_pyobject;
-    });
+    auto res_pyobject = api_convert_escaped_text_to_taint_text(applied_params, ranges_orig, py_str_type);
+    Py_DECREF(applied_params);
+    if (res_pyobject == nullptr) {
+        return return_candidate_result();
+    }
+    return res_pyobject;
 }

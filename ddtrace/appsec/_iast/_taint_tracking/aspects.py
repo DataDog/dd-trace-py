@@ -1435,7 +1435,7 @@ def _strip_lstrip_aspect(candidate_text, result) -> None:
 
 def modulo_aspect(*args: Any, **kwargs: Any) -> Any:
     result = args[0] % args[1]
-    if isinstance(args[0], IAST.TEXT_TYPES):
+    if result is not None and isinstance(args[0], IAST.TEXT_TYPES):
         try:
             return _modulo_aspect(args[0], args[1], result)
         except Exception as e:
