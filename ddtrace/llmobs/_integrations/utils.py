@@ -258,13 +258,16 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
                 tool_message_content_text: Optional[str] = tool_message_content.get("text")
                 tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
 
+                tool_result_info = ToolResult(
+                    content=tool_message_content_text
+                    or (tool_message_content_json and safe_json(tool_message_content_json))
+                    or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                    tool_id=tool_message_id,
+                )
                 tool_messages.append(
                     {
-                        "content": tool_message_content_text
-                        or (tool_message_content_json and safe_json(tool_message_content_json))
-                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
-                        "role": "tool",
-                        "tool_id": tool_message_id,
+                        "tool_results": [tool_result_info],
+                        "role": "user",
                     }
                 )
         else:
@@ -1005,9 +1008,9 @@ class OaiSpanAdapter:
                         "tool_calls": [
                             {
                                 "tool_id": item.call_id,
-                                "arguments": json.loads(item.arguments)
-                                if isinstance(item.arguments, str)
-                                else item.arguments,
+                                "arguments": (
+                                    json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
+                                ),
                                 "name": getattr(item, "name", ""),
                                 "type": getattr(item, "type", "function"),
                             }
