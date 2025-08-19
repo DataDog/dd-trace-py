@@ -1,3 +1,4 @@
+import logging
 from types import FunctionType
 from types import ModuleType
 from typing import Any
@@ -153,10 +154,16 @@ def get_conn_pin(conn: Any) -> Pin:
 
 
 def patch_conn(conn: Any) -> Any:
+    if not hasattr(conn.__class__, "cursor"):
+        log.debug("Connection class %r does not have a cursor method, skipping instrumentation", conn.__class__)
+        return conn
+
     # We want to be sure to pin the instance of the connection, not the base class
     # since multiple connections can have different service names, tags, etc
-    pin = get_conn_pin(conn)
-    pin.onto(conn)
+    pin = Pin.get_from(conn)
+    if not pin:
+        pin = get_conn_pin(conn)
+        pin.onto(conn)
 
     # DEV: `conn` is an instance, and so `conn.cursor` is a bound method
     #      we want to wrap the unbound method on the class once
@@ -169,7 +176,9 @@ def get_connection(func: FunctionType, args: Tuple[Any], kwargs: Dict[str, Any])
     try:
         patch_conn(conn)
     except Exception:
-        log.debug("Error instrumenting database connection %r", conn, exc_info=True)
+        if log.isEnabledFor(logging.DEBUG):
+            # PERF: repr(conn) can be heavy, only log if we actually need it
+            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
     return conn
 
 
