@@ -242,13 +242,13 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             content_blocks.append(content_block.get("text", ""))
         elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
             toolUse = content_block.get("toolUse", {})
-            tool_calls_info.append(
-                {
-                    "name": str(toolUse.get("name", "")),
-                    "arguments": toolUse.get("input", {}),
-                    "tool_id": str(toolUse.get("toolUseId", "")),
-                }
+            tool_call_info = ToolCall(
+                name=str(toolUse.get("name", "")),
+                arguments=toolUse.get("input", {}),
+                tool_id=str(toolUse.get("toolUseId", "")),
+                type="toolUse",
             )
+            tool_calls_info.append(tool_call_info)
         elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
             tool_message: Dict[str, Any] = content_block.get("toolResult", {})
             tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
