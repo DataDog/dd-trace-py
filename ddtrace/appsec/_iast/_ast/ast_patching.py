@@ -254,20 +254,17 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     module_origin = origin(module)
     if module_origin is None:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"could not find the module: {module_name}")
+        iast_compiling_debug_log(f"could not find the module: {module_name}")
         return "", None
 
     module_path = str(module_origin)
     try:
         if module_origin.stat().st_size == 0:
             # Don't patch empty files like __init__.py
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"empty file: {module_path}")
+            iast_compiling_debug_log(f"empty file: {module_path}")
             return "", None
     except OSError:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
+        iast_compiling_debug_log(f"could not find the file: {module_path}", exc_info=True)
         return "", None
 
     # Get the file extension, if it's dll, os, pyd, dyn, dynlib: return
@@ -277,26 +274,22 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
 
     if module_ext.lower() not in {".pyo", ".pyc", ".pyw", ".py"}:
         # Probably native or built-in module
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
+        iast_compiling_debug_log(f"Extension not supported: {module_ext} for: {module_path}")
         return "", None
 
     with open(module_path, "rb") as source_file:
         try:
             source_text = source_file.read()
         except UnicodeDecodeError:
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
+            iast_compiling_debug_log(f"Encode decode error for file: {module_path}", exc_info=True)
             return "", None
         except Exception:
-            if asm_config._iast_debug:
-                iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
+            iast_compiling_debug_log(f"Unexpected read error: {module_path}", exc_info=True)
             return "", None
 
     if len(source_text.strip()) == 0:
         # Don't patch empty files like __init__.py
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"Empty file: {module_path}")
+        iast_compiling_debug_log(f"Empty file: {module_path}")
         return "", None
 
     if not asbool(os.environ.get(IAST.ENV_NO_DIR_PATCH, "false")):
@@ -309,8 +302,7 @@ def astpatch_module(module: ModuleType) -> Tuple[str, Optional[ast.Module]]:
         module_name=module_name,
     )
     if new_ast is None:
-        if asm_config._iast_debug:
-            iast_compiling_debug_log(f"file not ast patched: {module_path}")
+        iast_compiling_debug_log(f"file not ast patched: {module_path}")
         return "", None
 
     return module_path, new_ast
