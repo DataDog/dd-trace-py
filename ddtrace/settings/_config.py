@@ -313,31 +313,14 @@ class _ConfigItem:
         if val is not self._default_value:
             self._env_value = val
 
-    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
+    def set_value(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
             log.warning("Invalid source: %s", source)
-
-    def get_value_source(self, source: _ConfigSource) -> _JSONType:
-        if source == "code":
-            return self._code_value
-        elif source == "remote_config":
-            return self._rc_value
-        elif source == "env_var":
-            return self._env_value
-        elif source == "default":
-            return self._default_value
-        else:
-            log.warning("Invalid source: %s", source)
-
-    def set_code(self, value: _JSONType) -> None:
-        self._code_value = value
-
-    def unset_rc(self) -> None:
-        self._rc_value = None
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def value(self) -> _JSONType:
         if self._rc_value is not None:
@@ -490,6 +473,9 @@ class Config(object):
             "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
+
+        # Use the NativeWriter instead of the AgentWriter
+        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", False, asbool)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
@@ -648,7 +634,6 @@ class Config(object):
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -776,56 +761,19 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
-    def _subscribe(self, items, handler):
-        # type: (List[str], Callable[[Config, List[str]], None]) -> None
-        self._subscriptions.append((items, handler))
-
-    def _notify_subscribers(self, changed_items):
-        # type: (List[str]) -> None
-        for sub_items, sub_handler in self._subscriptions:
-            sub_updated_items = [i for i in changed_items if i in sub_items]
-            if sub_updated_items:
-                sub_handler(self, sub_updated_items)
-
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._set_config_items([(key, value, "code")])
+            self._config[key].set_value(value, "code")
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _set_config_items(self, items):
-        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
-        item_names = []
-        for key, value, origin in items:
-            item = self._config[key]
-            if item.get_value_source(origin) == value:
-                # No change in config value, no need to notify subscribers or report telemetry
-                continue
-            item_names.append(key)
-            item.set_value_source(value, origin)
-            telemetry_writer.add_configuration(item._name, item.value(), item.source())
-        self._notify_subscribers(item_names)
-
     def _reset(self):
         # type: () -> None
         self._config = _default_config()
-
-    def _get_source(self, item):
-        # type: (str) -> str
-        return self._config[item].source()
-
-    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
-        if not tags:
-            return {}
-        if isinstance(tags[0], Dict):
-            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
-        else:
-            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
-        return {k: v for k, v in pairs}
 
     def _lower(self, value):
         return value.lower()

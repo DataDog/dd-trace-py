@@ -202,8 +202,8 @@ integrations:
   - celery
   tested_versions_by_dependency:
     celery:
-      min: 5.3.6
-      max: 5.4.0
+      min: 5.5.3
+      max: 5.5.3
 
 - integration_name: cherrypy
   is_external_package: true
@@ -243,7 +243,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 0.121.1
+      max: 0.157.0
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -503,13 +503,17 @@ integrations:
   dependency_names:
   - langgraph
   - langgraph-checkpoint
+  - langgraph-prebuilt
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.4.3
+      max: 0.6.3
     langgraph-checkpoint:
       min: 1.0.12
-      max: 2.0.25
+      max: 2.1.1
+    langgraph-prebuilt:
+      min: 0.1.8
+      max: 0.6.3
 
 - integration_name: litellm
   is_external_package: true

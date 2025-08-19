@@ -14,6 +14,9 @@ from typing import TypedDict
 from typing import Union
 from typing import cast
 from typing import overload
+import uuid
+
+from typing_extensions import NotRequired
 
 import ddtrace
 from ddtrace import config
@@ -24,6 +27,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import DD_SITES_NEEDING_APP_SUBDOMAIN
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._utils import convert_tags_dict_to_list
+from ddtrace.llmobs._utils import safe_json
 
 
 if TYPE_CHECKING:
@@ -44,6 +48,13 @@ class DatasetRecordRaw(TypedDict):
     input_data: DatasetRecordInputType
     expected_output: JSONType
     metadata: Dict[str, Any]
+
+
+class UpdatableDatasetRecord(TypedDict):
+    input_data: NotRequired[DatasetRecordInputType]
+    expected_output: NotRequired[JSONType]
+    metadata: NotRequired[Dict[str, Any]]
+    record_id: str
 
 
 class DatasetRecord(DatasetRecordRaw):
@@ -86,8 +97,8 @@ class Dataset:
     _records: List[DatasetRecord]
     _version: int
     _dne_client: "LLMObsExperimentsClient"
-    _new_records: List[DatasetRecordRaw]
-    _updated_record_ids: List[str]
+    _new_records_by_record_id: Dict[str, DatasetRecordRaw]
+    _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: List[str]
 
     def __init__(
@@ -105,8 +116,8 @@ class Dataset:
         self._version = version
         self._dne_client = _dne_client
         self._records = records
-        self._new_records = []
-        self._updated_record_ids = []
+        self._new_records_by_record_id = {}
+        self._updated_record_ids_to_new_fields = {}
         self._deleted_record_ids = []
 
     def push(self) -> None:
@@ -125,36 +136,63 @@ class Dataset:
                 )
             )
 
-        updated_records = [r for r in self._records if "record_id" in r and r["record_id"] in self._updated_record_ids]
+        updated_records = list(self._updated_record_ids_to_new_fields.values())
         new_version, new_record_ids = self._dne_client.dataset_batch_update(
-            self._id, self._new_records, updated_records, self._deleted_record_ids
+            self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
         )
 
         # attach record ids to newly created records
-        for record, record_id in zip(self._new_records, new_record_ids):
+        for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
             record["record_id"] = record_id  # type: ignore
 
         # FIXME: we don't get version numbers in responses to deletion requests
         self._version = new_version if new_version != -1 else self._version + 1
-        self._new_records = []
+        self._new_records_by_record_id = {}
         self._deleted_record_ids = []
-        self._updated_record_ids = []
+        self._updated_record_ids_to_new_fields = {}
 
     def update(self, index: int, record: DatasetRecordRaw) -> None:
+        if all(k not in record for k in ("input_data", "expected_output", "metadata")):
+            raise ValueError(
+                "invalid update, record should contain at least one of "
+                "input_data, expected_output, or metadata to update"
+            )
         record_id = self._records[index]["record_id"]
-        self._updated_record_ids.append(record_id)
-        self._records[index] = {**record, "record_id": record_id}
+        self._updated_record_ids_to_new_fields[record_id] = {
+            **self._updated_record_ids_to_new_fields.get(record_id, {"record_id": record_id}),
+            **record,
+            "record_id": record_id,
+        }
+        self._records[index] = {**self._records[index], **record, "record_id": record_id}
 
     def append(self, record: DatasetRecordRaw) -> None:
-        r: DatasetRecord = {**record, "record_id": ""}
+        record_id: str = uuid.uuid4().hex
+        # this record ID will be discarded after push, BE will generate a new one, this is just
+        # for tracking new records locally before the push
+        r: DatasetRecord = {**record, "record_id": record_id}
         # keep the same reference in both lists to enable us to update the record_id after push
-        self._new_records.append(r)
+        self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
     def delete(self, index: int) -> None:
         record_id = self._records[index]["record_id"]
-        self._deleted_record_ids.append(record_id)
+        should_append_to_be_deleted = True
+
         del self._records[index]
+
+        if record_id is None or record_id == "":
+            logger.warning("encountered unexpected record_id on deletion %s", record_id)
+            return
+
+        if record_id in self._updated_record_ids_to_new_fields:
+            del self._updated_record_ids_to_new_fields[record_id]
+
+        if record_id in self._new_records_by_record_id:
+            del self._new_records_by_record_id[record_id]
+            should_append_to_be_deleted = False
+
+        if should_append_to_be_deleted:
+            self._deleted_record_ids.append(record_id)
 
     @property
     def url(self) -> str:
@@ -328,7 +366,7 @@ class Experiment:
             except Exception:
                 span.set_exc_info(*sys.exc_info())
             self._llmobs_instance.annotate(span, input_data=input_data, output_data=output_data, tags=tags)
-            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, record["expected_output"])
+            span._set_ctx_item(EXPERIMENT_EXPECTED_OUTPUT, safe_json(record["expected_output"]))
             return {
                 "idx": idx,
                 "span_id": span_id,

@@ -41,6 +41,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.telemetry import get_config as _get_config
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
@@ -80,9 +81,22 @@ config._add(
         ),
         use_handler_resource_format=asbool(os.getenv("DD_DJANGO_USE_HANDLER_RESOURCE_FORMAT", default=False)),
         use_legacy_resource_format=asbool(os.getenv("DD_DJANGO_USE_LEGACY_RESOURCE_FORMAT", default=False)),
-        _trace_asgi_websocket=os.getenv("DD_ASGI_TRACE_WEBSOCKET", default=False),
+        trace_asgi_websocket_messages=_get_config(
+            "DD_TRACE_WEBSOCKET_MESSAGES_ENABLED",
+            default=_get_config("DD_ASGI_TRACE_WEBSOCKET", default=False, modifier=asbool),
+            modifier=asbool,
+        ),
+        asgi_websocket_messages_inherit_sampling=asbool(
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_INHERIT_SAMPLING", default=True)
+        )
+        and asbool(_get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)),
+        websocket_messages_separate_traces=asbool(
+            _get_config("DD_TRACE_WEBSOCKET_MESSAGES_SEPARATE_TRACES", default=True)
+        ),
         obfuscate_404_resource=os.getenv("DD_ASGI_OBFUSCATE_404_RESOURCE", default=False),
         views={},
+        # DEV: Used only for testing purposes, do not use in production
+        _tracer=None,
     ),
 )
 
@@ -349,11 +363,11 @@ def traced_process_exception(django, name, resource=None):
         tags = {COMPONENT: config_django.integration_name}
         with core.context_with_data(
             "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx, ctx.span:
+        ) as ctx:
             resp = func(*args, **kwargs)
-            core.dispatch(
-                "django.process_exception", (ctx, hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
-            )
+
+            # Tell finish span that we should collect the traceback
+            ctx.set_item("should_set_traceback", hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
             return resp
 
     return trace_utils.with_traced_module(wrapped)(django)
@@ -445,7 +459,7 @@ def _gather_block_metadata(request, request_headers, ctx: core.ExecutionContext)
         if user_agent:
             metadata[http.USER_AGENT] = user_agent
     except Exception as e:
-        log.warning("Could not gather some metadata on blocked request: %s", str(e))  # noqa: G200
+        log.warning("Could not gather some metadata on blocked request: %s", str(e))
     core.dispatch("django.block_request_callback", (ctx, metadata, config_django, url, query))
 
 
@@ -656,17 +670,17 @@ def _instrument_view(django, view, path=None):
 def traced_urls_path(django, pin, wrapped, instance, args, kwargs):
     """Wrapper for url path helpers to ensure all views registered as urls are traced."""
     try:
-        from_args = False
-        view = kwargs.pop("view", None)
-        path = kwargs.pop("path", None)
-        if view is None:
+        view_from_args = False
+        view = kwargs.get("view", None)
+        path = kwargs.get("route", None)
+        if view is None and len(args) > 1:
             view = args[1]
-            from_args = True
-        if path is None:
+            view_from_args = True
+        if path is None and args:
             path = args[0]
 
         core.dispatch("service_entrypoint.patch", (unwrap(view),))
-        if from_args:
+        if view_from_args:
             args = list(args)
             args[1] = instrument_view(django, view, path=path)
             args = tuple(args)
@@ -954,9 +968,9 @@ def _patch(django):
         )
 
     if config_django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        when_imported("django.template.base")(DjangoTemplateWrappingContext.instrument_module)
+        when_imported("django.template.base")(templates.instrument_module)
 
     if django.VERSION < (4, 0, 0):
         when_imported("django.conf.urls")(lambda m: trace_utils.wrap(m, "url", traced_urls_path(django)))

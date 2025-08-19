@@ -1,9 +1,6 @@
 import base64
 import enum
-from typing import Optional
 
-from ddtrace._trace import tracer
-from ddtrace.internal import core
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
 
@@ -65,13 +62,12 @@ def _asm_feature_is_required() -> bool:
     return (_FEATURE_REQUIRED & flags) != 0
 
 
-def _rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> Flags:
-    tracer = core.tracer if test_tracer is None else test_tracer
+def _rc_capabilities() -> Flags:
     value = Flags(0)
     if config._remote_config_enabled:
         if asm_config._asm_can_be_enabled:
             value |= Flags.ASM_ACTIVATION
-        if tracer._appsec_processor and asm_config._asm_static_rule_file is None:  # type: ignore
+        if asm_config._asm_enabled and asm_config._asm_static_rule_file is None:
             value |= _ALL_ASM_BLOCKING
             if asm_config._ep_enabled:
                 value |= _ALL_RASP
@@ -80,7 +76,7 @@ def _rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> Flags:
     return value
 
 
-def _appsec_rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> str:
+def _appsec_rc_capabilities() -> str:
     r"""return the bit representation of the composed capabilities in base64
     bit 0: Reserved
     bit 1: ASM 1-click Activation
@@ -96,5 +92,5 @@ def _appsec_rc_capabilities(test_tracer: Optional[tracer.Tracer] = None) -> str:
     ...
     256         -> 100000000        -> b'\x01\x00'          -> b'AQA='
     """
-    value = _rc_capabilities(test_tracer=test_tracer)
+    value = _rc_capabilities()
     return base64.b64encode(value.to_bytes((value.bit_length() + 7) // 8, "big")).decode()

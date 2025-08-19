@@ -28,7 +28,7 @@ def test_another_one():
 
         # Mock coverage collection to raise an exception
         with mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
             side_effect=Exception("Coverage collection failed"),
         ), mock.patch(
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
@@ -334,7 +334,7 @@ def test_good_2():
             "ddtrace.internal.ci_visibility.recorder.CIVisibility._check_enabled_features",
             return_value=TestVisibilityAPISettings(coverage_enabled=True),
         ), mock.patch(
-            "ddtrace.contrib.internal.pytest._plugin_v2._handle_collected_coverage",
+            "ddtrace.contrib.internal.pytest._plugin_v2._coverage_collector_get_covered_lines",
             side_effect=selective_failure_handler,
         ):
             rec = self.inline_run("--ddtrace")
@@ -342,8 +342,8 @@ def test_good_2():
             # All tests should pass despite coverage collection failure in one test
             rec.assertoutcome(passed=3, failed=0)
 
-            # Coverage collection should have been attempted for tests that run
-            assert call_count == 2, f"Expected at least 2 coverage collection attempts, got {call_count}"
+            # Coverage collection should have been attempted once for each test
+            assert call_count == 3, f"Expected 3 coverage collection attempts, got {call_count}"
 
             # Module variable should be cleaned up
             assert _current_coverage_collector is None

@@ -371,21 +371,33 @@ def test_sampling_rule_init_via_env():
         sampling_rules = DatadogSampler().rules
     assert sampling_rules[0].sample_rate == 1
 
-    with pytest.raises(KeyError) as excinfo:
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(dict(_trace_sampling_rules='[{"service":"xyz","name":"abc"}]')):
             sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
-    assert '"service": "xyz"' in str(excinfo.value)
-    assert '"name": "abc"' in str(excinfo.value)
-
-    with pytest.raises(ValueError) as excinfo:
-        with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
-            sampling_rule = DatadogSampler().rules
-    assert 'Unable to parse DD_TRACE_SAMPLING_RULES=["sample_rate":1.0,"service":"xyz","name":"abc"]' == str(
-        excinfo.value
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "xyz", "name": "abc"},
+            )
+        ]
     )
 
-    with pytest.raises(KeyError) as excinfo:
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
+        with override_global_config(dict(_trace_sampling_rules='["sample_rate":1.0,"service":"xyz","name":"abc"]')):
+            sampling_rule = DatadogSampler().rules
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "Failed to apply all sampling rules. Rules=%s, Applied=%s",
+                '["sample_rate":1.0,"service":"xyz","name":"abc"]',
+                [],
+                exc_info=True,
+            )
+        ]
+    )
+
+    with mock.patch("ddtrace._trace.sampler.log") as mock_log:
         with override_global_config(
             dict(
                 _trace_sampling_rules='[{"sample_rate":1.0,"service":"xyz","name":"abc"},'
@@ -393,9 +405,14 @@ def test_sampling_rule_init_via_env():
             )
         ):
             sampling_rule = DatadogSampler().rules
-    assert str(excinfo.value).startswith("'No sample_rate provided for sampling rule: ")
-    assert '"service": "my-service"' in str(excinfo.value)
-    assert '"name": "my-name"' in str(excinfo.value)
+    mock_log.error.assert_has_calls(
+        [
+            mock.call(
+                "No sample_rate provided for sampling rule: %s. Skipping.",
+                {"service": "my-service", "name": "my-name"},
+            )
+        ]
+    )
 
 
 @pytest.mark.parametrize(

@@ -8,6 +8,7 @@ from ddtrace.contrib.internal.django.patch import patch
 from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_config
 
 
 # We manually designate which settings we will be using in an environment variable
@@ -35,7 +36,8 @@ def tracer():
     Pin._override(django, tracer=tracer)
 
     # Yield to our test
-    yield tracer
+    with override_config("django", dict(_tracer=tracer)):
+        yield tracer
     tracer.pop()
 
     # Reset the tracer pinned to Django and unpatch

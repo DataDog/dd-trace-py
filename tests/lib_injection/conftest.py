@@ -182,18 +182,12 @@ def test_venv(ddtrace_injection_artifact):
 def mock_telemetry_forwarder(tmp_path):
     def _setup(env, python_executable):
         telemetry_output_file = tmp_path / "telemetry.json"
-        forwarder_script_file = tmp_path / "forwarder.py"
-        # Create a mock forwarder script. This script will be executed by sitecustomize.py
+        forwarder_script_file = tmp_path / "forwarder.sh"
+        # Create a mock forwarder shell script. This script will be executed by sitecustomize.py
         # and will write the telemetry payload to a file that we can inspect.
         forwarder_script_file.write_text(
-            f"""#!{python_executable}
-import sys
-import os
-
-telemetry_output_file = r'{telemetry_output_file}'
-if telemetry_output_file:
-    with open(telemetry_output_file, "w", encoding="utf-8") as f:
-        f.write(sys.stdin.read())
+            f"""#!/bin/sh
+cat > "{telemetry_output_file}"
 """
         )
         os.chmod(forwarder_script_file, 0o755)

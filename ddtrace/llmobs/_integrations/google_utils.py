@@ -1,3 +1,4 @@
+import json
 from typing import Any
 from typing import Dict
 from typing import List
@@ -11,6 +12,8 @@ from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolResult
 
 
 # Google GenAI has roles "model" and "user", but in order to stay consistent with other integrations,
@@ -184,16 +187,25 @@ def extract_message_from_part_google_genai(part, role: str) -> Dict[str, Any]:
 
     function_call = _get_attr(part, "function_call", None)
     if function_call:
-        function_name = _get_attr(function_call, "name", "")
-        function_args = _get_attr(function_call, "args", {})
-        message["tool_calls"] = [{"name": str(function_name), "arguments": function_args}]
+        tool_call_info = ToolCall(
+            name=_get_attr(function_call, "name", "") or "",
+            arguments=_get_attr(function_call, "args", {}) or {},
+            tool_id=_get_attr(function_call, "id", "") or "",
+            type="function_call",
+        )
+        message["tool_calls"] = [tool_call_info]
         return message
 
     function_response = _get_attr(part, "function_response", None)
     if function_response:
-        message["role"] = "tool"
-        message["content"] = str(_get_attr(function_response, "response", ""))
-        message["tool_id"] = _get_attr(function_response, "id", "")
+        result = _get_attr(function_response, "response", "") or ""
+        tool_result_info = ToolResult(
+            name=_get_attr(function_response, "name", "") or "",
+            result=result if isinstance(result, str) else json.dumps(result),
+            tool_id=_get_attr(function_response, "id", "") or "",
+            type="function_response",
+        )
+        message["tool_results"] = [tool_result_info]
         return message
 
     executable_code = _get_attr(part, "executable_code", None)

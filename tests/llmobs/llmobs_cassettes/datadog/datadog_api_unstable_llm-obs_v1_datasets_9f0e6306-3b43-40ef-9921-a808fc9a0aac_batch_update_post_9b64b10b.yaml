@@ -1,0 +1,48 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "9f0e6306-3b43-40ef-9921-a808fc9a0aac",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Sealand?"}, "expected_output": null, "metadata": null}], "update_records":
+      [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '257'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/9f0e6306-3b43-40ef-9921-a808fc9a0aac/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"c4c1b8be-07e7-4b8d-b637-84bdf1460528","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-06T20:52:04.943692681Z","dataset_id":"9f0e6306-3b43-40ef-9921-a808fc9a0aac","input":{"prompt":"What
+        is the capital of Sealand?"},"updated_at":"2025-08-06T20:52:04.943692681Z","version":2}}]}'
+    headers:
+      content-length:
+      - '353'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 06 Aug 2025 20:52:05 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

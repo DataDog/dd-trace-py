@@ -164,11 +164,8 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace._trace.product import apm_tracing_rc_subscribe
 from tests.internal.test_settings import _base_rc_config
 from tests.internal.test_settings import call_apm_tracing_rc
-
-apm_tracing_rc_subscribe(config)
 
 call_apm_tracing_rc(
     _base_rc_config(

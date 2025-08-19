@@ -262,7 +262,7 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:
@@ -296,7 +296,7 @@ def _patched_endpoint_async(openai, patch_hook):
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:

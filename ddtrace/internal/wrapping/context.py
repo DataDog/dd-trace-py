@@ -485,7 +485,16 @@ class _UniversalWrappingContext(BaseWrappingContext):
 
     @classmethod
     def is_wrapped(cls, f: FunctionType) -> bool:
-        return hasattr(f, "__dd_context_wrapped__")
+        try:
+            # Check that we have actual bytecode wrapping. The presence of the
+            # __dd_context_wrapped__ attribute is not enough, as this could be
+            # copied over from an object state cloning.
+            if sys.version_info >= (3, 11):
+                return f.__dd_context_wrapped__.__enter__ in f.__code__.co_consts  # type: ignore
+            else:
+                return f.__dd_context_wrapped__ in f.__code__.co_consts  # type: ignore
+        except AttributeError:
+            return False
 
     @classmethod
     def extract(cls, f: FunctionType) -> "_UniversalWrappingContext":

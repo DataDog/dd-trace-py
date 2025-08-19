@@ -6,6 +6,8 @@ from types import CoroutineType
 
 import pytest
 
+from ddtrace.internal.wrapping import is_wrapped
+from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
 from ddtrace.internal.wrapping.context import WrappingContext
@@ -93,6 +95,71 @@ def test_mutiple_wrap():
     f(1, 2, 3)
 
     assert not channel1 and not channel2
+
+
+def test_is_wrapped():
+    """Test that `is_wrapped` and `is_wrapped_with` work as expected."""
+
+    def first_wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def second_wrapper(f, args, kwargs):
+        return f(*args, **kwargs)
+
+    def f(a, b, c=None):
+        return (a, b, c)
+
+    # Function works
+    assert f(1, 2) == (1, 2, None)
+
+    # Not wrapped yet
+    assert not is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
+
+    # Wrap with first wrapper
+    wrap(f, first_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Only wrapped with first_wrapper
+    assert is_wrapped(f)
+    assert is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
+
+    # Wrap with second wrapper
+    wrap(f, second_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Wrapped with everything
+    assert is_wrapped(f)
+    assert is_wrapped_with(f, first_wrapper)
+    assert is_wrapped_with(f, second_wrapper)
+
+    # Unwrap first wrapper
+    unwrap(f, first_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Still wrapped with second_wrapper
+    assert is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert is_wrapped_with(f, second_wrapper)
+
+    # Unwrap second wrapper
+    unwrap(f, second_wrapper)
+
+    # Function still works
+    assert f(1, 2) == (1, 2, None)
+
+    # Not wrapped anymore
+    assert not is_wrapped(f)
+    assert not is_wrapped_with(f, first_wrapper)
+    assert not is_wrapped_with(f, second_wrapper)
 
 
 @pytest.mark.skipif(sys.version_info > (3, 12), reason="segfault on 3.13")

@@ -78,12 +78,10 @@ class APIManager(Service):
         log.debug("%s initialized", self.__class__.__name__)
         self._hashtable: collections.OrderedDict[int, float] = collections.OrderedDict()
 
-        from ddtrace.appsec import _processor as appsec_processor
         import ddtrace.appsec._asm_request_context as _asm_request_context
         import ddtrace.appsec._metrics as _metrics
 
         self._asm_context = _asm_request_context
-        self._appsec_processor = appsec_processor
         self._metrics = _metrics
 
     def _stop_service(self) -> None:
@@ -133,7 +131,7 @@ class APIManager(Service):
     def _schema_callback(self, env):
         if env.span is None or not asm_config._api_security_feature_active:
             return
-        root = env.span._local_root or env.span
+        root = env.entry_span
         collected = self.BLOCK_COLLECTED if env.blocked else self.COLLECTED
         if not root or any(meta_name in root._meta for _, meta_name, _ in collected):
             return

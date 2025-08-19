@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "0a3ce469-bbb5-4d8e-8f9d-86024dba131f",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of France?"}, "expected_output": {"answer": "Paris"}, "metadata": null}, {"input":
+      {"prompt": "What is the capital of China?"}, "expected_output": {"answer": "Beijing"},
+      "metadata": null}], "update_records": [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '387'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/0a3ce469-bbb5-4d8e-8f9d-86024dba131f/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"61e3dfe8-ab26-4952-84a0-ef6717a6508c","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-08T05:14:09.951986612Z","dataset_id":"0a3ce469-bbb5-4d8e-8f9d-86024dba131f","expected_output":{"answer":"Paris"},"input":{"prompt":"What
+        is the capital of France?"},"updated_at":"2025-08-08T05:14:09.951986612Z","version":1}},{"id":"fe4a6696-deab-4410-8667-dc6b32d1c8c2","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-08-08T05:14:09.951986612Z","dataset_id":"0a3ce469-bbb5-4d8e-8f9d-86024dba131f","expected_output":{"answer":"Beijing"},"input":{"prompt":"What
+        is the capital of China?"},"updated_at":"2025-08-08T05:14:09.951986612Z","version":1}}]}'
+    headers:
+      content-length:
+      - '769'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Fri, 08 Aug 2025 05:14:10 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

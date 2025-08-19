@@ -129,7 +129,7 @@ class WrapFunctonsForIAST:
         testing (bool): Whether the instance is being used in a testing context
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize a WrapFunctonsForIAST instance."""
         self.functions: Set[IASTFunction] = set()
         self.testing: bool = asm_config._iast_is_testing

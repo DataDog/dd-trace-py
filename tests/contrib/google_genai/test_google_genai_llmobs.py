@@ -275,11 +275,35 @@ def expected_llmobs_tool_call_span_event(span):
             {"content": "What is the weather like in Boston?", "role": "user"},
         ],
         output_messages=[
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            }
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 
@@ -292,14 +316,27 @@ def expected_llmobs_tool_response_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "What is the weather like in Boston?", "role": "user"},
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            },
             {
                 "role": "tool",
-                "content": (
-                    "{'result': {'location': 'Boston', 'temperature': 72, 'unit': 'fahrenheit', "
-                    "'forecast': 'Sunny with light breeze'}}"
-                ),
-                "tool_id": None,
+                "tool_results": [
+                    {
+                        "name": "get_current_weather",
+                        "result": '{"result": {"location": "Boston", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny with light breeze"}}',  # noqa: E501
+                        "tool_id": "",
+                        "type": "function_response",
+                    }
+                ],
             },
         ],
         output_messages=[
@@ -314,6 +351,20 @@ def expected_llmobs_tool_response_span_event(span):
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 

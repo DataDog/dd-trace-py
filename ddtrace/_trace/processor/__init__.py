@@ -160,8 +160,8 @@ class TraceSamplingProcessor(TraceProcessor):
             if root_ctx and root_ctx.sampling_priority is None:
                 self.sampler.sample(trace[0]._local_root)
             # When stats computation is enabled in the tracer then we can
-            # safely drop the traces.
-            if self._compute_stats_enabled and not self.apm_opt_out:
+            # safely drop the traces. When using the NativeWriter this is handled by native code.
+            if not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out:
                 priority = root_ctx.sampling_priority if root_ctx is not None else None
                 if priority is not None and priority <= 0:
                     # When any span is marked as keep by a single span sampling

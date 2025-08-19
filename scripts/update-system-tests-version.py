@@ -8,6 +8,7 @@ import subprocess
 
 system_tests_repo = "https://github.com/DataDog/system-tests.git"
 system_tests_workflows_path = ".github/workflows/system-tests.yml"
+gitlab_ci_path = ".gitlab-ci.yml"
 
 
 def get_latest_system_tests_version() -> str:
@@ -32,6 +33,7 @@ def get_current_system_tests_version() -> str:
 
 
 def update_system_tests_version(latest_version: str):
+    # Update GitHub workflow file
     with open(system_tests_workflows_path, "r") as file:
         content = file.read()
 
@@ -49,6 +51,22 @@ def update_system_tests_version(latest_version: str):
     with open(system_tests_workflows_path, "w") as file:
         file.write("\n".join(lines))
 
+    # Update GitLab CI file
+    with open(gitlab_ci_path, "r") as file:
+        content = file.read()
+
+    lines = content.splitlines()
+    for i in range(len(lines)):
+        # Look for the SYSTEM_TESTS_REF variable
+        if lines[i].strip().startswith("SYSTEM_TESTS_REF:"):
+            # Replace the entire line with the new commit hash
+            indent = len(lines[i]) - len(lines[i].lstrip())
+            lines[i] = f"{' ' * indent}SYSTEM_TESTS_REF: \"{latest_version}\""
+            break
+
+    with open(gitlab_ci_path, "w") as file:
+        file.write("\n".join(lines))
+
 
 if __name__ == "__main__":
     current_version = get_current_system_tests_version()
@@ -56,4 +74,4 @@ if __name__ == "__main__":
     latest_version = get_latest_system_tests_version()
     print(f"Latest system-tests version: {latest_version}")
     update_system_tests_version(latest_version)
-    print(f"Updated {system_tests_workflows_path} with the latest version.")
+    print(f"Updated {system_tests_workflows_path} and {gitlab_ci_path} with the latest version.")

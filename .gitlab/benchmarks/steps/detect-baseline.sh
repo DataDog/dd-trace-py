@@ -27,7 +27,7 @@ elif [[ "${UPSTREAM_BRANCH}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+ ]]; then
   BASELINE_BRANCH=$(echo "${UPSTREAM_BRANCH:1}" | cut -d. -f1-2)
 
   # Check if a release branch exists or not
-  if git ls-remote --exit-code --heads origin "${BASELINE_BRANCH}" > /dev/null; then
+  if git ls-remote --exit-code --heads origin "refs/heads/${BASELINE_BRANCH}" > /dev/null; then
     echo "Found remote branch origin/${BASELINE_BRANCH}"
   else
     echo "Remote branch origin/${BASELINE_BRANCH} not found. Falling back to main."
