@@ -13,19 +13,14 @@ from ddtrace import config
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.asgi.utils import guarantee_single_callable
-from ddtrace.contrib.internal.trace_utils import _copy_trace_level_tags
 from ddtrace.ext import SpanKind
-from ddtrace.ext import SpanLinkKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import http
-from ddtrace.ext import websocket
-from ddtrace.ext.net import TARGET_HOST
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -137,36 +132,6 @@ def _parse_response_cookies(response_headers: Mapping[str, str]) -> Mapping[str,
     except Exception:
         log.debug("failed to extract response cookies", exc_info=True)
     return cookies
-
-
-def _set_message_tags_on_span(websocket_span: Span, message: Mapping[str, Any]):
-    if "text" in message:
-        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "text")
-        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["text"].encode("utf-8")))
-    elif "binary" in message:
-        websocket_span.set_tag_str(websocket.MESSAGE_TYPE, "binary")
-        websocket_span.set_metric(websocket.MESSAGE_LENGTH, len(message["bytes"]))
-
-
-def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
-    client = scope.get("client")
-    if len(client) >= 1:
-        client_ip = client[0]
-        span.set_tag_str(TARGET_HOST, client_ip)
-        try:
-            is_valid_ip(client_ip)
-            span.set_tag_str("network.client.ip", client_ip)
-        except ValueError as e:
-            log.debug("Could not validate client IP address for websocket send message: %s", str(e))
-
-
-def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
-    code = message.get("code")
-    reason = message.get("reason")
-    if code is not None:
-        span.set_metric(websocket.CLOSE_CODE, code)
-    if reason:
-        span.set_tag(websocket.CLOSE_REASON, reason)
 
 
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
@@ -504,6 +469,7 @@ class TraceMiddleware:
                     _cleanup_previous_receive(scope)
 
     def _handle_websocket_send_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
+        # breakpoint()
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
         if self.integration_config.websocket_messages_separate_traces and current_receive_span:
@@ -523,18 +489,20 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx, ctx.span as send_span:
+        ) as ctx:
+            core.dispatch("asgi.websocket.send.message", (ctx, scope, message, self.integration_config))
             # Propagate context from the handshake span (baggage, origin, sampling decision)
             # set tags related to peer.hostname
-            _set_client_ip_tags(scope, send_span)
+            # _set_client_ip_tags(scope, send_span)
 
-            send_span.set_link(
-                trace_id=request_span.trace_id,
-                span_id=request_span.span_id,
-                attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
-            )
-            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
-            _set_message_tags_on_span(send_span, message)
+            # send_span.set_link(
+            #     trace_id=request_span.trace_id,
+            #     span_id=request_span.span_id,
+            #     attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+            # )
+            # send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+            # _set_message_tags_on_span(send_span, message)
+            # pass
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -556,19 +524,20 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx, ctx.span as close_span:
-            _set_client_ip_tags(scope, close_span)
+        ) as ctx:
+            core.dispatch("asgi.websocket.close.message", (ctx, scope, message, self.integration_config))
+            # _set_client_ip_tags(scope, close_span)
 
-            _set_message_tags_on_span(close_span, message)
-            # should act like send span (outgoing message) case
-            close_span.set_link(
-                trace_id=request_span.trace_id,
-                span_id=request_span.span_id,
-                attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
-            )
-            _copy_trace_level_tags(close_span, request_span)
+            # _set_message_tags_on_span(close_span, message)
+            # # should act like send span (outgoing message) case
+            # close_span.set_link(
+            #     trace_id=request_span.trace_id,
+            #     span_id=request_span.span_id,
+            #     attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
+            # )
+            # _copy_trace_level_tags(close_span, request_span)
 
-            _set_websocket_close_tags(close_span, message)
+            # _set_websocket_close_tags(close_span, message)
 
         _cleanup_previous_receive(scope)
 
@@ -599,7 +568,7 @@ class TraceMiddleware:
         self, ctx, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
     ):
         _cleanup_previous_receive(scope)
-        # core.dispatch("asgi.websocket.receive.message", (ctx, scope, message, self.integration_config))
+        core.dispatch("asgi.websocket.receive.message", (ctx, scope, message, self.integration_config))
 
         # recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
         # recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -642,7 +611,7 @@ class TraceMiddleware:
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.CONSUMER},
         ) as ctx, ctx.span:
-            # core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message, self.integration_config))
+            core.dispatch("asgi.websocket.disconnect.message", (ctx, scope, message, self.integration_config))
 
             # disconnect_span.set_link(
             #     trace_id=request_span.trace_id,
@@ -658,6 +627,5 @@ class TraceMiddleware:
 
             # The context system automatically finishes the disconnect_span
             # Only finish the main span if needed
-            return message
         if request_span and request_span.error == 0:
             request_span.finish()

@@ -35,7 +35,9 @@ from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
 from ddtrace.ext import websocket
+from ddtrace.ext.net import TARGET_HOST
 from ddtrace.internal import core
+from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import FLASK_ENDPOINT
@@ -896,6 +898,18 @@ def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
         span.set_tag(websocket.CLOSE_REASON, reason)
 
 
+def _set_client_ip_tags(scope: Mapping[str, Any], span: Span):
+    client = scope.get("client")
+    if len(client) >= 1:  # type: ignore[arg-type]
+        client_ip = client[0]  # type: ignore[index]
+        span.set_tag_str(TARGET_HOST, client_ip)
+        try:
+            is_valid_ip(client_ip)
+            span.set_tag_str("network.client.ip", client_ip)
+        except ValueError as e:
+            log.debug("Could not validate client IP address for websocket send message: %s", str(e))
+
+
 def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
     """
     Handle websocket receive message events.
@@ -926,6 +940,61 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
             _inherit_sampling_tags(span, ctx.parent.span._local_root)
 
         _copy_trace_level_tags(span, ctx.parent.span)
+
+
+def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
+    """
+    Handle websocket send message events.
+
+    This handler is called when a websocket send message event is dispatched.
+    It sets up the span with appropriate tags, metrics, and links.
+    """
+    span = ctx.span
+
+    # Set standard component and span kind tags
+    span.set_tag_str(COMPONENT, integration_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+    _set_client_ip_tags(scope, span)
+    _set_websocket_message_tags_on_span(span, message)
+
+    span.set_metric(websocket.MESSAGE_FRAMES, 1)
+
+    # Set links to parent span if available
+    if hasattr(ctx, "parent") and ctx.parent.span:
+        span.set_link(
+            trace_id=ctx.parent.span.trace_id,
+            span_id=ctx.parent.span.span_id,
+            attributes={SpanLinkKind.RESUMING: SpanLinkKind.RESUMING},
+        )
+
+
+def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
+    """
+    Handle websocket close message events.
+
+    This handler is called when a websocket close message event is dispatched.
+    It sets up the span with appropriate tags, metrics, and links.
+    """
+    span = ctx.span
+
+    # Set standard component and span kind tags
+    span.set_tag_str(COMPONENT, integration_config.integration_name)
+    span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
+    _set_client_ip_tags(scope, span)
+
+    _set_websocket_message_tags_on_span(span, message)
+
+    _set_websocket_close_tags(span, message)
+
+    if hasattr(ctx, "parent") and ctx.parent.span:
+        span.set_link(
+            trace_id=ctx.parent.span.trace_id,
+            span_id=ctx.parent.span.span_id,
+            attributes={SpanLinkKind.RESUMING: SpanLinkKind.RESUMING},
+        )
+
+        _copy_trace_level_tags(span, ctx.parent.span)  # TODO: check if this should be here
 
 
 def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_config):
@@ -1011,7 +1080,9 @@ def listen():
     core.on("azure.functions.service_bus_trigger_modifier", _on_azure_functions_service_bus_trigger_span_modifier)
     core.on("azure.servicebus.send_message_modifier", _on_azure_servicebus_send_message_modifier)
     core.on("asgi.websocket.receive.message", _on_asgi_websocket_receive_message)
+    core.on("asgi.websocket.send.message", _on_asgi_websocket_send_message)
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
+    core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
