@@ -46,10 +46,6 @@ logger = get_logger(__name__)
 def _openai_extract_tool_calls_and_results_chat(
     message: Dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
 ) -> Tuple[List[ToolCall], List[ToolResult]]:
-    """
-    Parses message object for tool calls and results.
-    Used to parse OpenAI Chat API formats.
-    """
     tool_calls = []
     tool_results = []
 
