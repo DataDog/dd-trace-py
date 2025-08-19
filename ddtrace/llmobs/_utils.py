@@ -48,7 +48,7 @@ STANDARD_INTEGRATION_SPAN_NAMES = (
 
 
 def _validate_prompt(
-    prompt: Union[Dict[str, Any], Prompt], ml_app: Optional[str]=None, strict_validation: bool = True
+    prompt: Union[Dict[str, Any], Prompt], ml_app: Optional[str] = None, strict_validation: bool = True
 ) -> ValidatedPromptDict:
     # Stage 0: Check if dict
     if not isinstance(prompt, dict):
