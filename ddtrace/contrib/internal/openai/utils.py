@@ -136,7 +136,7 @@ def _loop_handler(span, chunk, streamed_chunks):
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
-    if not isinstance(streamed_chunks, list) and operation_type != "response":
+    if isinstance(streamed_chunks, dict) and operation_type != "response":
         streamed_chunks = streamed_chunks.values()
     try:
         if operation_type == "response":
