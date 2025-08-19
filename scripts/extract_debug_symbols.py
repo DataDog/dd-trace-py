@@ -85,7 +85,7 @@ def verify_debug_file(debug_path: Path) -> bool:
     # Check if the debug file contains debug sections using objdump
     try:
         result = subprocess.run(["objdump", "-h", str(debug_path)], capture_output=True, text=True, check=True)
-        debug_sections = [line for line in result.stdout.split('\n') if line.strip().startswith('.debug_')]
+        debug_sections = [line for line in result.stdout.split('\n') if '.debug_' in line]
         print(f"  Found {len(debug_sections)} debug sections")
 
         if debug_sections:
