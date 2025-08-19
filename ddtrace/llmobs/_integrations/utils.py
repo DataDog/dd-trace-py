@@ -102,8 +102,7 @@ def _openai_extract_tool_calls_and_results_chat(
                 ),
             )
     # chat completion tool result
-    # seems like the fields in a tool_result for chat api are not very strictly defined
-    if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
+    if _get_attr(message, "role", "") == "tool":
         result = _get_attr(message, "content", "")
         tool_result_info = ToolResult(
             name=_get_attr(message, "name", ""),
