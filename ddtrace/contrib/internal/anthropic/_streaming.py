@@ -35,6 +35,7 @@ def handle_streamed_response(integration, resp, args, kwargs, span):
     Overrides the `text_stream` attribute to trace yielded chunks; otherwise,
     the underlying stream will bypass the wrapper tracing code
     """
+
     def add_text_stream(stream):
         stream.text_stream = _text_stream_generator(stream)
 

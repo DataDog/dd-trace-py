@@ -15,7 +15,7 @@ log = get_logger(__name__)
 class BaseOpenAIStreamHandler:
     def initialize_chunk_storage(self):
         return defaultdict(list)
-    
+
     def finalize_stream(self, exception=None):
         if not exception:
             _process_finished_stream(

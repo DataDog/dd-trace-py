@@ -94,6 +94,7 @@ class AsyncStreamHandler(BaseStreamHandler):
     """
     Async version of StreamHandler.
     """
+
     @abstractmethod
     async def process_chunk(self, chunk, iterator=None):
         """
@@ -262,11 +263,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
         return self._self_handler
 
 
-def make_traced_stream(
-        wrapped,
-        handler: Union[StreamHandler, AsyncStreamHandler],
-        on_stream_created=None
-):
+def make_traced_stream(wrapped, handler: Union[StreamHandler, AsyncStreamHandler], on_stream_created=None):
     """
     Create a TracedStream or TracedAsyncStream object from a stream object and a stream handler.
     """
