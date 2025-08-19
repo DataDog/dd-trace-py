@@ -125,11 +125,7 @@ def test_evaluate_prompt_allow(mock_execute_request, ai_guard_client, tracer):
 
     workflow = ai_guard_client.new_workflow()
     workflow.add_tool("shell", {"cmd": ["sh", "-c", "date"]}, "01/01/1979")
-    result = workflow.evaluate_prompt(
-        "user",
-        "Tell me 10 things I should know about DataDog",
-        output="Datadog is a cloud monitoring and security platform...",
-    )
+    result = workflow.evaluate_prompt("user", "Tell me 10 things I should know about DataDog")
 
     assert result is True
     _assert_ai_guard_span(tracer, {"ai_guard.target": "prompt", "ai_guard.action": "ALLOW"})
@@ -137,11 +133,7 @@ def test_evaluate_prompt_allow(mock_execute_request, ai_guard_client, tracer):
         mock_execute_request,
         ai_guard_client,
         [ToolCall(tool_name="shell", tool_args={"cmd": ["sh", "-c", "date"]}, output="01/01/1979")],
-        Prompt(
-            role="user",
-            content="Tell me 10 things I should know about DataDog",
-            output="Datadog is a cloud monitoring and security platform...",
-        ),
+        Prompt(role="user", content="Tell me 10 things I should know about DataDog"),
     )
 
 

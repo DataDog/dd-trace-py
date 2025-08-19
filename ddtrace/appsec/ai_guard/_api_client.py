@@ -108,9 +108,9 @@ class AIGuardWorkflow:
         return self._client.evaluate_tool(tool_name, tool_args, output=output, history=self._history, tags=tags)
 
     def evaluate_prompt(
-        self, role: str, content: str, output: str = None, tags: Dict[Union[Text, bytes], Any] = None
+        self, role: str, content: str, tags: Dict[Union[Text, bytes], Any] = None
     ) -> bool:
-        return self._client.evaluate_prompt(role, content, output=output, history=self._history, tags=tags)
+        return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
 class AIGuardClient:
