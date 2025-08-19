@@ -4,6 +4,9 @@
 static PyObject*
 do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 {
+    // Early return: if left operand is not text-like, preserve native % behavior.
+    // Do NOT coerce the right operand to a tuple; arithmetic expects the raw operand.
+
     // Normalize parameters:
     // - If mapping or tuple: use as-is (borrowed reference, do not INCREF/DECREF)
     // - Else: pack single value into a new 1-tuple we own and must DECREF
@@ -37,18 +40,23 @@ do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 PyObject*
 api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 {
-    if (nargs != 2) {
+    if (nargs != 3) {
         py::set_error(PyExc_ValueError, MSG_ERROR_N_PARAMS);
         return nullptr;
     }
     PyObject* candidate_text = args[0];
     PyObject* candidate_tuple = args[1];
+    PyObject* result = args[2];
 
     const auto py_candidate_text = py::reinterpret_borrow<py::object>(candidate_text);
     auto py_candidate_tuple = py::reinterpret_borrow<py::object>(candidate_tuple);
-
     // Lambda to get the result of the modulo operation (lean, no extra probing)
     auto get_result = [&]() -> PyObject* { return do_modulo(candidate_text, candidate_tuple); };
+
+    const auto tx_map = Initializer::get_tainting_map();
+    if (!tx_map || tx_map->empty()) {
+        return get_result();
+    }
 
     TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
         const auto py_str_type = get_pytext_type(args[0]);
@@ -63,11 +71,6 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
 
         const py::tuple parameters =
           py::isinstance<py::tuple>(py_candidate_tuple) ? py_candidate_tuple : py::make_tuple(py_candidate_tuple);
-
-        const auto tx_map = Initializer::get_tainting_map();
-        if (!tx_map || tx_map->empty()) {
-            return get_result();
-        }
 
         auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text, parameters);
 

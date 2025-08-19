@@ -50,6 +50,13 @@ class TestOperatorModuloReplacement(BaseReplacement):
     def test_modulo_when_parameter_is_none_then_does_not_break(self):  # type: () -> None
         assert mod.do_modulo("%s", None) == "None"
 
+    def test_modulo_between_ints(self):  # type: () -> None
+        exists = False
+        for counter in range(100):
+            if mod.do_modulo(counter, 10) == 0:
+                exists = True
+        assert exists
+
     def test_modulo_when_positional_no_tainted_then_no_tainted_result(self):  # type: () -> None
         result = mod.do_modulo("template %s", "parameter")
         assert result, "template parameter"

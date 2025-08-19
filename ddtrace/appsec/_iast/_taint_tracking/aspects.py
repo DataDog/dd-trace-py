@@ -60,7 +60,7 @@ _join_aspect = aspects.join_aspect
 add_aspect = aspects.add_aspect
 add_inplace_aspect = aspects.add_inplace_aspect
 index_aspect = aspects.index_aspect
-modulo_aspect = aspects.modulo_aspect
+_modulo_aspect = aspects.modulo_aspect
 rsplit_aspect = _aspect_rsplit
 slice_aspect = aspects.slice_aspect
 split_aspect = _aspect_split
@@ -1431,3 +1431,14 @@ def _strip_lstrip_aspect(candidate_text, result) -> None:
                 )
                 ranges_new.append(new_range)
         taint_pyobject_with_ranges(result, tuple(ranges_new))
+
+
+def modulo_aspect(*args: Any, **kwargs: Any) -> Any:
+    result = args[0] % args[1]
+    if isinstance(args[0], IAST.TEXT_TYPES):
+        try:
+            return _modulo_aspect(args[0], args[1], result)
+        except Exception as e:
+            iast_propagation_error_log(f"modulo_aspect. {e}")
+
+    return result
