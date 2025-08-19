@@ -917,6 +917,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
     This handler is called when a websocket receive message event is dispatched.
     It sets up the span with appropriate tags, metrics, and links.
     """
+    # breakpoint()
     span = ctx.span
 
     # Set standard component and span kind tags

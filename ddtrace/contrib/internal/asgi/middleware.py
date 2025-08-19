@@ -133,6 +133,7 @@ def _parse_response_cookies(response_headers: Mapping[str, str]) -> Mapping[str,
         log.debug("failed to extract response cookies", exc_info=True)
     return cookies
 
+
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
     current_receive_span = scope.get("datadog", {}).get("current_receive_span")
     if current_receive_span:
@@ -489,7 +490,7 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx:
+        ) as ctx, ctx.span as send_span:  # noqa: F841
             core.dispatch("asgi.websocket.send.message", (ctx, scope, message, self.integration_config))
             # Propagate context from the handshake span (baggage, origin, sampling decision)
             # set tags related to peer.hostname
@@ -503,7 +504,6 @@ class TraceMiddleware:
             # send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
             # _set_message_tags_on_span(send_span, message)
             # pass
-
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -525,7 +525,7 @@ class TraceMiddleware:
             call_trace=False,
             activate=True,
             tags={COMPONENT: self.integration_config.integration_name, SPAN_KIND: SpanKind.PRODUCER},
-        ) as ctx:
+        ) as ctx, ctx.span as close_span:  # noqa: F841
             core.dispatch("asgi.websocket.close.message", (ctx, scope, message, self.integration_config))
             # _set_client_ip_tags(scope, close_span)
 
