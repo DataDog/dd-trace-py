@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi import Header
 from fastapi import HTTPException
 from fastapi import WebSocket
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -37,6 +38,15 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     async_condition = asyncio.Condition()
 
     @app.websocket("/ws")

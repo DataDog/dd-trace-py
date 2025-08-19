@@ -981,3 +981,31 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.account.id") is None
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
+
+def test_cors_options_request(client, tracer, test_spans):
+    preflight_headers = {
+        "Origin": "https://localhost",
+        "Access-Control-Request-Method": "POST",
+        "Access-Control-Request-Headers": "content-type,x-token"
+    }
+    response = client.options("/items/142fa839-cf6a-47ab-94e1-74354137a947", headers=preflight_headers)
+    assert response.status_code == 200
+
+
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    assert request_span.name == "fastapi.request"
+
+    assert request_span.resource == "OPTIONS /items/142fa839-cf6a-47ab-94e1-74354137a947"
+    assert request_span.get_tag("http.method") == "OPTIONS"
+    assert request_span.get_tag("http.status_code") == "200"
+
+    # Test uuid without dashes
+    response = client.options("/items/d32a2e18f30b4b588665f8fe3c2fe737", headers=preflight_headers)
+    assert response.status_code == 200
+    spans = test_spans.pop_traces()
+    request_span = spans[0][0]
+    assert request_span.name == "fastapi.request"
+    assert request_span.resource == "OPTIONS /items/d32a2e18f30b4b588665f8fe3c2fe737"
+    assert request_span.get_tag("http.method") == "OPTIONS"
+    assert request_span.get_tag("http.status_code") == "200"
