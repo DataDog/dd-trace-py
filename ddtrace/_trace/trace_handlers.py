@@ -990,6 +990,13 @@ def listen():
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
         "django.template.render",
         "django.process_exception",
         "django.func.wrapped",
@@ -1015,7 +1022,16 @@ def listen():
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("django.template.render", "django.process_exception"):
+    for name in (
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
+        "django.template.render",
+    ):
         core.on(f"context.ended.{name}", _finish_span)
 
 
