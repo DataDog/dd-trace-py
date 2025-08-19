@@ -4,50 +4,32 @@
 static PyObject*
 do_modulo(PyObject* text, PyObject* insert_tuple_or_obj)
 {
-    PyObject* result = nullptr;
-    bool need_decref = false;
-    PyObject* insert_tuple = insert_tuple_or_obj;
-
-    // First try with the original object
-    if (PyUnicode_Check(text)) {
-        result = PyUnicode_Format(text, insert_tuple);
-        if (result != nullptr && !has_pyerr()) {
-            return result;
-        }
-        // Clear any error from the failed attempt
-        PyErr_Clear();
-        Py_XDECREF(result);
-        result = nullptr;
-    }
-
-    // If that failed and it's not already a tuple or mapping, try wrapping in a tuple
+    // Normalize parameters:
+    // - If mapping or tuple: use as-is (borrowed reference, do not INCREF/DECREF)
+    // - Else: pack single value into a new 1-tuple we own and must DECREF
+    PyObject* params = insert_tuple_or_obj; // borrowed
+    bool own_params = false;
     if (!PyTuple_Check(insert_tuple_or_obj) && !PyMapping_Check(insert_tuple_or_obj)) {
-        insert_tuple = PyTuple_Pack(1, insert_tuple_or_obj);
-        if (insert_tuple == nullptr) {
+        params = PyTuple_Pack(1, insert_tuple_or_obj); // new ref
+        if (params == nullptr) {
             return nullptr;
         }
-        need_decref = true;
-    } else {
-        Py_INCREF(insert_tuple);
+        own_params = true;
     }
 
+    PyObject* result = nullptr;
     if (PyUnicode_Check(text)) {
-        result = PyUnicode_Format(text, insert_tuple);
+        result = PyUnicode_Format(text, params);
     } else if (PyBytes_Check(text) || PyByteArray_Check(text)) {
-        PyObject* method_name = PyUnicode_FromString("__mod__");
-        if (method_name != nullptr) {
-            result = PyObject_CallMethodObjArgs(text, method_name, insert_tuple, nullptr);
-            Py_DECREF(method_name);
-        }
+        // Use generic numeric remainder which maps to % operator without creating a method name
+        result = PyNumber_Remainder(text, params);
+    } else {
+        // Fallback: try generic % operator; if unsupported, Python will raise
+        result = PyNumber_Remainder(text, params);
     }
 
-    if (need_decref) {
-        Py_DECREF(insert_tuple);
-    }
-
-    if (has_pyerr()) {
-        Py_XDECREF(result);
-        return nullptr;
+    if (own_params) {
+        Py_DECREF(params);
     }
     return result;
 }
@@ -65,63 +47,8 @@ api_modulo_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
     const auto py_candidate_text = py::reinterpret_borrow<py::object>(candidate_text);
     auto py_candidate_tuple = py::reinterpret_borrow<py::object>(candidate_tuple);
 
-    // Lambda to get the result of the modulo operation
-    auto get_result = [&]() -> PyObject* {
-        // First try with our custom implementation
-        PyObject* res = do_modulo(candidate_text, candidate_tuple);
-        if (res != nullptr) {
-            return res;
-        }
-
-        // Clear any error from the failed attempt
-        PyErr_Clear();
-
-        // Check if we should let Python handle the formatting directly
-        bool should_use_python = false;
-
-        // Check if the tuple contains any objects that might cause issues
-        if (PyTuple_Check(candidate_tuple)) {
-            Py_ssize_t size = PyTuple_GET_SIZE(candidate_tuple);
-            for (Py_ssize_t i = 0; i < size; ++i) {
-                PyObject* item = PyTuple_GET_ITEM(candidate_tuple, i);
-                // If any item in the tuple has a problematic __repr__, let Python handle it
-                if (PyObject_HasAttrString(item, "__repr__")) {
-                    PyObject* repr_result = PyObject_Repr(item);
-                    if (repr_result == nullptr) {
-                        PyErr_Clear();
-                        should_use_python = true;
-                        break;
-                    }
-                    Py_DECREF(repr_result);
-                }
-            }
-        } else if (PyObject_HasAttrString(candidate_tuple, "__repr__")) {
-            // If it's a single value with __repr__, check if it's problematic
-            PyObject* repr_result = PyObject_Repr(candidate_tuple);
-            if (repr_result == nullptr) {
-                PyErr_Clear();
-            } else {
-                Py_DECREF(repr_result);
-            }
-        }
-
-        try {
-            // Try our custom implementation
-            py::object res_py = py_candidate_text.attr("__mod__")(py_candidate_tuple);
-            PyObject* res_pyo = res_py.ptr();
-            if (res_pyo != nullptr) {
-                Py_INCREF(res_pyo);
-                return res_pyo;
-            }
-        } catch (py::error_already_set& e) {
-            // If we get here, there was an error in Python-side formatting
-            // Let the error propagate to be handled by the caller
-            e.restore();
-            return nullptr;
-        }
-
-        return nullptr;
-    };
+    // Lambda to get the result of the modulo operation (lean, no extra probing)
+    auto get_result = [&]() -> PyObject* { return do_modulo(candidate_text, candidate_tuple); };
 
     TRY_CATCH_ASPECT("modulo_aspect", return get_result(), , {
         const auto py_str_type = get_pytext_type(args[0]);

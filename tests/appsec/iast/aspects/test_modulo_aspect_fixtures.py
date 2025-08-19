@@ -1,5 +1,6 @@
 # -*- encoding: utf-8 -*-
 import math
+import re
 from typing import Any  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Text  # noqa:F401
@@ -43,7 +44,7 @@ class TestOperatorModuloReplacement(BaseReplacement):
         assert as_formatted_evidence(result, tag_mapping_function=None) == escaped_expected_result
 
     def test_modulo_when_template_is_none_then_raises_attribute_error(self):  # type: () -> None
-        with pytest.raises(AttributeError):
+        with pytest.raises(TypeError, match=re.escape("unsupported operand type(s) for %: 'NoneType' and 'str'")):
             mod.do_modulo(None, "")
 
     def test_modulo_when_parameter_is_none_then_does_not_break(self):  # type: () -> None
