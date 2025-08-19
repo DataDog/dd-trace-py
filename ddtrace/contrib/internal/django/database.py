@@ -160,10 +160,8 @@ def patch_conn(conn: Any) -> Any:
 
     # We want to be sure to pin the instance of the connection, not the base class
     # since multiple connections can have different service names, tags, etc
-    pin = Pin.get_from(conn)
-    if not pin:
-        pin = get_conn_pin(conn)
-        pin.onto(conn)
+    pin = get_conn_pin(conn)
+    pin.onto(conn)
 
     # DEV: `conn` is an instance, and so `conn.cursor` is a bound method
     #      we want to wrap the unbound method on the class once
