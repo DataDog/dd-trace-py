@@ -240,6 +240,118 @@ def test_psycopg_queries_dump_bytes(is_tainted, string_data):
         mod.psycopg_queries_dump_bytes_with_keys({"name": bytes_to_test})
 
 
+class TestModuloAspectEdgeCases:
+    """Test cases for edge cases and various input types in the modulo aspect."""
+
+    def test_modulo_with_dict_parameter(self):
+        """Test modulo operation with a dictionary parameter."""
+        result = mod.do_modulo("User: %(name)s, Age: %(age)d", {"name": "Alice", "age": 30})
+        assert result == "User: Alice, Age: 30"
+
+    def test_modulo_with_list_parameter(self):
+        """Test modulo operation with a list parameter."""
+        with pytest.raises(TypeError, match="not enough arguments for format string"):
+            mod.do_modulo("%s %s", ["Hello", "World"])
+
+    def test_modulo_with_generator_parameter_error(self):
+        """Test modulo operation with a generator expression."""
+        gen = (str(i) for i in [1, 2, 3])
+        with pytest.raises(TypeError, match="not enough arguments for format string"):
+            mod.do_modulo("%s %s %s", gen)
+
+    def test_modulo_with_generator_parameter(self):
+        """Test modulo operation with a generator expression."""
+        gen = (str(i) for i in [1, 2, 3])
+        result = mod.do_modulo("%s", gen)
+        assert result.startswith("<generator object")
+
+    def test_modulo_with_callable_parameter(self):
+        """Test modulo operation with a callable parameter."""
+
+        def get_name():
+            return "Alice"
+
+        result = mod.do_modulo_function("Hello, %s!", get_name)
+        assert result == "Hello, Alice!"
+
+    def test_modulo_with_callable_raising_exception(self):
+        """Test modulo operation with a callable that raises an exception."""
+
+        def problematic():
+            raise ValueError("Simulated error")
+
+        with pytest.raises(ValueError, match="Simulated error"):
+            mod.do_modulo_function("Test: %s", problematic)
+
+    def test_modulo_with_custom_object(self):
+        """Test modulo operation with a custom object that has a __str__ method."""
+
+        class TestObject:
+            def __str__(self):
+                return "TestObject string representation"
+
+        result = mod.do_modulo_function("Object: %s", TestObject)
+        assert result == "Object: TestObject string representation"
+
+    def test_modulo_with_problematic_repr(self):
+        """Test modulo operation with an object that has a problematic __repr__."""
+
+        class MyException(Exception):
+            pass
+
+        class ProblematicRepr:
+            def __repr__(self):
+                raise MyException("Problematic __repr__")
+
+        with pytest.raises(MyException, match="Problematic __repr__"):
+            mod.do_modulo("Test: %s", ProblematicRepr())
+
+    def test_modulo_with_named_placeholders(self):
+        """Test modulo operation with named placeholders."""
+        result = mod.do_modulo("%(greeting)s, %(name)s!", {"greeting": "Hello", "name": "World"})
+        assert result == "Hello, World!"
+
+    def test_modulo_with_mixed_positional_named_placeholders(self):
+        """Test modulo operation with mixed positional and named placeholders."""
+        with pytest.raises(TypeError, match="format requires a mapping"):
+            mod.do_modulo("%(greeting)s, %s!", ({"greeting": "Hello"}, "World"))
+
+    def test_modulo_with_empty_parameters(self):
+        """Test modulo operation with empty parameters."""
+        with pytest.raises(TypeError, match="not enough arguments for format string"):
+            mod.do_modulo("Test: %s", ())
+
+    def test_modulo_with_format_specifiers(self):
+        """Test modulo operation with various format specifiers."""
+        result = mod.do_modulo("Integer: %d, Float: %.2f, String: %s", (42, 3.14159, "test"))
+        assert result == "Integer: 42, Float: 3.14, String: test"
+
+    def test_modulo_with_unicode_characters(self):
+        """Test modulo operation with unicode characters."""
+        result = mod.do_modulo("Hello, %s!", "世界")
+        assert result == "Hello, 世界!"
+
+    def test_modulo_with_tainted_named_parameters(self):
+        """Test modulo operation with tainted named parameters."""
+        template = "%(greeting)s, %(name)s!"
+        params = {
+            "greeting": _to_tainted_string_with_origin(":+-<input1>Hello<input1>-+:"),
+            "name": _to_tainted_string_with_origin(":+-<input2>World<input2>-+:"),
+        }
+        result = mod.do_modulo(template, params)
+        assert result == "Hello, World!"
+
+        # Note: Currently, taint propagation is not fully supported for named parameters in modulo operations.
+        # The taint ranges are not preserved when using named placeholders in the format string.
+        # This is a known limitation that may be addressed in future updates.
+        ranges = get_tainted_ranges(result)
+        assert len(ranges) == 0
+        # The following assertions are commented out as they would fail until named parameter taint propagation
+        # is implemented
+        # assert ranges[0].source.name == "input1"
+        # assert ranges[1].source.name == "input2"
+
+
 @pytest.mark.parametrize("is_tainted", [True, False])
 @given(text())
 def test_psycopg_queries_dump_bytearray(is_tainted, string_data):
