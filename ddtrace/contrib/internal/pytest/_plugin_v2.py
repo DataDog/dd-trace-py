@@ -485,15 +485,20 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     suite_id = test_id.parent_id
     module_id = suite_id.parent_id
 
+    reports_dict = reports_by_item.pop(item, None)
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
-        reports_dict = reports_by_item.pop(item, None)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
+
+    if reports_dict:
+        for report in reports_dict.values():
+            excinfo_by_report.pop(report, None)
 
     if coverage_collector is not None:
         _handle_collected_coverage(test_id, coverage_collector)
