@@ -27,7 +27,7 @@ function(add_ddup_config target)
     endif()
 
     # Common link options
-    target_link_options(${target} PRIVATE "$<$<CONFIG:RelWithDebInfo>:>")
+    target_link_options(${target} PRIVATE "$<$<CONFIG:RelWithDebInfo>:-g>")
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # macOS-specific linker options
@@ -46,11 +46,30 @@ function(add_ddup_config target)
             -Wl,--exclude-libs,ALL)
     endif()
 
-    # If we can IPO, then do so
+    # If we can IPO, then do so Note: We use thin LTO where supported to preserve debug symbols and match Rust's LTO
+    # strategy
     check_ipo_supported(RESULT result)
 
     if(result)
-        set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        # Use thin LTO instead of full LTO for better debug symbol preservation
+        if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
+            # Use thin LTO for AppleClang to preserve debug symbols
+            target_compile_options(${target} PRIVATE -flto=thin)
+            target_link_options(${target} PRIVATE -flto=thin)
+            # On Darwin, preserve LTO object files for debug symbols
+            target_link_options(${target} PRIVATE -Wl,-object_path_lto,${CMAKE_CURRENT_BINARY_DIR}/${target}_lto.o)
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+            # Use thin LTO for Clang
+            target_compile_options(${target} PRIVATE -flto=thin)
+            target_link_options(${target} PRIVATE -flto=thin)
+        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
+            # Use thin LTO for GCC
+            target_compile_options(${target} PRIVATE -flto=thin)
+            target_link_options(${target} PRIVATE -flto=thin)
+        else()
+            # Fallback to regular LTO for other compilers
+            set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
+        endif()
     endif()
 
     # Propagate sanitizers
@@ -85,4 +104,5 @@ function(add_ddup_config target)
     # The main targets, ddup, crashtracker, stack_v2, and dd_wrapper are built as dynamic libraries, so PIC is required.
     # And setting this is also fine for tests as they're loading those dynamic libraries.
     set_target_properties(${target} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 endfunction()
