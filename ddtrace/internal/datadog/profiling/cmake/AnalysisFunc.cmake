@@ -64,8 +64,8 @@ function(add_ddup_config target)
             target_link_options(${target} PRIVATE -flto=thin)
         elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
             # Use thin LTO for GCC
-            target_compile_options(${target} PRIVATE -flto=thin)
-            target_link_options(${target} PRIVATE -flto=thin)
+            target_compile_options(${target} PRIVATE -flto)
+            target_link_options(${target} PRIVATE -flto)
         else()
             # Fallback to regular LTO for other compilers
             set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
