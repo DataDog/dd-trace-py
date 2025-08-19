@@ -234,7 +234,7 @@ def load_data_value(value):
             return json.loads(value_str)
         except json.JSONDecodeError:
             return value_str
-    
+
 
 def format_tool_call_arguments(tool_args: str) -> str:
     """

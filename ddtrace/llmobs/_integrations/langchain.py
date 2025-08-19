@@ -747,7 +747,7 @@ class LangChainIntegration(BaseLLMIntegration):
             tool_id = _get_attr(tool_input, "id", "") or ""
             tool_args = json.dumps(_get_attr(tool_input, "args", {}) or {}, separators=(",", ":"))
         return tool_name, tool_id, tool_args
-    
+
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
         llm_output = getattr(result, "llm_output", {})

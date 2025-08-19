@@ -50,6 +50,7 @@ def openai(monkeypatch, mock_tracer):
     yield openai
     unpatch_openai()
 
+
 @pytest.fixture
 def langchain(mock_tracer):
     patch_langchain()

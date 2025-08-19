@@ -118,7 +118,9 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(args, kwargs, 0, "message", optional=True)
+        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
+            args, kwargs, 0, "message", optional=True
+        )
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
         tool_id = ""
@@ -144,7 +146,13 @@ class PydanticAIIntegration(BaseLLMIntegration):
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, json.dumps(tool_input) if not isinstance(tool_input, str) else tool_input, "function", span, tool_id),
+            (
+                tool_name,
+                json.dumps(tool_input) if not isinstance(tool_input, str) else tool_input,
+                "function",
+                span,
+                tool_id,
+            ),
         )
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
