@@ -63,7 +63,7 @@ def _supported_versions() -> Dict[str, str]:
 def patch():
     deprecate(
         "The aioredis integration is deprecated.",
-        message="Use the aredis integration instead.",
+        message="Use the redis integration instead.",
         category=DDTraceDeprecationWarning,
         removal_version="4.0.0",
     )
