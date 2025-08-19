@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-
 import logging
 import os
 import sys
 
+import ddtrace.auto  # noqa: F401
 from ddtrace.ext import SpanTypes
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import tracer
@@ -28,9 +28,10 @@ if __name__ == "__main__":
     tracer.configure(iast_enabled=not iast_enabled)
     main()
     if not iast_enabled:
-        # Disabled by env var but then enabled with ``tracer.configure``
+        # Disabled by env var
         assert asm_config._iast_enabled
-        assert "ddtrace.appsec._iast.processor" in sys.modules
+        # But processor was not loaded anyway when enabled with ``tracer.configure``
+        assert "ddtrace.appsec._iast.processor" not in sys.modules
     else:
         # Enabled by env var but then disabled with ``tracer.configure``
         assert not asm_config._iast_enabled

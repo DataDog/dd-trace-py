@@ -279,21 +279,30 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
         ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
-        ({APPSEC_ENV: "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "true"}, True, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        (
+            {APPSEC_ENV: "true"},
+            False,
+            True,
+            0,
+            APPSEC.ENABLED_ORIGIN_ENV,
+        ),  # 0 because RC should not change the value if env var is set
     ),
 )
 def test_appsec_enabled_metric(
     environment, appsec_enabled, rc_enabled, expected_result, expected_origin, telemetry_writer, tracer
 ):
     """Test that an internal error is logged when the WAF returns an internal error."""
-    # Restore defaults.
-    tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
+    # Restore defaults and enabling telemetry appsec service
+    with override_global_config({"_asm_enabled": True}):
+        tracer.configure(appsec_enabled=appsec_enabled, appsec_enabled_origin=APPSEC.ENABLED_ORIGIN_UNKNOWN)
     telemetry_writer._flush_configuration_queue()
 
     # Start the test
-    with override_env(environment), override_global_config(dict(_asm_enabled=appsec_enabled)):
+    with override_env(environment), override_global_config(
+        dict(_asm_enabled=appsec_enabled, _remote_config_enabled=rc_enabled)
+    ):
         tracer.configure(appsec_enabled=appsec_enabled)
-        AppSecSpanProcessor()
         if rc_enabled:
             enable_asm(tracer)
 

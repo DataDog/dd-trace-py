@@ -27,6 +27,8 @@ download_dependency_wheels:
   tags: [ "arch:amd64" ]
   stage: package
   needs: [ download_ddtrace_artifacts ]
+  variables:
+    PIP_CACHE_DIR: "${CI_PROJECT_DIR}/.cache/pip"
   parallel:
     matrix: # The image tags that are mirrored are in: https://github.com/DataDog/images/blob/master/mirror.yaml
       - PYTHON_IMAGE_TAG: "3.8"
@@ -43,6 +45,10 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.13"
   script:
     - .gitlab/download-dependency-wheels.sh
+  cache:
+    - key: v0-download-dep-wheels-cache
+      paths:
+        - ${CI_PROJECT_DIR}/.cache/
   artifacts:
     paths:
       - "pywheels-dep/"

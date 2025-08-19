@@ -62,6 +62,7 @@ def get_version():
 
 
 _STARLETTE_VERSION = parse_version(get_version())
+_STARLETTE_VERSION_LTE_0_33_0 = _STARLETTE_VERSION <= parse_version("0.33.0")
 
 
 def _supported_versions() -> Dict[str, str]:
@@ -202,7 +203,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         raise BlockingException(blocked)
 
     # https://github.com/encode/starlette/issues/1336
-    if _STARLETTE_VERSION <= parse_version("0.33.0") and len(request_spans) > 1:
+    if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
         request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)

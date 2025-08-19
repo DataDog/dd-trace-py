@@ -152,6 +152,69 @@ def test_llmobs_openai_chat_model_proxy(mock_generate, langchain_openai, llmobs_
     assert llmobs_events[1]["meta"]["span.kind"] == "llm"
 
 
+def test_llmobs_string_prompt_template_invoke(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
+    template_string = "You are a helpful assistant. Please answer this question: {question}"
+    variable_dict = {"question": "What is machine learning?"}
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()), template=template_string
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+    chain = prompt_template | llm
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+
+
+def test_llmobs_string_prompt_template_direct_invoke(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    """Test StringPromptTemplate (PromptTemplate) with variable name detection using direct invoke (no chains)."""
+    template_string = "Good {time_of_day}, {name}! How are you doing today?"
+    variable_dict = {"name": "Alice", "time_of_day": "morning"}
+    greeting_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()), template=template_string
+    )
+    llm = langchain_openai.OpenAI(base_url=openai_url)
+
+    # Direct invoke on template first, then pass to LLM (no chain)
+    prompt_value = greeting_template.invoke(variable_dict)
+    llm.invoke(prompt_value)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 1  # Only LLM span, prompt template invoke doesn't create LLMObs event by itself
+
+    # The prompt should be attached to the LLM span
+    actual_prompt = llmobs_events[0]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.greeting_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+
+
+def test_llmobs_string_prompt_template_invoke_chat_model(
+    langchain_core, langchain_openai, openai_url, llmobs_events, tracer
+):
+    template_string = "You are a helpful assistant. Please answer this question: {question}"
+    variable_dict = {"question": "What is machine learning?"}
+    prompt_template = langchain_core.prompts.PromptTemplate(
+        input_variables=list(variable_dict.keys()), template=template_string
+    )
+    chat_model = langchain_openai.ChatOpenAI(base_url=openai_url)
+    chain = prompt_template | chat_model
+    chain.invoke(variable_dict)
+
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(llmobs_events) == 2
+    actual_prompt = llmobs_events[1]["meta"]["input"]["prompt"]
+    assert actual_prompt["id"] == "test_langchain_llmobs.prompt_template"
+    assert actual_prompt["template"] == template_string
+    assert actual_prompt["variables"] == variable_dict
+
+
 def test_llmobs_chain(langchain_core, langchain_openai, openai_url, llmobs_events, tracer):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are world class technical documentation writer."), ("user", "{input}")]

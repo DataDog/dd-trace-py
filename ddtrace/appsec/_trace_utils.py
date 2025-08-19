@@ -455,7 +455,7 @@ def get_user_info(info_retriever, django_config, kwargs={}):
     return user_id_found or user_id, user_extra
 
 
-def _on_django_process(result_user, session_key, mode, kwargs, pin, info_retriever, django_config):
+def _on_django_process(result_user, session_key, mode, kwargs, info_retriever, django_config):
     if (not asm_config._asm_enabled) or mode == LOGIN_EVENTS_MODE.DISABLED:
         return
     user_id, user_extra = get_user_info(info_retriever, django_config, kwargs)

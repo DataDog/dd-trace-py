@@ -52,8 +52,6 @@ from ..internal.constants import PROPAGATION_STYLE_DATADOG
 from ..internal.constants import W3C_TRACEPARENT_KEY
 from ..internal.constants import W3C_TRACESTATE_KEY
 from ..internal.logger import get_logger
-from ..internal.sampling import SAMPLING_DECISION_TRACE_TAG_KEY
-from ..internal.sampling import SamplingMechanism
 from ..internal.sampling import validate_sampling_decision
 from ..internal.utils.http import w3c_tracestate_add_p
 from ._utils import get_wsgi_header
@@ -362,9 +360,6 @@ class _DatadogMultiHeader:
 
         if not meta:
             meta = {}
-
-        if not meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
-            meta[SAMPLING_DECISION_TRACE_TAG_KEY] = f"-{SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE}"
 
         # Try to parse values into their expected types
         try:
@@ -931,7 +926,7 @@ class _BaggageHeader:
                 # Record telemetry for baggage item count exceeding limit
                 telemetry_writer.add_count_metric(
                     namespace=TELEMETRY_NAMESPACE.TRACERS,
-                    name="context_header_style.truncated",
+                    name="context_header.truncated",
                     value=1,
                     tags=(("truncation_reason", "baggage_item_count_exceeded"),),
                 )
@@ -947,7 +942,7 @@ class _BaggageHeader:
                     # Record telemetry for baggage header size exceeding limit
                     telemetry_writer.add_count_metric(
                         namespace=TELEMETRY_NAMESPACE.TRACERS,
-                        name="context_header_style.truncated",
+                        name="context_header.truncated",
                         value=1,
                         tags=(("truncation_reason", "baggage_byte_count_exceeded"),),
                     )

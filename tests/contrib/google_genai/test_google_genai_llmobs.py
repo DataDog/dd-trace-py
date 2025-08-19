@@ -212,6 +212,176 @@ class TestLLMObsGoogleGenAI:
         expected_second_event = expected_llmobs_tool_response_span_event(second_span)
         assert llmobs_events[1] == expected_second_event
 
+    def test_generate_content_stream_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream_with_tools
+    ):
+        response = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        function_call_part = response.function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response.candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_stream_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        async for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        async for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
     def test_code_execution(self, genai_client_vcr, llmobs_events):
         genai_client_vcr.models.generate_content(
             model="gemini-2.5-flash",
