@@ -23,11 +23,13 @@ from ddtrace.ext import redis as redisx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
+from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import stringify_cache_args
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
+from ddtrace.vendor.debtcollector import deprecate
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -50,8 +52,7 @@ aioredis_version = parse_version(aioredis_version_str)
 V2 = parse_version("2.0")
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return aioredis_version_str
 
 
@@ -60,6 +61,12 @@ def _supported_versions() -> Dict[str, str]:
 
 
 def patch():
+    deprecate(
+        "The aioredis integration is deprecated.",
+        message="Use the aredis integration instead.",
+        category=DDTraceDeprecationWarning,
+        removal_version="4.0.0",
+    )
     if getattr(aioredis, "_datadog_patch", False):
         return
     aioredis._datadog_patch = True
