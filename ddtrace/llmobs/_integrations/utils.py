@@ -53,45 +53,53 @@ def _openai_extract_tool_calls_and_results_chat(
     tool_results = []
 
     # chat completion tool call
-    raw_tool_calls = _get_attr(message, "tool_calls", [])
-    if raw_tool_calls:
-        for raw in raw_tool_calls:
-            raw_args = (
-                _get_attr(_get_attr(raw, "function", {}), "arguments", None) or _get_attr(raw, "arguments", None) or ""
+    for raw in _get_attr(message, "tool_calls", []) or []:
+        raw_args = (
+            _get_attr(_get_attr(raw, "function", {}), "arguments", {})
+            or _get_attr(raw, "arguments", {})
+            or _get_attr(_get_attr(raw, "custom", {}), "input", {})
+            or {}
+        )
+        tool_name = (
+            _get_attr(_get_attr(raw, "function", {}), "name", "")
+            or _get_attr(raw, "name", "")
+            or _get_attr(_get_attr(raw, "custom", {}), "name", "")
+            or ""
+        )
+        if not tool_name:
+            continue
+        tool_id = _get_attr(raw, "id", "") or _get_attr(raw, "tool_id", "") or _get_attr(raw, "tool_call_id", "")
+        tool_type = _get_attr(raw, "type", "function")
+
+        parsed_arguments = raw_args
+        try:
+            if isinstance(parsed_arguments, str):
+                parsed_arguments = json.loads(parsed_arguments)
+        except (json.JSONDecodeError, TypeError):
+            parsed_arguments = {"value": str(parsed_arguments)}
+
+        tool_call_info = ToolCall(
+            name=tool_name,
+            arguments=parsed_arguments,
+            tool_id=tool_id,
+            type=tool_type,
+        )
+        tool_calls.append(tool_call_info)
+
+        if dispatch_llm_choice and llm_span is not None and tool_id:
+            tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    tool_args_str,
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                ),
             )
-            tool_name = _get_attr(_get_attr(raw, "function", {}), "name", "") or _get_attr(raw, "name", "")
-            tool_id = _get_attr(raw, "id", "") or _get_attr(raw, "tool_call_id", "") or _get_attr(raw, "tool_id", "")
-            tool_type = _get_attr(raw, "type", "function")
-
-            parsed_arguments = raw_args
-            try:
-                if isinstance(parsed_arguments, str):
-                    parsed_arguments = json.loads(parsed_arguments)
-            except (json.JSONDecodeError, TypeError):
-                parsed_arguments = {"value": str(parsed_arguments)}
-
-            tool_call_info = ToolCall(
-                name=tool_name,
-                arguments=parsed_arguments,
-                tool_id=tool_id,
-                type=tool_type,
-            )
-            tool_calls.append(tool_call_info)
-
-            if dispatch_llm_choice and llm_span is not None and tool_id:
-                tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
-                core.dispatch(
-                    DISPATCH_ON_LLM_TOOL_CHOICE,
-                    (
-                        tool_id,
-                        tool_name,
-                        tool_args_str,
-                        {
-                            "trace_id": format_trace_id(llm_span.trace_id),
-                            "span_id": str(llm_span.span_id),
-                        },
-                    ),
-                )
     # chat completion tool result
     # seems like the fields in a tool_result for chat api are not very strictly defined
     if _get_attr(message, "role", "") == "tool" or _get_attr(message, "role", "") == "tool_result":
@@ -400,7 +408,7 @@ def openai_set_meta_tags_from_chat(
         processed_message = {
             "content": str(_get_attr(m, "content", "")),
             "role": str(_get_attr(m, "role", "")),
-        }  # type: dict[str, Union[str, List[ToolCall], List[ToolResult]]]
+        }  # type: dict[str, Union[str, List[Union[ToolCall, ToolResult]]]]
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -417,8 +425,8 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if kwargs.get("tools") or kwargs.get("functions"):
-        tools = _openai_get_tool_definitions(kwargs.get("tools", []))
-        tools.extend(_openai_get_tool_definitions(kwargs.get("functions", [])))
+        tools = _openai_get_tool_definitions(kwargs.get("tools", []) or [])
+        tools.extend(_openai_get_tool_definitions(kwargs.get("functions", []) or []))
         if tools:
             span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
@@ -673,7 +681,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
 def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
     tool_definitions = []
     for tool in tools:
-        # chat API tool definitions
+        # chat API tool access
         if _get_attr(tool, "function", None):
             function = _get_attr(tool, "function", {})
             tool_definition = ToolDefinition(
@@ -681,7 +689,16 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
                 description=_get_attr(function, "description", ""),
                 schema=_get_attr(function, "parameters", {}),
             )
-        # response API tool definitions
+        # chat API custom tool access
+        elif _get_attr(tool, "custom", None):
+            custom_tool = _get_attr(tool, "custom", {})
+            tool_definition = ToolDefinition(
+                name=_get_attr(custom_tool, "name", ""),
+                description=_get_attr(custom_tool, "description", ""),
+                schema=_get_attr(custom_tool, "format", {}), #format is a dict
+            )
+        # chat API function access and response API tool access
+        # only handles FunctionToolParam for response API for now
         else:
             tool_definition = ToolDefinition(
                 name=_get_attr(tool, "name", ""),
