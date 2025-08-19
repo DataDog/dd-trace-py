@@ -982,15 +982,15 @@ def test_baggage_span_tagging_baggage_api(client, tracer, test_spans):
     assert request_span.get_tag("baggage.user.id") is None
     assert request_span.get_tag("baggage.session.id") is None
 
+
 def test_cors_options_request(client, tracer, test_spans):
     preflight_headers = {
         "Origin": "https://localhost",
         "Access-Control-Request-Method": "POST",
-        "Access-Control-Request-Headers": "content-type,x-token"
+        "Access-Control-Request-Headers": "content-type,x-token",
     }
     response = client.options("/items/19fb3c87-1b69-490a-a9b7-62e30db55a99", headers=preflight_headers)
     assert response.status_code == 200
-
 
     spans = test_spans.pop_traces()
     request_span = spans[0][0]
