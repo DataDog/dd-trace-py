@@ -1036,8 +1036,8 @@ class LLMObs(Service):
             try:
                 validated_prompt = _validate_prompt(prompt, _get_ml_app(span))
                 self._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-            except (ValueError, TypeError):
-                log.warning("Failed to validate prompt with error: ", exc_info=True)
+            except (ValueError, TypeError) as e:
+                raise e
 
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
         log.debug("Starting LLMObs span: %s, span_kind: %s, ml_app: %s", name, operation_kind, ml_app)
