@@ -282,7 +282,7 @@ class TestLLMObsVertexai:
         llm._prediction_async_client.responses["generate_content"].append(
             _mock_completion_response(MOCK_COMPLETION_TOOL)
         )
-        response = await llm.generate_content_async(
+        await llm.generate_content_async(
             "What is the weather like in New York City?",
             generation_config=vertexai.generative_models.GenerationConfig(
                 stop_sequences=["x"], max_output_tokens=30, temperature=1.0

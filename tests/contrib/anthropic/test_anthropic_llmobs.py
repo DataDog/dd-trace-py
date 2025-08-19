@@ -8,10 +8,10 @@ from ddtrace.llmobs._utils import safe_json
 from tests.contrib.anthropic.test_anthropic import ANTHROPIC_VERSION
 from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
-from tests.llmobs._utils import aiterate_stream
-from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
 from tests.llmobs._utils import iterate_stream
 from tests.llmobs._utils import next_stream
 

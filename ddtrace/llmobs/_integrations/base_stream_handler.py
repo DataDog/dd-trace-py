@@ -149,7 +149,7 @@ class TracedStream(wrapt.ObjectProxy):
 
     def __next__(self):
         try:
-            chunk = next(self._self_stream_iter)
+            chunk = self._self_stream_iter.__next__()
             self._self_handler.process_chunk(chunk, self._self_stream_iter)
             return chunk
         except StopIteration:
@@ -224,7 +224,7 @@ class TracedAsyncStream(wrapt.ObjectProxy):
 
     async def __anext__(self):
         try:
-            chunk = await anext(self._self_async_stream_iter)
+            chunk = await self._self_async_stream_iter.__anext__()
             await self._self_handler.process_chunk(chunk, self._self_async_stream_iter)
             return chunk
         except StopAsyncIteration:
