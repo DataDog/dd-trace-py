@@ -279,7 +279,24 @@ def create_debug_symbols_package(wheel_path: str, debug_files: List[str], output
                 # Add the debug file to the zip, preserving directory structure
                 # The debug_file path is relative to temp_dir, so we need to extract the relative path
                 rel_path = os.path.relpath(debug_file, temp_dir)
-                debug_zip.write(debug_file, rel_path)
+
+                if os.path.isdir(debug_file):
+                    # For directories (like .dSYM bundles), recursively add all contents
+                    for root, dirs, files in os.walk(debug_file):
+                        # Add directories
+                        for dir_name in dirs:
+                            dir_path = os.path.join(root, dir_name)
+                            arc_path = os.path.relpath(dir_path, temp_dir)
+                            debug_zip.write(dir_path, arc_path)
+
+                        # Add files
+                        for file_name in files:
+                            file_path = os.path.join(root, file_name)
+                            arc_path = os.path.relpath(file_path, temp_dir)
+                            debug_zip.write(file_path, arc_path)
+                else:
+                    # For regular files, add directly
+                    debug_zip.write(debug_file, rel_path)
 
     print(f"Created debug symbols package: {debug_package_path}")
     return debug_package_path
