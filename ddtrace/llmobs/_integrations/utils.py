@@ -669,7 +669,7 @@ def openai_set_meta_tags_from_response(span: Span, kwargs: Dict[str, Any], respo
     span._set_ctx_item(METADATA, metadata)
     output_messages = openai_get_output_messages_from_response(response)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
-    tools = _openai_get_tool_definitions(kwargs.get("tools", []) or [])
+    tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
     if tools:
         span._set_ctx_item(TOOL_DEFINITIONS, tools)
 
