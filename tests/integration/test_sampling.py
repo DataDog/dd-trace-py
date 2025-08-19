@@ -338,8 +338,6 @@ def test_rate_limiter_on_spans(tracer):
     dropped_span = tracer.trace(name=f"span {start_time}")
     dropped_span.start = 0.8
     dropped_span.finish(0.9)
-    # Spans are sampled on flush
-    tracer.flush()
     # Since the rate limiter is set to 10, first ten spans should be kept
     for span in spans:
         assert span.context.sampling_priority > 0
@@ -397,7 +395,6 @@ def test_single_span_and_trace_sampling_match_non_root_span():
                 pass
         with tracer.trace("donkey_monkey") as span4:
             pass
-    tracer.flush()
 
     # Trace level sampling decision tags should be the same.
     for span in [root, span2, span3, span4]:
@@ -439,10 +436,8 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
 
     with tracer.trace("monkey") as root:
         pass
-    tracer.flush()
     with tracer.start_span("non_monkey", child_of=root) as span2:
         pass
-    tracer.flush()
 
     for span in [root, span2]:
         # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
@@ -484,7 +479,6 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing_native
     with tracer.trace("non_monkey", resource="root_span") as root2:
         with tracer.trace("monkey", resource="child_span") as child2:
             pass
-    tracer.flush()
 
     for span in [root1, child1, root2, child2]:
         # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
