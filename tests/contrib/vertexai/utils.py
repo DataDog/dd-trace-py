@@ -28,6 +28,13 @@ weather_tool = Tool(
     function_declarations=[get_current_weather_func],
 )
 
+
+def get_current_weather(location, unit="fahrenheit"):
+    """Get the current weather in a given location"""
+    # Mock weather function implementation
+    return {"temperature": "22", "unit": unit, "description": "Sunny"}
+
+
 MOCK_COMPLETION_SIMPLE_1 = {
     "candidates": [
         {
@@ -115,6 +122,19 @@ MOCK_COMPLETION_TOOL_CALL_STREAM_CHUNKS = (
         "usage_metadata": {"prompt_token_count": 43, "candidates_token_count": 11, "total_token_count": 54},
     },
 )
+
+MOCK_COMPLETION_TOOL_RESULT = {
+    "candidates": [
+        {
+            "content": {
+                "parts": [{"text": "Based on the weather data, it's currently 22°F and sunny in New York City, NY."}],
+                "role": "model",
+            },
+            "finish_reason": "STOP",
+        }
+    ],
+    "usage_metadata": {"prompt_token_count": 50, "candidates_token_count": 20, "total_token_count": 70},
+}
 
 
 async def _async_streamed_response(mock_chunks):

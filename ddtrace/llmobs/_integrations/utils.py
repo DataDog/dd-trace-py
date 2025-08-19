@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import inspect
 import json
 import re
 from typing import Any
@@ -1326,3 +1327,70 @@ def _est_tokens(prompt):
     elif isinstance(prompt, list) and isinstance(prompt[0], int):
         return len(prompt)
     return est_tokens
+
+
+def extract_instance_metadata_from_stack(
+    instance: Any,
+    internal_variable_names: Optional[List[str]] = None,
+    default_variable_name: Optional[str] = None,
+    default_module_name: Optional[str] = None,
+    frame_start_offset: int = 2,
+    frame_search_depth: int = 6,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Attempts to find the variable name and module name for an instance by inspecting the call stack.
+
+    Args:
+        instance: The instance to find the variable name for
+        internal_variable_names: List of variable names to skip (e.g., ["instance", "self", "step"])
+        default_variable_name: Default name to use if variable name cannot be found
+        default_module_name: Default module name to use if module cannot be determined
+        frame_start_offset: How many frames to skip from the current frame
+        frame_search_depth: Maximum number of frames to search through
+
+    Returns:
+        Tuple of (variable_name, module_name)
+    """
+    try:
+        if internal_variable_names is None:
+            internal_variable_names = []
+        variable_name = default_variable_name
+        module_name = default_module_name
+
+        # Start from the current frame and walk up the stack
+        current_frame = inspect.currentframe()
+        if current_frame is None:
+            return variable_name, module_name
+
+        # Skip the specified number of frames
+        for _ in range(frame_start_offset):
+            current_frame = current_frame.f_back
+            if current_frame is None:
+                return variable_name, module_name
+
+        # Search through the specified depth
+        for _ in range(frame_search_depth):
+            if current_frame is None:
+                break
+
+            try:
+                frame_info = inspect.getframeinfo(current_frame)
+
+                for var_name, var_value in current_frame.f_locals.items():
+                    if var_name.startswith("__") or inspect.ismodule(var_value) or var_name in internal_variable_names:
+                        continue
+                    if var_value is instance:
+                        variable_name = var_name
+                        module_name = inspect.getmodulename(frame_info.filename)
+                        return variable_name, module_name
+
+            except (ValueError, AttributeError, OSError, TypeError):
+                current_frame = current_frame.f_back
+                continue
+
+            current_frame = current_frame.f_back
+
+        return variable_name, module_name
+    except Exception:
+        logger.warning("Failed to extract prompt variable name")
+        return default_variable_name, default_module_name
