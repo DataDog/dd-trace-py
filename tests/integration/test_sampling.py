@@ -1,4 +1,5 @@
 import json
+import os
 
 import pytest
 
@@ -8,6 +9,7 @@ from tests.integration.utils import AGENT_VERSION
 pytestmark = pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 RESOURCE = "mycoolre$ource"  # codespell:ignore
 TAGS = {"tag1": "mycooltag"}
+USING_NATIVE_WRITER = os.environ.get("_DD_TRACE_WRITER_NATIVE", "false").lower() in ("true", "1")
 
 
 @pytest.mark.snapshot()
@@ -453,3 +455,47 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
     # Regardless of whether stats computation is enabled or disabled,
     # if the trace matched a trace sampling rule `_dd.rule_psr` should be set.
     assert root.get_metric("_dd.rule_psr") == 0, repr(root)
+
+
+@pytest.mark.skipif(
+    AGENT_VERSION != "testagent" or USING_NATIVE_WRITER is False,
+    reason="Tests only compatible with a testagent and native writer",
+)
+@pytest.mark.subprocess(
+    env={
+        "DD_SERVICE": "animals",
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
+        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
+    },
+    parametrize={"DD_TRACE_COMPUTE_STATS": ["true", "false"]},
+)
+@pytest.mark.snapshot()
+def test_single_span_and_trace_sampling_match_root_span_paritial_flushing_native_writer():
+    """
+    Validates that when the native writer is used all spans are sent to the testagent
+    even if they are not sampled and stats computation is enabled/disabled.
+    Note: Not sure if this is the expected behavior, but it's what we have today.
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace("monkey", resource="root_span") as root1:
+        with tracer.trace("non_monkey", resource="child_span") as child1:
+            pass
+    with tracer.trace("non_monkey", resource="root_span") as root2:
+        with tracer.trace("monkey", resource="child_span") as child2:
+            pass
+    tracer.flush()
+
+    for span in [root1, child1, root2, child2]:
+        # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
+        assert span.context.sampling_priority == -1, repr(span)
+        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
+
+    # root1 and child2 are sampled via single span sampling rule
+    for span in [root1, child2]:
+        assert span.get_metric("_dd.span_sampling.mechanism") == 8, repr(span)
+        assert span.get_metric("_dd.span_sampling.rule_rate") == 1, repr(span)
+
+    # Both root spans have trace sampling rule tags
+    for root in [root1, root2]:
+        assert root.get_metric("_dd.rule_psr") == 0, repr(root)
