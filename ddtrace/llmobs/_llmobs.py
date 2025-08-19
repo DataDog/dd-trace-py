@@ -1406,9 +1406,9 @@ class LLMObs(Service):
                     # strict validation disabled to allow for retro-compatibility
                     validated_prompt = _validate_prompt(prompt, _get_ml_app(span), strict_validation=False)
                     cls._set_dict_attribute(span, INPUT_PROMPT, validated_prompt)
-                except (ValueError, TypeError):
+                except (ValueError, TypeError) as e:
                     error = "invalid_prompt"
-                    log.warning("Failed to validate prompt with error: ", exc_info=True)
+                    log.warning("Failed to validate prompt with error:", str(e), exc_info=True)
             if not span_kind:
                 log.debug("Span kind not specified, skipping annotation for input/output data")
                 return
