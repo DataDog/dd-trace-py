@@ -63,8 +63,6 @@ def _openai_extract_tool_calls_and_results_chat(
             or _get_attr(_get_attr(raw, "custom", {}), "name", "")
             or ""
         )
-        if not tool_name:
-            continue
         tool_id = _get_attr(raw, "id", "") or _get_attr(raw, "tool_id", "") or _get_attr(raw, "tool_call_id", "")
         tool_type = _get_attr(raw, "type", "function")
 
