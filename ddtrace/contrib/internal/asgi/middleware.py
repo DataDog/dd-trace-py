@@ -73,7 +73,7 @@ def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
     return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, str]:
     """
     Extract HTTP and ASGI version information from scope.
     """
@@ -110,7 +110,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span.set_tag(http.STATUS_CODE, 500)
+    span.set_tag_str(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -132,7 +132,6 @@ def _parse_response_cookies(response_headers: Mapping[str, str]) -> Mapping[str,
     except Exception:
         log.debug("failed to extract response cookies", exc_info=True)
     return cookies
-
 
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
     current_receive_span = scope.get("datadog", {}).get("current_receive_span")
@@ -296,7 +295,8 @@ class TraceMiddleware:
                 headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
-            span.set_tags(tags)
+            for name, value in tags.items():
+                span.set_tag_str(name, value)
 
             @wraps(receive)
             async def wrapped_receive():
@@ -503,6 +503,7 @@ class TraceMiddleware:
             # send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
             # _set_message_tags_on_span(send_span, message)
             # pass
+
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
