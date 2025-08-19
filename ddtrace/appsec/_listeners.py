@@ -35,6 +35,10 @@ def load_appsec() -> None:
         from ddtrace.appsec._processor import AppSecSpanProcessor
 
         AppSecSpanProcessor.enable()
+        if asm_config._api_security_enabled and not asm_config._api_security_active:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.enable()
 
 
 def load_common_appsec_modules():
