@@ -97,7 +97,7 @@ def _openai_extract_tool_calls_and_results_chat(
                     },
                 ),
             )
-    # chat completion tool result
+    # handle tool results
     if _get_attr(message, "role", "") == "tool":
         result = _get_attr(message, "content", "")
         tool_result_info = ToolResult(
