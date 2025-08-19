@@ -49,7 +49,7 @@ def _openai_extract_tool_calls_and_results_chat(
     tool_calls = []
     tool_results = []
 
-    # chat completion tool call
+    # handle tool calls
     for raw in _get_attr(message, "tool_calls", []) or []:
         raw_args = (
             _get_attr(_get_attr(raw, "function", {}), "arguments", {})
