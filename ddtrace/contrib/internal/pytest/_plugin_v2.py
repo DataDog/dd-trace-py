@@ -487,7 +487,7 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
 
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
-        reports_dict = reports_by_item.get(item)
+        reports_dict = reports_by_item.pop(item, None)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
@@ -633,7 +633,7 @@ def _process_reports_dict(item, reports) -> _TestOutcome:
 def _process_result(item, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
-    report_excinfo = excinfo_by_report.get(result)
+    report_excinfo = excinfo_by_report.pop(result, None)
     has_exception = report_excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we
