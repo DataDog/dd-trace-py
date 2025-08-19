@@ -81,7 +81,7 @@ def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
     return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, str]:
     """
     Extract HTTP and ASGI version information from scope.
     """
@@ -118,7 +118,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span.set_tag(http.STATUS_CODE, 500)
+    span.set_tag_str(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -173,9 +173,9 @@ def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
     code = message.get("code")
     reason = message.get("reason")
     if code is not None:
-        span.set_metric(websocket.CLOSE_CODE, code)
+        span._metrics[websocket.CLOSE_CODE] = int(code)
     if reason:
-        span.set_tag(websocket.CLOSE_REASON, reason)
+        span.set_tag_str(websocket.CLOSE_REASON, reason)
 
 
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
@@ -340,7 +340,8 @@ class TraceMiddleware:
                 headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
-            span.set_tags(tags)
+            for name, value in tags.items():
+                span.set_tag_str(name, value)
 
             @wraps(receive)
             async def wrapped_receive():
@@ -542,7 +543,7 @@ class TraceMiddleware:
                 span_id=request_span.span_id,
                 attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
             )
-            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)  # PERF: avoid setting via Span.set_metric
             _set_message_tags_on_span(send_span, message)
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
