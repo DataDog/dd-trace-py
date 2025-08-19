@@ -9,6 +9,8 @@ import pytest
 import ddtrace
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import ERROR_MSG
+from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
+from ddtrace.contrib.internal.pytest._utils import reports_by_item
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.pytest.patch import get_version
 from ddtrace.contrib.internal.pytest.plugin import is_enabled
@@ -4274,6 +4276,21 @@ class PytestTestCase(PytestTestCaseBase):
         result = self.subprocess_run(file_name)
         assert "I/O operation on closed file" not in result.stderr.str()
         assert result.ret == 0
+
+    def test_pytest_clears_excinfo_dict_after_use(self):
+        reports_by_item_count_before = len(reports_by_item)
+        excinfo_by_report_count_before = len(excinfo_by_report)
+
+        self.testdir.makepyfile(
+            """
+            def test_one():
+                assert False
+            """
+        )
+
+        self.inline_run("--ddtrace")
+        assert len(reports_by_item) == reports_by_item_count_before
+        assert len(excinfo_by_report) == excinfo_by_report_count_before
 
 
 def test_pytest_coverage_data_format_handling_none_value():
