@@ -421,7 +421,7 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
 
     if kwargs.get("tools") or kwargs.get("functions"):
-        tools = _openai_get_tool_definitions(kwargs.get("tools", []) or [])
+        tools = _openai_get_tool_definitions(kwargs.get("tools") or [])
         tools.extend(_openai_get_tool_definitions(kwargs.get("functions", []) or []))
         if tools:
             span._set_ctx_item(TOOL_DEFINITIONS, tools)
