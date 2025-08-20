@@ -242,7 +242,7 @@ def format_tool_call_arguments(tool_args: str) -> str:
 
     This is used to ensure that tool call arguments are properly formatted for span linking purposes.
     """
-    return safe_json(json.loads(tool_args), separators=(",", ":"))
+    return json.dumps(json.loads(tool_args), separators=(",", ":"))
 
 
 def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
