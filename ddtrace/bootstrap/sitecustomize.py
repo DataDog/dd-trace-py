@@ -15,23 +15,22 @@ Add all monkey-patching that needs to run by default here
 # initialisation logic should be placed in preload.py.
 import ddtrace  # isort:skip
 import logging  # noqa:I001
-import os  # noqa:F401
+import os
 import sys
-import warnings  # noqa:F401
+import warnings
 
-from ddtrace import config  # noqa:F401
-from ddtrace.internal.logger import get_logger  # noqa:F401
-from ddtrace.internal.module import ModuleWatchdog  # noqa:F401
+from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.internal.module import is_module_installed
 from ddtrace.internal.telemetry import telemetry_writer
-from ddtrace.internal.utils.formats import asbool  # noqa:F401
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
 
 
 if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
-    import gevent.monkey  # noqa:F401
+    import gevent.monkey
 
     if gevent.monkey.is_module_patched("threading"):
         warnings.warn(  # noqa: B028
@@ -43,8 +42,7 @@ if "gevent" in sys.modules or "gevent.monkey" in sys.modules:
 
 
 def cleanup_loaded_modules():
-    def drop(module_name):
-        # type: (str) -> None
+    def drop(module_name: str) -> None:
         del sys.modules[module_name]
 
     MODULES_REQUIRING_CLEANUP = ("gevent",)

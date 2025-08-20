@@ -239,8 +239,7 @@ def _store_response_headers(headers, span, integration_config):
     _store_headers(headers, span, integration_config, RESPONSE)
 
 
-def _sanitized_url(url):
-    # type: (str) -> str
+def _sanitized_url(url: str) -> str:
     """
     Sanitize url by removing parts with potential auth info
     """
@@ -301,8 +300,7 @@ def with_traced_module(func):
     return with_mod
 
 
-def distributed_tracing_enabled(int_config, default=False):
-    # type: (IntegrationConfig, bool) -> bool
+def distributed_tracing_enabled(int_config: "IntegrationConfig", default: bool = False) -> bool:
     """Returns whether distributed tracing is enabled for this integration config"""
     if "distributed_tracing_enabled" in int_config and int_config.distributed_tracing_enabled is not None:
         return int_config.distributed_tracing_enabled

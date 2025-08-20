@@ -32,8 +32,7 @@ class TagsetMaxSizeEncodeError(TagsetEncodeError):
             assert e.max_size = 6
             assert e.current_results = "a=1,b=2"
     """
-    def __init__(self, values, max_size, current_results):
-        # type: (Dict[str, str], int, str) -> None
+    def __init__(self, values: object, max_size: int, current_results: str) -> None:
         self.values = values
         self.max_size = max_size
         self.current_results = current_results
@@ -62,8 +61,7 @@ class TagsetMaxSizeDecodeError(TagsetDecodeError):
             assert e.tagset = "key=value"
             assert e.max_size = 8
     """
-    def __init__(self, tagset, max_size):
-        # type: (Dict[str, str], int, str) -> None
+    def __init__(self, tagset: object, max_size: int) -> None:
         self.tagset = tagset
         self.max_size = max_size
 
@@ -99,7 +97,6 @@ cdef inline int is_valid_value_char(int c):
 
 
 cpdef dict decode_tagset_string(str tagset, int max_size=512):
-    # type: (str, int) -> Dict[str, str]
     """Parse a tagset compatible string into a dictionary of tag key/values
 
     Examples::
@@ -193,7 +190,6 @@ cdef bint _value_is_valid(str value):
 
 
 cpdef str encode_tagset_values(object values, int max_size=512):
-    # type: (Dict[str, str], int) -> str
     """Convert a dictionary of tag key/values into a tagset compatible string
 
     Example::

@@ -59,7 +59,7 @@ def _derive_peer_hostname(service: str, region: str, params: Optional[Dict[str, 
     return f"{mapped}.{region}.amazonaws.com" if mapped else None
 
 
-def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation):
+def set_botocore_patched_api_call_span_tags(span: Span, instance, args, params, endpoint_name, operation) -> None:
     span.set_tag_str(COMPONENT, config.botocore.integration_name)
     # set span.kind to the type of request being performed
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)

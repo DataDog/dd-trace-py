@@ -1,20 +1,19 @@
 import itertools
 import re
-from typing import Any  # noqa:F401
-from typing import Dict  # noqa:F401
-from typing import FrozenSet  # noqa:F401
-from typing import List  # noqa:F401
-from typing import Literal  # noqa:F401
-from typing import Optional  # noqa:F401
-from typing import Text  # noqa:F401
-from typing import Tuple  # noqa:F401
+from typing import Dict
+from typing import FrozenSet
+from typing import List
+from typing import Literal
+from typing import Optional
+from typing import Text
+from typing import Tuple
 from typing import Union
-from typing import cast  # noqa:F401
+from typing import cast
 import urllib.parse
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace.context import Context
-from ddtrace._trace.span import Span  # noqa:F401
+from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.span import _MetaDictType
@@ -78,8 +77,7 @@ _HTTP_HEADER_TRACESTATE: Literal["tracestate"] = "tracestate"
 _HTTP_HEADER_BAGGAGE: Literal["baggage"] = "baggage"
 
 
-def _possible_header(header):
-    # type: (str) -> FrozenSet[str]
+def _possible_header(header: str) -> FrozenSet[str]:
     return frozenset([header, get_wsgi_header(header).lower()])
 
 
@@ -283,12 +281,12 @@ class _DatadogMultiHeader:
             return
 
         # Only propagate trace tags which means ignoring the _dd.origin
-        tags_to_encode = {
+        tags_to_encode: Dict[Text, Text] = {
             # DEV: Context._meta is a _MetaDictType but we need Dict[str, str]
             ensure_text(k): ensure_text(v)
             for k, v in span_context._meta.items()
             if _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
-        }  # type: Dict[Text, Text]
+        }
 
         if tags_to_encode:
             try:
@@ -841,7 +839,7 @@ class _TraceContext:
         if meta is None:
             meta = {}
         origin = None
-        sampling_priority = trace_flag  # type: int
+        sampling_priority: Optional[int] = trace_flag
         if ts:
             # whitespace is allowed, but whitespace to start or end values should be trimmed
             # e.g. "foo=1 \t , \t bar=2, \t baz=3" -> "foo=1,bar=2,baz=3"

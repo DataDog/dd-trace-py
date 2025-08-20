@@ -50,7 +50,7 @@ class RateSampler:
         sampled = ((span._trace_id_64bits * SAMPLING_KNUTH_FACTOR) % SAMPLING_HASH_MODULO) <= self.sampling_id_threshold
         return sampled
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"RateSampler(sample_rate={self.sample_rate})"
 
 
@@ -122,7 +122,7 @@ class DatadogSampler:
         log.debug("initialized %r", self)
 
     @staticmethod
-    def _key(service: Optional[str], env: Optional[str]):
+    def _key(service: Optional[str], env: Optional[str]) -> str:
         """Compute a key with the same format used by the Datadog agent API."""
         return f"service:{service or ''},env:{env or ''}"
 
@@ -133,7 +133,7 @@ class DatadogSampler:
         log.debug("Updated DatadogSampler with %d service based sampling rates (provided by the agent)", len(samplers))
         self._agent_based_samplers = samplers
 
-    def __str__(self):
+    def __str__(self) -> str:
         rates = {key: sampler.sample_rate for key, sampler in self._agent_based_samplers.items()}
         return "{}(agent_rates={!r}, limiter={!r}, rules={!r}), rate_limit_always_on={!r}".format(
             self.__class__.__name__,

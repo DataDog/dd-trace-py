@@ -1,4 +1,5 @@
 import json
+from typing import Optional
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config
@@ -9,7 +10,7 @@ from .utils.http import get_connection
 log = get_logger(__name__)
 
 
-def info(url=None):
+def info(url: Optional[str] = None) -> Optional[dict]:
     agent_url = config.trace_agent_url if url is None else url
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)

@@ -1,4 +1,4 @@
-import typing  # noqa:F401
+import typing
 
 from ddtrace.ext.ci import _filter_sensitive_info
 from ddtrace.ext.git import COMMIT_SHA
@@ -9,7 +9,7 @@ from ddtrace.internal.utils import formats
 from ddtrace.settings._core import DDConfig
 
 
-_GITMETADATA_TAGS = None  # type: typing.Optional[typing.Tuple[str, str, str]]
+_GITMETADATA_TAGS: typing.Optional[typing.Tuple[str, str, str]] = None
 
 log = get_logger(__name__)
 
@@ -36,8 +36,7 @@ class GitMetadataConfig(DDConfig):
 config = GitMetadataConfig()
 
 
-def _get_tags_from_env():
-    # type: () -> typing.Tuple[str, str, str]
+def _get_tags_from_env() -> typing.Tuple[str, str, str]:
     """
     Get git metadata from environment variables.
     Returns tuple (repository_url, commit_sha, main_package)
@@ -90,8 +89,7 @@ def _get_tags_from_package(main_package: str) -> typing.Tuple[str, str]:
         return "", ""
 
 
-def get_git_tags():
-    # type: () -> typing.Tuple[str, str, str]
+def get_git_tags() -> typing.Tuple[str, str, str]:
     """
     Returns git metadata tags tuple (repository_url, commit_sha, main_package)
     """
@@ -118,8 +116,7 @@ def get_git_tags():
         return "", "", ""
 
 
-def clean_tags(tags):
-    # type: (typing.Dict[str, str]) -> typing.Dict[str, str]
+def clean_tags(tags: typing.Dict[str, str]) -> typing.Dict[str, str]:
     """
     Cleanup tags from git metadata
     """
@@ -130,7 +127,7 @@ def clean_tags(tags):
     return tags
 
 
-def add_tags(tags):
+def add_tags(tags: typing.Dict[str, str]) -> None:  # Inferred from usage pattern
     clean_tags(tags)
 
     repository_url, commit_sha, main_package = get_git_tags()

@@ -1,4 +1,4 @@
-from typing import Dict  # noqa:F401
+from typing import Dict
 
 from opentracing import InvalidCarrierException
 
@@ -24,8 +24,7 @@ class HTTPPropagator(Propagator):
     """
 
     @staticmethod
-    def inject(span_context, carrier):
-        # type: (SpanContext, Dict[str, str]) -> None
+    def inject(span_context: SpanContext, carrier: Dict[str, str]) -> None:
         """Inject a span context into a carrier.
 
         *span_context* is injected into the carrier by first using an
@@ -49,8 +48,7 @@ class HTTPPropagator(Propagator):
                 carrier[_HTTP_BAGGAGE_PREFIX + key] = span_context.baggage[key]
 
     @staticmethod
-    def extract(carrier):
-        # type: (Dict[str, str]) -> SpanContext
+    def extract(carrier: Dict[str, str]) -> SpanContext:
         """Extract a span context from a carrier.
 
         :class:`ddtrace.propagation.http.HTTPPropagator` is used to extract

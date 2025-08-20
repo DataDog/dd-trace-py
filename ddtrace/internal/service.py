@@ -1,6 +1,6 @@
 import abc
 import enum
-import typing  # noqa:F401
+import typing
 
 from . import forksafe
 
@@ -15,10 +15,9 @@ class ServiceStatus(enum.Enum):
 class ServiceStatusError(RuntimeError):
     def __init__(
         self,
-        service_cls,  # type: typing.Type[Service]
-        current_status,  # type: ServiceStatus
-    ):
-        # type: (...) -> None
+        service_cls: typing.Type["Service"],
+        current_status: ServiceStatus,
+    ) -> None:
         self.current_status = current_status
         super(ServiceStatusError, self).__init__(
             "%s is already in status %s" % (service_cls.__name__, current_status.value)
@@ -32,17 +31,17 @@ class Service(metaclass=abc.ABCMeta):
         self.status: ServiceStatus = ServiceStatus.STOPPED
         self._service_lock: typing.ContextManager = forksafe.Lock()
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         class_name = self.__class__.__name__
         attrs = {k: v for k, v in self.__dict__.items() if not k.startswith("_")}
         attrs_str = ", ".join(f"{k}={v!r}" for k, v in attrs.items())
         return f"{class_name}({attrs_str})"
 
-    def __enter__(self):
+    def __enter__(self) -> "Service":
         self.start()
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.stop()
         self.join()
 

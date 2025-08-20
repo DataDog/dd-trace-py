@@ -18,10 +18,10 @@ try:
     # Availability: Unix, not Emscripten, not WASI.
     import fcntl
 
-    def lock(f):
+    def lock(f) -> None:
         fcntl.lockf(f, fcntl.LOCK_EX)
 
-    def unlock(f):
+    def unlock(f) -> None:
         fcntl.lockf(f, fcntl.LOCK_UN)
 
     def open_file(path, mode):
@@ -31,15 +31,15 @@ except ModuleNotFoundError:
     # Availability: Windows
     import msvcrt
 
-    def lock(f):
+    def lock(f) -> None:
         # You need to seek to the beginning of the file before locking it
         f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, MAX_FILE_SIZE)
+        msvcrt.locking(f.fileno(), msvcrt.LK_RLCK, MAX_FILE_SIZE)  # type: ignore[attr-defined]
 
-    def unlock(f):
+    def unlock(f) -> None:
         # You need to seek to the same position of the file when you locked before unlocking it
         f.seek(0)
-        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, MAX_FILE_SIZE)  # type: ignore[attr-defined]
 
     def open_file(path, mode):
         import _winapi

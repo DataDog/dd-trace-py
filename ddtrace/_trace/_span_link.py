@@ -26,6 +26,8 @@ SpanLinks can be set using :meth:`ddtrace.Span.link_span(...)` Ex::
 
 import dataclasses
 from enum import Enum
+from typing import Any
+from typing import Dict
 from typing import Optional
 
 from ddtrace.internal.utils.formats import flatten_key_value
@@ -71,11 +73,11 @@ class SpanLink:
         _id_not_zero(self, "span_id", self.span_id)
 
     @property
-    def name(self):
+    def name(self) -> str:
         return self.attributes["link.name"]
 
     @name.setter
-    def name(self, value):
+    def name(self, value: str) -> None:
         self.attributes["link.name"] = value
 
     @property
@@ -86,14 +88,14 @@ class SpanLink:
     def kind(self, value: str) -> None:
         self.attributes["link.kind"] = value
 
-    def _drop_attribute(self, key):
+    def _drop_attribute(self, key: str) -> None:
         if key not in self.attributes:
             raise KeyError(f"Invalid key: {key}")
         del self.attributes[key]
         self._dropped_attributes += 1
 
-    def to_dict(self):
-        d = {
+    def to_dict(self) -> Dict[str, Any]:
+        d: Dict[str, Any] = {
             "trace_id": "{:032x}".format(self.trace_id),
             "span_id": "{:016x}".format(self.span_id),
         }
