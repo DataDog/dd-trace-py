@@ -961,7 +961,6 @@ def listen():
         "asgi.websocket.receive_message",
         "asgi.websocket.send_message",
         "wsgi.__call__",
-        "django.traced_get_response",
         "django.cache",
         "django.middleware.__call__",
         "django.middleware.func",
@@ -971,6 +970,7 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "django.traced_get_response",
         "django.process_exception",
         "django.func.wrapped",
         # non web frameworks
@@ -1003,6 +1003,7 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "django.traced_get_response",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
