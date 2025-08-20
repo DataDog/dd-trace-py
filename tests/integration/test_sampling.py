@@ -371,11 +371,13 @@ def test_rate_limiter_on_long_running_spans(tracer):
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.xfail(
+    USING_NATIVE_WRITER, reason="Native writer does not drop traces when client stats computation is enabled"
+)
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",
-        "_DD_TRACE_WRITER_NATIVE": "false",
         "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
         "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
     },
@@ -385,7 +387,8 @@ def test_single_span_and_trace_sampling_match_non_root_span():
     """Validates that a single span sampling rule applied to a non-root span does not
     override the trace sampling decision.
     """
-
+    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
+    # send stats to the testagent (and maybe even the real datadog agent).
     from ddtrace.trace import tracer
 
     with tracer.trace("non_monkey") as root:
@@ -409,12 +412,12 @@ def test_single_span_and_trace_sampling_match_non_root_span():
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
+@pytest.mark.xfail(USING_NATIVE_WRITER, reason="Native writer does not drop traces when partial flushing is enabled")
 @pytest.mark.snapshot()
 @pytest.mark.subprocess(
     env={
         "DD_SERVICE": "animals",
         "DD_TRACE_PARTIAL_FLUSH_MIN_SPANS": "1",
-        "_DD_TRACE_WRITER_NATIVE": "false",
         "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
         "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
     },
@@ -424,12 +427,13 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
     """Validates that a single span sampling rule applied to a root span does not
     override the trace sampling decision, even when traces are partially flushed.
     """
+    # FIXME: When stats computation is enabled the native writer does not drop unsampled spans and does not
+    # send stats to the testagent (and maybe even the real datadog agent).
     from ddtrace.trace import tracer
 
     with tracer.trace("monkey") as root:
-        pass
-    with tracer.start_span("non_monkey", child_of=root) as span2:
-        pass
+        with tracer.trace("non_monkey") as span2:
+            pass
 
     for span in [root, span2]:
         # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
@@ -442,46 +446,3 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
     # Regardless of whether stats computation is enabled or disabled,
     # if the trace matched a trace sampling rule `_dd.rule_psr` should be set.
     assert root.get_metric("_dd.rule_psr") == 0, repr(root)
-
-
-@pytest.mark.skipif(
-    AGENT_VERSION != "testagent" or USING_NATIVE_WRITER is False,
-    reason="Tests only compatible with a testagent and native writer",
-)
-@pytest.mark.subprocess(
-    env={
-        "DD_SERVICE": "animals",
-        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0, "service": "animals"}]',
-        "DD_SPAN_SAMPLING_RULES": '[{"service":"animals", "name":"monkey", "sample_rate":1}]',
-    },
-    parametrize={"DD_TRACE_COMPUTE_STATS": ["true", "false"]},
-)
-@pytest.mark.snapshot()
-def test_single_span_and_trace_sampling_match_paritial_flushing_native_writer():
-    """
-    Validates that when the native writer is used all spans are sent to the testagent
-    even if they are not sampled and stats computation is enabled/disabled.
-    Note: Not sure if this is the expected behavior, but it's what we have today.
-    """
-    from ddtrace.trace import tracer
-
-    with tracer.trace("monkey", resource="root_span") as root1:
-        with tracer.trace("non_monkey", resource="child_span") as child1:
-            pass
-    with tracer.trace("non_monkey", resource="root_span") as root2:
-        with tracer.trace("monkey", resource="child_span") as child2:
-            pass
-
-    for span in [root1, child1, root2, child2]:
-        # Trace sampling rule is matched, trace level sampling decision is MANUAL DROP
-        assert span.context.sampling_priority == -1, repr(span)
-        assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
-
-    # root1 and child2 are sampled via single span sampling rule
-    for span in [root1, child2]:
-        assert span.get_metric("_dd.span_sampling.mechanism") == 8, repr(span)
-        assert span.get_metric("_dd.span_sampling.rule_rate") == 1, repr(span)
-
-    # Both root spans have trace sampling rule tags
-    for root in [root1, root2]:
-        assert root.get_metric("_dd.rule_psr") == 0, repr(root)
