@@ -43,84 +43,6 @@ except ModuleNotFoundError:
 logger = get_logger(__name__)
 
 
-def _openai_extract_tool_calls_and_results_chat(
-    message: Dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
-) -> Tuple[List[ToolCall], List[ToolResult]]:
-    tool_calls = []
-    tool_results = []
-
-    # handle tool calls
-    for raw in _get_attr(message, "tool_calls", []) or []:
-        raw_args = (
-            _get_attr(_get_attr(raw, "function", {}), "arguments", {})
-            or _get_attr(_get_attr(raw, "custom", {}), "input", {})
-            or {}
-        )
-        tool_name = (
-            _get_attr(_get_attr(raw, "function", {}), "name", "")
-            or _get_attr(_get_attr(raw, "custom", {}), "name", "")
-            or ""
-        )
-        tool_id = _get_attr(raw, "id", "")
-        tool_type = _get_attr(raw, "type", "function")
-
-        parsed_arguments = raw_args
-        try:
-            if isinstance(parsed_arguments, str):
-                parsed_arguments = json.loads(parsed_arguments)
-        except (json.JSONDecodeError, TypeError):
-            parsed_arguments = {"value": str(parsed_arguments)}
-
-        tool_call_info = ToolCall(
-            name=tool_name,
-            arguments=parsed_arguments,
-            tool_id=tool_id,
-            type=tool_type,
-        )
-        tool_calls.append(tool_call_info)
-
-        if dispatch_llm_choice and llm_span is not None and tool_id:
-            tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
-            core.dispatch(
-                DISPATCH_ON_LLM_TOOL_CHOICE,
-                (
-                    tool_id,
-                    tool_name,
-                    tool_args_str,
-                    {
-                        "trace_id": format_trace_id(llm_span.trace_id),
-                        "span_id": str(llm_span.span_id),
-                    },
-                ),
-            )
-    # handle tool results
-    if _get_attr(message, "role", "") == "tool":
-        result = _get_attr(message, "content", "")
-        tool_result_info = ToolResult(
-            name=_get_attr(message, "name", ""),
-            result=str(result) if result else "",
-            tool_id=_get_attr(message, "tool_call_id", ""),
-            type=_get_attr(message, "type", "tool_result"),
-        )
-        tool_results.append(tool_result_info)
-
-    # legacy function_call format
-    function_call = _get_attr(message, "function_call", {})
-    if function_call:
-        arguments = _get_attr(function_call, "arguments", {})
-        try:
-            arguments = json.loads(arguments)
-        except (json.JSONDecodeError, TypeError):
-            arguments = {"value": str(arguments)}
-        tool_call_info = ToolCall(
-            name=_get_attr(function_call, "name", ""),
-            arguments=arguments,
-        )
-        tool_calls.append(tool_call_info)
-
-    return tool_calls, tool_results
-
-
 COMMON_METADATA_KEYS = (
     "stream",
     "temperature",
@@ -457,6 +379,78 @@ def openai_set_meta_tags_from_chat(
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
 
+def _openai_extract_tool_calls_and_results_chat(
+    message: Dict[str, Any], llm_span: Optional[Span] = None, dispatch_llm_choice: bool = False
+) -> Tuple[List[ToolCall], List[ToolResult]]:
+    tool_calls = []
+    tool_results = []
+
+    # handle tool calls
+    for raw in _get_attr(message, "tool_calls", []) or []:
+        function = _get_attr(raw, "function", {})
+        custom = _get_attr(raw, "custom", {})
+        raw_args = _get_attr(function, "arguments", {}) or _get_attr(custom, "input", {}) or {}
+        tool_name = _get_attr(function, "name", "") or _get_attr(custom, "name", "") or ""
+        tool_id = _get_attr(raw, "id", "")
+        tool_type = _get_attr(raw, "type", "function")
+
+        parsed_arguments = raw_args
+        try:
+            if isinstance(parsed_arguments, str):
+                parsed_arguments = json.loads(parsed_arguments)
+        except (json.JSONDecodeError, TypeError):
+            parsed_arguments = {"value": str(parsed_arguments)}
+
+        tool_call_info = ToolCall(
+            name=tool_name,
+            arguments=parsed_arguments,
+            tool_id=tool_id,
+            type=tool_type,
+        )
+        tool_calls.append(tool_call_info)
+
+        if dispatch_llm_choice and llm_span is not None and tool_id:
+            tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    tool_id,
+                    tool_name,
+                    tool_args_str,
+                    {
+                        "trace_id": format_trace_id(llm_span.trace_id),
+                        "span_id": str(llm_span.span_id),
+                    },
+                ),
+            )
+    # handle tool results
+    if _get_attr(message, "role", "") == "tool":
+        result = _get_attr(message, "content", "")
+        tool_result_info = ToolResult(
+            name=_get_attr(message, "name", ""),
+            result=str(result) if result else "",
+            tool_id=_get_attr(message, "tool_call_id", ""),
+            type=_get_attr(message, "type", "tool_result"),
+        )
+        tool_results.append(tool_result_info)
+
+    # legacy function_call format
+    function_call = _get_attr(message, "function_call", {})
+    if function_call:
+        arguments = _get_attr(function_call, "arguments", {})
+        try:
+            arguments = json.loads(arguments)
+        except (json.JSONDecodeError, TypeError):
+            arguments = {"value": str(arguments)}
+        tool_call_info = ToolCall(
+            name=_get_attr(function_call, "name", ""),
+            arguments=arguments,
+        )
+        tool_calls.append(tool_call_info)
+
+    return tool_calls, tool_results
+
+
 def get_metadata_from_kwargs(
     kwargs: Dict[str, Any], integration_name: str = "openai", operation: str = "chat"
 ) -> Dict[str, Any]:
@@ -693,8 +687,7 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
             tool_definition = ToolDefinition(
                 name=_get_attr(tool, "name", ""),
                 description=_get_attr(tool, "description", ""),
-                schema=_get_attr(tool, "parameters", {})
-                or _get_attr(tool, "format", {}),
+                schema=_get_attr(tool, "parameters", {}) or _get_attr(tool, "format", {}),
             )
         if not any(tool_definition.values()):
             # if all fields are empty, skip this tool
