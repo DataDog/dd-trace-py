@@ -395,10 +395,10 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
-        processed_message = {
+        processed_message: Dict[str, Union[str, List[ToolCall], List[ToolResult]]] = {
             "content": str(_get_attr(m, "content", "")),
             "role": str(_get_attr(m, "role", "")),
-        }  # type: dict[str, Union[str, List[ToolCall], List[ToolResult]]]
+        }
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
@@ -490,7 +490,7 @@ def openai_get_input_messages_from_response_input(
         return [{"role": "user", "content": messages}]
 
     for item in messages:
-        processed_item: Dict[str, Any] = {}
+        processed_item: Dict[str, Union[str, List[ToolCall], List[ToolResult]]] = {}
         # Handle regular message
         if "content" in item and "role" in item:
             processed_item_content = ""
@@ -732,7 +732,12 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     )
     if list_idx is None:
         stored_tool_calls.append(
-            {"function": {"name": function_name, "arguments": ""}, "index": tool_call_idx, "id": tool_id, "type": tool_type}
+            {
+                "function": {"name": function_name, "arguments": ""},
+                "index": tool_call_idx,
+                "id": tool_id,
+                "type": tool_type,
+            }
         )
         list_idx = -1
     stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
