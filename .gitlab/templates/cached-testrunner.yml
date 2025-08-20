@@ -18,6 +18,7 @@
     else
         source $EXT_CACHE_VENV/bin/activate
     fi
+    # Turn off ext build cache as it makes smoke_test very flaky on 3.10
     # python scripts/gen_ext_cache_scripts.py
     # deactivate
     # $SHELL scripts/restore-ext-cache.sh
