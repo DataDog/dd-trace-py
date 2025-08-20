@@ -80,7 +80,7 @@ run-tests-trigger:
   stage: tests
   needs: []
   script:
-    - hatch run lint:sg-tests
+    - hatch run lint:sg-test
 
 microbenchmarks:
   stage: benchmarks
