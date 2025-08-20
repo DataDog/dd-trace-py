@@ -138,6 +138,9 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
 
     for tk, tv in ctx.get_item("tags", dict()).items():
         span.set_tag_str(tk, tv)
+    if ctx.get_item("measured"):
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     ctx.span = span
 
@@ -1018,6 +1021,7 @@ def listen():
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
         "azure.servicebus.patched_producer",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1031,6 +1035,7 @@ def listen():
         "django.middleware.process_view",
         "django.template.render",
         "molten.trace_func",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
