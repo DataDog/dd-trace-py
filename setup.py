@@ -532,6 +532,20 @@ class CustomBuildExt(build_ext):
         elif CURRENT_OS == "Darwin":
             subprocess.run(["install_name_tool", "-id", native_name, library], check=True)
 
+    @staticmethod
+    def try_strip_symbols(so_file):
+        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
+            try:
+                subprocess.run(["strip", "-g", so_file], check=True)
+            except subprocess.CalledProcessError as e:
+                print(
+                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
+                )
+            except Exception as e:
+                print(
+                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
+                )
+
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
             try:
@@ -548,6 +562,12 @@ class CustomBuildExt(build_ext):
                 raise
         else:
             super().build_extension(ext)
+
+        if COMPILE_MODE.lower() == "minsizerel":
+            try:
+                self.try_strip.symbols(self.get_ext_fullpath(ext.name))
+            except Exception as e:
+                print(f"WARNING: An error occurred while building the extension: {e}")
 
     def build_extension_cmake(self, ext: "CMakeExtension") -> None:
         if IS_EDITABLE and self.INCREMENTAL:
