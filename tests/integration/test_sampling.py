@@ -33,6 +33,26 @@ def test_sampling_with_rate_limit_3():
         tracer.trace("child").finish()
 
 
+
+@pytest.mark.subprocess(
+    env={
+        "DD_TRACE_SAMPLING_RULES": '[{"sample_rate": 0}]',
+        "DD_TRACE_COMPUTE_STATS": "true",
+        "_DD_TRACE_WRITER_NATIVE": "true",
+    },
+)
+@pytest.mark.snapshot()
+def test_stats_computation_with_unsampled_trace_and_native_writer():
+    """
+    Validates that stats computation is enabled and the native writer is used,
+    the the trace is not sent to the agent but stats are.
+    """
+    from ddtrace.trace import tracer
+
+    with tracer.trace("monkey"):
+        pass
+
+
 def test_supported_sampling_mechanism():
     """
     validate_sampling_decision should not give errors for supported sampling mechanisms
