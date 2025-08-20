@@ -201,6 +201,9 @@ class PatchedDistribution(Distribution):
                 py_limited_api="auto",
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
+                # The release build profile sets debug='line-tables-only', to
+                # build with debug symbols. If one wants a binary without debug
+                # symbols, one can use DD_COMPILE_MODE=Release.
                 strip=setuptools_rust.Strip.All if COMPILE_MODE.lower() == "release" else setuptools_rust.Strip.No,
                 features=(
                     ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
