@@ -74,6 +74,14 @@ run-tests-trigger:
        job: tests-gen
    strategy: depend
 
+# Validate the ast-grep rule's test suite in .sg/tests
+"ast-grep tests":
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run lint:sg-tests
+
 microbenchmarks:
   stage: benchmarks
   needs: [ "download_ddtrace_artifacts" ]

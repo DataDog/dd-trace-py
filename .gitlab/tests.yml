@@ -101,11 +101,4 @@ include:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
-# Validate the ast-grep test suite in .sg/tests
-"ast-grep tests":
-  extends: .testrunner
-  stage: setup
-  script:
-    - hatch run lint:sg-tests
-
 # Required jobs will appear here
