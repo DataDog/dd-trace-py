@@ -98,7 +98,7 @@ def _openai_extract_tool_calls_and_results_chat(
         result = _get_attr(message, "content", "")
         tool_result_info = ToolResult(
             name=_get_attr(message, "name", ""),
-            result=str(result) if result else "",
+            result=str(result) if result else "",a
             tool_id=_get_attr(message, "tool_call_id", ""),
             type=_get_attr(message, "type", "tool_result"),
         )
@@ -688,13 +688,17 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
                 schema=_get_attr(custom_tool, "format", {}),  # format is a dict
             )
         # chat API function access and response API tool access
-        # only handles FunctionToolParam for response API for now
+        # only handles FunctionToolParam and CustomToolParam for response API for now
         else:
             tool_definition = ToolDefinition(
                 name=_get_attr(tool, "name", ""),
                 description=_get_attr(tool, "description", ""),
-                schema=_get_attr(tool, "parameters", {}),
+                schema=_get_attr(tool, "parameters", {})
+                or _get_attr(tool, "format", {}),
             )
+        if not tool_definition["name"] and not tool_definition["description"] and not tool_definition["schema"]:
+            #if all fields are empty, skip this tool
+            continue
         tool_definitions.append(tool_definition)
     return tool_definitions
 
