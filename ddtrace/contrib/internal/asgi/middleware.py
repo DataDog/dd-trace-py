@@ -224,18 +224,20 @@ class TraceMiddleware:
             integration_config=config.asgi,
             activate_distributed_headers=True,
         ) as ctx, ctx.span as span:
-            span.set_tag_str(COMPONENT, self.integration_config.integration_name)
-            ctx.set_item("req_span", span)
+            # TODO: move into trace handlers
+            core.dispatch("asgi.__call__", (ctx, scope, self.integration_config))
+            # span.set_tag_str(COMPONENT, self.integration_config.integration_name)
+            # ctx.set_item("req_span", span)
 
-            span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+            # span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
 
-            if scope["type"] == "websocket":
-                span.set_tag_str("http.upgraded", "websocket")
+            # if scope["type"] == "websocket":
+            #     span.set_tag_str("http.upgraded", "websocket")
 
-            if "datadog" not in scope:
-                scope["datadog"] = {"request_spans": [span]}
-            else:
-                scope["datadog"]["request_spans"].append(span)
+            # if "datadog" not in scope:
+            #     scope["datadog"] = {"request_spans": [span]}
+            # else:
+            #     scope["datadog"]["request_spans"].append(span)
 
             if self.span_modifier:
                 self.span_modifier(span, scope)

@@ -1026,6 +1026,22 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
         _copy_trace_level_tags(span, ctx.parent.span)
 
 
+def _on_asgi_call(ctx, scope, integration_config):
+    span = ctx.span
+    span.set_tag_str(COMPONENT, integration_config.integration_name)
+    ctx.set_item("req_span", span)
+
+    span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
+
+    if scope["type"] == "websocket":
+        span.set_tag_str("http.upgraded", "websocket")
+
+    if "datadog" not in scope:
+        scope["datadog"] = {"request_spans": [span]}
+    else:
+        scope["datadog"]["request_spans"].append(span)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -1084,6 +1100,7 @@ def listen():
     core.on("asgi.websocket.send.message", _on_asgi_websocket_send_message)
     core.on("asgi.websocket.disconnect.message", _on_asgi_websocket_disconnect_message)
     core.on("asgi.websocket.close.message", _on_asgi_websocket_close_message)
+    core.on("asgi.__call__", _on_asgi_call)
 
     # web frameworks general handlers
     core.on("web.request.start", _on_web_framework_start_request)
