@@ -320,11 +320,11 @@ def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
-def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
+def get_item(data_key: str, default: Optional[Any] = None, span: Optional["Span"] = None) -> Any:
     _deprecate_span_kwarg(span)
     if span is not None and span._local_root is not None:
         return span._local_root._get_ctx_item(data_key)
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+    return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
 def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
