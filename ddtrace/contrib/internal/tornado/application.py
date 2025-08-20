@@ -3,8 +3,8 @@ from urllib.parse import urlparse
 from tornado import template
 
 import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
 from ddtrace.contrib.internal.tornado.stack_context import context_provider

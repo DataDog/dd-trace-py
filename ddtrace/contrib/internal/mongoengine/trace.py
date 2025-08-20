@@ -2,7 +2,6 @@
 # project
 import wrapt
 
-import ddtrace
 from ddtrace._trace.pin import Pin
 
 # keep the TracedMongoClient import to avoid breaking the public api

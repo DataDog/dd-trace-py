@@ -1,4 +1,5 @@
 from typing import Any
+
 from ddtrace._trace.context import Context
 from ddtrace._trace.filters import TraceFilter
 from ddtrace._trace.pin import Pin as _Pin
@@ -18,7 +19,8 @@ core.tracer = tracer  # type: ignore
 def __getattr__(name: str) -> Any:
     if name == "Pin":
         deprecate(
-            message="ddtrace.trace.Pin is deprecated",
+            prefix="ddtrace.trace.Pin is deprecated",
+            message="Please use environment variables for configuration instead",
             category=DDTraceDeprecationWarning,
             removal_version="4.0.0",
         )

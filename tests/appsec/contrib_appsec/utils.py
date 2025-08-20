@@ -567,17 +567,17 @@ class Contrib_TestClass_For_Threats:
             code = 403 if not bypassed and not monitored and asm_enabled and blocked else 200
             rule = "tst-421-001" if blocked else "tst-421-002"
             assert self.status(response) == code, f"status={self.status(response)}, expected={code}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(code), (
-                f"status_code={get_entry_span_tag(http.STATUS_CODE)}, expected={code}"
-            )
+            assert get_entry_span_tag(http.STATUS_CODE) == str(
+                code
+            ), f"status_code={get_entry_span_tag(http.STATUS_CODE)}, expected={code}"
             if asm_enabled and not bypassed:
                 assert get_entry_span_tag(http.URL) == f"http://localhost:8000/{query}"
-                assert get_entry_span_tag(http.METHOD) == "GET", (
-                    f"method={get_entry_span_tag(http.METHOD)}, expected=GET"
-                )
-                assert get_entry_span_tag("actor.ip") == headers["X-Real-Ip"], (
-                    f"actor.ip={get_entry_span_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
-                )
+                assert (
+                    get_entry_span_tag(http.METHOD) == "GET"
+                ), f"method={get_entry_span_tag(http.METHOD)}, expected=GET"
+                assert (
+                    get_entry_span_tag("actor.ip") == headers["X-Real-Ip"]
+                ), f"actor.ip={get_entry_span_tag('actor.ip')}, expected={headers['X-Real-Ip']}"
                 if monitored:
                     self.check_rules_triggered(["blk-001-010", rule], entry_span)
                 else:
@@ -621,9 +621,9 @@ class Contrib_TestClass_For_Threats:
             if event and ip == self.SUSPICIOUS_IP:
                 status = 402
             assert self.status(response) == status, f"status={self.status(response)}, expected={status}"
-            assert get_entry_span_tag(http.STATUS_CODE) == str(status), (
-                f"status_code={self.status(response)}, expected={status}"
-            )
+            assert get_entry_span_tag(http.STATUS_CODE) == str(
+                status
+            ), f"status_code={self.status(response)}, expected={status}"
             if event:
                 self.check_single_rule_triggered(
                     "ua0-600-56x" if agent == "dd-test-scanner-log-block" else "ua0-600-12x", entry_span
@@ -1308,12 +1308,12 @@ class Contrib_TestClass_For_Threats:
                 if not apm_tracing_enabled:
                     span_sampling_priority = entry_span()._span.context.sampling_priority
                     sampling_decision = get_entry_span_tag(constants.SAMPLING_DECISION_TRACE_TAG_KEY)
-                    assert span_sampling_priority == constants.USER_KEEP, (
-                        f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
-                    )
-                    assert sampling_decision == f"-{constants.SamplingMechanism.APPSEC}", (
-                        f"Expected '-5' (APPSEC), got {sampling_decision}"
-                    )
+                    assert (
+                        span_sampling_priority == constants.USER_KEEP
+                    ), f"Expected 2 (USER_KEEP), got {span_sampling_priority}"
+                    assert (
+                        sampling_decision == f"-{constants.SamplingMechanism.APPSEC}"
+                    ), f"Expected '-5' (APPSEC), got {sampling_decision}"
             else:
                 assert value is None, name
 
@@ -1622,9 +1622,9 @@ class Contrib_TestClass_For_Threats:
                 assert self.check_for_stack_trace(entry_span)
                 for trace in self.check_for_stack_trace(entry_span):
                     assert "frames" in trace
-                    assert validate_top_function(trace), (
-                        f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
-                    )
+                    assert validate_top_function(
+                        trace
+                    ), f"unknown top function {trace['frames'][0]} {[t['function'] for t in trace['frames'][:4]]}"
                 # assert mocked.call_args_list == []
                 expected_rule_type = "command_injection" if endpoint == "shell_injection" else endpoint
                 expected_variant = (
@@ -1876,9 +1876,9 @@ class Contrib_TestClass_For_Threats:
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.a") == "a", entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.b") == "true", entry_span()._meta
             assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.c") == "3", entry_span()._meta
-            assert get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32", (
-                entry_span()._meta
-            )
+            assert (
+                get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.e") == "1.32"
+            ), entry_span()._meta
             assert (
                 get_entry_span_tag(f"appsec.events.users.login.{success}.load_a.load_b.load_c.load_d.load_e.f") is None
             ), entry_span()._meta
@@ -1981,7 +1981,7 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(get_from(interface.framework), "tracer", None)
+    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
     Pin._override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:

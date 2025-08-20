@@ -599,7 +599,9 @@ def test():
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """.format(
+        kafka_topic
+    )
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
@@ -622,7 +624,9 @@ def test():
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(kafka_topic)
+    """.format(
+        kafka_topic
+    )
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service

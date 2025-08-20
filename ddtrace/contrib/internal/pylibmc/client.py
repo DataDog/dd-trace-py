@@ -6,9 +6,8 @@ import pylibmc
 from wrapt import ObjectProxy
 
 # project
-import ddtrace
-from ddtrace._trace.pin import Pin
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
