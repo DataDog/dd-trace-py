@@ -24,6 +24,11 @@ from ddtrace.internal.logger import get_logger
 from ddtrace._trace.context import Context
 from .utils import extract_signature
 
+from ddtrace.constants import _DJM_ENABLED_KEY
+from ddtrace.constants import _FILTER_KEPT_KEY
+from ddtrace.constants import _SAMPLING_PRIORITY_KEY
+from ddtrace.constants import _SPAN_MEASURED_KEY
+
 
 log = get_logger(__name__)
 
@@ -153,6 +158,11 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
         span.set_tag_str("ray.task.args", str(args))
         span.set_tag_str("ray.task.kwargs", str(kwargs))
 
+        span.set_metric(_DJM_ENABLED_KEY, 1)
+        span.set_metric(_FILTER_KEPT_KEY, 1)
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+
         try:
             result = wrapped(*args, **kwargs)
             span.set_tag_str("ray.task.status", "success")
@@ -199,6 +209,11 @@ def _wrap_task_invocation(wrapped, instance, args, kwargs):
         span.set_tag_str("ray.task.kwargs_count", str(len(kwargs)))
         span.set_tag_str("ray.task.uuid", str(instance._uuid))
 
+        span.set_metric(_DJM_ENABLED_KEY, 1)
+        span.set_metric(_FILTER_KEPT_KEY, 1)
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+
         try:
             # Inject tracing information into the serialized runtime env info
             updated_serialized_runtime_env_info = _inject_dd_tracing_into_runtime_env(
@@ -239,6 +254,12 @@ def _wrap_submit(wrapped, instance, args, kwargs):
 
     with pin.tracer.trace("ray.job.submit", service=RAY_SERVICE_NAME, span_type=SpanTypes.SERVING) as span:
         span.set_tag_str("component", "ray")
+
+        span.set_metric(_DJM_ENABLED_KEY, 1)
+        span.set_metric(_FILTER_KEPT_KEY, 1)
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
+        span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+
         try:
             # Job span
             if span and span.context:
