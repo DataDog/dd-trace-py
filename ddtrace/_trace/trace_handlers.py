@@ -801,7 +801,8 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
-                span.set_metric(redisx.PIPELINE_LEN, len(getattr(instance, attr)))
+                # PERF: avoid extra overhead from checks in Span.set_metric
+                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
 
 
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
