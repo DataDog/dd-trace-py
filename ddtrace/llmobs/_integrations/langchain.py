@@ -14,7 +14,9 @@ from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
@@ -481,6 +483,14 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
+                    for tool_call in _get_attr(message, "tool_calls", []) or []:
+                        core.dispatch(
+                            DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+                            (
+                                tool_call.get("id", ""),
+                                span,
+                            ),
+                        )
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
@@ -509,6 +519,19 @@ class LangChainIntegration(BaseLLMIntegration):
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
                 if tool_calls_info:
+                    for tool_call in tool_calls_info:
+                        core.dispatch(
+                            DISPATCH_ON_LLM_TOOL_CHOICE,
+                            (
+                                tool_call.get("tool_id", ""),
+                                tool_call.get("name", ""),
+                                json.dumps(tool_call.get("arguments", {})),
+                                {
+                                    "trace_id": format_trace_id(span.trace_id),
+                                    "span_id": str(span.span_id),
+                                },
+                            ),
+                        )
                     output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
