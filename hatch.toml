@@ -57,6 +57,7 @@ checks = [
     "test",
     "suitespec-check",
     "sg",
+    "sg-test",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
@@ -78,6 +79,9 @@ suitespec-check = [
 ]
 sg = [
     "ast-grep scan {args:.}",
+]
+sg-test = [
+    "ast-grep test {args}",
 ]
 
 [envs.docs]
