@@ -1,12 +1,13 @@
 from openai.version import VERSION as OPENAI_VERSION
 
-from ddtrace.contrib.internal.openai.utils import TracedOpenAIAsyncStream
-from ddtrace.contrib.internal.openai.utils import TracedOpenAIStream
+from ddtrace.contrib.internal.openai.utils import OpenAIAsyncStreamHandler
+from ddtrace.contrib.internal.openai.utils import OpenAIStreamHandler
 from ddtrace.contrib.internal.openai.utils import _is_async_generator
 from ddtrace.contrib.internal.openai.utils import _is_generator
 from ddtrace.contrib.internal.openai.utils import _loop_handler
 from ddtrace.contrib.internal.openai.utils import _process_finished_stream
 from ddtrace.internal.utils.version import parse_version
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 
 
 API_VERSION = "v1"
@@ -91,9 +92,14 @@ class _BaseCompletionHook(_EndpointHook):
         """
         if parse_version(OPENAI_VERSION) >= (1, 6, 0):
             if _is_async_generator(resp):
-                return TracedOpenAIAsyncStream(resp, integration, span, kwargs, operation_type)
+                return make_traced_stream(
+                    resp,
+                    OpenAIAsyncStreamHandler(integration, span, None, kwargs, operation_type=operation_type),
+                )
             elif _is_generator(resp):
-                return TracedOpenAIStream(resp, integration, span, kwargs, operation_type)
+                return make_traced_stream(
+                    resp, OpenAIStreamHandler(integration, span, None, kwargs, operation_type=operation_type)
+                )
 
         def shared_gen():
             try:
