@@ -203,7 +203,7 @@ class TopLevelSpanProcessor(SpanProcessor):
     def on_span_finish(self, span: Span) -> None:
         # DEV: Update span after finished to avoid race condition
         if span._is_top_level:
-            span.set_metric("_dd.top_level", 1)
+            span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
 
 
 class TraceTagsProcessor(TraceProcessor):
@@ -362,7 +362,9 @@ class SpanAggregator(SpanProcessor):
 
                 # Set partial flush tag on the first span
                 if should_partial_flush:
-                    finished[0].set_metric("_dd.py.partial_flush", num_finished)
+                    finished[0]._metrics[
+                        "_dd.py.partial_flush"
+                    ] = num_finished  # PERF: avoid setting via Span.set_metric
 
                 spans: Optional[List[Span]] = finished
                 for tp in chain(
