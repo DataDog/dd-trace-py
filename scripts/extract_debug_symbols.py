@@ -3,7 +3,7 @@
 Extract debug symbols from wheels and create separate debug symbol packages.
 
 This script:
-1. Processes each .so/.dylib file in the wheel
+1. Processes each .so/.dylib file in the wheel (excluding files that match ignore patterns)
 2. Creates debug symbols (.debug files on Linux, .dSYM bundles on macOS) for each .so/.dylib file
 3. Strips debug symbols from the original .so/.dylib files
 4. Packages debug symbols into a separate zip file (with proper recursive copying for .dSYM bundles)
@@ -11,6 +11,7 @@ This script:
 """
 
 import argparse
+import fnmatch
 import os
 from pathlib import Path
 import platform
@@ -224,14 +225,31 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
     return None
 
 
-def find_dynamic_libraries_in_wheel(wheel_path: str) -> List[Tuple[str, bytes]]:
-    """Find and read .so and .dylib files from a wheel file."""
+def should_ignore_file(filename: str, ignore_patterns: List[str]) -> bool:
+    """Check if a file should be ignored based on glob patterns."""
+    if not ignore_patterns:
+        return False
+
+    for pattern in ignore_patterns:
+        if fnmatch.fnmatch(filename, pattern.strip()):
+            print(f"Ignoring {filename} (matches pattern: {pattern})")
+            return True
+    return False
+
+
+def find_dynamic_libraries_in_wheel(wheel_path: str, ignore_patterns: List[str] = None) -> List[Tuple[str, bytes]]:
+    """Find and read .so and .dylib files from a wheel file, excluding ignored patterns."""
     dynamic_libs = []
 
     with zipfile.ZipFile(wheel_path, "r") as wheel:
         for file_info in wheel.infolist():
             if file_info.filename.endswith(".so") or file_info.filename.endswith(".dylib"):
-                dynamic_libs.append((file_info.filename, wheel.read(file_info.filename)))
+                # Extract just the filename without path for pattern matching
+                filename = os.path.basename(file_info.filename)
+                if not should_ignore_file(filename, ignore_patterns or []):
+                    dynamic_libs.append((file_info.filename, wheel.read(file_info.filename)))
+                else:
+                    print(f"Skipping {file_info.filename} (matches ignore pattern)")
 
     return dynamic_libs
 
@@ -328,7 +346,9 @@ def update_wheel_with_stripped_dynamic_libraries(wheel_path: str, temp_dir: str)
     print(f"Updated wheel with stripped dynamic library files: {wheel_path}")
 
 
-def process_wheel(wheel_path: str, output_dir: Optional[str] = None) -> Optional[str]:
+def process_wheel(
+    wheel_path: str, output_dir: Optional[str] = None, ignore_patterns: List[str] = None
+) -> Optional[str]:
     """Process a single wheel file."""
     if output_dir is None:
         output_dir = os.path.dirname(wheel_path)
@@ -338,7 +358,7 @@ def process_wheel(wheel_path: str, output_dir: Optional[str] = None) -> Optional
     print(f"Processing wheel: {wheel_path}")
 
     # Find and read .so and .dylib files from the wheel
-    dynamic_libs = find_dynamic_libraries_in_wheel(wheel_path)
+    dynamic_libs = find_dynamic_libraries_in_wheel(wheel_path, ignore_patterns)
 
     if not dynamic_libs:
         print("No .so or .dylib files found in wheel")
@@ -375,6 +395,11 @@ def main():
     parser = argparse.ArgumentParser(description="Extract debug symbols from wheels")
     parser.add_argument("wheel", help="Path to the wheel file")
     parser.add_argument("--output-dir", "-o", help="Output directory for debug symbol packages")
+    parser.add_argument(
+        "--ignore-patterns",
+        default="libddwaf*",
+        help="Comma-separated list of glob patterns to ignore (default: libddwaf*)",
+    )
 
     args = parser.parse_args()
 
@@ -382,8 +407,11 @@ def main():
         print(f"Error: Wheel file not found: {args.wheel}")
         sys.exit(1)
 
+    # Parse ignore patterns
+    ignore_patterns = [p.strip() for p in args.ignore_patterns.split(",") if p.strip()]
+
     try:
-        debug_package_path = process_wheel(args.wheel, args.output_dir)
+        debug_package_path = process_wheel(args.wheel, args.output_dir, ignore_patterns)
         if debug_package_path:
             print(f"Successfully processed wheel. Debug symbols saved to: {debug_package_path}")
         else:
