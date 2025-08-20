@@ -237,11 +237,13 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _converse_output_stream_processor() -> Generator[
-        None,
-        Dict[str, Any],
-        Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
-    ]:
+    def _converse_output_stream_processor() -> (
+        Generator[
+            None,
+            Dict[str, Any],
+            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+        ]
+    ):
         """
         Listens for output chunks from a converse streamed response and builds a
         list of output messages, usage metrics, and metadata.
