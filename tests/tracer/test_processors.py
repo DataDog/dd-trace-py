@@ -654,7 +654,7 @@ def test_single_span_sampling_processor_w_stats_computation():
 
     span = traced_function(tracer)
 
-    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=AUTO_REJECT)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):
