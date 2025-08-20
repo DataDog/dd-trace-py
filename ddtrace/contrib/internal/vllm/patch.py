@@ -1,5 +1,10 @@
 from typing import Any, Mapping, Optional
 
+from ddtrace.ext import SpanTypes
+from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.constants import _SPAN_MEASURED_KEY
+import vllm
+
 from ddtrace import config, tracer
 from ddtrace.contrib.internal.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
@@ -24,6 +29,161 @@ def traced_generate(vllm, pin, func, instance, args, kwargs):
     class_name = instance.__class__.__name__
     log.debug("[VLLM DEBUG] Starting generate from %s", class_name)
     
+    # APPROACH 1: Extract prompt text using PromptType-based extraction
+    prompt_text_approach1 = None
+    log.debug("[VLLM DEBUG] === APPROACH 1: PromptType-based extraction ===")
+    
+    def extract_from_prompt_type(prompt_arg):
+        """Extract text from various PromptType formats."""
+        if prompt_arg is None:
+            return None
+            
+        # Handle string (direct text prompt)
+        if isinstance(prompt_arg, str):
+            log.debug("[VLLM DEBUG] A1: Direct string prompt found")
+            return prompt_arg
+            
+        # Handle TextPrompt dict
+        if isinstance(prompt_arg, dict):
+            if 'prompt' in prompt_arg:
+                log.debug("[VLLM DEBUG] A1: TextPrompt dict with 'prompt' key")
+                return prompt_arg['prompt']
+            
+            # Handle TokensPrompt dict - but DON'T return None, let Approach 2 handle it
+            if 'prompt_token_ids' in prompt_arg:
+                log.debug("[VLLM DEBUG] A1: TokensPrompt dict found, no text available")
+                return None  # Will be handled by Approach 2
+                
+            # Handle ExplicitEncoderDecoderPrompt
+            if 'encoder_prompt' in prompt_arg or 'decoder_prompt' in prompt_arg:
+                log.debug("[VLLM DEBUG] A1: ExplicitEncoderDecoderPrompt found")
+                # Try decoder prompt first, then encoder
+                decoder = prompt_arg.get('decoder_prompt')
+                if decoder:
+                    return extract_from_prompt_type(decoder)
+                encoder = prompt_arg.get('encoder_prompt')
+                if encoder:
+                    return extract_from_prompt_type(encoder)
+                    
+        # Handle sequence of prompts
+        if isinstance(prompt_arg, (list, tuple)) and len(prompt_arg) > 0:
+            log.debug("[VLLM DEBUG] A1: Sequence of prompts, extracting first")
+            return extract_from_prompt_type(prompt_arg[0])
+            
+        return None
+    
+    # ONLY check first argument as per user requirement
+    if args and len(args) > 0:
+        first_arg = args[0]
+        log.debug("[VLLM DEBUG] A1: First arg type: %s", type(first_arg).__name__)
+        prompt_text_approach1 = extract_from_prompt_type(first_arg)
+    
+    # Also check kwargs for prompt/prompts/inputs
+    if not prompt_text_approach1:
+        for key in ['prompt', 'prompts', 'inputs']:
+            if key in kwargs:
+                log.debug("[VLLM DEBUG] A1: Checking kwargs key '%s'", key)
+                extracted = extract_from_prompt_type(kwargs[key])
+                if extracted:
+                    prompt_text_approach1 = extracted
+                    break
+    
+    log.debug("[VLLM DEBUG] A1: Result: %s", prompt_text_approach1[:100] if prompt_text_approach1 else "None")
+    
+    # APPROACH 2: Token decoding approach
+    prompt_text_approach2 = None
+    log.debug("[VLLM DEBUG] === APPROACH 2: Token decoding approach ===")
+    
+    def extract_token_ids(prompt_arg):
+        """Extract token IDs from various sources."""
+        token_ids = None
+        
+        if isinstance(prompt_arg, dict):
+            if 'prompt_token_ids' in prompt_arg:
+                token_ids = prompt_arg['prompt_token_ids']
+                log.debug("[VLLM DEBUG] A2: Found prompt_token_ids in dict")
+        elif isinstance(prompt_arg, list) and all(isinstance(x, int) for x in prompt_arg):
+            token_ids = prompt_arg
+            log.debug("[VLLM DEBUG] A2: Direct token IDs list")
+            
+        return token_ids
+    
+    def decode_tokens(token_ids):
+        """Decode token IDs to text using available tokenizer."""
+        if not token_ids or not isinstance(token_ids, list):
+            return None
+            
+        log.debug("[VLLM DEBUG] A2: Attempting to decode %d tokens", len(token_ids))
+        try:
+            tokenizer = None
+            
+            # Try to get tokenizer from various sources
+            if hasattr(instance, 'engine') and hasattr(instance.engine, 'tokenizer'):
+                tokenizer_group = instance.engine.tokenizer
+                log.debug("[VLLM DEBUG] A2: Found engine tokenizer group")
+                # TokenizerGroup has a .tokenizer attribute for the actual tokenizer
+                if hasattr(tokenizer_group, 'tokenizer'):
+                    tokenizer = tokenizer_group.tokenizer
+                    log.debug("[VLLM DEBUG] A2: Using engine tokenizer group's tokenizer")
+                else:
+                    log.debug("[VLLM DEBUG] A2: TokenizerGroup has no tokenizer attribute")
+            elif hasattr(instance, 'tokenizer'):
+                tokenizer_group = instance.tokenizer
+                log.debug("[VLLM DEBUG] A2: Found instance tokenizer group")
+                # TokenizerGroup has a .tokenizer attribute for the actual tokenizer
+                if hasattr(tokenizer_group, 'tokenizer'):
+                    tokenizer = tokenizer_group.tokenizer
+                    log.debug("[VLLM DEBUG] A2: Using instance tokenizer group's tokenizer")
+                else:
+                    log.debug("[VLLM DEBUG] A2: TokenizerGroup has no tokenizer attribute")
+            else:
+                log.debug("[VLLM DEBUG] A2: No tokenizer found")
+                return None
+                
+            if tokenizer:
+                decoded = tokenizer.decode(token_ids, skip_special_tokens=True)
+                log.debug("[VLLM DEBUG] A2: Successfully decoded tokens")
+                return decoded
+            else:
+                log.debug("[VLLM DEBUG] A2: No underlying tokenizer available")
+                return None
+            
+        except Exception as e:
+            log.debug("[VLLM DEBUG] A2: Token decoding failed: %s", str(e))
+            return None
+    
+    # Search for token IDs in arguments
+    token_ids = None
+    if args:
+        for i, arg in enumerate(args):
+            extracted_tokens = extract_token_ids(arg)
+            if extracted_tokens:
+                log.debug("[VLLM DEBUG] A2: Found tokens in arg position %d", i)
+                token_ids = extracted_tokens
+                break
+    
+    # Check kwargs for token IDs
+    if not token_ids:
+        for key in ['prompt_token_ids', 'token_ids']:
+            if key in kwargs:
+                extracted_tokens = extract_token_ids(kwargs[key])
+                if extracted_tokens:
+                    log.debug("[VLLM DEBUG] A2: Found tokens in kwargs key '%s'", key)
+                    token_ids = extracted_tokens
+                    break
+    
+    if token_ids:
+        prompt_text_approach2 = decode_tokens(token_ids)
+    
+    log.debug("[VLLM DEBUG] A2: Result: %s", prompt_text_approach2[:100] if prompt_text_approach2 else "None")
+    
+    # Final decision: prefer Approach 1, fallback to Approach 2
+    prompt_text = prompt_text_approach1 or prompt_text_approach2
+    log.debug("[VLLM DEBUG] === FINAL RESULT ===")
+    log.debug("[VLLM DEBUG] Approach 1 (PromptType): %s", "SUCCESS" if prompt_text_approach1 else "FAILED")
+    log.debug("[VLLM DEBUG] Approach 2 (Token decode): %s", "SUCCESS" if prompt_text_approach2 else "FAILED")
+    log.debug("[VLLM DEBUG] Final prompt: %s", prompt_text[:100] if prompt_text else "None")
+
     # If we have a current span, inject trace headers
     current_span = tracer.current_span()
     if current_span:
@@ -34,7 +194,13 @@ def traced_generate(vllm, pin, func, instance, args, kwargs):
             
         # Inject current span context into headers
         HTTPPropagator.inject(current_span.context, trace_headers)
-        log.debug("[VLLM DEBUG] %s injected trace_headers=%s", class_name, trace_headers)
+        
+        # Store the original prompt text in trace headers for later retrieval
+        if prompt_text:
+            trace_headers["x-datadog-vllm-prompt"] = prompt_text
+            log.debug("[VLLM DEBUG] Stored prompt text in trace headers: %s", prompt_text[:100] if len(prompt_text) > 100 else prompt_text)
+        
+        log.debug("[VLLM DEBUG] %s injected trace_headers=%s", class_name, {k: v for k, v in trace_headers.items() if k != "x-datadog-vllm-prompt"})
             
         # Update kwargs with trace headers
         kwargs["trace_headers"] = trace_headers
@@ -46,14 +212,39 @@ def traced_generate(vllm, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
     """
-    Trace LLMEngine._process_model_outputs to create spans for finished sequences.
+    Trace LLMEngine._process_model_outputs to create comprehensive spans for finished sequences.
+    
+    This function intercepts vLLM's internal model output processing to create detailed
+    tracing spans that capture the full lifecycle of LLM requests. Here's how it works:
+    
+    1. **Request Flow Context**: vLLM processes requests through a scheduler that queues
+       them for execution. The _process_model_outputs method is called when model outputs
+       are ready to be processed and converted into final responses.
+    
+    2. **Trace Propagation**: When a request enters vLLM (via traced_generate), we inject
+       trace headers into the request context. These headers travel with the request through
+       vLLM's internal pipeline and are available when the request finishes.
+    
+    3. **Span Creation Timing**: We create spans only when sequences are finished because:
+       - We have complete information about the request/response
+       - We can calculate accurate token usage metrics
+       - We can capture the full generated output
+       - We can set proper timing information from arrival to completion
+    
+    4. **Data Extraction**: We capture the scheduler output data before vLLM processes it
+       to ensure we have access to all sequence group information, even after internal
+       mutations occur.
+    
+    5. **LLMObs Integration**: For each finished sequence group, we create a span with
+       comprehensive metadata including model parameters, input/output data, and metrics
+       that follow the LLMObs standard for observability.
     """
     # Grab ctx (SchedulerContext) from positional or keyword args BEFORE calling the original method
     ctx = kwargs.get("ctx")
     if ctx is None and args:
         ctx = args[0]
 
-    # Capture the first queue element ( scheduler_outputs lives inside ) *before* it is popped by the
+    # Capture the first queue element (scheduler_outputs lives inside) *before* it is popped by the
     # original implementation. This ensures we still have access to the data after the original call
     output_data = None
     if ctx is not None and getattr(ctx, "output_queue", None):
@@ -69,11 +260,17 @@ def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
     if output_data and len(output_data) >= 3:
         _, _, scheduler_outputs = output_data[:3]
 
+        # Get model name from the engine instance for span tagging
+        model_name = getattr(getattr(instance, 'model_config', None), 'model', None)
+
+        # Get the vLLM integration instance for LLMObs processing
+        integration: VLLMIntegration = vllm._datadog_integration
+
         for scheduled_seq_group in scheduler_outputs.scheduled_seq_groups:
             seq_group = scheduled_seq_group.seq_group
 
             if not seq_group.is_finished():
-                continue  # only finish spans for completed requests
+                continue  # only create spans for completed requests
 
             # Trace headers propagated from client
             trace_headers = getattr(seq_group, "trace_headers", None)
@@ -82,20 +279,42 @@ def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
 
             log.debug("[VLLM DEBUG] Creating vllm.request span ; trace_headers=%s", trace_headers)
 
-            parent_ctx = None
-            try:
-                parent_ctx = HTTPPropagator.extract(trace_headers)
-            except Exception as exc:
-                log.debug("[VLLM DEBUG] Failed to extract parent context: %s", exc)
-
+            parent_ctx = HTTPPropagator.extract(trace_headers)
             if parent_ctx and parent_ctx.trace_id:
-                try:
-                    span = tracer.start_span("vllm.request", child_of=parent_ctx)
-                    span.start_ns = int(seq_group.metrics.arrival_time * 1e9)
-                    span.finish()
-                    log.debug("[VLLM DEBUG] Span created trace_id=%s span_id=%s", parent_ctx.trace_id, span.span_id)
-                except Exception as exc:
-                    log.debug("[VLLM DEBUG] Error while creating span: %s", exc)
+                log.debug("[VLLM DEBUG] Extracted parent context ; trace_id=%s span_id=%s", parent_ctx.trace_id, parent_ctx.span_id)
+        
+            if parent_ctx and parent_ctx.trace_id:
+                span = pin.tracer.start_span(
+                    "vllm.request",
+                    child_of=parent_ctx,
+                    resource="vllm.request",
+                    span_type=SpanTypes.LLM if integration.llmobs_enabled else None,
+                    activate=False
+                )
+                if integration.llmobs_enabled:
+                    span._set_ctx_item(INTEGRATION, integration._integration_name)
+                span.set_metric(_SPAN_MEASURED_KEY, 1)
+                integration._set_base_span_tags(span, model_name=model_name)
+            else:
+                span = integration.trace(
+                    pin,
+                    "vllm.request",
+                    submit_to_llmobs=True,
+                    model_name=model_name
+                )
+            span.start_ns = int(seq_group.metrics.arrival_time * 1e9)
+            
+            # Set LLMObs tags
+            integration._llmobs_set_tags(
+                span=span,
+                args=[],
+                kwargs={"model_name": model_name},
+                response=seq_group,
+                operation="completion"
+            )
+            
+            span.finish()
+            log.debug("[VLLM DEBUG] Span created trace_id=%s span_id=%s", parent_ctx.trace_id, span.span_id)
     else:
         log.debug("[VLLM DEBUG] No output_data captured or malformed entry, skipping span creation")
 
@@ -103,57 +322,66 @@ def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
 
 
 def patch():
-    """Patch vLLM for tracing."""
-    try:
-        import vllm
-        from vllm.entrypoints.llm import LLM
-        from vllm.v1.engine.async_llm import AsyncLLM
-        from vllm.engine.protocol import EngineClient
-        from vllm.engine.multiprocessing.client import MQLLMEngineClient
-        from vllm.engine.async_llm_engine import AsyncLLMEngine
-        from vllm.engine.llm_engine import LLMEngine
-    except ImportError:
-        return
-
+    """
+    Patch vLLM for comprehensive tracing and observability.
+    
+    This function sets up tracing for vLLM by patching key entry points and internal
+    methods to provide end-to-end observability of LLM requests. The patching strategy:
+    
+    1. **Entry Point Tracing**: We patch all major vLLM entry points (LLM.generate,
+       AsyncLLMEngine.generate, etc.) to inject trace context into requests as they
+       enter the vLLM pipeline.
+    
+    2. **Internal Processing Tracing**: We patch LLMEngine._process_model_outputs to
+       create detailed spans when requests complete, capturing comprehensive metadata
+       about the request/response cycle.
+    
+    3. **Integration Setup**: We create a VLLMIntegration instance that handles
+       LLMObs-specific data extraction and span tagging following Datadog's LLM
+       observability standards.
+    
+    The result is complete visibility into vLLM operations including:
+    - Request timing and lifecycle
+    - Model parameters and configuration
+    - Input prompts and output generations
+    - Token usage metrics
+    - Error conditions and performance data
+    """
+    log.debug("[VLLM DEBUG] Loading vLLM integration")
     if getattr(vllm, "_datadog_patch", False):
         return
 
     vllm._datadog_patch = True
+
     Pin().onto(vllm)
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
 
-    # Patch all generate methods
+    # Patch all generate methods to inject trace context
+    log.debug("[VLLM DEBUG] Patching vLLM")
     wrap("vllm.entrypoints.llm", "LLM.generate", traced_generate(vllm))
     wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
     wrap("vllm.engine.protocol", "EngineClient.generate", traced_generate(vllm))
     wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate", traced_generate(vllm))
     wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_generate(vllm))
     
-    # Patch _process_model_outputs to create spans
+    # Patch _process_model_outputs to create comprehensive spans
     wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_process_model_outputs(vllm))
+    log.debug("[VLLM DEBUG] Patched vLLM")
 
 
 def unpatch():
     """Remove vLLM patches."""
-    try:
-        import vllm
-        from vllm.entrypoints.llm import LLM
-        from vllm.v1.engine.async_llm import AsyncLLM
-        from vllm.engine.protocol import EngineClient
-        from vllm.engine.multiprocessing.client import MQLLMEngineClient
-        from vllm.engine.async_llm_engine import AsyncLLMEngine
-        from vllm.engine.llm_engine import LLMEngine
-    except ImportError:
-        return
-
     if not getattr(vllm, "_datadog_patch", False):
         return
-
-    unwrap(LLM, "generate")
-    unwrap(AsyncLLM, "generate")
-    unwrap(EngineClient, "generate")
-    unwrap(MQLLMEngineClient, "generate")
-    unwrap(AsyncLLMEngine, "generate")
-    unwrap(LLMEngine, "_process_model_outputs")
+    
     vllm._datadog_patch = False
+
+    unwrap("vllm.entrypoints.llm", "LLM.generate")
+    unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
+    unwrap("vllm.engine.protocol", "EngineClient.generate")
+    unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate")
+    unwrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate")
+    unwrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs")
+
+    delattr(vllm, "_datadog_integration")
