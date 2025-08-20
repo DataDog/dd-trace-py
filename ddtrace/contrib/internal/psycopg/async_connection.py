@@ -9,6 +9,7 @@ from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
+from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.trace import Pin
 
@@ -48,18 +49,19 @@ def patched_connect_async_factory(psycopg_module):
         if not pin or not pin.enabled() or not pin._config.trace_connect:
             conn = await connect_func(*args, **kwargs)
         else:
-            with pin.tracer.trace(
-                "{}.{}".format(connect_func.__module__, connect_func.__name__),
+            with core.context_with_data(
+                "psycopg.patched_connect",
+                span_name="{}.{}".format(connect_func.__module__, connect_func.__name__),
                 service=ext_service(pin, pin._config),
                 span_type=SpanTypes.SQL,
-            ) as span:
-                span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-                span.set_tag_str(COMPONENT, pin._config.integration_name)
-                if span.get_tag(db.SYSTEM) is None:
-                    span.set_tag_str(db.SYSTEM, pin._config.dbms_name)
-
-                # PERF: avoid setting via Span.set_tag
-                span.set_metric(_SPAN_MEASURED_KEY, 1)
+                pin=pin,
+                tags={
+                    SPAN_KIND: SpanKind.CLIENT,
+                    COMPONENT: pin._config.integration_name,
+                    db.SYSTEM: pin._config.dbms_name,
+                },
+                measured=True,
+            ) as ctx, ctx.span:
                 conn = await connect_func(*args, **kwargs)
 
         return patch_conn(conn, pin=pin, traced_conn_cls=traced_conn_cls)
