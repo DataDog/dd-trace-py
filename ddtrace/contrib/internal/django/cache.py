@@ -33,6 +33,19 @@ def get_service_name(name: Optional[str]) -> Optional[str]:
     return schematize_service_name(name)
 
 
+@cached()
+def func_cache_operation(func: FunctionType) -> str:
+    """
+    Returns the cache operation name for the given function.
+    This is used to set the resource name for the cache span.
+    """
+    # Extract ".delete" from "LoMemCache.delete"
+    # DEV: We have to use "__qualname__" since `wrap` will overwrite the name with `<wrapped>`
+    fname = getattr(func, "__qualname__", func.__name__)
+    _, _, fname = fname.rpartition(".")
+    return fname
+
+
 def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, Any]) -> Any:
     if not config_django.instrument_caches:
         return func(*args, **kwargs)
@@ -46,13 +59,10 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
         tags["django.cache.key"] = keys
 
     # Try to compute resource name and then cache onto the function for future use
+    cache_operation = func_cache_operation(func)
     resource: Optional[str] = getattr(func, "__dd_resource", None)
     if not resource:
-        # Extract ".delete" from "LoMemCache.delete"
-        # DEV: We have to use "__qualname__" since `wrap` will overwrite the name with `<wrapped>`
-        fname = getattr(func, "__qualname__", func.__name__)
-        _, _, fname = fname.rpartition(".")
-        resource = f"{func.__module__}.{fname}"
+        resource = f"{func.__module__}.{cache_operation}"
 
         key_prefix = getattr(instance, "key_prefix", None)
         if key_prefix:
@@ -73,9 +83,9 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
         result = func(*args, **kwargs)
 
         rowcount = 0
-        if func.__name__ == "get_many":
+        if cache_operation == "get_many":
             rowcount = sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-        elif func.__name__ == "get":
+        elif cache_operation == "get":
             try:
                 # check also for special case for Django~3.2 that returns an empty Sentinel
                 # object for empty results
