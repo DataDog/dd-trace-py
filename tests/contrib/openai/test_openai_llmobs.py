@@ -879,6 +879,84 @@ class TestLLMObsOpenaiV1:
             ]
         )
 
+
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 1),
+        reason="Tool calls available after v1.1.0",
+    )
+    def test_chat_completion_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that custom tool calls in chat completions API are recorded as LLMObs events correctly."""
+        grammar = """
+start: expr
+expr: term (SP ADD SP term)* -> add
+| term
+term: factor (SP MUL SP factor)* -> mul
+| factor
+factor: INT
+SP: " "
+ADD: "+"
+MUL: "*"
+%import common.INT
+"""
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("chat_completion_custom_tool_call.yaml"):
+            model = "gpt-5"
+            client = openai.OpenAI()
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "user", "content": "Use the math_exp tool to add four plus four."},
+                ],
+                tools=[
+                    {
+                        "type": "custom",
+                        "custom": {
+                            "name": "math_exp",
+                            "description": "Creates valid mathematical expressions",
+                            "format": {"type": "grammar", "grammar": {"syntax": "lark", "definition": grammar}},
+                        },
+                    },
+                ],
+            )
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[{"content": "Use the math_exp tool to add four plus four.", "role": "user"}],
+                output_messages=[
+                    {
+                        "content": "",
+                        "role": "assistant",
+                        "tool_calls": [
+                            {
+                                "name": "math_exp",
+                                "arguments": {"value": "4 + 4"},
+                                "tool_id": mock.ANY,
+                                "type": "custom",
+                            }
+                        ],
+                    }
+                ],
+                token_metrics={
+                    "input_tokens": 241,
+                    "output_tokens": 214,
+                    "total_tokens": 455,
+                    "cache_read_input_tokens": 0,
+                },
+                tool_definitions=[
+                    {
+                        "name": "math_exp",
+                        "description": "Creates valid mathematical expressions",
+                        "schema": {"type": "grammar", "grammar": {"syntax": "lark", "definition": grammar}},
+                    }
+                ],
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
+
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 26, 0), reason="Streamed tokens available in 1.26.0+"
     )
