@@ -5,12 +5,13 @@ from typing import Dict
 import google.generativeai as genai
 
 from ddtrace import config
-from ddtrace.contrib.internal.google_generativeai._utils import TracedAsyncGenerateContentResponse
-from ddtrace.contrib.internal.google_generativeai._utils import TracedGenerateContentResponse
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIAsyncStreamHandler
+from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIStramHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
@@ -51,7 +52,12 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
     try:
         generations = func(*args, **kwargs)
         if stream:
-            return TracedGenerateContentResponse(generations, instance, integration, span, args, kwargs)
+            return make_traced_stream(
+                generations,
+                GoogleGenerativeAIStramHandler(
+                    integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
+                ),
+            )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -80,7 +86,12 @@ async def traced_agenerate(genai, pin, func, instance, args, kwargs):
     try:
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncGenerateContentResponse(generations, instance, integration, span, args, kwargs)
+            return make_traced_stream(
+                generations,
+                GoogleGenerativeAIAsyncStreamHandler(
+                    integration, span, args, kwargs, model_instance=instance, wrapped_stream=generations
+                ),
+            )
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
