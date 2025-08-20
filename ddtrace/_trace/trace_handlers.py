@@ -791,7 +791,9 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
         span_name = schematize_cache_operation(redisx.RAWCMD, cache_provider=redisx.APP)  # type: ignore[operator]
         span.set_tag_str(span_name, query)
     if pin.tags:
-        span.set_tags(pin.tags)
+        # PERF: avoid Span.set_tag to avoid unnecessary checks
+        for key, value in pin.tags.items():
+            span.set_tags_str(key, value)
     # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if hasattr(instance, "connection_pool"):
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
