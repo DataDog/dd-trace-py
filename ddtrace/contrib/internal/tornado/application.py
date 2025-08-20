@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 from tornado import template
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace import config
 from ddtrace.contrib.internal.tornado import decorators
 from ddtrace.contrib.internal.tornado.constants import CONFIG_KEY
@@ -59,6 +60,6 @@ def tracer_config(__init__, app, args, kwargs):
     if tags:
         tracer.set_tags(tags)
 
-    pin = ddtrace.trace.Pin(service=service)
+    pin = Pin(service=service)
     pin._tracer = tracer
     pin.onto(template)

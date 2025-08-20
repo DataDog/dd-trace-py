@@ -12,6 +12,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import TracedConsumer
 from ddtrace.contrib.internal.kafka.patch import TracedProducer
 from ddtrace.contrib.internal.kafka.patch import patch
@@ -22,7 +23,6 @@ from ddtrace.internal.datastreams.processor import ConsumerPartitionKey
 from ddtrace.internal.datastreams.processor import DataStreamsCtx
 from ddtrace.internal.datastreams.processor import PartitionKey
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
-from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
 from ddtrace.trace import tracer as ddtracer
 from tests.contrib.config import KAFKA_CONFIG
@@ -570,8 +570,8 @@ def _generate_in_subprocess(random_topic):
             "auto.offset.reset": "earliest",
         }
     )
-    ddtrace.trace.Pin._override(producer, tracer=ddtrace.tracer)
-    ddtrace.trace.Pin._override(consumer, tracer=ddtrace.tracer)
+    Pin._override(producer, tracer=ddtrace.tracer)
+    Pin._override(consumer, tracer=ddtrace.tracer)
 
     # We run all of these commands with retry attempts because the kafka-confluent API
     # sys.exits on connection failures, which causes the test to fail. We want to retry
@@ -599,9 +599,7 @@ def test():
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        kafka_topic
-    )
+    """.format(kafka_topic)
     env = os.environ.copy()
     env["DD_KAFKA_SERVICE"] = "my-custom-service-name"
     env["DD_KAFKA_EMPTY_POLL_ENABLED"] = "False"
@@ -624,9 +622,7 @@ def test():
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-x", __file__]))
-    """.format(
-        kafka_topic
-    )
+    """.format(kafka_topic)
     env = os.environ.copy()
     if service:
         env["DD_SERVICE"] = service
@@ -851,7 +847,7 @@ import pytest
 import random
 import sys
 
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 
 from tests.contrib.kafka.test_kafka import consumer
@@ -1091,7 +1087,7 @@ import pytest
 import random
 import sys
 
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.kafka.patch import patch
 from ddtrace import config
 

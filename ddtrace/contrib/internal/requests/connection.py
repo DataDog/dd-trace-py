@@ -2,6 +2,7 @@ from typing import Optional  # noqa:F401
 from urllib import parse
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -16,7 +17,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -75,7 +75,7 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = ddtrace.trace.Pin._get_config(instance)
+    cfg = Pin._get_config(instance)
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
