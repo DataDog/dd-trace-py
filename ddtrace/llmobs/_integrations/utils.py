@@ -99,9 +99,7 @@ def _openai_extract_tool_calls_and_results_chat(
         tool_result_info = ToolResult(
             name=_get_attr(message, "name", ""),
             result=str(result) if result else "",
-            tool_id=_get_attr(message, "tool_id", "")
-            or _get_attr(message, "tool_call_id", "")
-            or _get_attr(message, "id", ""),
+            tool_id=_get_attr(message, "tool_call_id", ""),
             type=_get_attr(message, "type", "tool_result"),
         )
         tool_results.append(tool_result_info)
