@@ -238,7 +238,9 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     content_blocks = []
     tool_calls_info = []
     tool_messages: List[Dict[str, Any]] = []
-    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    unsupported_content_messages: List[
+        Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]
+    ] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
@@ -278,7 +280,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             unsupported_content_messages.append(
                 {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
             )
-    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
+    message: Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]] = {}
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
     if content_blocks:
