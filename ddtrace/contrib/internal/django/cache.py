@@ -8,7 +8,6 @@ from typing import Tuple
 from typing import Type
 from typing import cast
 
-
 from ddtrace import config
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
@@ -21,6 +20,7 @@ from ddtrace.internal.wrapping import wrap
 from ddtrace.settings.integration import IntegrationConfig
 
 from . import utils
+
 
 log = get_logger(__name__)
 
