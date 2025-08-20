@@ -124,10 +124,10 @@ def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance):
         span_type=SpanTypes.REDIS,
         pin=pin,
         measured=True,
-        tags=_build_tags(cmd_str, pin, instance, config_integration.integration_name),
+        tags=_build_tags(cmd_string, pin, instance, config_integration.integration_name),
     ) as ctx:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
-        yield span
+        yield ctx.span
 
 
 @contextmanager
