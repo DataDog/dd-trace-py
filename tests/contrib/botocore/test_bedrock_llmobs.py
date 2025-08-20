@@ -10,6 +10,7 @@ from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
+from tests.contrib.botocore.bedrock_utils import FETCH_CONCEPT_TOOL_DEFINITION
 from tests.contrib.botocore.bedrock_utils import bedrock_converse_args_with_system_and_tool
 from tests.contrib.botocore.bedrock_utils import create_bedrock_converse_request
 from tests.contrib.botocore.bedrock_utils import get_mock_response_data
@@ -283,19 +284,7 @@ class TestLLMObsBedrock:
                 "output_tokens": response["usage"]["outputTokens"],
                 "total_tokens": response["usage"]["totalTokens"],
             },
-            tool_definitions=[
-                {
-                    "name": "fetch_concept",
-                    "description": "Fetch an expert explanation for a concept",
-                    "schema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
-                            "required": ["concept"],
-                        },
-                    },
-                }
-            ],
+            tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -374,19 +363,7 @@ class TestLLMObsBedrock:
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
-            tool_definitions=[
-                {
-                    "name": "fetch_concept",
-                    "description": "Fetch an expert explanation for a concept",
-                    "schema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
-                            "required": ["concept"],
-                        },
-                    },
-                }
-            ],
+            tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -440,19 +417,7 @@ class TestLLMObsBedrock:
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
-            tool_definitions=[
-                {
-                    "name": "fetch_concept",
-                    "description": "Fetch an expert explanation for a concept",
-                    "schema": {
-                        "json": {
-                            "type": "object",
-                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
-                            "required": ["concept"],
-                        },
-                    },
-                }
-            ],
+            tool_definitions=[FETCH_CONCEPT_TOOL_DEFINITION],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
