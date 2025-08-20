@@ -563,7 +563,7 @@ class CustomBuildExt(build_ext):
 
         if COMPILE_MODE.lower() == "minsizerel":
             try:
-                self.try_strip.symbols(self.get_ext_fullpath(ext.name))
+                self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
                 print(f"WARNING: An error occurred while building the extension: {e}")
 
