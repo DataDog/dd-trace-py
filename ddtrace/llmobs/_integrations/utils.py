@@ -720,24 +720,29 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     tool_id = getattr(tool_call_chunk, "id", None)
     tool_type = getattr(tool_call_chunk, "type", None)
     function_call = getattr(tool_call_chunk, "function", None)
-    function_name = getattr(function_call, "name", "")
+    custom_call = getattr(tool_call_chunk, "custom", None)
+    function_name = getattr(function_call, "name", "") or getattr(custom_call, "name", "")
     # Find tool call index in tool_calls list, as it may potentially arrive unordered (i.e. index 2 before 0)
     list_idx = next(
         (idx for idx, tool_call in enumerate(stored_tool_calls) if tool_call["index"] == tool_call_idx),
         None,
     )
     if list_idx is None:
-        stored_tool_calls.append(
-            {
-                "function": {"name": function_name, "arguments": ""},
+        call_dict = {
                 "index": tool_call_idx,
                 "id": tool_id,
                 "type": tool_type,
             }
-        )
+        if function_call:
+            call_dict["function"] = {"name": function_name, "arguments": ""}
+        elif custom_call:
+            call_dict["custom"] = {"name": function_name, "input": ""}
+        stored_tool_calls.append(call_dict)
         list_idx = -1
-    stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
-
+    if function_call:
+        stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
+    elif custom_call:
+        stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.
