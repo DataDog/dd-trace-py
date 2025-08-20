@@ -90,7 +90,8 @@ def _get_service_name(pin, request):
 
 def _init_span(span, request):
     # type: (Span, httpx.Request) -> None
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)

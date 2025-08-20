@@ -15,7 +15,6 @@ from ddtrace.appsec import _trace_utils
 from ddtrace.appsec._asm_request_context import get_blocked as _get_blocked
 from ddtrace.appsec._constants import WAF_ACTIONS as _WAF_ACTIONS
 import ddtrace.appsec.trace_utils  # noqa: F401
-from ddtrace.internal import core as _core
 from ddtrace.internal._exceptions import BlockingException
 
 
@@ -76,7 +75,7 @@ def track_signup(
 def track_user(
     login: str,
     user_id: t.Any = None,
-    session_id=t.Optional[str],
+    session_id: t.Optional[str] = None,
     metadata: t.Optional[t.Dict[str, t.Any]] = None,
     _auto: bool = False,
 ):
@@ -85,7 +84,7 @@ def track_user(
 
     This function should be called when a user is authenticated in the application."
     """
-    span = _core.get_root_span()
+    span = _asm_request_context.get_entry_span()
     if span is None:
         return
     if user_id:

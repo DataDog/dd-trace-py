@@ -1,5 +1,6 @@
 import atexit
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -45,6 +46,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
 
@@ -145,10 +147,10 @@ class BaseLLMObsWriter(PeriodicService):
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
         self._app_key: str = _app_key
-        self._override_url: str = _override_url
+        self._override_url: str = _override_url or os.environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
 
         self._agentless: bool = is_agentless
-        self._intake: str = _override_url or (
+        self._intake: str = self._override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
@@ -297,6 +299,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     EVP_SUBDOMAIN_HEADER_VALUE = EXP_SUBDOMAIN_NAME
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
+    TIMEOUT = 5.0
 
     def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
@@ -308,7 +311,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(self._intake)
+        conn = get_connection(url=self._intake, timeout=self.TIMEOUT)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
@@ -353,30 +356,39 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
+    @staticmethod
+    def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
+        # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
+        # set it to None, and we serialize an empty string (for expected_output) and empty dict (for metadata)
+        # to indicate this erasure to BE
+        expected_output: JSONType = None
+        if "expected_output" in record:
+            expected_output = "" if record["expected_output"] is None else record["expected_output"]
+
+        metadata: JSONType = None
+        if "metadata" in record:
+            metadata = {} if record["metadata"] is None else record["metadata"]
+
+        rj: JSONType = {
+            "input": cast(Dict[str, JSONType], record.get("input_data")),
+            "expected_output": expected_output,
+            "metadata": metadata,
+        }
+
+        if is_update:
+            rj["id"] = record["record_id"]  # type: ignore
+
+        return rj
+
     def dataset_batch_update(
         self,
         dataset_id: str,
         insert_records: List[DatasetRecordRaw],
-        update_records: List[DatasetRecord],
+        update_records: List[UpdatableDatasetRecord],
         delete_record_ids: List[str],
     ) -> Tuple[int, List[str]]:
-        irs: JSONType = [
-            {
-                "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
-                "metadata": r.get("metadata", {}),
-            }
-            for r in insert_records
-        ]
-        urs: JSONType = [
-            {
-                "input": cast(Dict[str, JSONType], r["input_data"]),
-                "expected_output": r["expected_output"],
-                "metadata": r.get("metadata", {}),
-                "id": r["record_id"],
-            }
-            for r in update_records
-        ]
+        irs: JSONType = [self._get_record_json(r, False) for r in insert_records]
+        urs: JSONType = [self._get_record_json(r, True) for r in update_records]
         path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/batch_update"
         body: JSONType = {
             "data": {
@@ -428,7 +440,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 {
                     "record_id": record["id"],
                     "input_data": attrs["input"],
-                    "expected_output": attrs["expected_output"],
+                    "expected_output": attrs.get("expected_output"),
                     "metadata": attrs.get("metadata", {}),
                 }
             )
@@ -523,7 +535,7 @@ class LLMObsSpanWriter(BaseLLMObsWriter):
         should_truncate = raw_event_size >= EVP_EVENT_SIZE_LIMIT
         if should_truncate:
             logger.warning(
-                "dropping event input/output because its size (%d) exceeds the event size limit (1MB)",
+                "dropping event input/output because its size (%d) exceeds the event size limit (5MB)",
                 raw_event_size,
             )
             event = _truncate_span_event(event)

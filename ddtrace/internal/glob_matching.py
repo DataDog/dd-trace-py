@@ -52,7 +52,7 @@ class GlobMatcher(object):
             return False
         return True
 
-    def __str__(self):
+    def __repr__(self):
         return f"GlobMatcher(pattern={self.pattern})"
 
     def __eq__(self, other):

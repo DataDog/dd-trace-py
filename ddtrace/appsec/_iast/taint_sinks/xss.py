@@ -10,8 +10,8 @@ from ddtrace.appsec._iast._span_metrics import increment_iast_span_metric
 from ddtrace.appsec._iast._taint_tracking import VulnerabilityType
 from ddtrace.appsec._iast.constants import VULN_XSS
 from ddtrace.appsec._iast.taint_sinks._base import VulnerabilityBase
-from ddtrace.appsec._iast.taint_sinks.utils import patch_once
 from ddtrace.internal.logger import get_logger
+from ddtrace.internal.module import ModuleWatchdog
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -27,8 +27,19 @@ def get_version() -> Text:
     return ""
 
 
-@patch_once
+_IS_PATCHED = False
+
+
 def patch():
+    global _IS_PATCHED
+    if _IS_PATCHED and not asm_config._iast_is_testing:
+        return
+
+    if not asm_config._iast_enabled:
+        return
+
+    _IS_PATCHED = True
+
     iast_funcs = WrapFunctonsForIAST()
 
     iast_funcs.wrap_function(
@@ -57,15 +68,18 @@ def patch():
     iast_funcs.patch()
 
     _set_metric_iast_instrumented_sink(VULN_XSS)
+
     # Even when starting the application with `ddtrace-run ddtrace-run`, `jinja2.FILTERS` is created before this patch
     # function executes. Therefore, we update the in-memory object with the newly patched version.
-    try:
-        from jinja2.filters import FILTERS
-        from jinja2.filters import do_mark_safe
+    @ModuleWatchdog.after_module_imported("jinja2.filters")
+    def _(module):
+        try:
+            from jinja2.filters import FILTERS
+            from jinja2.filters import do_mark_safe
 
-        FILTERS["safe"] = do_mark_safe
-    except (ImportError, KeyError):
-        pass
+            FILTERS["safe"] = do_mark_safe
+        except (ImportError, KeyError):
+            pass
 
 
 def _iast_django_xss(wrapped, instance, args, kwargs):

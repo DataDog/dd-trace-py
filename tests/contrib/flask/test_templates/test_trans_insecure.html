@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Trans Template</title>
+</head>
+<body>
+    <p class="homepage-banner__browse">
+        {% trans href=url_for('search') %}Click <a href="{{ href }}">here</a> to search.{% endtrans %}
+    </p>
+    <div>{{ user_input|safe }}</div>
+</body>
+</html>

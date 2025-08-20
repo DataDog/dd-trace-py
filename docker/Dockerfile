@@ -32,6 +32,7 @@ RUN apt-get update \
       git \
       jq \
       libbz2-dev \
+      libenchant-2-dev \
       libffi-dev \
       liblzma-dev \
       libmariadb-dev \
@@ -61,7 +62,7 @@ RUN apt-get update \
       && mv microsoft.gpg /etc/apt/trusted.gpg.d/microsoft.gpg \
       && echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-debian-bookworm-prod bookworm main" > /etc/apt/sources.list.d/dotnetdev.list \
       && apt-get update \
-      && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.0.6280-1; \
+      && apt-get install -y --no-install-recommends azure-functions-core-tools-4=4.1.0-1; \
     fi \
     # Google Chrome is needed for selenium contrib tests but is currently only available on amd64
     && if [ "$TARGETARCH" = "amd64" ]; \

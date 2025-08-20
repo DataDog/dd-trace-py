@@ -6,6 +6,7 @@ from platform import system
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 
 from ddtrace.appsec._ddwaf.waf_stubs import ddwaf_builder_capsule
@@ -173,6 +174,15 @@ class ddwaf_object(ctypes.Structure):
     @classmethod
     def create_without_limits(cls, struct: DDWafRulesType) -> "ddwaf_object":
         return cls(struct, max_objects=DDWAF_NO_LIMIT, max_depth=DDWAF_DEPTH_NO_LIMIT, max_string_length=DDWAF_NO_LIMIT)
+
+    @classmethod
+    def from_json_bytes(cls, data: bytes) -> Optional["ddwaf_object"]:
+        """Create a ddwaf_object from a JSON string as bytes."""
+        obj = cls.__new__(cls)
+        if not ddwaf_object_from_json(obj, data, len(data)):
+            log.debug("Failed to create ddwaf_object from JSON: %s", data)
+            return None
+        return obj
 
     @property
     def struct(self) -> DDWafRulesType:
@@ -541,6 +551,15 @@ ddwaf_object_map_add = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_
 # ddwaf_object_get_index
 # ddwaf_object_get_bool https://github.com/DataDog/libddwaf/commit/7dc68dacd972ae2e2a3c03a69116909c98dbd9cb
 # ddwaf_object_get_float
+
+ddwaf_object_from_json = ctypes.CFUNCTYPE(ctypes.c_bool, ddwaf_object_p, ctypes.c_char_p, ctypes.c_uint32)(
+    ("ddwaf_object_from_json", ddwaf),
+    (
+        (3, "output"),
+        (1, "json_str"),
+        (1, "length"),
+    ),
+)
 
 
 ddwaf_get_version = ctypes.CFUNCTYPE(ctypes.c_char_p)(

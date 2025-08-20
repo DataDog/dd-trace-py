@@ -1,6 +1,5 @@
 from io import StringIO
 import math
-import pprint
 import sys
 import traceback
 from types import TracebackType
@@ -80,14 +79,12 @@ class SpanEvent:
             d["attributes"] = self.attributes
         return d
 
-    def __str__(self):
+    def __repr__(self):
         """
         Stringify and return value.
         Attribute value can be either str, bool, int, float, or a list of these.
         """
-
-        attrs_str = ",".join(f"{k}:{v}" for k, v in self.attributes.items())
-        return f"name={self.name} time={self.time_unix_nano} attributes={attrs_str}"
+        return f"SpanEvent(name='{self.name}', time={self.time_unix_nano}, attributes={self.attributes})"
 
     def __iter__(self):
         yield "name", self.name
@@ -122,15 +119,16 @@ class Span(object):
         "_meta",
         "_meta_struct",
         "error",
+        "context",
         "_metrics",
         "_store",
         "span_type",
         "start_ns",
         "duration_ns",
         # Internal attributes
-        "_context",
         "_parent_context",
         "_local_root_value",
+        "_service_entry_span_value",
         "_parent",
         "_ignored_exceptions",
         "_on_finish_callbacks",
@@ -213,7 +211,11 @@ class Span(object):
         self._on_finish_callbacks = [] if on_finish is None else on_finish
 
         self._parent_context: Optional[Context] = context
-        self._context = context.copy(self.trace_id, self.span_id) if context else None
+        self.context: Context = (
+            context.copy(self.trace_id, self.span_id)
+            if context
+            else Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
+        )
 
         self._links: List[Union[SpanLink, _SpanPointer]] = []
         if links:
@@ -224,18 +226,15 @@ class Span(object):
         self._parent: Optional["Span"] = None
         self._ignored_exceptions: Optional[List[Type[Exception]]] = None
         self._local_root_value: Optional["Span"] = None  # None means this is the root span.
+        self._service_entry_span_value: Optional["Span"] = None  # None means this is the service entry span.
         self._store: Optional[Dict[str, Any]] = None
 
     def _update_tags_from_context(self) -> None:
-        context = self._context
-        if context is None:
-            return
-
-        with context:
-            for tag in context._meta:
-                self._meta.setdefault(tag, context._meta[tag])
-            for metric in context._metrics:
-                self._metrics.setdefault(metric, context._metrics[metric])
+        with self.context:
+            for tag in self.context._meta:
+                self._meta.setdefault(tag, self.context._meta[tag])
+            for metric in self.context._metrics:
+                self._metrics.setdefault(metric, self.context._metrics[metric])
 
     def _ignore_exception(self, exc: Type[Exception]) -> None:
         if self._ignored_exceptions is None:
@@ -704,54 +703,29 @@ class Span(object):
 
         return False
 
-    def _pprint(self) -> str:
-        """Return a human readable version of the span."""
-        data = [
-            ("name", self.name),
-            ("id", self.span_id),
-            ("trace_id", self.trace_id),
-            ("parent_id", self.parent_id),
-            ("service", self.service),
-            ("resource", self.resource),
-            ("type", self.span_type),
-            ("start", self.start),
-            ("end", None if not self.duration else self.start + self.duration),
-            ("duration", self.duration),
-            ("error", self.error),
-            ("tags", dict(sorted(self._meta.items()))),
-            ("metrics", dict(sorted(self._metrics.items()))),
-            ("links", ", ".join([str(link) for link in self._links])),
-            ("events", ", ".join([str(e) for e in self._events])),
-        ]
-        return " ".join(
-            # use a large column width to keep pprint output on one line
-            "%s=%s" % (k, pprint.pformat(v, width=1024**2).strip())
-            for (k, v) in data
-        )
-
-    @property
-    def context(self) -> Context:
-        """Return the trace context for this span."""
-        if self._context is None:
-            self._context = Context(trace_id=self.trace_id, span_id=self.span_id, is_remote=False)
-        return self._context
-
     @property
     def _local_root(self) -> "Span":
-        if self._local_root_value is None:
-            return self
-        return self._local_root_value
+        return self._local_root_value or self
 
     @_local_root.setter
     def _local_root(self, value: "Span") -> None:
-        if value is not self:
-            self._local_root_value = value
-        else:
-            self._local_root_value = None
+        self._local_root_value = value if value is not self else None
 
     @_local_root.deleter
     def _local_root(self) -> None:
         del self._local_root_value
+
+    @property
+    def _service_entry_span(self) -> "Span":
+        return self._service_entry_span_value or self
+
+    @_service_entry_span.setter
+    def _service_entry_span(self, span: "Span") -> None:
+        self._service_entry_span_value = None if span is self else span
+
+    @_service_entry_span.deleter
+    def _service_entry_span(self) -> None:
+        del self._service_entry_span_value
 
     def link_span(self, context: Context, attributes: Optional[Dict[str, Any]] = None) -> None:
         """Defines a causal relationship between two spans"""
@@ -857,7 +831,42 @@ class Span(object):
         except Exception:
             log.exception("error closing trace")
 
+    def _pprint(self) -> str:
+        # Although Span._pprint has been internal to ddtrace since v1.0.0, it is still
+        # used to debug spans in the wild. Introducing a deprecation warning here to
+        # give users a chance to migrate to __repr__ before we remove it.
+        deprecate(
+            prefix="The _pprint method is deprecated for __repr__",
+            message="""Use __repr__ instead.""",
+            category=DDTraceDeprecationWarning,
+            removal_version="4.0.0",
+        )
+        return self.__repr__()
+
     def __repr__(self) -> str:
+        """Return a detailed string representation of a span."""
+        return (
+            f"Span(name='{self.name}', "
+            f"span_id={self.span_id}, "
+            f"parent_id={self.parent_id}, "
+            f"trace_id={self.trace_id}, "
+            f"service='{self.service}', "
+            f"resource='{self.resource}', "
+            f"type='{self.span_type}', "
+            f"start={self.start_ns}, "
+            f"end={self.duration_ns and self.start_ns and self.start_ns + self.duration_ns}, "
+            f"duration={self.duration_ns}, "
+            f"error={self.error}, "
+            f"tags={self._meta}, "
+            f"metrics={self._metrics}, "
+            f"links={self._links}, "
+            f"events={self._events}, "
+            f"context={self.context}, "
+            f"service_entry_span_name={self._service_entry_span.name})"
+        )
+
+    def __str__(self) -> str:
+        """Return a concise string representation of a span."""
         return "<Span(id=%s,trace_id=%s,parent_id=%s,name=%s)>" % (
             self.span_id,
             self.trace_id,

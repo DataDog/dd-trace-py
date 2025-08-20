@@ -70,13 +70,15 @@ jobs:
 
       - name: Install build dependencies
         # Rust + Cargo are needed for Cryptography
-        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake
+        run: apk add git gcc g++ musl-dev libffi-dev openssl-dev bash rust cargo make cmake patchelf
 
       - name: Check source package
         run: |
           pip install twine readme_renderer[md]
           twine check dist/*.tar.gz
       - name: Install source package
+        env:
+          CMAKE_BUILD_PARALLEL_LEVEL: 12
         run: pip install dist/*.tar.gz
 
       - name: Test the source package

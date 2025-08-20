@@ -222,8 +222,8 @@ def test_otel_get_span_context(oteltracer):
 
 def test_otel_get_span_context_with_multiple_tracesates(oteltracer):
     otelspan = oteltracer.start_span("otel-server")
-    otelspan._ddspan._context._meta["_dd.p.congo"] = "t61rcWkgMzE"
-    otelspan._ddspan._context._meta["_dd.p.some_val"] = "tehehe"
+    otelspan._ddspan.context._meta["_dd.p.congo"] = "t61rcWkgMzE"
+    otelspan._ddspan.context._meta["_dd.p.some_val"] = "tehehe"
     otelspan.end()
 
     span_context = otelspan.get_span_context()

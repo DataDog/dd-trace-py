@@ -1,5 +1,3 @@
-import json
-
 from hypothesis import given
 from hypothesis import strategies as st
 import pytest
@@ -10,9 +8,8 @@ import ddtrace.appsec._ddwaf as ddwaf
 
 
 def build_schema(obj):
-    rules = {}
-    with open(constants.DEFAULT.RULES, "r") as f_apisec:
-        rules.update(json.load(f_apisec))
+    with open(constants.DEFAULT.RULES, "br") as f_apisec:
+        rules = f_apisec.read()
     waf = ddwaf.DDWaf(rules, b"", b"", _metrics)
     ctx = waf._at_request_start()
     if ctx is None:

@@ -18,6 +18,7 @@ INPUT_DOCUMENTS = "_ml_obs.meta.input.documents"
 INPUT_MESSAGES = "_ml_obs.meta.input.messages"
 INPUT_VALUE = "_ml_obs.meta.input.value"
 INPUT_PROMPT = "_ml_obs.meta.input.prompt"
+TOOL_DEFINITIONS = "_ml_obs.meta.tool_definitions"
 
 OUTPUT_DOCUMENTS = "_ml_obs.meta.output.documents"
 OUTPUT_MESSAGES = "_ml_obs.meta.output.messages"
@@ -54,8 +55,11 @@ AGENTLESS_SPAN_BASE_URL = "https://{}".format(SPAN_SUBDOMAIN_NAME)
 AGENTLESS_EVAL_BASE_URL = "https://{}".format(EVAL_SUBDOMAIN_NAME)
 AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 
+# from https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
+DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
+
 EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
+EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
@@ -99,4 +103,6 @@ PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+EXPERIMENTS_INPUT = "_ml_obs.meta.input"
+EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"

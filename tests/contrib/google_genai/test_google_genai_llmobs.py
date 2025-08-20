@@ -1,3 +1,6 @@
+import json
+from unittest import mock
+
 from google.genai import types
 import pytest
 
@@ -7,6 +10,10 @@ from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
 from tests.contrib.google_genai.utils import get_expected_metadata
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 @pytest.mark.parametrize(
@@ -35,14 +42,16 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
-    def test_generate_content_stream(self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_generate_content_stream(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream, consume_stream
+    ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
@@ -85,16 +94,16 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_generate_content_stream_async(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream, consume_stream
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
@@ -209,6 +218,193 @@ class TestLLMObsGoogleGenAI:
         expected_second_event = expected_llmobs_tool_response_span_event(second_span)
         assert llmobs_events[1] == expected_second_event
 
+    def test_generate_content_stream_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream_with_tools
+    ):
+        response = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = genai_client.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        function_call_part = response.function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        await genai_client.aio.models.generate_content(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response.candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    async def test_generate_content_stream_async_with_tools(
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream_with_tools
+    ):
+        response = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                )
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        response_chunks = []
+        async for chunk in response:
+            response_chunks.append(chunk)
+
+        function_call_part = response_chunks[0].function_calls[0]
+        function_result = get_current_weather(**function_call_part.args)
+
+        response2 = await genai_client.aio.models.generate_content_stream(
+            model="gemini-2.0-flash-001",
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part.from_text(text="What is the weather like in Boston?")],
+                ),
+                response_chunks[0].candidates[0].content,
+                types.Content(
+                    role="tool",
+                    parts=[
+                        types.Part.from_function_response(
+                            name=function_call_part.name,
+                            response={"result": function_result},
+                        )
+                    ],
+                ),
+            ],
+            config=TOOL_GENERATE_CONTENT_CONFIG,
+        )
+
+        async for _ in response2:
+            pass
+
+        traces = mock_tracer.pop_traces()
+        assert len(traces) == 2
+
+        first_span = traces[0][0]
+        second_span = traces[1][0]
+
+        assert len(llmobs_events) == 2
+
+        expected_first_event = expected_llmobs_tool_call_span_event(first_span)
+        assert llmobs_events[0] == expected_first_event
+
+        expected_second_event = expected_llmobs_tool_response_span_event(second_span)
+        assert llmobs_events[1] == expected_second_event
+
+    def test_code_execution(self, genai_client_vcr, llmobs_events):
+        genai_client_vcr.models.generate_content(
+            model="gemini-2.5-flash",
+            contents="What is the sum of the first 50 prime numbers? Generate and run code for the calculation, and make sure you get all 50.",  # noqa: E501
+            config={"tools": [{"code_execution": {}}]},
+        )
+
+        assert llmobs_events[0]["meta"]["output"]["messages"][0]["content"] == mock.ANY
+        assert json.loads(llmobs_events[0]["meta"]["output"]["messages"][1]["content"]) == {
+            "language": mock.ANY,
+            "code": mock.ANY,
+        }
+        assert json.loads(llmobs_events[0]["meta"]["output"]["messages"][2]["content"]) == {
+            "outcome": mock.ANY,
+            "output": mock.ANY,
+        }
+
 
 def expected_llmobs_span_event(span):
     return _expected_llmobs_llm_span_event(
@@ -255,11 +451,35 @@ def expected_llmobs_tool_call_span_event(span):
             {"content": "What is the weather like in Boston?", "role": "user"},
         ],
         output_messages=[
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]}
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            }
         ],
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 
@@ -272,14 +492,27 @@ def expected_llmobs_tool_response_span_event(span):
         model_provider="google",
         input_messages=[
             {"content": "What is the weather like in Boston?", "role": "user"},
-            {"role": "assistant", "tool_calls": [{"name": "get_current_weather", "arguments": {"location": "Boston"}}]},
+            {
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "get_current_weather",
+                        "arguments": {"location": "Boston"},
+                        "tool_id": "",
+                        "type": "function_call",
+                    }
+                ],
+            },
             {
                 "role": "tool",
-                "content": (
-                    "{'result': {'location': 'Boston', 'temperature': 72, 'unit': 'fahrenheit', "
-                    "'forecast': 'Sunny with light breeze'}}"
-                ),
-                "tool_id": None,
+                "tool_results": [
+                    {
+                        "name": "get_current_weather",
+                        "result": '{"result": {"location": "Boston", "temperature": 72, "unit": "fahrenheit", "forecast": "Sunny with light breeze"}}',  # noqa: E501
+                        "tool_id": "",
+                        "type": "function_response",
+                    }
+                ],
             },
         ],
         output_messages=[
@@ -294,6 +527,20 @@ def expected_llmobs_tool_response_span_event(span):
         metadata=get_expected_tool_metadata(),
         token_metrics={"input_tokens": 25, "output_tokens": 20, "total_tokens": 45},
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.google_genai"},
+        tool_definitions=[
+            {
+                "name": "get_current_weather",
+                "description": "Mock weather function for tool testing.",
+                "schema": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "location": {"type": "STRING"},
+                        "unit": {"type": "STRING", "default": "fahrenheit"},
+                    },
+                    "required": ["location"],
+                },
+            }
+        ],
     )
 
 

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Fixes a bug where code execution outputs done through ``google-genai`` would result in no output messages on the LLM Observability ``llm`` span.

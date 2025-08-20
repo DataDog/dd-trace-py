@@ -871,8 +871,8 @@ def _value():
         {"service": True},
         {"resource": 50},
         {"name": [1, 2, 3]},
-        {"start_ns": "start_time"},
-        {"duration_ns": "duration_time"},
+        {"start_ns": []},
+        {"duration_ns": {}},
         {"span_type": 100},
         {"_meta": {"num": 100}},
         # Validating behavior with a context manager is a customer regression
@@ -891,7 +891,7 @@ def test_encoding_invalid_data(data):
     with pytest.raises(RuntimeError) as e:
         encoder.put(trace)
 
-    assert e.match(r"failed to pack span: <Span\(id="), e
+    assert e.match(r"failed to pack span: Span\(name="), e
     encoded_traces = encoder.encode()
     assert (not encoded_traces) or (encoded_traces[0][0] is None)
 
