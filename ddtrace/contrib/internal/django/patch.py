@@ -19,17 +19,12 @@ from wrapt.importer import when_imported
 
 from ddtrace import config
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
-from ddtrace.contrib.internal.trace_utils import _convert_to_string
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import http
-from ddtrace.ext import net
-from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import COMPONENT
@@ -45,7 +40,6 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.asm import endpoint_collection
 from ddtrace.settings.integration import IntegrationConfig
@@ -67,6 +61,7 @@ config._add(
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        always_create_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
@@ -100,18 +95,6 @@ config._add(
 # PERF: cache the getattr lookup for the Django config
 config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
-_NotSet = object()
-psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
-
-
-DB_CONN_ATTR_BY_TAG = {
-    net.TARGET_HOST: "HOST",
-    net.TARGET_PORT: "PORT",
-    net.SERVER_ADDRESS: "HOST",
-    db.USER: "USER",
-    db.NAME: "NAME",
-}
-
 
 def get_version():
     # type: () -> str
@@ -122,100 +105,6 @@ def get_version():
 
 def _supported_versions() -> Dict[str, str]:
     return {"django": ">=2.2.8"}
-
-
-def patch_conn(django, conn):
-    global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
-
-    if psycopg_cursor_cls is _NotSet:
-        try:
-            from psycopg.cursor import Cursor as psycopg_cursor_cls
-
-            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-        except ImportError:
-            Psycopg3TracedCursor = None
-            try:
-                from psycopg2._psycopg import cursor as psycopg_cursor_cls
-
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-            except ImportError:
-                psycopg_cursor_cls = None
-                Psycopg2TracedCursor = None
-
-    tags = {}
-    settings_dict = getattr(conn, "settings_dict", {})
-    for tag, attr in DB_CONN_ATTR_BY_TAG.items():
-        if attr in settings_dict:
-            try:
-                tags[tag] = _convert_to_string(conn.settings_dict.get(attr))
-            except Exception:
-                tags[tag] = str(conn.settings_dict.get(attr))
-    conn._datadog_tags = tags
-
-    def cursor(django, pin, func, instance, args, kwargs):
-        alias = getattr(conn, "alias", "default")
-
-        service = config_django.database_service_name
-        if not service:
-            database_prefix = config_django.database_service_name_prefix
-            service = "{}{}{}".format(database_prefix, alias, "db")
-            service = schematize_service_name(service)
-
-        vendor = getattr(conn, "vendor", "db")
-        prefix = sqlx.normalize_vendor(vendor)
-
-        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
-        tags.update(getattr(conn, "_datadog_tags", {}))
-
-        tracer = pin.tracer
-        pin = Pin(service, tags=tags)
-        pin._tracer = tracer
-
-        cursor = func(*args, **kwargs)
-
-        traced_cursor_cls = dbapi.TracedCursor
-        try:
-            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
-                # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-
-                traced_cursor_cls = Psycopg2TracedCursor
-            elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
-                # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-
-                traced_cursor_cls = Psycopg3TracedCursor
-        except AttributeError:
-            pass
-
-        # Each db alias will need its own config for dbapi
-        cfg = IntegrationConfig(
-            config_django.global_config,
-            "django-database",
-            _default_service=config.django._default_service,
-            _dbapi_span_name_prefix=prefix,
-            trace_fetch_methods=config_django.trace_fetch_methods,
-            _dbm_propagator=_DBM_Propagator(0, "query"),
-        )
-        return traced_cursor_cls(cursor, pin, cfg)
-
-    if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
-
-
-def instrument_dbs(django):
-    def get_connection(wrapped, instance, args, kwargs):
-        conn = wrapped(*args, **kwargs)
-        try:
-            patch_conn(django, conn)
-        except Exception:
-            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return conn
-
-    if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
-        django.db.utils.ConnectionHandler.__getitem__ = wrapt.FunctionWrapper(
-            django.db.utils.ConnectionHandler.__getitem__, get_connection
-        )
 
 
 @trace_utils.with_traced_module
@@ -249,6 +138,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Instrument databases
     if config_django.instrument_databases:
         try:
+            from .database import instrument_dbs
+
             instrument_dbs(django)
         except Exception:
             log.debug("Error instrumenting Django database connections", exc_info=True)
