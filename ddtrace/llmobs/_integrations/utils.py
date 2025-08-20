@@ -23,11 +23,14 @@ from ddtrace.llmobs._constants import OAI_HANDOFF_TOOL_ARG
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
-
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolDefinition
+from ddtrace.llmobs.utils import ToolResult
 
 try:
     from tiktoken import encoding_for_model
@@ -259,7 +262,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
                 tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
 
                 tool_result_info = ToolResult(
-                    content=tool_message_content_text
+                    result=tool_message_content_text
                     or (tool_message_content_json and safe_json(tool_message_content_json))
                     or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
                     tool_id=tool_message_id,
