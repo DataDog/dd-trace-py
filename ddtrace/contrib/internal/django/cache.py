@@ -58,17 +58,13 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
         keys = utils.quantize_key_values(args[1])
         tags["django.cache.key"] = keys
 
-    # Try to compute resource name and then cache onto the function for future use
     cache_operation = func_cache_operation(func)
-    resource: Optional[str] = getattr(func, "__dd_resource", None)
-    if not resource:
-        resource = f"{func.__module__}.{cache_operation}"
+    resource = f"{func.__module__}.{cache_operation}"
 
-        key_prefix = getattr(instance, "key_prefix", None)
-        if key_prefix:
-            resource = f"{resource} {key_prefix}"
-
-        setattr(func, "__dd_resource", resource.lower())
+    key_prefix = getattr(instance, "key_prefix", None)
+    if key_prefix:
+        resource = f"{resource} {key_prefix}"
+    resource = resource.lower()
 
     with core.context_with_data(
         "django.cache",
