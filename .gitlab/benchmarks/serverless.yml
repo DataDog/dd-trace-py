@@ -5,6 +5,7 @@ benchmark-serverless:
   stage: benchmarks
   trigger:
     project: DataDog/serverless-tools
+    branch: taegyunkim/dd-compile-release
     strategy: depend
   needs: []
   rules:
