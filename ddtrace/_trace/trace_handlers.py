@@ -796,7 +796,8 @@ def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integrati
     if hasattr(instance, "connection_pool"):
         span.set_tags(_extract_conn_tags(instance.connection_pool.connection_kwargs))
     if args is not None:
-        span.set_metric(redisx.ARGS_LEN, len(args))
+        # PERF: avoid extra overhead from checks in Span.set_metric
+        span._metrics[redisx.ARGS_LEN] = len(args)
     else:
         for attr in ("command_stack", "_command_stack"):
             if hasattr(instance, attr):
