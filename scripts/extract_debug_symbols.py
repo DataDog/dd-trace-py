@@ -3,11 +3,11 @@
 Extract debug symbols from wheels and create separate debug symbol packages.
 
 This script:
-1. Processes each .so file in the wheel
-2. Creates debug symbols (.debug files on Linux, .dSYM bundles on macOS) for each .so file
-3. Strips debug symbols from the .so files
-4. Packages debug symbols into a separate zip file
-5. Updates the wheel with stripped .so files
+1. Processes each .so/.dylib file in the wheel
+2. Creates debug symbols (.debug files on Linux, .dSYM bundles on macOS) for each .so/.dylib file
+3. Strips debug symbols from the original .so/.dylib files
+4. Packages debug symbols into a separate zip file (with proper recursive copying for .dSYM bundles)
+5. Updates the wheel with stripped .so/.dylib files
 """
 
 import argparse
