@@ -23,6 +23,7 @@ function(add_ddup_config target)
     else()
         # Non-macOS (e.g., Linux) options
         target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>"
+                                                 "$<$<CONFIG:Release>:-g>"
                                                  "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>" -fno-semantic-interposition)
     endif()
 
