@@ -386,7 +386,6 @@ def test_single_span_and_trace_sampling_match_non_root_span():
     override the trace sampling decision.
     """
 
-    from ddtrace import config
     from ddtrace.trace import tracer
 
     with tracer.trace("non_monkey") as root:
@@ -402,18 +401,11 @@ def test_single_span_and_trace_sampling_match_non_root_span():
         assert span.context._meta.get("_dd.p.dm") == "-3", repr(span)
 
     # Span 1 was sampled via trace sampling rule
-    assert root.get_metric("_dd.rule_psr") == 0
+    assert root.get_metric("_dd.rule_psr") == 0, repr(root)
     # Span 2 was sampled via single span sampling rule
-    assert span2.get_metric("_dd.span_sampling.mechanism") == 8
-    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1
-    assert "_dd.rule_psr" not in span2.get_metrics()
-    if config._trace_compute_stats:
-        # If stats computation is enabled, the local root span will not be sent to the agent.
-        # and the first span in the trace will be span2. We need to ensure the first span in the trace
-        # has a sampling priority set.
-        assert span2.get_metric("_sampling_priority_v1") == 2, repr(span2)
-    else:
-        assert "_sampling_priority_v1" not in span2.get_metrics(), repr(span2)
+    assert span2.get_metric("_dd.span_sampling.mechanism") == 8, repr(span2)
+    assert span2.get_metric("_dd.span_sampling.rule_rate") == 1, repr(span2)
+    assert "_dd.rule_psr" not in span2.get_metrics(), repr(span2)
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -465,7 +457,7 @@ def test_single_span_and_trace_sampling_match_root_span_paritial_flushing():
     parametrize={"DD_TRACE_COMPUTE_STATS": ["true", "false"]},
 )
 @pytest.mark.snapshot()
-def test_single_span_and_trace_sampling_match_root_span_paritial_flushing_native_writer():
+def test_single_span_and_trace_sampling_match_paritial_flushing_native_writer():
     """
     Validates that when the native writer is used all spans are sent to the testagent
     even if they are not sampled and stats computation is enabled/disabled.

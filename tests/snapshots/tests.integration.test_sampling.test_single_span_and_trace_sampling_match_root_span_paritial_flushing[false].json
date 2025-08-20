@@ -10,9 +10,9 @@
     "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
-      "_dd.p.tid": "68a3a47300000000",
+      "_dd.p.tid": "68a5d5cb00000000",
       "language": "python",
-      "runtime-id": "f6144c0691524a80b4d32a6b0e39426e"
+      "runtime-id": "96a6f46af3c444859a4026cb8f628e4f"
     },
     "metrics": {
       "_dd.py.partial_flush": 1,
@@ -22,10 +22,10 @@
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1,
-      "process_id": 26150
+      "process_id": 58620
     },
-    "duration": 20000,
-    "start": 1755554931224227000
+    "duration": 23000,
+    "start": 1755698635705503000
   },
      {
        "name": "non_monkey",
@@ -38,7 +38,7 @@
        "error": 0,
        "meta": {
          "_dd.p.dm": "-3",
-         "_dd.p.tid": "68a3a47300000000",
+         "_dd.p.tid": "68a5d5cb00000000",
          "language": "python"
        },
        "metrics": {
@@ -46,6 +46,6 @@
          "_dd.tracer_kr": 1.0,
          "_sampling_priority_v1": -1
        },
-       "duration": 36000,
-       "start": 1755554931233613000
+       "duration": 15000,
+       "start": 1755698635705713000
      }]]

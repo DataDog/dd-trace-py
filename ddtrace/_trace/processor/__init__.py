@@ -15,8 +15,6 @@ from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
@@ -154,7 +152,6 @@ class TraceSamplingProcessor(TraceProcessor):
                     if span._local_root_value is None:
                         span.set_metric(MK_APM_ENABLED, 0)
 
-            # only sample the trace if we haven't already sampled it yet
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
                 if chunk_root.context.sampling_priority is None:
@@ -183,10 +180,6 @@ class TraceSamplingProcessor(TraceProcessor):
                                 single_spans.append(span)
                             break
                 if can_drop_trace:
-                    if single_spans:
-                        # Ensure a sampling priority is set for the first span in the trace.
-                        # This is important espesically if the local root span is dropped.
-                        single_spans[0]._metrics[_SAMPLING_PRIORITY_KEY] = USER_KEEP
                     return single_spans
             return trace
         return None
