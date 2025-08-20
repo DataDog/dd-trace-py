@@ -8,6 +8,10 @@ This script:
 3. Strips debug symbols from the original .so/.dylib files
 4. Packages debug symbols into a separate zip file (with proper recursive copying for .dSYM bundles)
 5. Updates the wheel with stripped .so/.dylib files
+
+On Linux, the script will exit with error code 1 if:
+- Any input .so file does not contain debug symbols (not built with -g flag)
+- Any generated debug file does not contain debug symbols
 """
 
 import argparse
@@ -29,6 +33,29 @@ import zipfile
 def get_debug_symbol_patterns():
     """Get file patterns for debug symbols based on platform."""
     return ["*.debug", "*.dSYM/*"]
+
+
+def has_debug_symbols(so_file: str) -> bool:
+    """Check if a .so file has debug symbols (Linux only)."""
+    if platform.system() != "Linux":
+        # On non-Linux platforms, assume debug symbols exist to avoid false positives
+        return True
+
+    try:
+        # Use objdump to check for debug sections
+        result = subprocess.run(["objdump", "-h", so_file], capture_output=True, text=True, check=True)
+        debug_sections = [line for line in result.stdout.split("\n") if ".debug_" in line]
+
+        if debug_sections:
+            print(f"  Found {len(debug_sections)} debug sections in {so_file}")
+            return True
+        else:
+            print(f"  No debug sections found in {so_file}")
+            return False
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  Warning: Could not check debug symbols in {so_file}: {e}")
+        # If we can't check, assume it has debug symbols to avoid false positives
+        return True
 
 
 def create_dsym_bundle(so_file: str, dsymutil: str) -> Optional[str]:
@@ -68,7 +95,7 @@ def create_dsym_bundle(so_file: str, dsymutil: str) -> Optional[str]:
 
 
 def verify_debug_file(debug_path: Path) -> bool:
-    """Verify that a Linux .debug file was created successfully and contains content."""
+    """Verify that a Linux .debug file was created successfully and contains debug symbols."""
     print(f"Verifying debug file: {debug_path}")
 
     if not debug_path.exists():
@@ -100,29 +127,19 @@ def verify_debug_file(debug_path: Path) -> bool:
                 print(f"    {section.strip()}")
             if len(debug_sections) > 5:
                 print(f"    ... and {len(debug_sections) - 5} more")
+            print(f"Successfully created debug file: {debug_path}")
+            return True
         else:
-            # If no debug sections found, check if the file has substantial content
-            # Some debug files might contain other types of debug information
-            if file_size > 1000:  # More than 1KB
-                print(f"  Warning: No debug sections found, but file has substantial content ({file_size} bytes)")
-                print("  Accepting debug file as it may contain other debug information")
-            else:
-                print(f"  Error: Debug file contains no debug sections and is too small: {debug_path}")
-                os.remove(debug_path)
-                return False
-
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        print("  Warning: Could not verify debug sections with objdump")
-        # If we can't verify with objdump, just check that the file has content
-        if file_size > 0:
-            print(f"  Debug file has content ({file_size} bytes), assuming it's valid")
-        else:
-            print("  Error: Debug file appears to be empty")
+            # No debug sections found - this is an error
+            print(f"  Error: Debug file contains no debug sections: {debug_path}")
             os.remove(debug_path)
             return False
 
-    print(f"Successfully created debug file: {debug_path}")
-    return True
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        print("  Error: Could not verify debug sections with objdump")
+        # If we can't verify with objdump, this is an error
+        os.remove(debug_path)
+        return False
 
 
 def verify_dsym_bundle(dsym_path: Path) -> bool:
@@ -185,6 +202,12 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
             print("WARNING: strip not found, skipping symbol stripping", file=sys.stderr)
             return None
 
+        # Check if the input .so file has debug symbols
+        print(f"Checking for debug symbols in: {so_file}")
+        if not has_debug_symbols(so_file):
+            print(f"ERROR: {so_file} does not contain debug symbols (not built with -g)")
+            return None
+
         # Try removing the .llvmbc section from the .so file
         subprocess.run([objcopy, "--remove-section", ".llvmbc", so_file], check=False)
 
@@ -193,7 +216,7 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
         try:
             subprocess.run([objcopy, "--only-keep-debug", so_file, debug_out], check=True)
 
-            # Verify that the debug file was created and contains content
+            # Verify that the debug file was created and contains debug symbols
             if verify_debug_file(Path(debug_out)):
                 # Strip the debug symbols from the .so file
                 subprocess.run([strip, "-g", so_file], check=True)
@@ -203,11 +226,11 @@ def create_and_strip_debug_symbols(so_file: str) -> Union[str, None]:
 
                 return debug_out
             else:
-                print(f"Warning: Failed to create valid debug file for {so_file}")
+                print(f"ERROR: Failed to create valid debug file for {so_file}")
                 return None
 
         except subprocess.CalledProcessError as e:
-            print(f"Warning: objcopy failed to create debug file: {e}")
+            print(f"ERROR: objcopy failed to create debug file: {e}")
             return None
 
     elif current_os == "Darwin":
@@ -392,7 +415,10 @@ def process_wheel(
             print("ERROR: Failed to generate debug symbols for the following libraries:")
             for lib in failed_libs:
                 print(f"  - {lib}")
-            print("This indicates that these binaries were built without debug symbols or they were already stripped")
+            print(
+                "This indicates that these binaries were built without debug symbols (-g flag) "
+                "or they were already stripped"
+            )
             return None, False
 
         print(f"Successfully created {len(debug_files)} debug symbol files")
@@ -429,6 +455,7 @@ def main():
         debug_package_path, success = process_wheel(args.wheel, args.output_dir, ignore_patterns)
         if not success:
             print("ERROR: Failed to extract debug symbols from wheel")
+            print("This usually means one or more .so files were not built with debug symbols (-g flag)")
             sys.exit(1)
         elif debug_package_path:
             print(f"Successfully processed wheel. Debug symbols saved to: {debug_package_path}")
