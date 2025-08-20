@@ -17,7 +17,6 @@ if(MSVC)
 endif()
 
 # Includes
-# add comment
 include(AnalysisFunc)
 include(FindClangtidy)
 include(FindCppcheck)
