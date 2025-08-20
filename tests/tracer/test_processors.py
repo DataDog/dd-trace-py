@@ -644,7 +644,7 @@ def test_single_span_sampling_processor_no_rules():
 
 
 def test_single_span_sampling_processor_w_stats_computation():
-    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    """Test that span processor does not modify the sampling priority when stats computation is enabled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
     processor = TraceSamplingProcessor(True, rules, False)
