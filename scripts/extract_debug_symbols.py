@@ -44,6 +44,11 @@ def create_dsym_bundle(so_file: str, dsymutil: str) -> Optional[str]:
         print(f"dsymutil stdout: {result.stdout}")
         if result.stderr:
             print(f"dsymutil stderr: {result.stderr}")
+            if "no debug symbols" in result.stderr:
+                print(
+                    f"  Warning: dsymutil failed to create .dSYM bundle for {so_file} because it has no debug sections"
+                )
+                return None
 
         # Verify that the .dSYM bundle was created and contains content
         if verify_dsym_bundle(dsym_path):
@@ -348,8 +353,12 @@ def update_wheel_with_stripped_dynamic_libraries(wheel_path: str, temp_dir: str)
 
 def process_wheel(
     wheel_path: str, output_dir: Optional[str] = None, ignore_patterns: List[str] = None
-) -> Optional[str]:
-    """Process a single wheel file."""
+) -> Tuple[Optional[str], bool]:
+    """Process a single wheel file.
+
+    Returns:
+        Tuple of (debug_package_path, success). success is False if no debug symbols were found.
+    """
     if output_dir is None:
         output_dir = os.path.dirname(wheel_path)
 
@@ -362,23 +371,29 @@ def process_wheel(
 
     if not dynamic_libs:
         print("No .so or .dylib files found in wheel")
-        return None
+        return None, True  # Success - no files to process
 
     print(f"Found {len(dynamic_libs)} dynamic library files")
 
     # Create temporary directory for processing
     with tempfile.TemporaryDirectory() as temp_dir:
         debug_files = []
+        failed_libs = []
 
         # Process each dynamic library file from the wheel
         for lib_filename, lib_content in dynamic_libs:
             debug_file = process_dynamic_library_from_wheel(lib_filename, lib_content, temp_dir)
             if debug_file:
                 debug_files.append(debug_file)
+            else:
+                failed_libs.append(lib_filename)
 
-        if not debug_files:
-            print("No debug symbols were created")
-            return None
+        if failed_libs:
+            print("ERROR: Failed to generate debug symbols for the following libraries:")
+            for lib in failed_libs:
+                print(f"  - {lib}")
+            print("This indicates that these binaries were built without debug symbols or they were already stripped")
+            return None, False
 
         print(f"Successfully created {len(debug_files)} debug symbol files")
 
@@ -388,7 +403,7 @@ def process_wheel(
         # Update wheel with stripped dynamic library files
         update_wheel_with_stripped_dynamic_libraries(wheel_path, temp_dir)
 
-        return debug_package_path
+        return debug_package_path, True
 
 
 def main():
@@ -411,11 +426,14 @@ def main():
     ignore_patterns = [p.strip() for p in args.ignore_patterns.split(",") if p.strip()]
 
     try:
-        debug_package_path = process_wheel(args.wheel, args.output_dir, ignore_patterns)
-        if debug_package_path:
+        debug_package_path, success = process_wheel(args.wheel, args.output_dir, ignore_patterns)
+        if not success:
+            print("ERROR: Failed to extract debug symbols from wheel")
+            sys.exit(1)
+        elif debug_package_path:
             print(f"Successfully processed wheel. Debug symbols saved to: {debug_package_path}")
         else:
-            print("No debug symbols were created")
+            print("No debug symbols were created (no dynamic libraries found)")
     except Exception as e:
         print(f"Error processing wheel: {e}")
         sys.exit(1)
