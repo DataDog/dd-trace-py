@@ -30,8 +30,11 @@ def pytest_configure():
 @pytest.fixture(autouse=True)
 def clear_django_caches():
     """Automatically clear cached functions to avoid test pollution"""
+    from ddtrace.contrib.internal.django import cache
     from ddtrace.contrib.internal.django import database
 
+    cache.get_service_name.invalidate()
+    cache.func_cache_operation.invalidate()
     database.get_conn_config.invalidate()
     database.get_conn_service_name.invalidate()
     database.get_traced_cursor_cls.invalidate()
