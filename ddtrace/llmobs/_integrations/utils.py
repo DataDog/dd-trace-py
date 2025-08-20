@@ -234,7 +234,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]] = []
     content_blocks = []
     tool_calls_info = []
     tool_messages: List[Dict[str, Any]] = []

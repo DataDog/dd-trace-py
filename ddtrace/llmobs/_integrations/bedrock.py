@@ -237,13 +237,11 @@ class BedrockIntegration(BaseLLMIntegration):
         return get_messages_from_converse_content(role, content)
 
     @staticmethod
-    def _converse_output_stream_processor() -> (
-        Generator[
-            None,
-            Dict[str, Any],
-            Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
-        ]
-    ):
+    def _converse_output_stream_processor() -> Generator[
+        None,
+        Dict[str, Any],
+        Tuple[List[Dict[str, Any]], Dict[str, str], Dict[str, int]],
+    ]:
         """
         Listens for output chunks from a converse streamed response and builds a
         list of output messages, usage metrics, and metadata.
@@ -389,7 +387,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
 
-    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[ToolDefinition]:
         """Extract tool definitions from the stored tool config."""
         tools = _get_attr(tool_config, "tools", [])
         tool_definitions = []
