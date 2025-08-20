@@ -83,7 +83,7 @@ def _instrument_redis_execute_pipeline(pin, config_integration, cmds, instance):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
         pin=pin,
-    ) as ctx, ctx.span as span:
+    ) as ctx:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, None, instance, cmd_string])
         yield span
 
@@ -98,6 +98,6 @@ def _instrument_redis_cmd(pin, config_integration, instance, args):
         service=trace_utils.ext_service(pin, config_integration),
         span_type=SpanTypes.REDIS,
         resource=query.split(" ")[0] if config_integration.resource_only_command else query,
-    ) as ctx, ctx.span:
+    ) as ctx:
         core.dispatch("redis.execute_pipeline", [ctx, pin, config_integration, args, instance, query])
         yield ctx

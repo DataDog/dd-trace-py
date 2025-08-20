@@ -1031,6 +1031,8 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "redis.execute_pipeline",
+        "redis.command",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
