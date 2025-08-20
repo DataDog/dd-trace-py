@@ -696,8 +696,8 @@ def _openai_get_tool_definitions(tools: List[Any]) -> List[ToolDefinition]:
                 schema=_get_attr(tool, "parameters", {})
                 or _get_attr(tool, "format", {}),
             )
-        if not tool_definition["name"] and not tool_definition["description"] and not tool_definition["schema"]:
-            #if all fields are empty, skip this tool
+        if not any(tool_definition.values()):
+            # if all fields are empty, skip this tool
             continue
         tool_definitions.append(tool_definition)
     return tool_definitions
