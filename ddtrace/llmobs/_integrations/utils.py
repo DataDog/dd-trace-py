@@ -53,17 +53,15 @@ def _openai_extract_tool_calls_and_results_chat(
     for raw in _get_attr(message, "tool_calls", []) or []:
         raw_args = (
             _get_attr(_get_attr(raw, "function", {}), "arguments", {})
-            or _get_attr(raw, "arguments", {})
             or _get_attr(_get_attr(raw, "custom", {}), "input", {})
             or {}
         )
         tool_name = (
             _get_attr(_get_attr(raw, "function", {}), "name", "")
-            or _get_attr(raw, "name", "")
             or _get_attr(_get_attr(raw, "custom", {}), "name", "")
             or ""
         )
-        tool_id = _get_attr(raw, "id", "") or _get_attr(raw, "tool_id", "") or _get_attr(raw, "tool_call_id", "")
+        tool_id = _get_attr(raw, "id", "")
         tool_type = _get_attr(raw, "type", "function")
 
         parsed_arguments = raw_args
@@ -736,10 +734,10 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     )
     if list_idx is None:
         stored_tool_calls.append(
-            {"name": function_name, "arguments": "", "index": tool_call_idx, "tool_id": tool_id, "type": tool_type}
+            {"function": {"name": function_name, "arguments": ""}, "index": tool_call_idx, "id": tool_id, "type": tool_type}
         )
         list_idx = -1
-    stored_tool_calls[list_idx]["arguments"] += getattr(function_call, "arguments", "")
+    stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
 
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
