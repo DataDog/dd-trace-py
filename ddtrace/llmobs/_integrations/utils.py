@@ -471,7 +471,7 @@ def get_metadata_from_kwargs(
 
 
 def openai_get_input_messages_from_response_input(
-    messages: Optional[Union[str, List[Dict[str, Any]]]]
+    messages: Optional[Union[str, List[Dict[str, Any]]]],
 ) -> List[Dict[str, Any]]:
     """Parses the input to openai responses api into a list of input messages
 
