@@ -232,7 +232,7 @@ class CrewAIIntegration(BaseLLMIntegration):
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (tool_name, json.dumps(tool_input), "function", span),
+            (tool_name, safe_json(tool_input), "function", span),
         )
 
     def _tag_agent_manifest(self, span, agent):

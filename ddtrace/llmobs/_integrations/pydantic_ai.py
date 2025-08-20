@@ -23,6 +23,7 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
@@ -149,7 +150,7 @@ class PydanticAIIntegration(BaseLLMIntegration):
             DISPATCH_ON_TOOL_CALL,
             (
                 tool_name,
-                json.dumps(tool_input) if not isinstance(tool_input, str) else tool_input,
+                safe_json(tool_input) if not isinstance(tool_input, str) else tool_input,
                 "function",
                 span,
                 tool_id,

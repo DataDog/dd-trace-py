@@ -37,6 +37,7 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -525,7 +526,7 @@ class LangChainIntegration(BaseLLMIntegration):
                             (
                                 tool_call.get("tool_id", ""),
                                 tool_call.get("name", ""),
-                                json.dumps(tool_call.get("arguments", {})),
+                                safe_json(tool_call.get("arguments", {})),
                                 {
                                     "trace_id": format_trace_id(span.trace_id),
                                     "span_id": str(span.span_id),
@@ -768,7 +769,7 @@ class LangChainIntegration(BaseLLMIntegration):
         else:
             tool_name = _get_attr(tool_input, "name", "") or ""
             tool_id = _get_attr(tool_input, "id", "") or ""
-            tool_args = json.dumps(_get_attr(tool_input, "args", {}) or {}, separators=(",", ":"))
+            tool_args = safe_json(_get_attr(tool_input, "args", {}) or {})
         return tool_name, tool_id, tool_args
 
     def check_token_usage_chat_or_llm_result(self, result):
