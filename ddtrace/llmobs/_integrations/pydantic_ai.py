@@ -127,12 +127,12 @@ class PydanticAIIntegration(BaseLLMIntegration):
         tool_input: Any = {}
         tool_id = ""
         if tool_call:
-            tool_name = getattr(tool_call, "tool_name", "")
-            tool_input = getattr(tool_call, "args", "") or ""
-            tool_id = getattr(tool_call, "tool_call_id", "")
-        tool_def = getattr(tool_instance, "tool_def", None)
+            tool_name = _get_attr(tool_call, "tool_name", "")
+            tool_input = _get_attr(tool_call, "args", "") or ""
+            tool_id = _get_attr(tool_call, "tool_call_id", "")
+        tool_def = _get_attr(tool_instance, "tool_def", None)
         tool_description = (
-            getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
+            _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
         span._set_ctx_items(
             {

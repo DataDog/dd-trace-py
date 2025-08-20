@@ -761,11 +761,9 @@ class LangChainIntegration(BaseLLMIntegration):
         tool_name, tool_id, tool_args = "", "", ""
         if isinstance(tool_input, str):
             tool_args = tool_input
-            try:
-                tool_info = tool_inputs.get("info", {})
-                tool_name = tool_info.get("name", "")
-            except AttributeError:
-                pass
+            tool_info = tool_inputs.get("info", {})
+            if isinstance(tool_info, dict):
+                tool_name = tool_info.get("name", "") or ""
         else:
             tool_name = _get_attr(tool_input, "name", "") or ""
             tool_id = _get_attr(tool_input, "id", "") or ""
