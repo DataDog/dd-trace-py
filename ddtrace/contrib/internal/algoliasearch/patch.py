@@ -27,9 +27,10 @@ V3 = parse_version("3.0")
 
 try:
     import algoliasearch
-    if hasattr(algoliasearch, '__version__'): # for 4.x versions
+
+    if hasattr(algoliasearch, "__version__"):  # for 4.x versions
         VERSION = algoliasearch.__version__
-    elif hasattr(algoliasearch, 'version'): # for versions < 4.x
+    elif hasattr(algoliasearch, "version"):  # for versions < 4.x
         from algoliasearch.version import VERSION
 
     algoliasearch_version = parse_version(VERSION)
