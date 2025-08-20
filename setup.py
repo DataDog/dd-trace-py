@@ -63,8 +63,6 @@ if "DD_COMPILE_DEBUG" in os.environ:
 else:
     COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
-print("=========== COMPILE_MODE ===========", COMPILE_MODE)
-
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
     print("WARNING: DD_FAST_BUILD is enabled, some optimizations will be disabled")
