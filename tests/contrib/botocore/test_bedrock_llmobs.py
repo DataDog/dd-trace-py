@@ -268,6 +268,7 @@ class TestLLMObsBedrock:
                             "arguments": {"concept": "distributed tracing"},
                             "name": "fetch_concept",
                             "tool_id": mock.ANY,
+                            "type": "toolUse",
                         }
                     ],
                 }
@@ -282,6 +283,19 @@ class TestLLMObsBedrock:
                 "output_tokens": response["usage"]["outputTokens"],
                 "total_tokens": response["usage"]["totalTokens"],
             },
+            tool_definitions=[
+                {
+                    "name": "fetch_concept",
+                    "description": "Fetch an expert explanation for a concept",
+                    "schema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                            "required": ["concept"],
+                        },
+                    },
+                }
+            ],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -346,6 +360,7 @@ class TestLLMObsBedrock:
                             "arguments": {"concept": "distributed tracing"},
                             "name": "fetch_concept",
                             "tool_id": mock.ANY,
+                            "type": "toolUse",
                         }
                     ],
                 }
@@ -359,6 +374,19 @@ class TestLLMObsBedrock:
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
+            tool_definitions=[
+                {
+                    "name": "fetch_concept",
+                    "description": "Fetch an expert explanation for a concept",
+                    "schema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                            "required": ["concept"],
+                        },
+                    },
+                }
+            ],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -398,6 +426,7 @@ class TestLLMObsBedrock:
                             "arguments": {"concept": "distributed tracing"},
                             "name": "fetch_concept",
                             "tool_id": mock.ANY,
+                            "type": "toolUse",
                         }
                     ],
                 }
@@ -411,6 +440,19 @@ class TestLLMObsBedrock:
                 "output_tokens": 64,
                 "total_tokens": 323,
             },
+            tool_definitions=[
+                {
+                    "name": "fetch_concept",
+                    "description": "Fetch an expert explanation for a concept",
+                    "schema": {
+                        "json": {
+                            "type": "object",
+                            "properties": {"concept": {"type": "string", "description": "The concept to explain"}},
+                            "required": ["concept"],
+                        },
+                    },
+                }
+            ],
             tags={"service": "aws.bedrock-runtime", "ml_app": "<ml-app-name>"},
         )
 
@@ -581,7 +623,9 @@ class TestLLMObsBedrock:
             )
 
         assert len(llmobs_events) == 1
-        assert llmobs_events[0]["meta"]["input"]["messages"] == [{"content": "bar", "role": "tool", "tool_id": "foo"}]
+        assert llmobs_events[0]["meta"]["input"]["messages"] == [
+            {"tool_results": [{"result": "bar", "tool_id": "foo", "type": "toolResult"}], "role": "user"}
+        ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
     def test_llmobs_converse_tool_result_json(self, bedrock_client, request_vcr, mock_tracer, llmobs_events):
@@ -601,7 +645,7 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["meta"]["input"]["messages"] == [
-            {"content": '{"result": "bar"}', "role": "tool", "tool_id": "foo"}
+            {"tool_results": [{"result": '{"result": "bar"}', "tool_id": "foo", "type": "toolResult"}], "role": "user"}
         ]
 
     @pytest.mark.skipif(BOTO_VERSION < (1, 34, 131), reason="Converse API not available until botocore 1.34.131")
@@ -638,7 +682,12 @@ class TestLLMObsBedrock:
 
         assert len(llmobs_events) == 1
         assert llmobs_events[0]["meta"]["input"]["messages"] == [
-            {"content": "[Unsupported content type(s): image]", "role": "tool", "tool_id": "foo"}
+            {
+                "tool_results": [
+                    {"result": "[Unsupported content type(s): image]", "tool_id": "foo", "type": "toolResult"}
+                ],
+                "role": "user",
+            }
         ]
 
 

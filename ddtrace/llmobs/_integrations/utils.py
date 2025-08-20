@@ -265,6 +265,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
                     or (tool_message_content_json and safe_json(tool_message_content_json))
                     or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
                     tool_id=tool_message_id,
+                    type="toolResult",
                 )
                 tool_messages.append(
                     {
@@ -1124,19 +1125,20 @@ def get_final_message_converse_stream_message(
         tool_block = tool_blocks.get(idx)
         if not tool_block:
             continue
-        tool_call = {
-            "name": tool_block.get("name", ""),
-            "tool_id": tool_block.get("toolUseId", ""),
-        }
         tool_input = tool_block.get("input")
+        tool_args = {}
         if tool_input is not None:
-            tool_args = {}
             try:
                 tool_args = json.loads(tool_input)
             except (json.JSONDecodeError, ValueError):
                 tool_args = {"input": tool_input}
-            tool_call.update({"arguments": tool_args} if tool_args else {})
-        tool_calls.append(tool_call)
+        tool_call_info = ToolCall(
+            name=tool_block.get("name", ""),
+            tool_id=tool_block.get("toolUseId", ""),
+            arguments=tool_args if tool_args else {},
+            type="toolUse",
+        )
+        tool_calls.append(tool_call_info)
 
     if tool_calls:
         message_output["tool_calls"] = tool_calls
