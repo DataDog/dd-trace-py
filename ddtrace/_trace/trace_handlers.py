@@ -1007,6 +1007,7 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 
