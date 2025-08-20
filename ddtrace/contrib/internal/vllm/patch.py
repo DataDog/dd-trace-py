@@ -1,10 +1,7 @@
-import sys
-from typing import Any
+from typing import Any, Mapping, Optional
 
 from ddtrace import config, tracer
-from ddtrace.contrib.internal.trace_utils import unwrap
-from ddtrace.contrib.internal.trace_utils import with_traced_module
-from ddtrace.contrib.internal.trace_utils import wrap
+from ddtrace.contrib.internal.trace_utils import unwrap, wrap, with_traced_module
 from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._integrations.vllm import VLLMIntegration
 from ddtrace.propagation.http import HTTPPropagator
@@ -14,226 +11,149 @@ from ddtrace.trace import Pin
 log = get_logger(__name__)
 
 
-def get_version() -> str:
-    try:
-        import vllm
-        return getattr(vllm, "__version__", "")
-    except ImportError:
-        return ""
-
-
 # Integration configuration
 config._add("vllm", {})
 
 
-def _extract_model_name(instance: Any) -> str:
-    """Extract model name from vLLM LLMEngine instance."""
-    # For LLMEngine: instance.model_config.model  
-    if hasattr(instance, "model_config") and hasattr(instance.model_config, "model"):
-        return instance.model_config.model
-    
-    return "unknown"
-
-
-@with_traced_module 
-def traced_do_tracing(vllm, pin, func, instance, args, kwargs):
+@with_traced_module
+def traced_generate(vllm, pin, func, instance, args, kwargs):
     """
-    Trace LLMEngine.do_tracing() - the universal entry point for vLLM's native tracing.
-    
-    This method is called by:
-    - LLMEngine.step() (for direct engine usage and high-level LLM.generate())
-    - _AsyncLLMEngine.step_async() (for AsyncLLMEngine servers)
-    
-    We override vLLM's native tracing to create Datadog spans instead.
-    This gives us universal coverage across all vLLM usage patterns.
+    Trace generate methods across all vLLM entry points.
     """
-    # Get arguments: scheduler_outputs, finished_before=None
-    scheduler_outputs = args[0] if args else None
-    finished_before = args[1] if len(args) > 1 else kwargs.get('finished_before')
+    # Get class name for logging
+    class_name = instance.__class__.__name__
+    log.debug("[VLLM DEBUG] Starting generate from %s", class_name)
     
-    if scheduler_outputs is None:
-        return
-    
-    integration = vllm._datadog_integration
-    model_name = _extract_model_name(instance)
-    
-    # Process finished sequence groups (following vLLM's native logic)
-    for idx, scheduled_seq_group in enumerate(scheduler_outputs.scheduled_seq_groups):
-        # Skip double tracing when using async output proc (following vLLM logic)
-        if finished_before and idx in finished_before:
-            continue
+    # If we have a current span, inject trace headers
+    current_span = tracer.current_span()
+    if current_span:
+        # Create trace headers if they don't exist
+        trace_headers = kwargs.get("trace_headers", {})
+        if not isinstance(trace_headers, dict):
+            trace_headers = {}
+            
+        # Inject current span context into headers
+        HTTPPropagator.inject(current_span.context, trace_headers)
+        log.debug("[VLLM DEBUG] %s injected trace_headers=%s", class_name, trace_headers)
+            
+        # Update kwargs with trace headers
+        kwargs["trace_headers"] = trace_headers
         
-        seq_group = scheduled_seq_group.seq_group
-        if seq_group.is_finished():
-            log.debug("[VLLM DEBUG] Creating span for finished seq_group: %s", seq_group.request_id)
-            _create_span_for_finished_seq_group(integration, pin, seq_group, model_name, instance)
+    # Call original function
+    return func(*args, **kwargs)
 
 
-def _create_span_for_finished_seq_group(integration, pin, seq_group, model_name: str, engine_instance: Any):
-    """Create a span for a finished vLLM sequence group, following vLLM's native tracing pattern."""
-    
-    provider = "vllm"
-    
-    # Extract parent trace context from trace headers (CRITICAL for linking!)
-    parent_context = None
-    if hasattr(seq_group, 'trace_headers') and seq_group.trace_headers:
+@with_traced_module
+def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
+    """
+    Trace LLMEngine._process_model_outputs to create spans for finished sequences.
+    """
+    # Grab ctx (SchedulerContext) from positional or keyword args BEFORE calling the original method
+    ctx = kwargs.get("ctx")
+    if ctx is None and args:
+        ctx = args[0]
+
+    # Capture the first queue element ( scheduler_outputs lives inside ) *before* it is popped by the
+    # original implementation. This ensures we still have access to the data after the original call
+    output_data = None
+    if ctx is not None and getattr(ctx, "output_queue", None):
         try:
-            parent_context = HTTPPropagator.extract(seq_group.trace_headers)
-            if parent_context:
-                log.debug("[VLLM DEBUG] Extracted parent context: trace_id=%s, span_id=%s", 
-                         parent_context.trace_id, parent_context.span_id)
-            else:
-                log.debug("[VLLM DEBUG] No parent context found in trace headers")
-        except Exception as e:
-            log.debug("[VLLM DEBUG] Failed to extract parent context: %s", e)
-    
-    # Create span with proper parent context
-    if parent_context:
-        # Create span directly with tracer, passing parent context for proper linking
-        log.debug("[VLLM DEBUG] Creating span with parent context (linked trace)")
-        span = tracer.start_span(
-            "vllm.request",
-            child_of=parent_context,
-            service=pin.service,
-            span_type="llm",
-            activate=False
-        )
-        # Set provider and model tags
-        span.set_tag_str("vllm.request.provider", provider)
-        span.set_tag_str("vllm.request.model", model_name)
+            output_data = ctx.output_queue[0]
+        except Exception:
+            output_data = None
+
+    # Call the original implementation (this may mutate ctx.output_queue)
+    result = func(*args, **kwargs)
+
+    # If we were able to snapshot an entry from the queue, inspect it now **after** core processing is done
+    if output_data and len(output_data) >= 3:
+        _, _, scheduler_outputs = output_data[:3]
+
+        for scheduled_seq_group in scheduler_outputs.scheduled_seq_groups:
+            seq_group = scheduled_seq_group.seq_group
+
+            if not seq_group.is_finished():
+                continue  # only finish spans for completed requests
+
+            # Trace headers propagated from client
+            trace_headers = getattr(seq_group, "trace_headers", None)
+            if not trace_headers:
+                continue
+
+            log.debug("[VLLM DEBUG] Creating vllm.request span ; trace_headers=%s", trace_headers)
+
+            parent_ctx = None
+            try:
+                parent_ctx = HTTPPropagator.extract(trace_headers)
+            except Exception as exc:
+                log.debug("[VLLM DEBUG] Failed to extract parent context: %s", exc)
+
+            if parent_ctx and parent_ctx.trace_id:
+                try:
+                    span = tracer.start_span("vllm.request", child_of=parent_ctx)
+                    span.start_ns = int(seq_group.metrics.arrival_time * 1e9)
+                    span.finish()
+                    log.debug("[VLLM DEBUG] Span created trace_id=%s span_id=%s", parent_ctx.trace_id, span.span_id)
+                except Exception as exc:
+                    log.debug("[VLLM DEBUG] Error while creating span: %s", exc)
     else:
-        # Fallback to integration.trace() if no parent context
-        log.debug("[VLLM DEBUG] Creating span without parent context (standalone)")
-        span = integration.trace(
-            pin,
-            "vllm.request",  # Use vllm.request to match vLLM's native span name
-            provider=provider,
-            model=model_name,
-            submit_to_llmobs=True,
-        )
-    
-    if span is None:
-        return
-    
-    try:
-        # Set custom start time from arrival_time (EXACTLY like vLLM native tracing)
-        if hasattr(seq_group, "metrics") and seq_group.metrics:
-            if hasattr(seq_group.metrics, "arrival_time") and seq_group.metrics.arrival_time:
-                # Convert arrival_time to nanoseconds (following vLLM pattern)
-                arrival_time_ns = int(seq_group.metrics.arrival_time * 1e9)
-                span.start_ns = arrival_time_ns
-                log.debug("[VLLM DEBUG] Set span start time to arrival_time: %s", arrival_time_ns)
-        
-        # Set basic span attributes
-        span.set_tag_str("vllm.request.model", model_name)
-        span.set_tag_str("vllm.request.id", seq_group.request_id)
-        
-        # Set usage metrics following vLLM's native tracing pattern
-        if hasattr(seq_group, "metrics") and seq_group.metrics:
-            metrics_obj = seq_group.metrics
-            
-            # Timing metrics (following vLLM's native tracing)
-            if hasattr(metrics_obj, "arrival_time") and hasattr(metrics_obj, "first_token_time"):
-                if metrics_obj.first_token_time and metrics_obj.arrival_time:
-                    ttft = metrics_obj.first_token_time - metrics_obj.arrival_time
-                    span.set_tag("vllm.latency.time_to_first_token", ttft)
-            
-            if hasattr(metrics_obj, "arrival_time") and hasattr(metrics_obj, "finished_time"):
-                if metrics_obj.finished_time and metrics_obj.arrival_time:
-                    e2e_time = metrics_obj.finished_time - metrics_obj.arrival_time  
-                    span.set_tag("vllm.latency.end_to_end", e2e_time)
-        
-        # Set token counts
-        if hasattr(seq_group, "prompt_token_ids"):
-            span.set_tag("vllm.usage.prompt_tokens", len(seq_group.prompt_token_ids))
-        
-        # Get completion tokens from finished sequences
-        if hasattr(seq_group, "get_finished_seqs"):
-            finished_seqs = seq_group.get_finished_seqs()
-            completion_tokens = sum(seq.get_output_len() for seq in finished_seqs)
-            span.set_tag("vllm.usage.completion_tokens", completion_tokens)
-        
-        # Use integration to set LLMObs tags (following Anthropic pattern)
-        # Create a synthetic request_output-like object for the integration
-        synthetic_request_output = type('RequestOutput', (), {
-            'request_id': seq_group.request_id,
-            'finished': True,
-            'prompt': getattr(seq_group, 'prompt', ''),
-            'prompt_token_ids': getattr(seq_group, 'prompt_token_ids', []),
-            'outputs': [],  # We'll populate this if possible
-            'metrics': getattr(seq_group, 'metrics', None)
-        })()
-        
-        # Try to get actual outputs if available
-        if hasattr(seq_group, 'get_finished_seqs'):
-            finished_seqs = seq_group.get_finished_seqs()
-            synthetic_outputs = []
-            for seq in finished_seqs:
-                output_obj = type('CompletionOutput', (), {
-                    'text': getattr(seq, 'output_text', ''),
-                    'token_ids': getattr(seq, 'output_token_ids', []),
-                    'finish_reason': getattr(seq, 'finish_reason', None)
-                })()
-                synthetic_outputs.append(output_obj)
-            synthetic_request_output.outputs = synthetic_outputs
-        
-        # Set LLMObs tags regardless of how span was created
-        integration.llmobs_set_tags(
-            span, 
-            args=[], 
-            kwargs={"engine_instance": engine_instance},
-            response=synthetic_request_output,
-            operation="vllm_request"
-        )
-        
-        log.debug("[VLLM DEBUG] Successfully created span for seq_group %s", seq_group.request_id)
-        
-    except Exception as e:
-        log.debug("[VLLM DEBUG] Error creating span: %s", e)
-        span.set_exc_info(*sys.exc_info())
-    finally:
-        span.finish()
+        log.debug("[VLLM DEBUG] No output_data captured or malformed entry, skipping span creation")
+
+    return result
 
 
 def patch():
-    """Patch vLLM methods for tracing - ONLY do_tracing() for universal coverage."""
-    log.debug("[VLLM DEBUG] Starting vLLM patch() function")
+    """Patch vLLM for tracing."""
     try:
         import vllm
-        log.debug("[VLLM DEBUG] Successfully imported vllm")
+        from vllm.entrypoints.llm import LLM
+        from vllm.v1.engine.async_llm import AsyncLLM
+        from vllm.engine.protocol import EngineClient
+        from vllm.engine.multiprocessing.client import MQLLMEngineClient
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+        from vllm.engine.llm_engine import LLMEngine
     except ImportError:
-        log.debug("[VLLM DEBUG] Failed to import vllm")
         return
 
     if getattr(vllm, "_datadog_patch", False):
-        log.debug("[VLLM DEBUG] vllm already patched, skipping")
         return
 
     vllm._datadog_patch = True
     Pin().onto(vllm)
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
-    log.debug("[VLLM DEBUG] Set up vLLM integration")
 
-    # Patch ONLY do_tracing() - this is the universal method called by all usage patterns
-    try:
-        wrap("vllm.engine.llm_engine", "LLMEngine.do_tracing", traced_do_tracing(vllm))
-        log.debug("[VLLM DEBUG] Successfully patched LLMEngine.do_tracing")
-    except (AttributeError, ImportError) as e:
-        log.debug("[VLLM DEBUG] Failed to patch LLMEngine.do_tracing: %s", e)
+    # Patch all generate methods
+    wrap("vllm.entrypoints.llm", "LLM.generate", traced_generate(vllm))
+    wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
+    wrap("vllm.engine.protocol", "EngineClient.generate", traced_generate(vllm))
+    wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate", traced_generate(vllm))
+    wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_generate(vllm))
     
-    log.debug("[VLLM DEBUG] Finished vLLM patch() function")
+    # Patch _process_model_outputs to create spans
+    wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_process_model_outputs(vllm))
 
 
 def unpatch():
     """Remove vLLM patches."""
     try:
         import vllm
+        from vllm.entrypoints.llm import LLM
+        from vllm.v1.engine.async_llm import AsyncLLM
+        from vllm.engine.protocol import EngineClient
+        from vllm.engine.multiprocessing.client import MQLLMEngineClient
+        from vllm.engine.async_llm_engine import AsyncLLMEngine
+        from vllm.engine.llm_engine import LLMEngine
     except ImportError:
         return
 
     if not getattr(vllm, "_datadog_patch", False):
         return
 
-    unwrap(vllm.engine.llm_engine.LLMEngine, "do_tracing")
+    unwrap(LLM, "generate")
+    unwrap(AsyncLLM, "generate")
+    unwrap(EngineClient, "generate")
+    unwrap(MQLLMEngineClient, "generate")
+    unwrap(AsyncLLMEngine, "generate")
+    unwrap(LLMEngine, "_process_model_outputs")
     vllm._datadog_patch = False
