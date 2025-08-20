@@ -50,7 +50,7 @@ HERE = Path(__file__).resolve().parent
 
 CURRENT_OS = platform.system()
 
-# ON Windows, we build with Release by default, and RelWithDebInfo for other platforms
+# On Windows, we build with Release by default, and RelWithDebInfo for other platforms
 # to generate debug symbols for native extensions.
 # Note: We strip debug symbols when releasing wheels using scripts/extract_debug_symbols.py
 COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
