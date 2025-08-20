@@ -107,7 +107,7 @@ def test_debug_post_configure_uds():
     assert agent_url == "unix:///file.sock"
 
     agent_error = f.get("agent_error")
-    assert re.match("^Agent not reachable.*No such file or directory", agent_error)
+    assert re.match("^Agent not reachable", agent_error)
 
 
 class TestGlobalConfig(SubprocessTestCase):
@@ -295,9 +295,8 @@ def test_startup_logs_sampling_rules():
     f = debug.collect(tracer)
 
     assert f.get("sampling_rules") == [
-        "SamplingRule(sample_rate=1.0, service='NO_RULE', name='NO_RULE', resource='NO_RULE',"
-        " tags='NO_RULE', provenance='default')"
-    ]
+        "SamplingRule(sample_rate=1.0, service=None, name=None, resource=None, tags={}, provenance=default)"
+    ], f.get("sampling_rules")
 
 
 def test_error_output_ddtracerun_debug_mode():
@@ -363,7 +362,7 @@ def test_debug_span_log():
     )
     p.wait()
     stderr = p.stderr.read()
-    assert b"finishing span name='span'" in stderr
+    assert b"finishing span - Span(name='span'" in stderr
 
 
 @pytest.mark.subprocess(

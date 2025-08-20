@@ -153,7 +153,8 @@ def traced_13_execute_command(func, instance, args, kwargs):
 
     span.set_tag_str(COMPONENT, config.aioredis.integration_name)
     span.set_tag_str(db.SYSTEM, redisx.APP)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tag_str(redisx.RAWCMD, query)
     if pin.tags:
         span.set_tags(pin.tags)
@@ -227,7 +228,8 @@ async def traced_13_execute_pipeline(func, instance, args, kwargs):
             }
         )
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         span.set_tag_str(redisx.RAWCMD, cmds_string)
         span.set_metric(redisx.PIPELINE_LEN, len(instance._pipeline))
 

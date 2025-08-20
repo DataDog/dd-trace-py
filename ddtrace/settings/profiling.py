@@ -155,14 +155,6 @@ class ProfilingConfig(DDConfig):
         help="",
     )
 
-    max_events = DDConfig.v(
-        int,
-        "max_events",
-        default=16384,
-        help_type="Integer",
-        help="",
-    )
-
     upload_interval = DDConfig.v(
         float,
         "upload_interval",
@@ -217,7 +209,7 @@ class ProfilingConfig(DDConfig):
     timeline_enabled = DDConfig.v(
         bool,
         "timeline_enabled",
-        default=False,
+        default=True,
         help_type="Boolean",
         help="Whether to add timestamp information to captured samples.  Adds a small amount of "
         "overhead to the profiler, but enables the use of the Timeline view in the UI.",
@@ -339,7 +331,7 @@ class ProfilingConfigHeap(DDConfig):
         "sample_size",
         default=None,
         help_type="Integer",
-        help="",
+        help="Average number of bytes allocated between memory profiler samples",
     )
     sample_size = DDConfig.d(int, _derive_default_heap_sample_size)
 

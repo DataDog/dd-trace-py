@@ -47,7 +47,7 @@ class DDWaf(WAF):
 
     def __init__(
         self,
-        ruleset_map: Dict[str, Any],
+        ruleset_json_str: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
         metrics,
@@ -59,7 +59,9 @@ class DDWaf(WAF):
             key_regex=obfuscation_parameter_key_regexp, value_regex=obfuscation_parameter_value_regexp
         )
         diagnostics = ddwaf_object()
-        ruleset_map_object = ddwaf_object.create_without_limits(ruleset_map)
+        ruleset_map_object = ddwaf_object.from_json_bytes(ruleset_json_str)
+        if not ruleset_map_object:
+            raise ValueError("Invalid ruleset provided to DDWaf constructor")
         self._builder = py_ddwaf_builder_init(config)
         py_add_or_update_config(self._builder, ASM_DD_DEFAULT, ruleset_map_object, diagnostics)
         self._handle = py_ddwaf_builder_build_instance(self._builder)

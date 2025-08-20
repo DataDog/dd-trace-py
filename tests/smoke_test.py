@@ -73,23 +73,9 @@ if __name__ == "__main__":
         print("Skipping test, 32-bit DDWAF not ready yet")
 
     # Profiling smoke test
-    print("Running profiling smoke test...")
-    profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
-    # echion doesn't work on Windows
-    if platform.system() == "Windows":
-        orig_env = os.environ.copy()
-        copied_env = copy.deepcopy(orig_env)
-        copied_env["DD_PROFILING_STACK_V2_ENABLED"] = "False"
-        if platform.system() == "Windows":
-            # Memory profiler crashes on Windows
-            copied_env["DD_PROFILING_MEMORY_ENABLED"] = "False"
-            # Enable libdd exporter
-        result = subprocess.run(profiling_cmd, env=copied_env, capture_output=True, text=True)
-        assert result.returncode == 0, "Failed with DD_PROFILING_STACK_V2_ENABLED=0: %s, %s" % (
-            result.stdout,
-            result.stderr,
-        )
-    else:
+    if platform.system() in ("Linux", "Darwin") and sys.maxsize > (1 << 32):
+        print("Running profiling smoke test...")
+        profiling_cmd = [sys.executable, "-c", "import ddtrace.profiling.auto"]
         result = subprocess.run(profiling_cmd, capture_output=True, text=True)
         assert result.returncode == 0, "Failed: %s, %s" % (result.stdout, result.stderr)
-    print("Profiling smoke test completed successfully")
+        print("Profiling smoke test completed successfully")

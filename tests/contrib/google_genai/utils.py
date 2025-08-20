@@ -112,6 +112,60 @@ MOCK_TOOL_FINAL_RESPONSE = types.GenerateContentResponse(
     ),
 )
 
+MOCK_TOOL_CALL_RESPONSE_STREAM = [
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_function_call(name="get_current_weather", args={"location": "Boston"})],
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=10, candidates_token_count=5, total_token_count=15
+        ),
+    )
+]
+
+MOCK_TOOL_FINAL_RESPONSE_STREAM = [
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text="The weather in Boston is sunny")],
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=25, total_token_count=25),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text=" with a light breeze and the temperature")],
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(prompt_token_count=25, total_token_count=25),
+    ),
+    types.GenerateContentResponse(
+        candidates=[
+            types.Candidate(
+                content=types.Content(
+                    role="model",
+                    parts=[types.Part.from_text(text=" is 72 degrees Fahrenheit.")],
+                )
+            )
+        ],
+        usage_metadata=types.GenerateContentResponseUsageMetadata(
+            prompt_token_count=25, candidates_token_count=20, total_token_count=45
+        ),
+    ),
+]
+
 EMBED_CONTENT_CONFIG = types.EmbedContentConfig(
     output_dimensionality=10,
 )

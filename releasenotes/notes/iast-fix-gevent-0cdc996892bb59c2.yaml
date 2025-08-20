@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Code Security (IAST): Fixes Gevent worker timeouts by preloading IAST early and refactoring taint sink 
+    initialization to remove legacy import-based triggers, ensuring reliable instrumentation.

@@ -176,3 +176,23 @@ def test_venv(ddtrace_injection_artifact):
 
     for venv_path in venvs_to_clean:
         shutil.rmtree(venv_path, ignore_errors=True)
+
+
+@pytest.fixture
+def mock_telemetry_forwarder(tmp_path):
+    def _setup(env, python_executable):
+        telemetry_output_file = tmp_path / "telemetry.json"
+        forwarder_script_file = tmp_path / "forwarder.sh"
+        # Create a mock forwarder shell script. This script will be executed by sitecustomize.py
+        # and will write the telemetry payload to a file that we can inspect.
+        forwarder_script_file.write_text(
+            f"""#!/bin/sh
+cat > "{telemetry_output_file}"
+"""
+        )
+        os.chmod(forwarder_script_file, 0o755)
+
+        env["DD_TELEMETRY_FORWARDER_PATH"] = str(forwarder_script_file)
+        return telemetry_output_file
+
+    return _setup

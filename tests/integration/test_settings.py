@@ -5,16 +5,6 @@ import pytest
 from tests.integration.utils import AGENT_VERSION
 
 
-def _get_telemetry_config_items(events, item_name):
-    items = []
-    for event in reversed(sorted(events, key=lambda e: (e["tracer_time"], e["seq_id"]))):
-        for item in reversed(event.get("payload", {}).get("configuration", [])):
-            if item_name == item["name"]:
-                items.append(item)
-    if items:
-        return items or None
-
-
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
 def test_setting_origin_environment(test_agent_session, run_python_code_in_subprocess):
     env = os.environ.copy()
@@ -38,30 +28,25 @@ with tracer.trace("test") as span:
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLING_RULES")
+    configurations = test_agent_session.get_configurations(effective=True, remove_seq_id=True)
 
     assert {
         "name": "DD_TRACE_SAMPLING_RULES",
         "value": '[{"sample_rate":0.1}]',
         "origin": "env_var",
-    } in events_trace_sample_rate
+    } in configurations
 
-    events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
-    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in events_logs_injection_enabled
+    assert {"name": "DD_LOGS_INJECTION", "value": True, "origin": "env_var"} in configurations
 
-    events_trace_header_tags = _get_telemetry_config_items(events, "DD_TRACE_HEADER_TAGS")
     assert {
         "name": "DD_TRACE_HEADER_TAGS",
         "value": "X-Header-Tag-1:header_tag_1,X-Header-Tag-2:header_tag_2",
         "origin": "env_var",
-    } in events_trace_header_tags
+    } in configurations
 
-    events_trace_tags = _get_telemetry_config_items(events, "DD_TAGS")
-    assert {"name": "DD_TAGS", "value": "team:apm,component:web", "origin": "env_var"} in events_trace_tags
+    assert {"name": "DD_TAGS", "value": "team:apm,component:web", "origin": "env_var"} in configurations
 
-    events_tracing_enabled = _get_telemetry_config_items(events, "DD_TRACE_ENABLED")
-    assert {"name": "DD_TRACE_ENABLED", "value": True, "origin": "env_var"} in events_tracing_enabled
+    assert {"name": "DD_TRACE_ENABLED", "value": True, "origin": "env_var"} in configurations
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -93,35 +78,31 @@ telemetry_writer._app_started()
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events(subprocess=True)
+    configurations = test_agent_session.get_configurations(effective=True, remove_seq_id=True)
 
-    events_logs_injection_enabled = _get_telemetry_config_items(events, "DD_LOGS_INJECTION")
     assert {
         "name": "DD_LOGS_INJECTION",
         "value": False,
         "origin": "code",
-    } in events_logs_injection_enabled
+    } in configurations
 
-    events_trace_header_tags = _get_telemetry_config_items(events, "DD_TRACE_HEADER_TAGS")
     assert {
         "name": "DD_TRACE_HEADER_TAGS",
         "value": "header:value",
         "origin": "code",
-    } in events_trace_header_tags
+    } in configurations
 
-    events_trace_tags = _get_telemetry_config_items(events, "DD_TAGS")
     assert {
         "name": "DD_TAGS",
         "value": "header:value",
         "origin": "code",
-    } in events_trace_tags
+    } in configurations
 
-    events_tracing_enabled = _get_telemetry_config_items(events, "DD_TRACE_ENABLED")
     assert {
         "name": "DD_TRACE_ENABLED",
         "value": False,
         "origin": "code",
-    } in events_tracing_enabled
+    } in configurations
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -166,9 +147,10 @@ assert span.get_metric("_dd.rule_psr") is None, "(second time) unsetting remote 
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLING_RULES")
-    assert {"name": "DD_TRACE_SAMPLING_RULES", "value": "", "origin": "default"} in events_trace_sample_rate
+    configurations = test_agent_session.get_configurations(name="DD_TRACE_SAMPLING_RULES", effective=True)
+    assert len(configurations) == 1
+    assert configurations[0]["value"] == ""
+    assert configurations[0]["origin"] == "default"
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -182,11 +164,8 @@ def test_remoteconfig_sampling_rate_telemetry(test_agent_session, run_python_cod
     out, err, status, _ = run_python_code_in_subprocess(
         """
 from ddtrace import config, tracer
-from ddtrace._trace.product import apm_tracing_rc_subscribe
 from tests.internal.test_settings import _base_rc_config
 from tests.internal.test_settings import call_apm_tracing_rc
-
-apm_tracing_rc_subscribe(config)
 
 call_apm_tracing_rc(
     _base_rc_config(
@@ -213,14 +192,17 @@ assert span.get_metric("_dd.rule_psr") == 0.5, span._meta
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events(subprocess=True)
-    events_trace_sample_rate = _get_telemetry_config_items(events, "DD_TRACE_SAMPLING_RULES")
-    assert {
-        "name": "DD_TRACE_SAMPLING_RULES",
-        "origin": "remote_config",
-        "value": '[{"sample_rate": 0.5, "service": "*", "name": "*", "resource": "*", '
-        '"tags": {}, "provenance": "customer"}]',
-    } in events_trace_sample_rate
+    configurations = test_agent_session.get_configurations(
+        name="DD_TRACE_SAMPLING_RULES", effective=True, remove_seq_id=True
+    )
+    assert configurations == [
+        {
+            "name": "DD_TRACE_SAMPLING_RULES",
+            "origin": "remote_config",
+            "value": '[{"sample_rate": 0.5, "service": "*", "name": "*", "resource": "*", '
+            '"tags": {}, "provenance": "customer"}]',
+        }
+    ]
 
 
 @pytest.mark.skipif(AGENT_VERSION != "testagent", reason="Tests only compatible with a testagent")
@@ -258,10 +240,13 @@ assert span.get_tag("http.request.headers.used-with-default") == "defaultname"
     )
     assert status == 0, err
 
-    events = test_agent_session.get_events(subprocess=True)
-    events_trace_header_tags = _get_telemetry_config_items(events, "DD_TRACE_HEADER_TAGS")
-    assert {
-        "name": "DD_TRACE_HEADER_TAGS",
-        "value": "used:header_tag_69,unused:header_tag_70,used-with-default:",
-        "origin": "remote_config",
-    } in events_trace_header_tags
+    configurations = test_agent_session.get_configurations(
+        name="DD_TRACE_HEADER_TAGS", effective=True, remove_seq_id=True
+    )
+    assert configurations == [
+        {
+            "name": "DD_TRACE_HEADER_TAGS",
+            "value": "used:header_tag_69,unused:header_tag_70,used-with-default:",
+            "origin": "remote_config",
+        }
+    ]

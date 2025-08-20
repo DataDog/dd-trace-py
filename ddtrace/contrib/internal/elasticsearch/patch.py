@@ -1,4 +1,6 @@
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_package_version
 from typing import Dict
 from urllib import parse
 
@@ -21,14 +23,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.trace import Pin
-
-
-try:
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as get_package_version
-except ImportError:
-    from importlib_metadata import PackageNotFoundError
-    from importlib_metadata import version as get_package_version
 
 
 log = get_logger(__name__)
@@ -156,7 +150,8 @@ def _get_perform_request_coro(transport):
             # set span.kind to the type of request being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
 
             method, target = args
             params = kwargs.get("params")

@@ -47,6 +47,7 @@ class TestDjangoPatch(PatchTestCase.Base):
         self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.load_middleware)
         self.assert_not_double_wrapped(django.core.handlers.base.BaseHandler.get_response)
         self.assert_not_double_wrapped(django.template.base.Template.render)
+
         if django.VERSION >= (2, 0, 0):
             self.assert_not_double_wrapped(django.urls.path)
             self.assert_not_double_wrapped(django.urls.re_path)

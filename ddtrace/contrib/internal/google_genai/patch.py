@@ -9,7 +9,7 @@ from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GoogleGenAIIntegration
-from ddtrace.llmobs._integrations.google_genai_utils import extract_provider_and_model_name
+from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
 
@@ -27,7 +27,7 @@ def get_version() -> str:
 @with_traced_module
 def traced_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -46,7 +46,7 @@ def traced_generate(genai, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_async_generate(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -65,7 +65,7 @@ async def traced_async_generate(genai, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -86,7 +86,7 @@ def traced_generate_stream(genai, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     span = integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -107,7 +107,7 @@ async def traced_async_generate_stream(genai, pin, func, instance, args, kwargs)
 @with_traced_module
 def traced_embed_content(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),
@@ -126,7 +126,7 @@ def traced_embed_content(genai, pin, func, instance, args, kwargs):
 @with_traced_module
 async def traced_async_embed_content(genai, pin, func, instance, args, kwargs):
     integration = genai._datadog_integration
-    provider_name, model_name = extract_provider_and_model_name(kwargs)
+    provider_name, model_name = extract_provider_and_model_name(kwargs=kwargs)
     with integration.trace(
         pin,
         "%s.%s" % (instance.__class__.__name__, func.__name__),

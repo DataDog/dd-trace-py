@@ -15,11 +15,12 @@ from ddtrace.llmobs._constants import MODEL_PROVIDER
 from ddtrace.llmobs._constants import OUTPUT_MESSAGES
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
-from ddtrace.llmobs._integrations.utils import extract_message_from_part_google
-from ddtrace.llmobs._integrations.utils import get_system_instructions_from_google_model
-from ddtrace.llmobs._integrations.utils import llmobs_get_metadata_google
+from ddtrace.llmobs._integrations.google_utils import extract_message_from_part_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import get_system_instructions_gemini_vertexai
+from ddtrace.llmobs._integrations.google_utils import llmobs_get_metadata_gemini_vertexai
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.trace import Span
 
@@ -46,9 +47,9 @@ class VertexAIIntegration(BaseLLMIntegration):
         instance = kwargs.get("instance", None)
         history = kwargs.get("history", [])
         metrics = kwargs.get("metrics", {})
-        metadata = llmobs_get_metadata_google(kwargs, instance)
+        metadata = llmobs_get_metadata_gemini_vertexai(kwargs, instance)
 
-        system_instruction = get_system_instructions_from_google_model(instance)
+        system_instruction = get_system_instructions_gemini_vertexai(instance)
         input_contents = None
         try:
             input_contents = get_argument_value(args, kwargs, 0, "content")
@@ -60,6 +61,10 @@ class VertexAIIntegration(BaseLLMIntegration):
         if response is not None:
             output_messages = self._extract_output_message(response)
             metrics = self._extract_metrics_from_response(response)
+
+        tool_definitions = self._extract_tools(instance, kwargs.get("tools", []))
+        if tool_definitions:
+            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
         span._set_ctx_items(
             {
@@ -117,7 +122,7 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append({"content": contents})
             return messages
         if isinstance(contents, Part):
-            message = extract_message_from_part_google(contents)
+            message = extract_message_from_part_gemini_vertexai(contents)
             messages.append(message)
             return messages
         if not isinstance(contents, list):
@@ -128,7 +133,7 @@ class VertexAIIntegration(BaseLLMIntegration):
                 messages.append({"content": content})
                 continue
             if isinstance(content, Part):
-                message = extract_message_from_part_google(content)
+                message = extract_message_from_part_gemini_vertexai(content)
                 messages.append(message)
                 continue
             messages.extend(self._extract_messages_from_content(content))
@@ -170,6 +175,27 @@ class VertexAIIntegration(BaseLLMIntegration):
             messages.append(message)
             return messages
         for part in parts:
-            message = extract_message_from_part_google(part, role)
+            message = extract_message_from_part_gemini_vertexai(part, role)
             messages.append(message)
         return messages
+
+    def _extract_tools(self, instance, arg_tools):
+        """
+        Extracts tool definitions for a call, tools can be passed into a model instance or a generation call, so we
+        handle both cases and remove duplicates.
+        """
+        tools = _get_attr(instance, "_tools", []) or []
+        tool_set = set(tools)
+        tool_set.update(arg_tools)
+        tool_definitions = []
+        for tool in tool_set:
+            tool_dict = tool.to_dict()
+            function_declarations = _get_attr(tool_dict, "function_declarations", [])
+            for function in function_declarations:
+                tool_definition_info = {
+                    "name": _get_attr(function, "name", "") or "",
+                    "description": _get_attr(function, "description", "") or "",
+                    "schema": _get_attr(function, "parameters", {}) or {},
+                }
+                tool_definitions.append(tool_definition_info)
+        return tool_definitions

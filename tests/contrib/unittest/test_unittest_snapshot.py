@@ -145,6 +145,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -189,6 +190,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -251,6 +253,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -317,6 +320,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -384,6 +388,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -455,6 +460,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -531,6 +537,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -611,6 +618,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )
             ),
@@ -677,6 +685,7 @@ class UnittestSnapshotTestCase(TracerTestCase):
                     DD_API_KEY="foobar.baz",
                     DD_CIVISIBILITY_ITR_ENABLED="1",
                     DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
+                    _DD_CIVISIBILITY_ITR_SUITE_MODE="false",
                     DD_TAGS="test.configuration.custom_key:some_value",
                     _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                 )

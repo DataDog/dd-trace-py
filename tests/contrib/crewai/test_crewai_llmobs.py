@@ -1,21 +1,103 @@
+import json
+
+import crewai
 import mock
 
+from ddtrace.internal.utils.version import parse_version
+from tests.contrib.crewai.utils import fun_fact_text
 from tests.llmobs._utils import _assert_span_link
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+
+CREWAI_VERSION = parse_version(getattr(crewai, "__version__", "0.0.0"))
+
+
+AGENT_TO_EXPECTED_AGENT_MANIFEST = {
+    "Senior Research Scientist": {
+        "framework": "CrewAI",
+        "name": "Senior Research Scientist",
+        "goal": "Uncover cutting-edge developments in AI",
+        "backstory": "You're a seasoned researcher with a knack for uncovering the latest developments in AI. "
+        "Known for your ability to find the most relevant information and present it in a clear "
+        "and concise manner.",
+        "model": "gpt-4o-mini",
+        "model_settings": {"max_tokens": None, "temperature": None},
+        "handoffs": {"allow_delegation": False},
+        "code_execution_permissions": {"code_execution_mode": "safe"},
+        "max_iterations": 25,
+        "tools": [],
+    },
+    "AI Reporting Analyst": {
+        "framework": "CrewAI",
+        "name": "AI Reporting Analyst",
+        "goal": "Create detailed reports based on AI data analysis and research findings",
+        "backstory": "You're a meticulous analyst with a keen eye for detail. You're known for your ability to turn "
+        "complex data into clear and concise reports, making it easy for others to understand and act on the "
+        "information you provide.",
+        "model": "gpt-4o-mini",
+        "model_settings": {"max_tokens": None, "temperature": None},
+        "handoffs": {"allow_delegation": False},
+        "code_execution_permissions": {"code_execution_mode": "safe"},
+        "max_iterations": 25,
+        "tools": [],
+    },
+    "Python Data Analyst": {
+        "framework": "CrewAI",
+        "name": "Python Data Analyst",
+        "goal": "Analyze data and provide insights using Python",
+        "backstory": "You are an experienced data analyst with strong Python skills.",
+        "model": "gpt-4o-mini",
+        "model_settings": {"max_tokens": None, "temperature": None},
+        "handoffs": {"allow_delegation": False},
+        "code_execution_permissions": {"code_execution_mode": "safe"},
+        "max_iterations": 25,
+        "tools": [
+            {
+                "name": "Average Calculator",
+                "description": "Tool Name: Average Calculator\nTool Arguments: {'entries': {'description': None, "
+                "'type': 'list'}}\nTool Description: This tool returns the average of a list of numbers.",
+            }
+        ],
+    },
+    "Tour Guide": {
+        "framework": "CrewAI",
+        "name": "Tour Guide",
+        "goal": "Recommend fun activities for a group of humans.",
+        "backstory": "You are a tour guide with a passion for finding the best activities for groups of people.",
+        "model": "gpt-4o-mini",
+        "model_settings": {"max_tokens": None, "temperature": None},
+        "handoffs": {"allow_delegation": False},
+        "code_execution_permissions": {"code_execution_mode": "safe"},
+        "max_iterations": 25,
+        "tools": [],
+    },
+}
+
+EXPECTED_SPAN_ARGS = {
+    "input_value": mock.ANY,
+    "output_value": mock.ANY,
+    "metadata": mock.ANY,
+    "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+    "span_links": True,
+}
+
+
+def expected_agent_span_args(role):
+    return {
+        "input_value": mock.ANY,
+        "output_value": mock.ANY,
+        "metadata": {"agent_manifest": AGENT_TO_EXPECTED_AGENT_MANIFEST[role]},
+        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
+        "span_links": True,
+    }
 
 
 def _assert_basic_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 5
-    expected_span_args = {
-        "input_value": mock.ANY,
-        "output_value": mock.ANY,
-        "metadata": mock.ANY,
-        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
-        "span_links": True,
-    }
     for llmobs_span, span, kind in zip(llmobs_events, spans, ("workflow", "task", "agent", "task", "agent")):
-        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **expected_span_args)
+        extra_args = expected_agent_span_args(llmobs_span["name"]) if kind == "agent" else EXPECTED_SPAN_ARGS
+        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **extra_args)
 
 
 def _assert_basic_crew_links(llmobs_events):
@@ -35,16 +117,11 @@ def _assert_basic_crew_links(llmobs_events):
 def _assert_tool_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 4
-    expected_span_args = {
-        "input_value": mock.ANY,
-        "output_value": mock.ANY,
-        "metadata": mock.ANY,
-        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
-        "span_links": True,
-    }
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="agent", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        spans[2], span_kind="agent", **expected_agent_span_args(llmobs_events[2]["name"])
+    )
     assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
         spans[3],
         span_kind="tool",
@@ -69,16 +146,11 @@ def _assert_tool_crew_links(llmobs_events):
 def _assert_async_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 6
-    expected_span_args = {
-        "input_value": mock.ANY,
-        "output_value": mock.ANY,
-        "metadata": mock.ANY,
-        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
-        "span_links": True,
-    }
-    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **expected_span_args)
-    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **expected_span_args)
-    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="agent", **expected_span_args)
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(
+        spans[2], span_kind="agent", **expected_agent_span_args(llmobs_events[2]["name"])
+    )
     assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(
         spans[3],
         span_kind="tool",
@@ -87,8 +159,10 @@ def _assert_async_crew_events(llmobs_events, spans):
         metadata=mock.ANY,
         tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
     )
-    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **expected_span_args)
-    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(spans[5], span_kind="agent", **expected_span_args)
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(
+        spans[5], span_kind="agent", **expected_agent_span_args(llmobs_events[5]["name"])
+    )
 
 
 def _assert_async_crew_links(llmobs_events):
@@ -109,13 +183,6 @@ def _assert_async_crew_links(llmobs_events):
 def _assert_hierarchical_crew_events(llmobs_events, spans):
     llmobs_events.sort(key=lambda span: span["start_ns"])
     assert len(spans) == len(llmobs_events) == 12
-    expected_span_args = {
-        "input_value": mock.ANY,
-        "output_value": mock.ANY,
-        "metadata": mock.ANY,
-        "tags": {"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
-        "span_links": True,
-    }
     expected_span_kinds = (
         "workflow",
         "task",
@@ -141,7 +208,7 @@ def _assert_hierarchical_crew_events(llmobs_events, spans):
                 tags={"service": "tests.contrib.crewai", "ml_app": "<ml-app-name>"},
             )
             continue
-        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **expected_span_args)
+        assert llmobs_span == _expected_llmobs_non_llm_span_event(span, span_kind=kind, **EXPECTED_SPAN_ARGS)
 
 
 def _assert_hierarchical_crew_links(llmobs_events):
@@ -163,6 +230,78 @@ def _assert_hierarchical_crew_links(llmobs_events):
     _assert_span_link(llmobs_events[9], llmobs_events[8], "output", "output")
     _assert_span_link(llmobs_events[10], llmobs_events[11], "input", "input")
     _assert_span_link(llmobs_events[11], llmobs_events[10], "output", "output")
+
+
+def _assert_simple_flow_events(llmobs_events, spans):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(spans) == len(llmobs_events) == 3
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1]["meta"]["output"]["value"] == "New York City"
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    if CREWAI_VERSION >= (0, 119, 0):  # Tracking I/O and state management only available CrewAI >=0.119.0
+        input_val = json.loads(llmobs_events[0]["meta"]["input"]["value"])
+        assert input_val == {"continent": "North America"}
+        assert llmobs_events[0]["meta"]["output"]["value"] == fun_fact_text
+        input_val = json.loads(llmobs_events[1]["meta"]["input"]["value"])
+        assert input_val["args"] == []
+        assert input_val["kwargs"] == {}
+        assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
+        input_val = json.loads(llmobs_events[2]["meta"]["input"]["value"])
+        assert input_val["args"] == ["New York City"]
+        assert input_val["kwargs"] == {}
+        assert input_val["flow_state"] == {"id": mock.ANY, "continent": "North America"}
+        assert llmobs_events[2]["meta"]["output"]["value"] == fun_fact_text
+
+
+def _assert_simple_flow_links(llmobs_events):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[2], "output", "input")
+    _assert_span_link(llmobs_events[2], llmobs_events[0], "output", "output")
+
+
+def _assert_complex_flow_events(llmobs_events, spans):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(spans) == len(llmobs_events) == 6
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[4] == _expected_llmobs_non_llm_span_event(spans[4], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[5] == _expected_llmobs_non_llm_span_event(spans[5], span_kind="task", **EXPECTED_SPAN_ARGS)
+
+
+def _assert_complex_flow_links(llmobs_events):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
+    _assert_span_link(llmobs_events[0], llmobs_events[2], "input", "input")
+    _assert_span_link(llmobs_events[5], llmobs_events[0], "output", "output")
+
+    _assert_span_link(llmobs_events[1], llmobs_events[3], "output", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[4], "output", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[5], "output", "input")
+
+    _assert_span_link(llmobs_events[2], llmobs_events[5], "output", "input")
+    _assert_span_link(llmobs_events[3], llmobs_events[5], "output", "input")
+    _assert_span_link(llmobs_events[4], llmobs_events[5], "output", "input")
+
+
+def _assert_router_flow_events(llmobs_events, spans):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    assert len(spans) == len(llmobs_events) == 4
+    assert llmobs_events[0] == _expected_llmobs_non_llm_span_event(spans[0], span_kind="workflow", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[1] == _expected_llmobs_non_llm_span_event(spans[1], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[2] == _expected_llmobs_non_llm_span_event(spans[2], span_kind="task", **EXPECTED_SPAN_ARGS)
+    assert llmobs_events[3] == _expected_llmobs_non_llm_span_event(spans[3], span_kind="task", **EXPECTED_SPAN_ARGS)
+
+
+def _assert_router_flow_links(llmobs_events):
+    llmobs_events.sort(key=lambda span: span["start_ns"])
+    _assert_span_link(llmobs_events[0], llmobs_events[1], "input", "input")
+    _assert_span_link(llmobs_events[1], llmobs_events[2], "output", "input")
+    _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
+    _assert_span_link(llmobs_events[3], llmobs_events[0], "output", "output")
 
 
 def test_basic_crew(crewai, basic_crew, request_vcr, mock_tracer, llmobs_events):
@@ -307,3 +446,45 @@ async def test_hierarchical_crew_async_for_each(crewai, hierarchical_crew, reque
     spans = mock_tracer.pop_traces()[0]
     _assert_hierarchical_crew_events(llmobs_events, spans)
     _assert_hierarchical_crew_links(llmobs_events)
+
+
+def test_simple_flow(crewai, simple_flow, mock_tracer, llmobs_events):
+    simple_flow.kickoff(inputs={"continent": "North America"})
+    spans = mock_tracer.pop_traces()[0]
+    _assert_simple_flow_events(llmobs_events, spans)
+    _assert_simple_flow_links(llmobs_events)
+
+
+async def test_simple_flow_async(crewai, simple_flow_async, mock_tracer, llmobs_events):
+    await simple_flow_async.kickoff_async(inputs={"continent": "North America"})
+    spans = mock_tracer.pop_traces()[0]
+    _assert_simple_flow_events(llmobs_events, spans)
+    _assert_simple_flow_links(llmobs_events)
+
+
+def test_complex_flow(crewai, complex_flow, mock_tracer, llmobs_events):
+    complex_flow.kickoff(inputs={"continent": "North America"})
+    spans = mock_tracer.pop_traces()[0]
+    _assert_complex_flow_events(llmobs_events, spans)
+    _assert_complex_flow_links(llmobs_events)
+
+
+async def test_complex_flow_async(crewai, complex_flow_async, mock_tracer, llmobs_events):
+    await complex_flow_async.kickoff_async(inputs={"continent": "North America"})
+    spans = mock_tracer.pop_traces()[0]
+    _assert_complex_flow_events(llmobs_events, spans)
+    _assert_complex_flow_links(llmobs_events)
+
+
+def test_router_flow(crewai, router_flow, mock_tracer, llmobs_events):
+    router_flow.kickoff()
+    spans = mock_tracer.pop_traces()[0]
+    _assert_router_flow_events(llmobs_events, spans)
+    _assert_router_flow_links(llmobs_events)
+
+
+async def test_router_flow_async(crewai, router_flow_async, mock_tracer, llmobs_events):
+    await router_flow_async.kickoff_async()
+    spans = mock_tracer.pop_traces()[0]
+    _assert_router_flow_events(llmobs_events, spans)
+    _assert_router_flow_links(llmobs_events)

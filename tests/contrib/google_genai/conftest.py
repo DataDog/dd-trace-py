@@ -14,7 +14,9 @@ from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_TOOL_CALL_RESPONSE_STREAM
 from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE
+from tests.contrib.google_genai.utils import MOCK_TOOL_FINAL_RESPONSE_STREAM
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter
@@ -39,6 +41,11 @@ def genai_client(request, genai):
             location=os.environ.get("GOOGLE_CLOUD_LOCATION", "us-central1"),
         )
     return genai.Client()
+
+
+@pytest.fixture
+def genai_client_vcr(genai):
+    return genai.Client(http_options={"base_url": "http://127.0.0.1:9126/vcr/genai"})
 
 
 @pytest.fixture
@@ -147,6 +154,65 @@ def mock_generate_content_with_tools(genai):
         return MOCK_TOOL_FINAL_RESPONSE
 
     with mock_patch.object(genai.models.Models, "_generate_content", _fake_generate_content_with_tools):
+        yield
+
+
+@pytest.fixture
+def mock_generate_content_stream_with_tools(genai):
+    call_count = 0
+
+    def _fake_generate_content_stream_with_tools(self, *, model: str, contents, config=None):
+        nonlocal call_count
+        call_count += 1
+
+        if call_count == 1:
+            for chunk in MOCK_TOOL_CALL_RESPONSE_STREAM:
+                yield chunk
+        else:
+            for chunk in MOCK_TOOL_FINAL_RESPONSE_STREAM:
+                yield chunk
+
+    with mock_patch.object(genai.models.Models, "_generate_content_stream", _fake_generate_content_stream_with_tools):
+        yield
+
+
+@pytest.fixture
+def mock_async_generate_content_with_tools(genai):
+    call_count = 0
+
+    async def _fake_async_generate_content_with_tools(self, *, model: str, contents, config=None):
+        nonlocal call_count
+        call_count += 1
+
+        if call_count == 1:
+            return MOCK_TOOL_CALL_RESPONSE
+        return MOCK_TOOL_FINAL_RESPONSE
+
+    with mock_patch.object(genai.models.AsyncModels, "_generate_content", _fake_async_generate_content_with_tools):
+        yield
+
+
+@pytest.fixture
+def mock_async_generate_content_stream_with_tools(genai):
+    call_count = 0
+
+    async def _fake_async_generate_content_stream_with_tools(self, *, model: str, contents, config=None):
+        nonlocal call_count
+        call_count += 1
+
+        async def _async_iterator():
+            if call_count == 1:
+                for chunk in MOCK_TOOL_CALL_RESPONSE_STREAM:
+                    yield chunk
+            else:
+                for chunk in MOCK_TOOL_FINAL_RESPONSE_STREAM:
+                    yield chunk
+
+        return _async_iterator()
+
+    with mock_patch.object(
+        genai.models.AsyncModels, "_generate_content_stream", _fake_async_generate_content_stream_with_tools
+    ):
         yield
 
 

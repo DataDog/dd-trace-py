@@ -1,4 +1,41 @@
+from typing import Dict
+
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+
+
+def expected_calculate_square_tool():
+    return [
+        {
+            "name": "calculate_square_tool",
+            "description": "Calculates the square of a number",
+            "parameters": {"x": {"type": "integer", "required": True}},
+        }
+    ]
+
+
+def expected_foo_tool():
+    return [
+        {
+            "name": "foo_tool",
+            "description": "Return foo string",
+            "parameters": {},
+        }
+    ]
+
+
+def expected_agent_metadata(instructions=None, system_prompt=None, model_settings=None, tools=None) -> Dict:
+    metadata = {
+        "agent_manifest": {
+            "framework": "PydanticAI",
+            "name": "test_agent",
+            "model": "gpt-4o",
+            "model_settings": model_settings,
+            "instructions": instructions,
+            "system_prompts": (system_prompt,) if system_prompt else (),
+            "tools": tools if tools is not None else [],
+        }
+    }
+    return metadata
 
 
 def expected_run_agent_span_event(
@@ -8,25 +45,16 @@ def expected_run_agent_span_event(
     input_value="Hello, world!",
     instructions=None,
     system_prompt=None,
-    tools=None,
     model_settings=None,
     span_links=None,
+    tools=None,
 ):
-    system_prompts = (system_prompt,) if system_prompt else ()
-    metadata = {"instructions": instructions, "system_prompts": system_prompts, "tools": tools or []}
-    if model_settings:
-        metadata.update(
-            {
-                "max_tokens": model_settings.get("max_tokens", None),
-                "temperature": model_settings.get("temperature", None),
-            }
-        )
     return _expected_llmobs_non_llm_span_event(
         span,
         "agent",
         input_value=input_value,
         output_value=output,
-        metadata=metadata,
+        metadata=expected_agent_metadata(instructions, system_prompt, model_settings, tools),
         token_metrics=token_metrics,
         tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.pydantic_ai"},
         span_links=span_links,
@@ -58,3 +86,8 @@ def get_usage(result):
 def calculate_square_tool(x: int) -> int:
     """Calculates the square of a number"""
     return x * x
+
+
+def foo_tool() -> str:
+    """Return foo string"""
+    return "foo"

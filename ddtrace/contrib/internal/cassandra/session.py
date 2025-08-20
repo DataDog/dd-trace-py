@@ -213,7 +213,8 @@ def _start_span_and_set_tags(
     span.set_tag_str(COMPONENT, config.cassandra.integration_name)
     span.set_tag_str(db.SYSTEM, "cassandra")
     span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
     span.set_tags(additional_tags)
     if query is not None:
         span.set_tag_str("cassandra.query", query)
