@@ -894,7 +894,7 @@ def _on_router_match(route):
     MOLTEN_ROUTE = "molten.route"
 
     if not req_span.get_tag(MOLTEN_ROUTE):
-        req_span.set_tag(MOLTEN_ROUTE, route.name)
+        req_span.set_tag_str(MOLTEN_ROUTE, route.name)
     if not req_span.get_tag(http.ROUTE):
         req_span.set_tag_str(http.ROUTE, route.template)
 
