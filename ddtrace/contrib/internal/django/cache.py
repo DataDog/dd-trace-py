@@ -1,6 +1,12 @@
 from collections.abc import Iterable
-from types import FunctionType, ModuleType
-from typing import Any, Dict, Optional, Tuple, Type, cast
+from types import FunctionType
+from types import ModuleType
+from typing import Any
+from typing import Dict
+from typing import Optional
+from typing import Tuple
+from typing import Type
+from typing import cast
 
 
 from ddtrace import config
@@ -10,7 +16,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.cache import cached
-from ddtrace.internal.utils.importlib import func_name
 from ddtrace.internal.wrapping import is_wrapped_with
 from ddtrace.internal.wrapping import wrap
 from ddtrace.settings.integration import IntegrationConfig
@@ -39,8 +44,6 @@ def traced_cache(func: FunctionType, args: Tuple[Any, ...], kwargs: Dict[str, An
     if len(args) > 1:
         keys = utils.quantize_key_values(args[1])
         tags["django.cache.key"] = keys
-
-    resource: Optional[str] = None
 
     # Try to compute resource name and then cache onto the function for future use
     resource: Optional[str] = getattr(func, "__dd_resource", None)
