@@ -138,7 +138,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
 
     for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag_str(tk, tv)
+        span.set_tag(tk, tv)
     if ctx.get_item("measured"):
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
