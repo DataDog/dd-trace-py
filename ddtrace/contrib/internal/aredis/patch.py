@@ -5,8 +5,8 @@ import aredis
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.utils_redis import _instrument_redis_cmd
-from ddtrace._trace.utils_redis import _instrument_redis_execute_pipeline
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
+from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import CMD_MAX_LEN
@@ -26,8 +26,7 @@ config._add(
 )
 
 
-def get_version():
-    # type: () -> str
+def get_version() -> str:
     return getattr(aredis, "__version__", "")
 
 
