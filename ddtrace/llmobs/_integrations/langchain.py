@@ -484,11 +484,12 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
-                    for tool_call in _get_attr(message, "tool_calls", []) or []:
+                    tool_call_id = _get_attr(message, "tool_call_id", "")
+                    if not is_workflow and tool_call_id:
                         core.dispatch(
                             DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
                             (
-                                tool_call.get("id", ""),
+                                tool_call_id,
                                 span,
                             ),
                         )
@@ -519,7 +520,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                if tool_calls_info:
+                if not is_workflow and tool_calls_info:
                     for tool_call in tool_calls_info:
                         core.dispatch(
                             DISPATCH_ON_LLM_TOOL_CHOICE,
