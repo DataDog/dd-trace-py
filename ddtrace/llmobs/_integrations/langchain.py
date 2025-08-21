@@ -520,7 +520,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                if not is_workflow and tool_calls_info:
+                if not is_workflow:
                     for tool_call in tool_calls_info:
                         core.dispatch(
                             DISPATCH_ON_LLM_TOOL_CHOICE,
