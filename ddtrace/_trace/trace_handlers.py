@@ -101,7 +101,7 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
+def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, Any]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
         parameter_value = ctx.get_local_item(parameter_name)
@@ -113,18 +113,21 @@ def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContex
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
     activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
-    call_trace = ctx.get_item("call_trace", call_trace)
+    call_trace = ctx.get_local_item("call_trace", call_trace)
     # Look for the tracer in the context, or fallback to the global tracer
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
+    tracer = (
+        ctx.get_local_item("tracer")
+        or (ctx.get_local_item("middleware") or ctx.get_local_item("pin") or ddtrace).tracer
+    )
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx["distributed_headers"],
-            override=ctx.get_item("distributed_headers_config_override"),
+            request_headers=ctx.get_local_item("distributed_headers"),
+            override=ctx.get_local_item("distributed_headers_config_override"),
         )
-    distributed_context = ctx.get_item("distributed_context")
+    distributed_context = ctx.get_local_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
@@ -132,14 +135,19 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
-        span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
+        span_kwargs = ctx.get_local_item("span_kwargs", span_kwargs)
 
     span_kwargs.update(kwargs)
-    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
+    span_name = ctx.get_local_item("span_name")
+    if not span_name:
+        raise ValueError("span_name must be set in the context before starting a span")
+    span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag(tk, tv)
-    if ctx.get_item("measured"):
+    tags: Optional[Dict[str, str]] = ctx.get_local_item("tags")
+    if tags:
+        for tk, tv in tags.items():
+            span.set_tag(tk, tv)
+    if ctx.get_local_item("measured"):
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -167,7 +175,7 @@ def _finish_span(
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
-    elif ctx.get_item("should_set_traceback", False):
+    elif ctx.get_local_item("should_set_traceback", False):
         span.set_traceback()
     span.finish()
 
