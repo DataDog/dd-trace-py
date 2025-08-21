@@ -187,7 +187,7 @@ def _on_web_framework_start_request(ctx, int_config):
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
-    if core.get_item("set_resource", False) is True and status_code is not None:
+    if core.get_item("set_resource", default=False) is True and status_code is not None:
         try:
             status_code = int(status_code)
         except ValueError:
