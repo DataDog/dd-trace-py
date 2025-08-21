@@ -19,6 +19,7 @@ import wrapt
 from wrapt.importer import when_imported
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
@@ -44,7 +45,6 @@ from ddtrace.internal.utils.importlib import func_name
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.asm import endpoint_collection
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
