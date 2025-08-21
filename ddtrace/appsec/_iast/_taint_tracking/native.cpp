@@ -41,6 +41,7 @@ static PyMethodDef AspectsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
+// Mark the module as used to prevent it from being stripped.
 static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INIT,
                                                             .m_name = PY_MODULE_NAME_ASPECTS,
                                                             .m_doc = "Taint tracking Aspects",
@@ -53,6 +54,7 @@ static PyMethodDef OpsMethods[] = {
     { nullptr, nullptr, 0, nullptr }
 };
 
+// Mark the module as used to prevent it from being stripped.
 static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
                                                         .m_name = PY_MODULE_NAME_ASPECTS,
                                                         .m_doc = "Taint tracking operations",
@@ -88,9 +90,4 @@ PYBIND11_MODULE(_native, m)
 
     PyObject* hm_ops = PyModule_Create(&ops);
     m.add_object("ops", hm_ops);
-
-    // Explicitly reference the module definitions to prevent them from being stripped
-    // This ensures the symbols are preserved even when debug symbols are stripped
-    (void)&ops;
-    (void)&aspects;
 }
