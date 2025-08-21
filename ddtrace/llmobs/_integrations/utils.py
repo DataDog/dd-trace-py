@@ -474,7 +474,7 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
                     ),
                 )
     except Exception:
-        pass
+        logger.warning("Failed to capture plain text tool call from content: %s", content, exc_info=True)
 
 
 def get_metadata_from_kwargs(
