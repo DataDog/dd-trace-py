@@ -381,7 +381,6 @@ class SpanAggregator(SpanProcessor):
             except Exception:
                 log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
 
-
         if spans:
             log.debug(
                 self.SPAN_FINISH_DEBUG_MESSAGE,
