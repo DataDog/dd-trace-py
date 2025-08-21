@@ -1315,9 +1315,11 @@ class LLMObs(Service):
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature. Messages can also include
                                         optional "tool_calls" (list of tool call objects with required keys:
-                                        "name", "arguments", and optional keys: "tool_id", "type") and "tool_results"
+                                        "name", "arguments", and optional keys: "tool_id", "type"), "tool_results"
                                         (list of tool result objects with required key: "result", and optional keys:
-                                        "name", "tool_id", "type") for function calling scenarios.
+                                        "name", "tool_id", "type"), and "tool_definitions" (list of tool definition
+                                        objects with required key: "name", and optional keys: "description", "schema")
+                                        for function calling scenarios.
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
@@ -1325,9 +1327,11 @@ class LLMObs(Service):
                            - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
                                         or a list of dictionaries with the same signature. Messages can also include
                                         optional "tool_calls" (list of tool call objects with required keys:
-                                        "name", "arguments", and optional keys: "tool_id", "type") and "tool_results"
+                                        "name", "arguments", and optional keys: "tool_id", "type"), "tool_results"
                                         (list of tool result objects with required key: "result", and optional keys:
-                                        "name", "tool_id", "type") for function calling scenarios.
+                                        "name", "tool_id", "type"), and "tool_definitions" (list of tool definition
+                                        objects with required key: "name", and optional keys: "description", "schema")
+                                        for function calling scenarios.
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
