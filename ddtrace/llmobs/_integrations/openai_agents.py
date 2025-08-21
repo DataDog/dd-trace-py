@@ -43,7 +43,6 @@ logger = get_logger(__name__)
 
 class OpenAIAgentsIntegration(BaseLLMIntegration):
     _integration_name = "openai_agents"
-    _agent_manifests: Dict[str, Dict[str, Any]] = {}
 
     def __init__(self, integration_config):
         super().__init__(integration_config)
@@ -251,11 +250,20 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             span._set_ctx_item(METRICS, metrics)
 
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
+        # get the available tools from the nearest agent manifest
+        link_annotation = ""
+        agent_manifest = self._get_nearest_agent_manifest(span)
+        if agent_manifest:
+            agent_name = agent_manifest.get("name", "")
+            available_tools = agent_manifest.get("tools", [])
+            available_tool_names = [tool.get("name", "") for tool in available_tools]
+            link_annotation = f"{agent_name} chose to call the {oai_span.name} tool out of {available_tool_names}"
+        
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")
         span._set_ctx_item(OUTPUT_VALUE, oai_span.output or "")
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
-            (oai_span.name, oai_span.input, "function", span),
+            (oai_span.name, oai_span.input, "function", span, link_annotation),
         )
 
     def _llmobs_set_handoff_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
@@ -263,10 +271,15 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         span.name = handoff_tool_name
         span._set_ctx_item("input_value", oai_span.from_agent or "")
         span._set_ctx_item("output_value", oai_span.to_agent or "")
-        agent_manifest = self._agent_manifests.pop(oai_span.from_agent, {})
-        handoffs = agent_manifest.get("handoffs", [])
-        handoff_names = [handoff.get("agent_name", "") for handoff in handoffs]
-        link_annotation = f"{oai_span.from_agent} chose to handoff to {oai_span.to_agent} out of {handoff_names}"
+
+        # get the available handoffs from the nearest agent manifest
+        link_annotation = ""
+        agent_manifest = self._get_nearest_agent_manifest(span)
+        if agent_manifest:
+            handoffs = agent_manifest.get("handoffs", [])
+            handoff_names = [handoff.get("agent_name", "") for handoff in handoffs]
+            link_annotation = f"{oai_span.from_agent} chose to handoff to {oai_span.to_agent} out of {handoff_names}"
+
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
             (handoff_tool_name, OAI_HANDOFF_TOOL_ARG, "handoff", span, link_annotation),
@@ -340,8 +353,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if guardrails:
             manifest["guardrails"] = guardrails
 
-        if agent_name:
-            self._agent_manifests[agent_name] = manifest
         span._set_ctx_item(AGENT_MANIFEST, manifest)
 
     def _extract_model_settings_from_agent(self, agent):
@@ -450,3 +461,13 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if hasattr(agent, "output_guardrails"):
             guardrails.extend([getattr(guardrail, "name", "") for guardrail in agent.output_guardrails])
         return guardrails
+
+    def _get_nearest_agent_manifest(self, span: Span) -> Optional[Dict[str, Any]]:
+        """Traverse up the span hierarchy to find the nearest span with an agent manifest."""
+        current_span = span
+        while current_span:
+            agent_manifest = current_span._get_ctx_item(AGENT_MANIFEST)
+            if agent_manifest:
+                return agent_manifest
+            current_span = _get_nearest_llmobs_ancestor(current_span)
+        return None

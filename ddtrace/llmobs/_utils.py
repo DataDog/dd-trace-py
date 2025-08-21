@@ -358,5 +358,4 @@ class ToolCallTracker:
             "output",
             "input",
             link_type="control_flow",
-            annotation=f"Tool {tool_call.tool_name} output used as part of LLM input",
         )
