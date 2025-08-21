@@ -23,6 +23,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
@@ -32,7 +33,9 @@ from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._writer import LLMObsSpanEvent
+from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.trace import Span
 
 
@@ -97,6 +100,10 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
 
         prompt = request_params.get("prompt", "")
+        tool_config = request_params.get("tool_config", {})
+        tool_definitions = self._extract_tool_definitions(tool_config)
+        if tool_definitions:
+            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
@@ -381,3 +388,17 @@ class BedrockIntegration(BaseLLMIntegration):
         base_url = self._get_base_url(instance=ctx.get_item("instance"))
         if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
+
+    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[ToolDefinition]:
+        """Extract tool definitions from the stored tool config."""
+        tools = _get_attr(tool_config, "tools", [])
+        tool_definitions = []
+        for tool in tools:
+            tool_spec = _get_attr(tool, "toolSpec", {})
+            tool_definition_info = ToolDefinition(
+                name=_get_attr(tool_spec, "name", ""),
+                description=_get_attr(tool_spec, "description", ""),
+                schema=_get_attr(tool_spec, "inputSchema", {}),
+            )
+            tool_definitions.append(tool_definition_info)
+        return tool_definitions
