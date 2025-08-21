@@ -63,7 +63,7 @@ CURRENT_OS = platform.system()
 # release profile, which also has debug symbols by default.
 # And when MinSizeRel is used, we strip the debug symbols from the wheels,
 # see try_strip_symbols() below.
-COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
+COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "MinSizeRel"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
