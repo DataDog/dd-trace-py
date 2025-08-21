@@ -105,7 +105,7 @@ def _build_tags(query, pin, instance, integration_name):
             ret[key] = value
     # some redis clients do not have a connection_pool attribute (ex. aioredis v1.3)
     if hasattr(instance, "connection_pool"):
-        for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs):
+        for key, value in _extract_conn_tags(instance.connection_pool.connection_kwargs).items():
             ret[key] = value
     return ret
 
