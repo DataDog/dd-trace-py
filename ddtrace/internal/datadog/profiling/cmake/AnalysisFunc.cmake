@@ -26,9 +26,6 @@ function(add_ddup_config target)
                                                  "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>" -fno-semantic-interposition)
     endif()
 
-    # Common link options
-    target_link_options(${target} PRIVATE "$<$<CONFIG:RelWithDebInfo>:-g>")
-
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # macOS-specific linker options
         target_link_options(${target} PRIVATE "$<$<CONFIG:Release>:-Wl,-dead_strip>")
