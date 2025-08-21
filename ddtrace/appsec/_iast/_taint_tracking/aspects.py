@@ -1555,45 +1555,39 @@ def modulo_aspect(*args: Any, **kwargs: Any) -> Any:
 
 
 def index_aspect(*args: Any, **kwargs: Any) -> Any:
-    if isinstance(args[0], IAST.TEXT_TYPES):
-        propagated = _index_aspect(*args, **kwargs)
-        if _is_iast_propagation_debug_enabled():
-            taint_tracking_debug(
-                text_result=propagated,
-                text_candidate=args[0],
-                text_params=args[1],
-                action="propagation",
-                type_propagation="%s[%s]",
-            )
-        return propagated
-    return args[0][args[1]]
+    propagated = _index_aspect(*args, **kwargs)
+    if _is_iast_propagation_debug_enabled():
+        taint_tracking_debug(
+            text_result=propagated,
+            text_candidate=args[0],
+            text_params=args[1],
+            action="propagation",
+            type_propagation="%s[%s]",
+        )
+    return propagated
 
 
 def slice_aspect(*args: Any, **kwargs: Any) -> Any:
-    if isinstance(args[0], IAST.TEXT_TYPES):
-        propagated = _slice_aspect(*args, **kwargs)
-        if _is_iast_propagation_debug_enabled():
-            taint_tracking_debug(
-                text_result=propagated,
-                text_candidate=args[0],
-                text_params=args[1:],
-                action="propagation",
-                type_propagation="slice",
-            )
-        return propagated
-    return args[0][args[1:]]
+    propagated = _slice_aspect(*args, **kwargs)
+    if _is_iast_propagation_debug_enabled():
+        taint_tracking_debug(
+            text_result=propagated,
+            text_candidate=args[0],
+            text_params=args[1:],
+            action="propagation",
+            type_propagation="slice",
+        )
+    return propagated
 
 
 def add_aspect(*args: Any, **kwargs: Any) -> Any:
-    if isinstance(args[0], IAST.TEXT_TYPES):
-        propagated = _add_aspect(*args, **kwargs)
-        if _is_iast_propagation_debug_enabled():
-            taint_tracking_debug(
-                text_result=propagated,
-                text_candidate=args[0],
-                text_params=args[1],
-                action="propagation",
-                type_propagation="%s + %s",
-            )
-        return propagated
-    return args[0] + args[1]
+    propagated = _add_aspect(*args, **kwargs)
+    if _is_iast_propagation_debug_enabled():
+        taint_tracking_debug(
+            text_result=propagated,
+            text_candidate=args[0],
+            text_params=args[1],
+            action="propagation",
+            type_propagation="%s + %s",
+        )
+    return propagated
