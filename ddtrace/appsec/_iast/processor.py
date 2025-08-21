@@ -9,6 +9,7 @@ from ddtrace.internal.logger import get_logger
 
 from ._iast_request_context import _iast_end_request
 from ._iast_request_context_base import _iast_start_request
+from .debug_propagation import export_and_clean_taint_tracking_debug
 
 
 log = get_logger(__name__)
@@ -54,3 +55,5 @@ class AppSecIastSpanProcessor(SpanProcessor):
         if span.span_type != SpanTypes.WEB:
             return
         _iast_end_request(span=span)
+        # Export taint tracking debug information at the end of the request
+        export_and_clean_taint_tracking_debug()

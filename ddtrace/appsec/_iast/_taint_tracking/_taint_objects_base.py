@@ -10,6 +10,8 @@ from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import set_ranges
 from ddtrace.appsec._iast._taint_tracking import set_ranges_from_values
+from ddtrace.appsec._iast._utils import _is_iast_propagation_debug_enabled
+from ddtrace.appsec._iast.debug_propagation import taint_tracking_debug
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -68,7 +70,18 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
     try:
         # Calculate length only for text types
         pyobject_len = len(pyobject) if isinstance(pyobject, IAST.TEXT_TYPES) else 0
-        return set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
+        result_obj = set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
+
+        # Debug: log source introduction of taint
+        if _is_iast_propagation_debug_enabled():
+            taint_tracking_debug(
+                text_result=result_obj,
+                action="source",
+                source_origin=origin_to_str(source_origin)
+                if source_origin is not None
+                else origin_to_str(OriginType.PARAMETER),
+            )
+        return result_obj
     except ValueError:
         iast_propagation_debug_log(f"Tainting object error (pyobject type {type(pyobject)})", exc_info=True)
         return pyobject
