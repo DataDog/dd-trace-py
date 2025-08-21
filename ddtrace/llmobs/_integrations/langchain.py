@@ -37,8 +37,8 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
