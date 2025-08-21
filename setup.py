@@ -929,7 +929,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=extra_compile_args + fast_build_args,
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
         ext_modules.append(
@@ -938,7 +938,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_ast/iastpatch.c",
                 ],
-                extra_compile_args=extra_compile_args + fast_build_args,
+                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
             )
         )
         ext_modules.append(
