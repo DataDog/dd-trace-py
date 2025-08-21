@@ -283,8 +283,8 @@ def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
-def get_item(data_key: str) -> Any:
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+def get_item(data_key: str, default: Optional[Any] = None) -> Any:
+    return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
 def get_local_item(data_key: str) -> Any:
