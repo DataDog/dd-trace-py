@@ -3,8 +3,10 @@ import pytest
 from ddtrace._monkey import patch
 from ddtrace._trace.pin import Pin
 from ddtrace.llmobs._utils import safe_json
-from tests.contrib.litellm.utils import async_consume_stream
-from tests.contrib.litellm.utils import consume_stream
+from tests.contrib.litellm.utils import async_consume_stream_aiter
+from tests.contrib.litellm.utils import async_consume_stream_anext
+from tests.contrib.litellm.utils import consume_stream_iter
+from tests.contrib.litellm.utils import consume_stream_next
 from tests.contrib.litellm.utils import expected_router_settings
 from tests.contrib.litellm.utils import get_cassette_name
 from tests.contrib.litellm.utils import parse_response
@@ -23,7 +25,8 @@ from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
     ],
 )
 class TestLLMObsLiteLLM:
-    def test_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -51,7 +54,10 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_exclude_usage(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_completion_exclude_usage(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n, False)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -79,7 +85,8 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_completion_with_tools(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_completion_with_tools(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
         if stream and n > 1:
             pytest.skip(
                 "Streamed responses with multiple completions and tool calls are not supported: see open issue https://github.com/BerriAI/litellm/issues/8977"
@@ -125,7 +132,8 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
+    async def test_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await litellm.acompletion(
@@ -136,7 +144,7 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, token_metrics = await async_consume_stream(resp, n)
+                output_messages, token_metrics = await consume_stream(resp, n)
             else:
                 output_messages, token_metrics = parse_response(resp)
 
@@ -153,7 +161,8 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = litellm.text_completion(
@@ -181,7 +190,8 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
+    async def test_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await litellm.atext_completion(
@@ -192,7 +202,7 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, token_metrics = await async_consume_stream(resp, n, is_completion=True)
+                output_messages, token_metrics = await consume_stream(resp, n, is_completion=True)
             else:
                 output_messages, token_metrics = parse_response(resp, is_completion=True)
 
@@ -210,7 +220,10 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.parametrize("ddtrace_global_config", [dict(_llmobs_instrumented_proxy_urls="http://localhost:4000")])
-    def test_completion_proxy(self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_completion_proxy(
+        self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = litellm.completion(
@@ -243,8 +256,9 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
     def test_completion_base_url_set(
-        self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n
+        self, litellm, request_vcr_include_localhost, llmobs_events, mock_tracer, stream, n, consume_stream
     ):
         with request_vcr_include_localhost.use_cassette(get_cassette_name(stream, n, proxy=True)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
@@ -280,7 +294,10 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_router_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_router_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = router.completion(
@@ -319,7 +336,10 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_router_acompletion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+    @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
+    async def test_router_acompletion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             messages = [{"content": "Hey, what is up?", "role": "user"}]
             resp = await router.acompletion(
@@ -330,7 +350,7 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = await async_consume_stream(resp, n)
+                output_messages, _ = await consume_stream(resp, n)
             else:
                 output_messages, _ = parse_response(resp)
 
@@ -358,7 +378,10 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    def test_router_text_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_router_text_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = router.text_completion(
@@ -397,7 +420,10 @@ class TestLLMObsLiteLLM:
             tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.litellm"},
         )
 
-    async def test_router_atext_completion(self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n):
+    @pytest.mark.parametrize("consume_stream", [async_consume_stream_aiter, async_consume_stream_anext])
+    async def test_router_atext_completion(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, router, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             prompt = "Hey, what is up?"
             resp = await router.atext_completion(
@@ -408,7 +434,7 @@ class TestLLMObsLiteLLM:
                 stream_options={"include_usage": True},
             )
             if stream:
-                output_messages, _ = await async_consume_stream(resp, n, is_completion=True)
+                output_messages, _ = await consume_stream(resp, n, is_completion=True)
             else:
                 output_messages, _ = parse_response(resp, is_completion=True)
 
@@ -437,7 +463,10 @@ class TestLLMObsLiteLLM:
         )
 
     @pytest.mark.skip(reason="Patching Open AI to be used within the LiteLLM library appears to be flaky")
-    def test_completion_openai_enabled(self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n):
+    @pytest.mark.parametrize("consume_stream", [consume_stream_iter, consume_stream_next])
+    def test_completion_openai_enabled(
+        self, litellm, request_vcr, llmobs_events, mock_tracer, stream, n, consume_stream
+    ):
         with request_vcr.use_cassette(get_cassette_name(stream, n)):
             patch(openai=True)
             import openai

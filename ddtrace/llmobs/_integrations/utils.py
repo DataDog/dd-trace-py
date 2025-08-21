@@ -236,23 +236,25 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]] = []
     content_blocks = []
     tool_calls_info = []
     tool_messages: List[Dict[str, Any]] = []
-    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    unsupported_content_messages: List[
+        Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]
+    ] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
         elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
             toolUse = content_block.get("toolUse", {})
-            tool_calls_info.append(
-                {
-                    "name": str(toolUse.get("name", "")),
-                    "arguments": toolUse.get("input", {}),
-                    "tool_id": str(toolUse.get("toolUseId", "")),
-                }
+            tool_call_info = ToolCall(
+                name=str(toolUse.get("name", "")),
+                arguments=toolUse.get("input", {}),
+                tool_id=str(toolUse.get("toolUseId", "")),
+                type="toolUse",
             )
+            tool_calls_info.append(tool_call_info)
         elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
             tool_message: Dict[str, Any] = content_block.get("toolResult", {})
             tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
@@ -262,13 +264,17 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
                 tool_message_content_text: Optional[str] = tool_message_content.get("text")
                 tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
 
+                tool_result_info = ToolResult(
+                    result=tool_message_content_text
+                    or (tool_message_content_json and safe_json(tool_message_content_json))
+                    or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                    tool_id=tool_message_id,
+                    type="toolResult",
+                )
                 tool_messages.append(
                     {
-                        "content": tool_message_content_text
-                        or (tool_message_content_json and safe_json(tool_message_content_json))
-                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
-                        "role": "tool",
-                        "tool_id": tool_message_id,
+                        "tool_results": [tool_result_info],
+                        "role": "user",
                     }
                 )
         else:
@@ -276,7 +282,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             unsupported_content_messages.append(
                 {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
             )
-    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
+    message: Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]] = {}
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
     if content_blocks:
@@ -1219,19 +1225,20 @@ def get_final_message_converse_stream_message(
         tool_block = tool_blocks.get(idx)
         if not tool_block:
             continue
-        tool_call = {
-            "name": tool_block.get("name", ""),
-            "tool_id": tool_block.get("toolUseId", ""),
-        }
         tool_input = tool_block.get("input")
+        tool_args = {}
         if tool_input is not None:
-            tool_args = {}
             try:
                 tool_args = json.loads(tool_input)
             except (json.JSONDecodeError, ValueError):
                 tool_args = {"input": tool_input}
-            tool_call.update({"arguments": tool_args} if tool_args else {})
-        tool_calls.append(tool_call)
+        tool_call_info = ToolCall(
+            name=tool_block.get("name", ""),
+            tool_id=tool_block.get("toolUseId", ""),
+            arguments=tool_args if tool_args else {},
+            type="toolUse",
+        )
+        tool_calls.append(tool_call_info)
 
     if tool_calls:
         message_output["tool_calls"] = tool_calls

@@ -11,9 +11,10 @@ from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
-from ddtrace.contrib.internal.vertexai._utils import TracedAsyncVertexAIStreamResponse
-from ddtrace.contrib.internal.vertexai._utils import TracedVertexAIStreamResponse
+from ddtrace.contrib.internal.vertexai._utils import VertexAIAsyncStreamHandler
+from ddtrace.contrib.internal.vertexai._utils import VertexAIStreamHandler
 from ddtrace.llmobs._integrations import VertexAIIntegration
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
 from ddtrace.trace import Pin
 
@@ -73,8 +74,11 @@ def _traced_generate(vertexai, pin, func, instance, args, kwargs, model_instance
     try:
         generations = func(*args, **kwargs)
         if stream:
-            return TracedVertexAIStreamResponse(
-                generations, model_instance, integration, span, args, kwargs, is_chat, history
+            return make_traced_stream(
+                generations,
+                VertexAIStreamHandler(
+                    integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
+                ),
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -106,8 +110,11 @@ async def _traced_agenerate(vertexai, pin, func, instance, args, kwargs, model_i
     try:
         generations = await func(*args, **kwargs)
         if stream:
-            return TracedAsyncVertexAIStreamResponse(
-                generations, model_instance, integration, span, args, kwargs, is_chat, history
+            return make_traced_stream(
+                generations,
+                VertexAIAsyncStreamHandler(
+                    integration, span, args, kwargs, is_chat=is_chat, history=history, model_instance=model_instance
+                ),
             )
     except Exception:
         span.set_exc_info(*sys.exc_info())
