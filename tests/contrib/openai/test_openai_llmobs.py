@@ -831,7 +831,7 @@ class TestLLMObsOpenaiV1:
                         input_messages=[
                             {"content": chat_completion_input_description, "role": "user"},
                             {
-                                "content": "None",
+                                "content": "",
                                 "role": "assistant",
                                 "tool_calls": [
                                     {
