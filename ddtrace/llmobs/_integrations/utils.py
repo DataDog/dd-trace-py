@@ -503,12 +503,13 @@ def openai_get_input_messages_from_response_input(
             if processed_item_content:
                 processed_item["content"] = str(processed_item_content)
                 processed_item["role"] = item["role"]
-        elif "call_id" in item and "arguments" in item:
-            # Process `ResponseFunctionToolCallParam` type from input messages
+        elif "call_id" in item and ("arguments" in item or "input" in item):
+            # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
+            arguments_str = item.get("arguments", "{}") or item.get("input", "{}")
             try:
-                arguments = json.loads(item["arguments"])
+                arguments = json.loads(arguments_str)
             except json.JSONDecodeError:
-                arguments = {"value": str(item["arguments"])}
+                arguments = {"value": str(arguments_str)}
 
             tool_call_info = ToolCall(
                 tool_id=item["call_id"],
@@ -588,8 +589,8 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
                     ),
                 }
             )
-        elif message_type == "function_call":
-            arguments = _get_attr(item, "arguments", "{}")
+        elif message_type == "function_call" or message_type == "custom_tool_call":
+            arguments = _get_attr(item, "input", "") or _get_attr(item, "arguments", "{}")
             try:
                 arguments = json.loads(arguments)
             except json.JSONDecodeError:
@@ -603,6 +604,7 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
             message.update(
                 {
                     "tool_calls": [tool_call_info],
+                    "role": "assistant",
                 }
             )
         else:
@@ -735,10 +737,10 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
     )
     if list_idx is None:
         call_dict = {
-                "index": tool_call_idx,
-                "id": tool_id,
-                "type": tool_type,
-            }
+            "index": tool_call_idx,
+            "id": tool_id,
+            "type": tool_type,
+        }
         if function_call:
             call_dict["function"] = {"name": function_name, "arguments": ""}
         elif custom_call:
@@ -749,6 +751,7 @@ def openai_construct_tool_call_from_streamed_chunk(stored_tool_calls, tool_call_
         stored_tool_calls[list_idx]["function"]["arguments"] += getattr(function_call, "arguments", "")
     elif custom_call:
         stored_tool_calls[list_idx]["custom"]["input"] += getattr(custom_call, "input", "")
+
 
 def openai_construct_message_from_streamed_chunks(streamed_chunks: List[Any]) -> Dict[str, Any]:
     """Constructs a chat completion message dictionary from streamed chunks.

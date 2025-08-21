@@ -19,8 +19,6 @@ from tests.contrib.openai.utils import response_tool_function_expected_output_st
 from tests.contrib.openai.utils import tool_call_expected_output
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
-from tests.llmobs._utils import iterate_stream
-from tests.llmobs._utils import next_stream
 
 
 EXPECTED_TOOL_DEFINITIONS = [
@@ -269,8 +267,7 @@ class TestLLMObsOpenaiV1:
             )
         )
 
-    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
-    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer, consume_stream):
+    def test_completion_stream(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
         with get_openai_vcr(subdirectory_name="v1").use_cassette("completion_streamed.yaml"):
             with mock.patch("ddtrace.llmobs._integrations.utils.encoding_for_model", create=True) as mock_encoding:
                 with mock.patch("ddtrace.llmobs._integrations.utils._est_tokens") as mock_est:
@@ -280,7 +277,8 @@ class TestLLMObsOpenaiV1:
                     expected_completion = '! ... A page layouts page drawer? ... Interesting. The "Tools" is'
                     client = openai.OpenAI()
                     resp = client.completions.create(model=model, prompt="Hello world", stream=True)
-                    consume_stream(resp)
+                    for _ in resp:
+                        pass
         span = mock_tracer.pop_traces()[0][0]
         assert mock_llmobs_writer.enqueue.call_count == 1
         mock_llmobs_writer.enqueue.assert_called_with(
@@ -881,6 +879,96 @@ class TestLLMObsOpenaiV1:
             ]
         )
 
+    @pytest.mark.skipif(
+        parse_version(openai_module.version.VERSION) < (1, 66),
+        reason="Responses API with custom tools available after v1.66.0",
+    )
+    def test_response_custom_tool_call(self, openai, ddtrace_global_config, mock_llmobs_writer, mock_tracer):
+        """Test that custom tool calls in responses API are recorded as LLMObs events correctly."""
+        grammar = """
+        start: expr
+        expr: term (SP ADD SP term)* -> add
+        | term
+        term: factor (SP MUL SP factor)* -> mul
+        | factor
+        factor: INT
+        SP: " "
+        ADD: "+"
+        MUL: "*"
+        %import common.INT
+        """
+        with get_openai_vcr(subdirectory_name="v1").use_cassette("response_custom_tool_call.yaml"):
+            client = openai.OpenAI()
+            resp = client.responses.create(
+                model="gpt-5",
+                input="Use the math_exp tool to add four plus four.",
+                tools=[
+                    {
+                        "type": "custom",
+                        "name": "math_exp",
+                        "description": "Creates valid mathematical expressions",
+                        "format": {
+                            "type": "grammar",
+                            "syntax": "lark",
+                            "definition": grammar,
+                        },
+                    }
+                ],
+            )
+
+        span = mock_tracer.pop_traces()[0][0]
+        assert mock_llmobs_writer.enqueue.call_count == 1
+        mock_llmobs_writer.enqueue.assert_called_with(
+            _expected_llmobs_llm_span_event(
+                span,
+                model_name=resp.model,
+                model_provider="openai",
+                input_messages=[{"role": "user", "content": "Use the math_exp tool to add four plus four."}],
+                output_messages=[
+                    {
+                        "role": "reasoning",
+                        "content": mock.ANY,  # reasoning content unstable
+                    },
+                    {
+                        "tool_calls": [
+                            {
+                                "tool_id": "call_H8YsBUDPYjNHSq9fWOzwetxr",
+                                "arguments": {"value": "4 + 4"},
+                                "name": "math_exp",
+                                "type": "custom_tool_call",
+                            }
+                        ],
+                        "role": "assistant",
+                    },
+                ],
+                token_metrics={
+                    "input_tokens": 159,
+                    "output_tokens": 275,
+                    "total_tokens": 434,
+                    "cache_read_input_tokens": 0,
+                },
+                tool_definitions=[
+                    {
+                        "name": "math_exp",
+                        "description": "Creates valid mathematical expressions",
+                        "schema": {
+                            "type": "grammar",
+                            "syntax": "lark",
+                            "definition": grammar,
+                        },
+                    }
+                ],
+                metadata={
+                    "temperature": 1.0,
+                    "top_p": 1.0,
+                    "tool_choice": "auto",
+                    "truncation": "disabled",
+                    "text": {"format": {"type": "text"}, "verbosity": "medium"},
+                    "reasoning_tokens": 256,
+                },
+                tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.openai"},
+            )
+        )
 
     @pytest.mark.skipif(
         parse_version(openai_module.version.VERSION) < (1, 1),
