@@ -20,14 +20,9 @@ DocumentType = Dict[str, Union[str, int, float]]
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict(
-    "Message", 
-    {
-        "content": str, 
-        "role": str, 
-        "tool_calls": List["ToolCall"], 
-        "tool_results": List["ToolResult"]
-    }, 
-    total=False
+    "Message",
+    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
+    total=False,
 )
 Prompt = TypedDict(
     "Prompt",
@@ -85,32 +80,31 @@ class Messages:
                 continue
             elif not isinstance(message, dict):
                 raise TypeError("messages must be a string, dictionary, or list of dictionaries.")
-            
+
             content = message.get("content", "")
             role = message.get("role")
             if not isinstance(content, str):
                 raise TypeError("Message content must be a string.")
-            
+
             msg_dict = Message(content=content)
             if role:
                 if not isinstance(role, str):
                     raise TypeError("Message role must be a string.")
                 msg_dict["role"] = role
-            
+
             tool_calls = message.get("tool_calls")
             if tool_calls is not None:
                 if not isinstance(tool_calls, list):
                     raise TypeError("tool_calls must be a list.")
                 msg_dict["tool_calls"] = tool_calls
-            
+
             tool_results = message.get("tool_results")
             if tool_results is not None:
                 if not isinstance(tool_results, list):
                     raise TypeError("tool_results must be a list.")
                 msg_dict["tool_results"] = tool_results
-            
-            self.messages.append(msg_dict)
 
+            self.messages.append(msg_dict)
 
 
 class Documents:
