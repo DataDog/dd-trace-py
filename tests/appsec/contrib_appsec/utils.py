@@ -184,8 +184,8 @@ class Contrib_TestClass_For_Threats:
 
         Also ensure the resource name is set correctly.
         """
-        if interface.name != "django":
-            pytest.skip("API endpoint discovery is only supported in Django")
+        if interface.name == "fastapi":
+            pytest.skip("API endpoint discovery is only supported in Django/Flask")
         from ddtrace.settings.asm import endpoint_collection
 
         def parse(path: str) -> str:
@@ -195,11 +195,21 @@ class Contrib_TestClass_For_Threats:
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
             path = re.sub(r"<int:param_int>", "123", path)
-            path = re.sub(r"<str:param_str>", "abc", path)
+            path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
-            return "/" + path
+            return path if path.startswith("/") else ("/" + path)
 
+        must_found: set[str] = {
+            "",
+            "/asm/123/abczx",
+            "/asm",
+            "/new_service/abczx",
+            "/login",
+            "/login_sdk",
+            "/rasp/abczx",
+        }
+        found: set[str] = set()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             # required to load the endpoints
@@ -215,14 +225,16 @@ class Contrib_TestClass_For_Threats:
                 if ep.method not in ("GET", "*", "POST"):
                     continue
                 path = parse(ep.path)
+                found.add(path.rstrip("/"))
                 response = (
-                    interface.client.post(path, {"data": "content"})
+                    interface.client.post(path, data=json.dumps({"data": "content"}), content_type="application/json")
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
                 assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
+        assert must_found <= found
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(

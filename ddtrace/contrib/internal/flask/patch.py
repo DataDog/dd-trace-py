@@ -18,6 +18,7 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
+from ddtrace.settings.asm import endpoint_collection
 
 
 # Not all versions of flask/werkzeug have this mixin
@@ -454,7 +455,8 @@ def patched_add_url_rule(wrapped, instance, args, kwargs):
             #   should we do something special with these views? Change the name/resource? Add tags?
             core.dispatch("service_entrypoint.patch", (unwrap(view_func),))
             wrapped_view = wrap_view(instance, view_func, name=endpoint, resource=rule)
-
+        for method in kwargs.get("methods", []):
+            endpoint_collection.add_endpoint(method, rule, operation_name="flask.request")
         return wrapped(
             rule,
             endpoint=endpoint,
