@@ -62,16 +62,16 @@ def get_app():
 
         return await call_next(request)
 
-    @app.get("/")
-    @app.post("/")
-    @app.options("/")
+    @app.get("/", response_class=HTMLResponse)
+    @app.post("/", response_class=HTMLResponse)
+    @app.options("/", response_class=HTMLResponse, status_code=200)
     async def read_homepage():  # noqa: B008
-        return HTMLResponse("ok ASM", 200)
+        return "ok ASM"
 
-    @app.get("/asm/{param_int:int}/{param_str:str}/")
-    @app.post("/asm/{param_int:int}/{param_str:str}/")
-    @app.get("/asm/{param_int:int}/{param_str:str}")
-    @app.post("/asm/{param_int:int}/{param_str:str}")
+    @app.get("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.get("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
     async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
         query_params = dict(request.query_params)
         body = {

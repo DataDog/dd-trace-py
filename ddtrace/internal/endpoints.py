@@ -21,6 +21,7 @@ class HttpEndPoint:
 
     def __hash__(self) -> int:
         return self._hash
+        
 
 
 class Singleton(type):
