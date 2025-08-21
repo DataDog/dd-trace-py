@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixes issue with websocket.receive span not closing exactly when another websocket.receive span was opened. 
+    Also fixes duration of handshake span such that span closes when connection is upgraded. 
+    Minor fix where websocket.close parent should be the handshake span when configuration is disabled.
