@@ -335,9 +335,10 @@ def openai_set_meta_tags_from_chat(
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
+            processed_message["content"] = ""
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
-            processed_message["content"] = ""  # set content to empty string to avoid duplication
+            processed_message["content"] = ""
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
