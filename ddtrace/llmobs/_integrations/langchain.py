@@ -799,12 +799,12 @@ class LangChainIntegration(BaseLLMIntegration):
         if not template or not variables:
             return
 
-        id = self._get_prompt_variable_name(instance)
+        prompt_id = self._get_prompt_variable_name(instance)
 
         prompt = {
             "variables": variables,
             "template": template,
-            "id": id if id is not None else "unknown",
+            "id": prompt_id if prompt_id is not None else "unknown",
             "version": "0.0.0",
             "rag_context_variables": [],
             "rag_query_variables": [],

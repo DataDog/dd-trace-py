@@ -1919,7 +1919,7 @@ class LLMObs(Service):
     @classmethod
     def prompt_context(
         cls,
-        id: Optional[str] = None,
+        prompt_id: Optional[str] = None,
         prompt_name: Optional[str] = None,
         template: Optional[str] = None,
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]] = None,
@@ -1935,7 +1935,7 @@ class LLMObs(Service):
         prompt = Prompt(
             prompt_name=prompt_name,
             version=version,
-            id=id,
+            id=prompt_id,
             template=template,
             chat_template=chat_template,
             variables=variables,

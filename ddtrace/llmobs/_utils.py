@@ -56,7 +56,7 @@ def _validate_prompt(
 
     # Stage 1: Extract values
     prompt_name = prompt.get("prompt_name")
-    id = prompt.get("id")
+    prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
     variables = prompt.get("variables")
@@ -75,14 +75,14 @@ def _validate_prompt(
 
     # Stage 3: Set defaults
     final_ml_app = ml_app or DEFAULT_PROMPT_ML_APP
-    final_name = prompt_name or id or DEFAULT_PROMPT_NAME
-    final_id = id or f"{final_ml_app}_{final_name}"
+    final_name = prompt_name or prompt_id or DEFAULT_PROMPT_NAME
+    final_prompt_id = prompt_id or f"{final_ml_app}_{final_name}"
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
     # Stage 4: Type checks
-    if not isinstance(final_id, str):
-        raise TypeError(f"'id' must be str, got {type(final_id).__name__}.")
+    if not isinstance(final_prompt_id, str):
+        raise TypeError(f"'id' must be str, got {type(final_prompt_id).__name__}.")
 
     if not isinstance(final_name, str):
         raise TypeError(f"'prompt_name' must be str, got {type(final_name).__name__}.")
@@ -131,8 +131,8 @@ def _validate_prompt(
 
     # Stage 6: Produce output
     validated_prompt: ValidatedPromptDict = {}
-    if final_id:
-        validated_prompt["id"] = final_id
+    if final_prompt_id:
+        validated_prompt["id"] = final_prompt_id
     if final_name:
         validated_prompt["prompt_name"] = final_name
     if version:
@@ -159,11 +159,11 @@ def _strict_validate_prompt(prompt: Union[Dict[str, Any], Prompt]):
     - 'id' is mandatory
     - 'template' or 'chat_template' is mandatory
     """
-    id = prompt.get("id")
+    prompt_id = prompt.get("id")
     template = prompt.get("template")
     chat_template = prompt.get("chat_template")
 
-    if id is None:
+    if prompt_id is None:
         raise ValueError("'id' must be provided")
 
     if template is None and chat_template is None:

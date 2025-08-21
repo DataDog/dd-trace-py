@@ -1766,7 +1766,7 @@ def test_annotation_context_modifies_prompt(llmobs):
 def test_prompt_context_modifies_prompt(llmobs, llmobs_backend):
     with llmobs.prompt_context(
         prompt_name="test",
-        id="test",
+        prompt_id="test",
         chat_template=[{"role": "user", "content": "test {{value}}"}],
         variables={"value": "test"},
     ):
