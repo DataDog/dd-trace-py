@@ -21,6 +21,7 @@ def trace_wrapped(resource, wrapped, *args, **kwargs):
         span_name=func_name(wrapped),
         service=trace_utils.int_service(pin, config.molten, pin),
         resource=resource,
+        allow_default_resource=True,
         pin=pin,
         tags={COMPONENT: config.molten.integration_name, SPAN_KIND: SpanKind.SERVER},
     ):

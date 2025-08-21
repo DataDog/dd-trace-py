@@ -180,7 +180,8 @@ def _set_web_frameworks_tags(ctx, span, int_config):
 
 def _on_web_framework_start_request(ctx, int_config):
     request_span = ctx.get_item("req_span")
-    ctx.set_item("set_resource", True)
+    if ctx.get_item("allow_default_resource") is True:
+        ctx.set_item("set_resource", True)
     _set_web_frameworks_tags(ctx, request_span, int_config)
 
 
