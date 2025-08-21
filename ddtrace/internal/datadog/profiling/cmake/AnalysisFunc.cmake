@@ -43,14 +43,13 @@ function(add_ddup_config target)
             -Wl,--exclude-libs,ALL)
     endif()
 
-    # If we can IPO, then do so. We use thin LTO where supported to preserve debug symbols and match Rust's
-    # LTO strategy.
+    # If we can IPO, then do so.
     check_ipo_supported(RESULT result)
 
     if(result)
         if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
-            # When using AppleClang, explicitly use thin LTO and set the object path for debug symbols.
-            # To match Rust native extension's thin LTO strategy.
+            # When using AppleClang, explicitly use thin LTO to match Rust's thin LTO strategy. And set the object path
+            # for debug symbols.
             target_compile_options(${target} PRIVATE -flto=thin)
             target_link_options(${target} PRIVATE -flto=thin)
             target_link_options(${target} PRIVATE -Wl,-object_path_lto,${CMAKE_CURRENT_BINARY_DIR}/${target}_lto.o)
