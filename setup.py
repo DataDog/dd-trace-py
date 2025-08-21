@@ -14,7 +14,6 @@ import typing as t
 import warnings
 
 import cmake
-import setuptools_rust
 from setuptools_rust import Binding
 from setuptools_rust import RustExtension
 from setuptools_rust import build_rust
@@ -50,9 +49,20 @@ HERE = Path(__file__).resolve().parent
 
 CURRENT_OS = platform.system()
 
-# On Windows, we build with Release by default, and RelWithDebInfo for other platforms
-# to generate debug symbols for native extensions.
-# Note: We strip debug symbols when releasing wheels using scripts/extract_debug_symbols.py
+# What's meant by each build mode is similar to that from CMake, except that
+# non-CMake extensions are by default built with debug symbols. And we build
+# with Release by default for Windows.
+# Released wheels on Linux and macOS are stripped of debug symbols. We use
+# scripts/extract_debug_symbols.py to extract the debug symbols from the wheels.
+# C/C++ and Cython extensions built with setuptools.Extension, and
+# Cython.Distutils.Extension by default inherits CFLAGS from the Python
+# interpreter, and it usually has -O3 -g. So they're built with debug symbols
+# by default.
+# RustExtension src/native has two build profiles, release and debug, and only
+# DD_COMPILE_MODE=Debug will build with debug profile, and rest will build with
+# release profile, which also has debug symbols by default.
+# And when MinSizeRel is used, we strip the debug symbols from the wheels,
+# see try_strip_symbols() below.
 COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
@@ -199,10 +209,6 @@ class PatchedDistribution(Distribution):
                 py_limited_api="auto",
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
-                # The release build profile sets debug='line-tables-only', to
-                # build with debug symbols. If one wants a binary without debug
-                # symbols, one can use DD_COMPILE_MODE=Release.
-                strip=setuptools_rust.Strip.All if COMPILE_MODE.lower() == "release" else setuptools_rust.Strip.No,
                 features=(
                     ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
                 ),
