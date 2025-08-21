@@ -206,7 +206,7 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
-    for tk, tv in core.get_item("additional_tags", dict()).items():
+    for tk, tv in core.get_item("additional_tags", default=dict()).items():
         span.set_tag_str(tk, tv)
 
     if finish:
