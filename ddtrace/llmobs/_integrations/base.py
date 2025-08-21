@@ -66,7 +66,7 @@ class BaseLLMIntegration:
             span_type=SpanTypes.LLM if (submit_to_llmobs and self.llmobs_enabled) else None,
         )
         log.debug("Creating LLM span with type %s", span.span_type)
-
+        # determine if the span represents a proxy request
         base_url = self._get_base_url(**kwargs)
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
