@@ -29,182 +29,20 @@ def traced_generate(vllm, pin, func, instance, args, kwargs):
     class_name = instance.__class__.__name__
     log.debug("[VLLM DEBUG] Starting generate from %s", class_name)
     
-    # APPROACH 1: Extract prompt text using PromptType-based extraction
-    prompt_text_approach1 = None
-    log.debug("[VLLM DEBUG] === APPROACH 1: PromptType-based extraction ===")
-    
-    def extract_from_prompt_type(prompt_arg):
-        """Extract text from various PromptType formats."""
-        if prompt_arg is None:
-            return None
-            
-        # Handle string (direct text prompt)
-        if isinstance(prompt_arg, str):
-            log.debug("[VLLM DEBUG] A1: Direct string prompt found")
-            return prompt_arg
-            
-        # Handle TextPrompt dict
-        if isinstance(prompt_arg, dict):
-            if 'prompt' in prompt_arg:
-                log.debug("[VLLM DEBUG] A1: TextPrompt dict with 'prompt' key")
-                return prompt_arg['prompt']
-            
-            # Handle TokensPrompt dict - but DON'T return None, let Approach 2 handle it
-            if 'prompt_token_ids' in prompt_arg:
-                log.debug("[VLLM DEBUG] A1: TokensPrompt dict found, no text available")
-                return None  # Will be handled by Approach 2
-                
-            # Handle ExplicitEncoderDecoderPrompt
-            if 'encoder_prompt' in prompt_arg or 'decoder_prompt' in prompt_arg:
-                log.debug("[VLLM DEBUG] A1: ExplicitEncoderDecoderPrompt found")
-                # Try decoder prompt first, then encoder
-                decoder = prompt_arg.get('decoder_prompt')
-                if decoder:
-                    return extract_from_prompt_type(decoder)
-                encoder = prompt_arg.get('encoder_prompt')
-                if encoder:
-                    return extract_from_prompt_type(encoder)
-                    
-        # Handle sequence of prompts
-        if isinstance(prompt_arg, (list, tuple)) and len(prompt_arg) > 0:
-            log.debug("[VLLM DEBUG] A1: Sequence of prompts, extracting first")
-            return extract_from_prompt_type(prompt_arg[0])
-            
-        return None
-    
-    # ONLY check first argument as per user requirement
-    if args and len(args) > 0:
-        first_arg = args[0]
-        log.debug("[VLLM DEBUG] A1: First arg type: %s", type(first_arg).__name__)
-        prompt_text_approach1 = extract_from_prompt_type(first_arg)
-    
-    # Also check kwargs for prompt/prompts/inputs
-    if not prompt_text_approach1:
-        for key in ['prompt', 'prompts', 'inputs']:
-            if key in kwargs:
-                log.debug("[VLLM DEBUG] A1: Checking kwargs key '%s'", key)
-                extracted = extract_from_prompt_type(kwargs[key])
-                if extracted:
-                    prompt_text_approach1 = extracted
-                    break
-    
-    log.debug("[VLLM DEBUG] A1: Result: %s", prompt_text_approach1[:100] if prompt_text_approach1 else "None")
-    
-    # APPROACH 2: Token decoding approach
-    prompt_text_approach2 = None
-    log.debug("[VLLM DEBUG] === APPROACH 2: Token decoding approach ===")
-    
-    def extract_token_ids(prompt_arg):
-        """Extract token IDs from various sources."""
-        token_ids = None
-        
-        if isinstance(prompt_arg, dict):
-            if 'prompt_token_ids' in prompt_arg:
-                token_ids = prompt_arg['prompt_token_ids']
-                log.debug("[VLLM DEBUG] A2: Found prompt_token_ids in dict")
-        elif isinstance(prompt_arg, list) and all(isinstance(x, int) for x in prompt_arg):
-            token_ids = prompt_arg
-            log.debug("[VLLM DEBUG] A2: Direct token IDs list")
-            
-        return token_ids
-    
-    def decode_tokens(token_ids):
-        """Decode token IDs to text using available tokenizer."""
-        if not token_ids or not isinstance(token_ids, list):
-            return None
-            
-        log.debug("[VLLM DEBUG] A2: Attempting to decode %d tokens", len(token_ids))
-        try:
-            tokenizer = None
-            
-            # Try to get tokenizer from various sources
-            if hasattr(instance, 'engine') and hasattr(instance.engine, 'tokenizer'):
-                tokenizer_group = instance.engine.tokenizer
-                log.debug("[VLLM DEBUG] A2: Found engine tokenizer group")
-                # TokenizerGroup has a .tokenizer attribute for the actual tokenizer
-                if hasattr(tokenizer_group, 'tokenizer'):
-                    tokenizer = tokenizer_group.tokenizer
-                    log.debug("[VLLM DEBUG] A2: Using engine tokenizer group's tokenizer")
-                else:
-                    log.debug("[VLLM DEBUG] A2: TokenizerGroup has no tokenizer attribute")
-            elif hasattr(instance, 'tokenizer'):
-                tokenizer_group = instance.tokenizer
-                log.debug("[VLLM DEBUG] A2: Found instance tokenizer group")
-                # TokenizerGroup has a .tokenizer attribute for the actual tokenizer
-                if hasattr(tokenizer_group, 'tokenizer'):
-                    tokenizer = tokenizer_group.tokenizer
-                    log.debug("[VLLM DEBUG] A2: Using instance tokenizer group's tokenizer")
-                else:
-                    log.debug("[VLLM DEBUG] A2: TokenizerGroup has no tokenizer attribute")
-            else:
-                log.debug("[VLLM DEBUG] A2: No tokenizer found")
-                return None
-                
-            if tokenizer:
-                decoded = tokenizer.decode(token_ids, skip_special_tokens=True)
-                log.debug("[VLLM DEBUG] A2: Successfully decoded tokens")
-                return decoded
-            else:
-                log.debug("[VLLM DEBUG] A2: No underlying tokenizer available")
-                return None
-            
-        except Exception as e:
-            log.debug("[VLLM DEBUG] A2: Token decoding failed: %s", str(e))
-            return None
-    
-    # Search for token IDs in arguments
-    token_ids = None
-    if args:
-        for i, arg in enumerate(args):
-            extracted_tokens = extract_token_ids(arg)
-            if extracted_tokens:
-                log.debug("[VLLM DEBUG] A2: Found tokens in arg position %d", i)
-                token_ids = extracted_tokens
-                break
-    
-    # Check kwargs for token IDs
-    if not token_ids:
-        for key in ['prompt_token_ids', 'token_ids']:
-            if key in kwargs:
-                extracted_tokens = extract_token_ids(kwargs[key])
-                if extracted_tokens:
-                    log.debug("[VLLM DEBUG] A2: Found tokens in kwargs key '%s'", key)
-                    token_ids = extracted_tokens
-                    break
-    
-    if token_ids:
-        prompt_text_approach2 = decode_tokens(token_ids)
-    
-    log.debug("[VLLM DEBUG] A2: Result: %s", prompt_text_approach2[:100] if prompt_text_approach2 else "None")
-    
-    # Final decision: prefer Approach 1, fallback to Approach 2
-    prompt_text = prompt_text_approach1 or prompt_text_approach2
-    log.debug("[VLLM DEBUG] === FINAL RESULT ===")
-    log.debug("[VLLM DEBUG] Approach 1 (PromptType): %s", "SUCCESS" if prompt_text_approach1 else "FAILED")
-    log.debug("[VLLM DEBUG] Approach 2 (Token decode): %s", "SUCCESS" if prompt_text_approach2 else "FAILED")
-    log.debug("[VLLM DEBUG] Final prompt: %s", prompt_text[:100] if prompt_text else "None")
-
-    # If we have a current span, inject trace headers
+    # Inject trace context for span linking (no prompt data needed)
     current_span = tracer.current_span()
     if current_span:
-        # Create trace headers if they don't exist
         trace_headers = kwargs.get("trace_headers", {})
         if not isinstance(trace_headers, dict):
             trace_headers = {}
             
-        # Inject current span context into headers
+        # Inject current span context for proper trace linking
         HTTPPropagator.inject(current_span.context, trace_headers)
-        
-        # Store the original prompt text in trace headers for later retrieval
-        if prompt_text:
-            trace_headers["x-datadog-vllm-prompt"] = prompt_text
-            log.debug("[VLLM DEBUG] Stored prompt text in trace headers: %s", prompt_text[:100] if len(prompt_text) > 100 else prompt_text)
-        
-        log.debug("[VLLM DEBUG] %s injected trace_headers=%s", class_name, {k: v for k, v in trace_headers.items() if k != "x-datadog-vllm-prompt"})
-            
-        # Update kwargs with trace headers
         kwargs["trace_headers"] = trace_headers
-        
+        log.debug("[VLLM DEBUG] Injected trace context for span linking")
+    else:
+        log.debug("[VLLM DEBUG] No current span found, skipping trace injection")
+
     # Call original function
     return func(*args, **kwargs)
 
@@ -308,7 +146,7 @@ def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
             integration._llmobs_set_tags(
                 span=span,
                 args=[],
-                kwargs={"model_name": model_name},
+                kwargs={"model_name": model_name, "engine_instance": instance},
                 response=seq_group,
                 operation="completion"
             )

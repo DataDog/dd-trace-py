@@ -72,7 +72,8 @@ class VLLMIntegration(BaseLLMIntegration):
         
         # Extract input information
         log.debug("[VLLM INTEGRATION DEBUG] Extracting input data")
-        input_data = self._extract_input_data(seq_group)
+        engine_instance = kwargs.get("engine_instance")
+        input_data = self._extract_input_data(seq_group, engine_instance)
         log.debug("[VLLM INTEGRATION DEBUG] Extracted input_data: %s", input_data)
         
         # Extract output information
@@ -128,62 +129,41 @@ class VLLMIntegration(BaseLLMIntegration):
                 
         return metadata
 
-    def _extract_input_data(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
-        """Extract input data from sequence group.
-        
-        For vLLM, we extract the prompt text and format it as INPUT_MESSAGES
-        following the LLM integration pattern used by OpenAI, Anthropic, etc.
-        """
+    def _extract_input_data(self, seq_group: "SequenceGroup", engine_instance=None) -> Dict[str, Any]:
+        """Extract input data from sequence group by decoding prompt_token_ids."""
         input_data = {}
         
-        # Extract prompt text from trace headers (stored during generate call)
-        prompt_text = None
-        
-        # Method 1: Get prompt from trace headers (preferred - captured at entry point)
-        trace_headers = getattr(seq_group, 'trace_headers', {})
-        if trace_headers and isinstance(trace_headers, dict):
-            prompt_text = trace_headers.get("x-datadog-vllm-prompt")
-        
-        # Method 2: Fallback to SequenceGroup attributes (may be None after tokenization)
-        if not prompt_text and hasattr(seq_group, 'prompt'):
-            prompt_text = getattr(seq_group, 'prompt', None)
-        
-        # Method 3: Fallback to first_seq.inputs.prompt
-        if not prompt_text and hasattr(seq_group, 'first_seq'):
-            first_seq = seq_group.first_seq
-            if first_seq and hasattr(first_seq, 'inputs'):
-                inputs = first_seq.inputs
-                if inputs and hasattr(inputs, 'prompt'):
-                    prompt_text = getattr(inputs, 'prompt', None)
-                
-                # Fallback 3: Try to decode token IDs if tokenizer is available
-        if not prompt_text:
-            try:
-                # Try to get token IDs from the sequence
-                if hasattr(seq_group, 'first_seq') and hasattr(seq_group.first_seq, 'inputs'):
-                    inputs = seq_group.first_seq.inputs
-                    if hasattr(inputs, 'prompt_token_ids') and inputs.prompt_token_ids:
-                        # Try to access tokenizer through various paths
-                        tokenizer = None
-                        
-                        # Check if we can get tokenizer from the engine
-                        if hasattr(seq_group, 'engine') and hasattr(seq_group.engine, 'tokenizer'):
-                            tokenizer = seq_group.engine.tokenizer
-                        elif hasattr(seq_group, 'tokenizer'):
-                            tokenizer = seq_group.tokenizer
-                        
-                        if tokenizer:
-                            prompt_text = tokenizer.decode(inputs.prompt_token_ids, skip_special_tokens=True)
-                            log.debug("[VLLM INTEGRATION DEBUG] Decoded prompt from tokens: %s", prompt_text[:100] if prompt_text else "None")
-                        else:
-                            log.debug("[VLLM INTEGRATION DEBUG] No tokenizer found for token decoding")
-            except Exception as e:
-                log.debug("[VLLM INTEGRATION DEBUG] Failed to decode tokens: %s", str(e))
-        
-        if prompt_text:
-            # Format as INPUT_MESSAGES following LLM integration standards
-            # For completion-style prompts, we treat them as user messages
-            input_data[INPUT_MESSAGES] = [{"content": prompt_text, "role": "user"}]
+        try:
+            # Get token IDs from the sequence
+            if hasattr(seq_group, 'first_seq') and hasattr(seq_group.first_seq, 'inputs'):
+                inputs = seq_group.first_seq.inputs
+                if hasattr(inputs, 'prompt_token_ids') and inputs.prompt_token_ids:
+                    log.debug("[VLLM INTEGRATION DEBUG] Found prompt_token_ids, attempting to decode %d tokens", len(inputs.prompt_token_ids))
+                    
+                    # Use engine instance tokenizer
+                    if engine_instance and hasattr(engine_instance, 'tokenizer') and engine_instance.tokenizer is not None:
+                        tokenizer_group = engine_instance.tokenizer
+                        if tokenizer_group and hasattr(tokenizer_group, 'tokenizer'):
+                            tokenizer = tokenizer_group.tokenizer
+                            try:
+                                prompt_text = tokenizer.decode(inputs.prompt_token_ids, skip_special_tokens=True)
+                                log.debug("[VLLM INTEGRATION DEBUG] Successfully decoded prompt from tokens: %s", prompt_text[:100] if prompt_text else "Empty")
+                                
+                                # Format as INPUT_MESSAGES
+                                input_data[INPUT_MESSAGES] = [{"content": prompt_text, "role": "user"}]
+                                log.debug("[VLLM INTEGRATION DEBUG] Created INPUT_MESSAGES with prompt length: %d", len(prompt_text))
+                            except Exception as e:
+                                log.debug("[VLLM INTEGRATION DEBUG] Failed to decode prompt tokens: %s", e)
+                    elif engine_instance and hasattr(engine_instance, 'tokenizer') and engine_instance.tokenizer is None:
+                        log.debug("[VLLM INTEGRATION DEBUG] Engine tokenizer is None (skip_tokenizer_init=True), cannot decode tokens")
+                    else:
+                        log.debug("[VLLM INTEGRATION DEBUG] No engine instance or tokenizer available")
+                else:
+                    log.debug("[VLLM INTEGRATION DEBUG] No prompt_token_ids found in inputs")
+            else:
+                log.debug("[VLLM INTEGRATION DEBUG] No first_seq or inputs found in seq_group")
+        except Exception as e:
+            log.debug("[VLLM INTEGRATION DEBUG] Error during token decoding: %s", e)
         
         return input_data
 
