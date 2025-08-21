@@ -884,9 +884,6 @@ else:
                 # Cython is not deprecation-proof
                 "-Wno-deprecated-declarations",
             ]
-    elif COMPILE_MODE.lower() == "relwithdebinfo":
-        # Only add debug symbols, let individual extensions handle optimizations and warnings
-        debug_compile_args = ["-g"]
     else:
         debug_compile_args = []
 
@@ -908,7 +905,7 @@ if not IS_PYSTON:
                 # sure we explicitly set this for normal builds, and explicitly
                 # _unset_ it for debug builds in case the CFLAGS from sysconfig
                 # include -DNDEBUG
-                + (["-DNDEBUG"] if COMPILE_MODE.lower() != "debug" else ["-UNDEBUG"])
+                + (["-DNDEBUG"] if not debug_compile_args else ["-UNDEBUG"])
                 + ["-D_POSIX_C_SOURCE=200809L", "-std=c11"]
                 + fast_build_args
                 if CURRENT_OS != "Windows"
@@ -919,7 +916,7 @@ if not IS_PYSTON:
             "ddtrace.internal._threads",
             sources=["ddtrace/internal/_threads.cpp"],
             extra_compile_args=(
-                debug_compile_args + ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
+                ["-std=c++17", "-Wall", "-Wextra"] + fast_build_args
                 if CURRENT_OS != "Windows"
                 else ["/std:c++20", "/MT"]
             ),
@@ -932,7 +929,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_stacktrace.c",
                 ],
-                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+                extra_compile_args=extra_compile_args + fast_build_args,
             )
         )
         ext_modules.append(
@@ -941,7 +938,7 @@ if not IS_PYSTON:
                 sources=[
                     "ddtrace/appsec/_iast/_ast/iastpatch.c",
                 ],
-                extra_compile_args=extra_compile_args + debug_compile_args + fast_build_args,
+                extra_compile_args=extra_compile_args + fast_build_args,
             )
         )
         ext_modules.append(
@@ -1011,13 +1008,11 @@ setup(
                 "ddtrace.internal._rand",
                 sources=["ddtrace/internal/_rand.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.internal._tagset",
                 sources=["ddtrace/internal/_tagset.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
             Extension(
                 "ddtrace.internal._encoding",
@@ -1025,13 +1020,11 @@ setup(
                 include_dirs=["."],
                 libraries=encoding_libraries,
                 define_macros=[(f"__{sys.byteorder.upper()}_ENDIAN__", "1")],
-                extra_compile_args=debug_compile_args,
             ),
             Extension(
                 "ddtrace.internal.telemetry.metrics_namespaces",
                 ["ddtrace/internal/telemetry/metrics_namespaces.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector.stack",
@@ -1041,27 +1034,22 @@ setup(
                 # OTOH, the MSVC toolchain is different.  In a perfect world we'd deduce the underlying
                 # toolchain and emit the right flags, but as a compromise we assume Windows implies MSVC and
                 # everything else is on a GNU-like toolchain
-                extra_compile_args=debug_compile_args
-                + extra_compile_args
-                + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
+                extra_compile_args=extra_compile_args + (["-Wno-int-conversion"] if CURRENT_OS != "Windows" else []),
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._traceback",
                 sources=["ddtrace/profiling/collector/_traceback.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling._threading",
                 sources=["ddtrace/profiling/_threading.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
             Cython.Distutils.Extension(
                 "ddtrace.profiling.collector._task",
                 sources=["ddtrace/profiling/collector/_task.pyx"],
                 language="c",
-                extra_compile_args=debug_compile_args,
             ),
         ],
         compile_time_env={
