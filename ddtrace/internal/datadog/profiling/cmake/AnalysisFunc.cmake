@@ -8,8 +8,7 @@ function(add_ddup_config target)
     # Common compile options
     target_compile_options(
         ${target}
-        PRIVATE "$<$<CONFIG:Release>:-Os>"
-                -ffunction-sections
+        PRIVATE -ffunction-sections
                 -Wall
                 -Werror
                 -Wextra
@@ -19,11 +18,11 @@ function(add_ddup_config target)
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
         # macOS-specific options
-        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-Og;-g>" "$<$<CONFIG:RelWithDebInfo>:-Os;-g>")
+        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-g>" "$<$<CONFIG:RelWithDebInfo>:-g>")
     else()
         # Non-macOS (e.g., Linux) options
-        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-Og;-ggdb3>"
-                                                 "$<$<CONFIG:RelWithDebInfo>:-Os;-ggdb3>" -fno-semantic-interposition)
+        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-ggdb3>" "$<$<CONFIG:RelWithDebInfo>:-ggdb3>"
+                                                 -fno-semantic-interposition)
     endif()
 
     # Common link options
