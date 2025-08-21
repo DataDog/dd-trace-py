@@ -1,6 +1,8 @@
 import os
 
 from ddtrace import config
+from ddtrace.settings._agent import get_agent_hostname
+from ddtrace.settings._opentelemetry import exporter_config
 from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
@@ -15,6 +17,12 @@ MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
 
 DD_LOGS_PROVIDER_CONFIGURED = False
 
+PROTOCOL_TO_PORT = {
+    "grpc": 4317,
+    "http/protobuf": 4318,
+    "http/json": 4318,
+}
+
 
 def set_otel_logs_provider():
     """Set up the OpenTelemetry Logs exporter if not already configured."""
@@ -25,9 +33,7 @@ def set_otel_logs_provider():
     if resource is None:
         return
 
-    protocol = os.environ.get(
-        "OTEL_EXPORTER_OTLP_PROTOCOL", os.environ.get("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc").lower()
-    )
+    protocol = (exporter_config.OTLP_PROTOCOL or exporter_config.OTLP_LOGS_PROTOCOL or "grpc").lower()
     exporter_class = _import_exporter(protocol)
     if exporter_class is None:
         return
@@ -74,7 +80,7 @@ def _build_resource():
             **config.tags,
             "service.name": config.service,
             "service.version": config.version,
-            "deployment.environment.name": config.env,
+            "deployment.environment": config.env,
         }
 
         if config._report_hostname and "host.name" not in resource_attributes:
@@ -160,6 +166,12 @@ def _initialize_logging(exporter_class, protocol, resource):
     """Configures and sets up the OpenTelemetry Logs exporter."""
     try:
         from opentelemetry.sdk._configuration import _init_logging
+
+        if not exporter_config.OTLP_ENDPOINT and not exporter_config.OTLP_LOGS_ENDPOINT:
+            # Set default endpoint if none configured, this
+            os.environ[
+                "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
+            ] = f"http://{get_agent_hostname()}:{PROTOCOL_TO_PORT[protocol]}"
 
         _init_logging({protocol: exporter_class}, resource=resource)
         return True

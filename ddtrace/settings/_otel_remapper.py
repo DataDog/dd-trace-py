@@ -14,7 +14,7 @@ log = get_logger(__name__)
 
 
 OTEL_UNIFIED_TAG_MAPPINGS = {
-    "deployment.environment.name": ENV_KEY,
+    "deployment.environment": ENV_KEY,
     "service.name": "service",
     "service.version": VERSION_KEY,
 }
