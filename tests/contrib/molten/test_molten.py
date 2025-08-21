@@ -10,6 +10,7 @@ from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
 from ddtrace.trace import Pin
@@ -18,6 +19,9 @@ from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+
+
+MOLTEN_VERSION = parse_version(molten.__version__)
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced
