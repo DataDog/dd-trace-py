@@ -1,8 +1,10 @@
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from collections import defaultdict
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple
 
 if TYPE_CHECKING:
     try:
         from vllm.sequence import SequenceGroup
+        from vllm.entrypoints.openai.serving_engine import TextTokensPrompt, AnyRequest
     except ImportError:
         # vllm may not be installed in development environments
         from typing import Any as SequenceGroup
@@ -29,7 +31,20 @@ log = get_logger(__name__)
 
 class VLLMIntegration(BaseLLMIntegration):
     _integration_name = "vllm"
+    
+    _prompt_token_ids_to_prompt: Dict[Tuple[int, ...], str] = {}
 
+    def store_prompt_token_ids_to_prompt(self, prompt_token_ids: List[int], prompt: "str") -> None:
+        log.debug("[VLLM OPENAI DEBUG] Storing prompt token ids to prompt mapping: %s -> %s", prompt_token_ids, prompt)
+        self._prompt_token_ids_to_prompt[tuple(prompt_token_ids)] = prompt
+    
+    def get_prompt_from_prompt_token_ids(self, prompt_token_ids: List[int]) -> Optional["str"]:
+        return self._prompt_token_ids_to_prompt.get(tuple(prompt_token_ids), None)
+    
+    def clear_prompt_token_ids_to_prompt(self, prompt_token_ids: List[int]) -> None:
+        self._prompt_token_ids_to_prompt.pop(tuple(prompt_token_ids), None)
+        log.debug("[VLLM OPENAI DEBUG] Cleared prompt token ids to prompt mapping")
+    
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         """Set base level tags that should be present on all vLLM spans."""
         # Set the model name if available from the engine config
@@ -72,8 +87,7 @@ class VLLMIntegration(BaseLLMIntegration):
         
         # Extract input information
         log.debug("[VLLM INTEGRATION DEBUG] Extracting input data")
-        engine_instance = kwargs.get("engine_instance")
-        input_data = self._extract_input_data(seq_group, engine_instance)
+        input_data = self._extract_input_data(seq_group)
         log.debug("[VLLM INTEGRATION DEBUG] Extracted input_data: %s", input_data)
         
         # Extract output information
@@ -87,10 +101,14 @@ class VLLMIntegration(BaseLLMIntegration):
         log.debug("[VLLM INTEGRATION DEBUG] Extracted metrics: %s", metrics)
         
         # Set LLMObs context items
+        model_provider = "vllm"
+        if "/" in model_name:
+            model_provider = model_name.split("/")[0]
+            model_name = model_name.split("/")[1]
         ctx_items = {
             SPAN_KIND: "llm",
             MODEL_NAME: model_name,
-            MODEL_PROVIDER: "vllm",
+            MODEL_PROVIDER: model_provider,
             METADATA: metadata,
             METRICS: metrics,
             **input_data,
@@ -108,96 +126,44 @@ class VLLMIntegration(BaseLLMIntegration):
             params = seq_group.sampling_params
             
             # Extract key sampling parameters
-            if hasattr(params, 'temperature') and params.temperature is not None:
-                metadata["temperature"] = params.temperature
-            if hasattr(params, 'max_tokens') and params.max_tokens is not None:
-                metadata["max_tokens"] = params.max_tokens
-            if hasattr(params, 'top_p') and params.top_p is not None:
-                metadata["top_p"] = params.top_p
-            if hasattr(params, 'top_k') and params.top_k is not None and params.top_k != -1:
-                metadata["top_k"] = params.top_k
-            if hasattr(params, 'n') and params.n is not None:
-                metadata["n"] = params.n
-            if hasattr(params, 'presence_penalty') and params.presence_penalty is not None:
-                metadata["presence_penalty"] = params.presence_penalty
-            if hasattr(params, 'frequency_penalty') and params.frequency_penalty is not None:
-                metadata["frequency_penalty"] = params.frequency_penalty
-            if hasattr(params, 'repetition_penalty') and params.repetition_penalty is not None:
-                metadata["repetition_penalty"] = params.repetition_penalty
+            metadata["temperature"] = params.temperature
+            metadata["max_tokens"] = params.max_tokens
+            metadata["top_p"] = params.top_p
+            metadata["top_k"] = params.top_k
+            metadata["n"] = params.n
+            metadata["presence_penalty"] = params.presence_penalty
+            metadata["frequency_penalty"] = params.frequency_penalty
+            metadata["repetition_penalty"] = params.repetition_penalty
             if hasattr(params, 'seed') and params.seed is not None:
                 metadata["seed"] = params.seed
                 
         return metadata
 
-    def _extract_input_data(self, seq_group: "SequenceGroup", engine_instance=None) -> Dict[str, Any]:
-        """Extract input data from sequence group by decoding prompt_token_ids."""
-        input_data = {}
-        
-        try:
-            # Get token IDs from the sequence
-            if hasattr(seq_group, 'first_seq') and hasattr(seq_group.first_seq, 'inputs'):
-                inputs = seq_group.first_seq.inputs
-                if hasattr(inputs, 'prompt_token_ids') and inputs.prompt_token_ids:
-                    log.debug("[VLLM INTEGRATION DEBUG] Found prompt_token_ids, attempting to decode %d tokens", len(inputs.prompt_token_ids))
-                    
-                    # Use engine instance tokenizer
-                    if engine_instance and hasattr(engine_instance, 'tokenizer') and engine_instance.tokenizer is not None:
-                        tokenizer_group = engine_instance.tokenizer
-                        if tokenizer_group and hasattr(tokenizer_group, 'tokenizer'):
-                            tokenizer = tokenizer_group.tokenizer
-                            try:
-                                prompt_text = tokenizer.decode(inputs.prompt_token_ids, skip_special_tokens=True)
-                                log.debug("[VLLM INTEGRATION DEBUG] Successfully decoded prompt from tokens: %s", prompt_text[:100] if prompt_text else "Empty")
-                                
-                                # Format as INPUT_MESSAGES
-                                input_data[INPUT_MESSAGES] = [{"content": prompt_text, "role": "user"}]
-                                log.debug("[VLLM INTEGRATION DEBUG] Created INPUT_MESSAGES with prompt length: %d", len(prompt_text))
-                            except Exception as e:
-                                log.debug("[VLLM INTEGRATION DEBUG] Failed to decode prompt tokens: %s", e)
-                    elif engine_instance and hasattr(engine_instance, 'tokenizer') and engine_instance.tokenizer is None:
-                        log.debug("[VLLM INTEGRATION DEBUG] Engine tokenizer is None (skip_tokenizer_init=True), cannot decode tokens")
-                    else:
-                        log.debug("[VLLM INTEGRATION DEBUG] No engine instance or tokenizer available")
-                else:
-                    log.debug("[VLLM INTEGRATION DEBUG] No prompt_token_ids found in inputs")
+    def _extract_input_data(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
+        input_data = defaultdict(list)
+        for seq in seq_group.seqs:
+            log.debug("[VLLM INTEGRATION DEBUG] Extracting input data for seq: %s", seq.inputs)
+            # check if seq.inputs["prompt"] is set
+            if hasattr(seq.inputs, "prompt"):
+                input_data[INPUT_MESSAGES].append({"content": seq.inputs.prompt})
             else:
-                log.debug("[VLLM INTEGRATION DEBUG] No first_seq or inputs found in seq_group")
-        except Exception as e:
-            log.debug("[VLLM INTEGRATION DEBUG] Error during token decoding: %s", e)
-        
+                prompt = self.get_prompt_from_prompt_token_ids(seq.inputs.prompt_token_ids)
+                if prompt is None:
+                    log.debug("[VLLM INTEGRATION DEBUG] Prompt not found for prompt token ids: %s", seq.inputs.prompt_token_ids)
+                else:
+                    input_data[INPUT_MESSAGES].append({"content": prompt})
         return input_data
 
+
     def _extract_output_data(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
-        """Extract output data from sequence group.
+        output_data = defaultdict(list)
         
-        Collects the generated text from all sequences in the group and formats
-        it as OUTPUT_MESSAGES following LLM integration standards.
-        """
-        output_data = {}
+        outputs = []
+        for seq in seq_group.seqs:
+            outputs.append(seq.output_text)
         
-        if hasattr(seq_group, 'seqs') and seq_group.seqs:
-            # Collect output text from all sequences
-            outputs = []
-            for seq in seq_group.seqs:
-                if hasattr(seq, 'output_text') and seq.output_text:
-                    outputs.append(seq.output_text)
-                elif hasattr(seq, 'get_output_text'):
-                    # Some versions use a method
-                    try:
-                        text = seq.get_output_text()
-                        if text:
-                            outputs.append(text)
-                    except Exception:
-                        pass
-            
-            if outputs:
-                # Format as OUTPUT_MESSAGES following LLM integration standards
-                if len(outputs) == 1:
-                    output_data[OUTPUT_MESSAGES] = [{"content": outputs[0], "role": "assistant"}]
-                else:
-                    # For multiple outputs, combine them into a single assistant message
-                    combined_output = "\n".join(f"Output {i+1}: {out}" for i, out in enumerate(outputs))
-                    output_data[OUTPUT_MESSAGES] = [{"content": combined_output, "role": "assistant"}]
+        for output in outputs:
+            output_data[OUTPUT_MESSAGES].append({"content": output})
         
         return output_data
 
@@ -229,6 +195,7 @@ class VLLMIntegration(BaseLLMIntegration):
                         pass
         
         # Set metrics if we have token counts
+        # TODO: Cached tokens
         if input_tokens > 0:
             metrics[INPUT_TOKENS_METRIC_KEY] = input_tokens
         if output_tokens > 0:
