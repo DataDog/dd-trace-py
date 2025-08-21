@@ -33,11 +33,7 @@ def _collect_parent_ids(candidate: Any = None, params: Any = None) -> List[str]:
     parents: List[str] = []
 
     def _extend_with(value: Any) -> None:
-        try:
-            parents.append(str(id(value)))
-        except Exception:
-            # Ignore values that cannot be identified
-            pass
+        parents.append(str(id(value)))
 
     # candidate can be a single value or an iterable
     if candidate is not None:

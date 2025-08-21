@@ -129,18 +129,15 @@ def _log_propagation(op_name: str, result: Any, args: Tuple[Any, ...], explicit_
     op_name identifies the aspect (e.g., "join", "bytearray.extend", "os.path.join").
     Uses args[0] as candidate when available, and args[1] as params if explicit_params is not provided.
     """
-    try:
-        candidate = args[0] if args else None
-        params = explicit_params if explicit_params is not None else (args[1] if len(args) > 1 else None)
-        taint_tracking_debug(
-            text_result=result,
-            text_candidate=candidate,
-            text_params=params,
-            action="propagation",
-            type_propagation=op_name,
-        )
-    except Exception:
-        pass
+    candidate = args[0] if args else None
+    params = explicit_params if explicit_params is not None else (args[1] if len(args) > 1 else None)
+    taint_tracking_debug(
+        text_result=result,
+        text_candidate=candidate,
+        text_params=params,
+        action="propagation",
+        type_propagation=op_name,
+    )
 
 
 def stringio_aspect(orig_function: Optional[Callable], flag_added_args: int, *args: Any, **kwargs: Any) -> _io.StringIO:
