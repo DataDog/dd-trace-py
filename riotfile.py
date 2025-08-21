@@ -2140,7 +2140,7 @@ venv = Venv(
                 Venv(
                     # algoliasearch added support for Python 3.9, 3.10, 3.11 in 3.0
                     pys=select_pys(min_version="3.9"),
-                    pkgs={"algoliasearch": ["~=2.6", "~=3.0", "~=4.0"]},
+                    pkgs={"algoliasearch": "~=2.6"},
                 ),
             ],
         ),
