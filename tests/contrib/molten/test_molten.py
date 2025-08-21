@@ -5,7 +5,6 @@ import pytest
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
