@@ -1,3 +1,5 @@
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
@@ -75,7 +77,11 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = ddtrace.trace.Pin._get_config(instance)
+    cfg: Dict[str, Any] = {}
+    pin = Pin.get_from(instance)
+    if pin:
+        cfg = pin._config
+
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -95,10 +101,6 @@ def _wrap_send(func, instance, args, kwargs):
 
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
-
-        # Configure trace search sample rate
-        # DEV: analytics enabled on per-session basis
-        cfg = Pin._get_config(instance)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

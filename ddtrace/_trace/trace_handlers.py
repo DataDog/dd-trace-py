@@ -544,8 +544,16 @@ def _on_django_start_response(
     )
 
 
-def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx.span.set_metric(db.ROWCOUNT, rowcount)
+def _on_django_cache(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        rowcount = ctx.get_item("rowcount")
+        if rowcount is not None:
+            ctx.span.set_metric(db.ROWCOUNT, rowcount)
+    finally:
+        return _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
@@ -903,7 +911,6 @@ def listen():
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
-    core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
@@ -1027,6 +1034,9 @@ def listen():
         "psycopg.patched_connect",
     ):
         core.on(f"context.ended.{name}", _finish_span)
+
+    # Special/extra handling before calling _finish_span
+    core.on("context.ended.django.cache", _on_django_cache)
 
 
 listen()
