@@ -21,13 +21,7 @@ ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id"
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict(
     "Message",
-    {
-        "content": str,
-        "role": str,
-        "tool_calls": List["ToolCall"],
-        "tool_results": List["ToolResult"],
-        "tool_definitions": List["ToolDefinition"],
-    },
+    {"content": str, "role": str, "tool_calls": List["ToolCall"], "tool_results": List["ToolResult"]},
     total=False,
 )
 Prompt = TypedDict(
@@ -163,35 +157,6 @@ class Messages:
                     formatted_tool_results.append(formatted_tool_result)
 
                 msg_dict["tool_results"] = formatted_tool_results
-
-            tool_definitions = message.get("tool_definitions")
-            if tool_definitions is not None:
-                if not isinstance(tool_definitions, list):
-                    raise TypeError("tool_definitions must be a list.")
-                formatted_tool_definitions = []
-                for tool_definition in tool_definitions:
-                    if not isinstance(tool_definition, dict):
-                        raise TypeError("Each tool_definition must be a dictionary.")
-
-                    # name is required
-                    name = tool_definition.get("name")
-                    if not name or not isinstance(name, str):
-                        raise TypeError("ToolDefinition name must be a non-empty string.")
-
-                    formatted_tool_definition = ToolDefinition(name=name)
-
-                    # Add optional fields if present
-                    description = tool_definition.get("description")
-                    if description and isinstance(description, str):
-                        formatted_tool_definition["description"] = description
-
-                    schema = tool_definition.get("schema")
-                    if schema and isinstance(schema, dict):
-                        formatted_tool_definition["schema"] = schema
-
-                    formatted_tool_definitions.append(formatted_tool_definition)
-
-                msg_dict["tool_definitions"] = formatted_tool_definitions
 
             self.messages.append(msg_dict)
 

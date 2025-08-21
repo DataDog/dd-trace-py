@@ -195,65 +195,6 @@ def test_messages_tool_results_missing_required_fields():
         Messages([{"content": "test", "tool_results": [{"result": 123}]}])
 
 
-def test_messages_with_tool_definitions():
-    """Test that messages can include tool definitions."""
-    messages = Messages(
-        [
-            {
-                "content": "I have access to these tools:",
-                "role": "assistant",
-                "tool_definitions": [
-                    {
-                        "name": "calculator",
-                        "description": "Performs mathematical calculations",
-                        "schema": {"type": "object", "properties": {"operation": {"type": "string"}}},
-                    }
-                ],
-            }
-        ]
-    )
-    expected = [
-        {
-            "content": "I have access to these tools:",
-            "role": "assistant",
-            "tool_definitions": [
-                {
-                    "name": "calculator",
-                    "description": "Performs mathematical calculations",
-                    "schema": {"type": "object", "properties": {"operation": {"type": "string"}}},
-                }
-            ],
-        }
-    ]
-    assert messages.messages == expected
-
-
-def test_messages_with_tool_definitions_minimal():
-    """Test tool definitions with only required fields."""
-    messages = Messages(
-        [{"content": "Available tools:", "role": "assistant", "tool_definitions": [{"name": "simple_tool"}]}]
-    )
-    expected = [{"content": "Available tools:", "role": "assistant", "tool_definitions": [{"name": "simple_tool"}]}]
-    assert messages.messages == expected
-
-
-def test_messages_tool_definitions_missing_required_fields():
-    """Test that tool_definitions raise errors when required fields are missing."""
-    # Missing name field
-    with pytest.raises(TypeError, match="ToolDefinition name must be a non-empty string"):
-        Messages([{"content": "test", "tool_definitions": [{"description": "A tool without a name"}]}])
-
-    # Empty name field
-    with pytest.raises(TypeError, match="ToolDefinition name must be a non-empty string"):
-        Messages([{"content": "test", "tool_definitions": [{"name": "", "description": "A tool with empty name"}]}])
-
-    # Invalid name type
-    with pytest.raises(TypeError, match="ToolDefinition name must be a non-empty string"):
-        Messages(
-            [{"content": "test", "tool_definitions": [{"name": 123, "description": "A tool with invalid name type"}]}]
-        )
-
-
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]
