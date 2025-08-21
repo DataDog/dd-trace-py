@@ -1312,22 +1312,20 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
-                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
-                                        or a list of dictionaries with the same signature. Messages can also include
-                                        optional "tool_calls" (list of tool call objects with required keys:
-                                        "name", "arguments", and optional keys: "tool_id", "type") and "tool_results"
-                                        (list of tool result objects with required key: "result", and optional keys:
-                                        "name", "tool_id", "type") for function calling scenarios.
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...", 
+                                        "tool_calls": ..., "tool_results": ...}, where "tool_calls" are an optional 
+                                        list of tool call dictionaries with required keys: "name", "arguments", and 
+                                        optional keys: "tool_id", "type", and "tool_results" are an optional list of 
+                                        tool result dictionaries with required key: "result", and optional keys: 
+                                        "name", "tool_id", "type" for function calling scenarios.
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
-                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
-                                        or a list of dictionaries with the same signature. Messages can also include
-                                        optional "tool_calls" (list of tool call objects with required keys:
-                                        "name", "arguments", and optional keys: "tool_id", "type") and "tool_results"
-                                        (list of tool result objects with required key: "result", and optional keys:
-                                        "name", "tool_id", "type") for function calling scenarios.
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...", 
+                                        "tool_calls": ...}, where "tool_calls" are an optional list of tool call 
+                                        dictionaries with required keys: "name", "arguments", and optional keys: 
+                                        "tool_id", "type" for function calling scenarios.
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
