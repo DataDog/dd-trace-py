@@ -48,23 +48,13 @@ function(add_ddup_config target)
     check_ipo_supported(RESULT result)
 
     if(result)
-        # Use thin LTO instead of full LTO for better debug symbol preservation
         if(CMAKE_CXX_COMPILER_ID MATCHES "AppleClang")
-            # Use thin LTO for AppleClang to preserve debug symbols
+            # When using AppleClang, explicitly use thin LTO and set the object path for debug symbols.
+            # To match Rust native extension's thin LTO strategy.
             target_compile_options(${target} PRIVATE -flto=thin)
             target_link_options(${target} PRIVATE -flto=thin)
-            # On Darwin, preserve LTO object files for debug symbols
             target_link_options(${target} PRIVATE -Wl,-object_path_lto,${CMAKE_CURRENT_BINARY_DIR}/${target}_lto.o)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-            # Use thin LTO for Clang
-            target_compile_options(${target} PRIVATE -flto=thin)
-            target_link_options(${target} PRIVATE -flto=thin)
-        elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-            # Use thin LTO for GCC
-            target_compile_options(${target} PRIVATE -flto)
-            target_link_options(${target} PRIVATE -flto)
         else()
-            # Fallback to regular LTO for other compilers
             set_property(TARGET ${target} PROPERTY INTERPROCEDURAL_OPTIMIZATION TRUE)
         endif()
     endif()
