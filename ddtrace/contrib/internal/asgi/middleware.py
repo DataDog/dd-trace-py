@@ -179,10 +179,6 @@ def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
 
 
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
-    """
-    Finish the current receive span and remove it from the scope.
-    This is used for disconnect handling and other cleanup scenarios.
-    """
     current_receive_span = scope.get("datadog", {}).get("current_receive_span")
     if current_receive_span:
         current_receive_span.finish()
@@ -257,7 +253,6 @@ class TraceMiddleware:
         if scope["type"] == "http":
             operation_name = schematize_url_operation(operation_name, direction=SpanDirection.INBOUND, protocol="http")
 
-        # Create the handshake span for WebSocket connections or HTTP request span
         with core.context_with_data(
             "asgi.__call__",
             remote_addr=scope.get("REMOTE_ADDR"),
@@ -280,8 +275,6 @@ class TraceMiddleware:
 
             if scope["type"] == "websocket":
                 span.set_tag_str("http.upgraded", "websocket")
-                # Note: This handshake span will be finished when websocket.accept is sent
-                # to ensure the HTTP span terminates when the connection is upgraded
 
             if "datadog" not in scope:
                 scope["datadog"] = {"request_spans": [span]}
@@ -368,13 +361,11 @@ class TraceMiddleware:
                 Note:
                     - Spans are linked to the handshake span
                     - Receive spans are finished exactly when the next receive operation starts
-                    - This ensures seamless transitions with no gaps between spans
                 """
 
                 if not self.integration_config.trace_asgi_websocket_messages:
                     return await receive()
 
-                # Get the current receive span before creating the new one
                 current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
                 with core.context_with_data(
@@ -389,8 +380,6 @@ class TraceMiddleware:
                     call_trace=False,
                     activate=True,
                 ) as ctx:
-                    # Finish the previous span exactly when the new span context starts
-                    # This ensures seamless transitions with no gaps
                     if current_receive_span:
                         current_receive_span.finish()
                         scope["datadog"].pop("current_receive_span", None)
@@ -443,9 +432,7 @@ class TraceMiddleware:
                         and self.integration_config.trace_asgi_websocket_messages
                         and message.get("type") == "websocket.accept"
                     ):
-                        # WebSocket handshake is complete, finish the HTTP span
-                        # This ensures the HTTP span terminates when the connection is upgraded
-                        # as per the spec: "The http spans will be terminated as soon as the connection is upgraded"
+                        # Close handshake span once connection is upgraded
                         if span and span.error == 0:
                             span.finish()
                         return await send(message)
@@ -637,7 +624,6 @@ class TraceMiddleware:
     def _handle_websocket_receive_message(
         self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
     ):
-        # Store this receive span so it can be finished when the next receive operation starts
         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
@@ -689,6 +675,3 @@ class TraceMiddleware:
 
             _copy_trace_level_tags(disconnect_span, request_span)
             _set_websocket_close_tags(disconnect_span, message)
-
-        # The context system automatically finishes the disconnect_span
-        # The handshake span should already be finished when the connection was upgraded
