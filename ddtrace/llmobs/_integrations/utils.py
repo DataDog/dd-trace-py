@@ -450,28 +450,31 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
     if not content:
         return
 
-    action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
-    if action_match and isinstance(tool_calls_info, list):
-        tool_name = action_match.group(1).strip().strip("*").strip()
-        tool_input = action_match.group(2).split("\nObservation")[0].strip("`").strip().strip(" ").strip('"')
-        tool_calls_info.append(
-            {"name": tool_name, "arguments": json.loads(tool_input), "tool_id": "", "type": "function"}
-        )
-        if is_input:
-            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
-        else:
-            core.dispatch(
-                DISPATCH_ON_LLM_TOOL_CHOICE,
-                (
-                    tool_name + tool_input,
-                    tool_name,
-                    tool_input,
-                    {
-                        "trace_id": format_trace_id(span.trace_id),
-                        "span_id": str(span.span_id),
-                    },
-                ),
+    try:
+        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
+        if action_match and isinstance(tool_calls_info, list):
+            tool_name = action_match.group(1).strip().strip("*").strip()
+            tool_input = action_match.group(2).split("\nObservation")[0].strip("`").strip().strip(' "')
+            tool_calls_info.append(
+                {"name": tool_name, "arguments": json.loads(tool_input), "tool_id": "", "type": "function"}
             )
+            if is_input:
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
+            else:
+                core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_name + tool_input,
+                        tool_name,
+                        tool_input,
+                        {
+                            "trace_id": format_trace_id(span.trace_id),
+                            "span_id": str(span.span_id),
+                        },
+                    ),
+                )
+    except Exception:
+        pass
 
 
 def get_metadata_from_kwargs(
