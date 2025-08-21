@@ -56,6 +56,115 @@ def test_messages_with_no_role_is_ok():
     assert messages.messages == [{"content": "hello"}, {"content": "world"}]
 
 
+def test_messages_with_tool_calls():
+    """Test that messages can include tool calls."""
+    messages = Messages(
+        [
+            {
+                "content": "I'll help you with that calculation.",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "calculator",
+                        "arguments": {"operation": "add", "a": 5, "b": 3},
+                        "tool_id": "call_123",
+                        "type": "function",
+                    }
+                ],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "I'll help you with that calculation.",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "calculator",
+                    "arguments": {"operation": "add", "a": 5, "b": 3},
+                    "tool_id": "call_123",
+                    "type": "function",
+                }
+            ],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_results():
+    """Test that messages can include tool results."""
+    messages = Messages(
+        [
+            {
+                "content": "",
+                "role": "tool",
+                "tool_results": [
+                    {"name": "calculator", "result": "8", "tool_id": "call_123", "type": "function_result"}
+                ],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "",
+            "role": "tool",
+            "tool_results": [{"name": "calculator", "result": "8", "tool_id": "call_123", "type": "function_result"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_calls_minimal():
+    """Test tool calls with only required fields."""
+    messages = Messages(
+        [
+            {
+                "content": "Using calculator",
+                "role": "assistant",
+                "tool_calls": [{"name": "calculator", "arguments": {"x": 10}}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Using calculator",
+            "role": "assistant",
+            "tool_calls": [{"name": "calculator", "arguments": {"x": 10}}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_results_minimal():
+    """Test tool results with only required fields."""
+    messages = Messages([{"content": "", "role": "tool", "tool_results": [{"result": "Success"}]}])
+    expected = [{"content": "", "role": "tool", "tool_results": [{"result": "Success"}]}]
+    assert messages.messages == expected
+
+
+def test_messages_with_both_tool_calls_and_results():
+    """Test that a message can have both tool calls and tool results (edge case)."""
+    messages = Messages(
+        [
+            {
+                "content": "Processing...",
+                "role": "assistant",
+                "tool_calls": [{"name": "calculator", "arguments": {"x": 5}}],
+                "tool_results": [{"result": "10"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Processing...",
+            "role": "assistant",
+            "tool_calls": [{"name": "calculator", "arguments": {"x": 5}}],
+            "tool_results": [{"result": "10"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]
