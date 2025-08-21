@@ -8,16 +8,16 @@ Render a dependency DAG from taint_tracking.json using pygraphviz.
 - Colors by action: source (green), propagate (blue), sink (red), unknown (gray)
 """
 
+import argparse
 import json
 import os
+import subprocess
 import sys
 
 from pygraphviz import AGraph
 
 
 # ---------- Config ----------
-INPUT_PATH = "../../taint_tracking.json"  # change if needed
-OUTPUT_SVG = "dependency_graph.svg"
 RANKDIR = "TB"  # "TB" (top->bottom) or "LR" (left->right)
 
 # Optional: map 'action' -> fill color
@@ -28,9 +28,25 @@ ACTION_COLOR = {
 }
 DEFAULT_FILL = "#eeeeee"  # unknown action
 
+# ---------- CLI ----------
+parser = argparse.ArgumentParser(description="Render a dependency DAG from a taint tracking JSON file.")
+parser.add_argument("-f", "--file", required=True, help="Path to input JSON file")
+parser.add_argument("-o", "--output", required=True, help="Path to output SVG file")
+parser.add_argument("-e", dest="e", action="store_true", help="Open the output SVG in Google Chrome after generation")
+args = parser.parse_args()
+
+INPUT_PATH = args.file
+OUTPUT_SVG = args.output
+
+# ANSI colors for terminal output
+GREEN = "\033[92m"
+RED = "\033[91m"
+YELLOW = "\033[93m"
+RESET = "\033[0m"
+
 # ---------- Load data ----------
 if not os.path.exists(INPUT_PATH):
-    print(f"ERROR: {INPUT_PATH} not found. Adjust INPUT_PATH or place the file here.", file=sys.stderr)
+    print(f"{RED}ERROR:{RESET} {INPUT_PATH} not found. Provide a valid path with -f.", file=sys.stderr)
     sys.exit(1)
 
 with open(INPUT_PATH, "r", encoding="utf-8") as f:
@@ -42,14 +58,17 @@ if isinstance(raw, dict) and "nodes" in raw:
 elif isinstance(raw, list):
     data = raw
 else:
-    print("ERROR: JSON must be a list of node objects or an object with a 'nodes' list.", file=sys.stderr)
+    print(f"{RED}ERROR:{RESET} JSON must be a list of node objects or an object with a 'nodes' list.", file=sys.stderr)
     sys.exit(1)
 
 # Validate minimal fields
 required = {"id", "parent_ids", "file", "line", "function", "class", "action"}
 missing_any = any(not required.issubset(d.keys()) for d in data)
 if missing_any:
-    print("WARNING: Some nodes are missing expected keys; labels/tooltips may be incomplete.", file=sys.stderr)
+    print(
+        f"{YELLOW}WARNING:{RESET} Some nodes are missing expected keys; labels/tooltips may be incomplete.",
+        file=sys.stderr,
+    )
 
 # ---------- Build graph ----------
 G = AGraph(directed=True, strict=False)
@@ -142,7 +161,7 @@ for n in data:
         if pid in by_id:
             G.add_edge(pid, child)
         else:
-            print(f"WARNING: parent id {pid} (for child {child}) not found in data", file=sys.stderr)
+            print(f"{YELLOW}WARNING:{RESET} parent id {pid} (for child {child}) not found in data", file=sys.stderr)
 
 # Optional: highlight graph roots (no parents) and sinks (no children) with a darker border
 roots = {n["id"] for n in data if not n.get("parent_ids")}
@@ -158,8 +177,29 @@ for sid in sinks:
 try:
     G.layout(prog="dot")  # hierarchical
 except Exception:
-    print("ERROR: Graphviz 'dot' layout failed. Ensure Graphviz is installed and 'dot' is on PATH.", file=sys.stderr)
+    print(
+        f"{RED}ERROR:{RESET} Graphviz 'dot' layout failed. Ensure Graphviz is installed and 'dot' is on PATH.",
+        file=sys.stderr,
+    )
     raise
 
-G.draw(OUTPUT_SVG)
-print(f"Wrote {OUTPUT_SVG} (open in a browser).")
+try:
+    G.draw(OUTPUT_SVG)
+except Exception as e:
+    print(f"{RED}ERROR:{RESET} Failed to write output SVG '{OUTPUT_SVG}': {e}", file=sys.stderr)
+    sys.exit(1)
+
+print(f"{GREEN}Wrote {OUTPUT_SVG}{RESET} (open in a browser).")
+
+# Open in Google Chrome if requested
+if args.e:
+    try:
+        subprocess.run(["google-chrome", OUTPUT_SVG], check=False)
+        print(f"{GREEN}Opened {OUTPUT_SVG} with google-chrome{RESET}")
+    except FileNotFoundError:
+        print(
+            f"{RED}ERROR:{RESET} 'google-chrome' not found on PATH. Install it or open the SVG manually.",
+            file=sys.stderr,
+        )
+    except Exception as e:
+        print(f"{RED}ERROR:{RESET} Failed to open '{OUTPUT_SVG}' with google-chrome: {e}", file=sys.stderr)
