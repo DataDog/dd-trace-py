@@ -160,7 +160,6 @@ components:
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/internal/aredis/*
     - ddtrace/contrib/internal/yaaredis/*
-    - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
   requests:

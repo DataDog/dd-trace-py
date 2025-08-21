@@ -1,10 +1,10 @@
-import sys
+from collections import defaultdict
 from typing import AsyncGenerator
 from typing import Generator
 
-import wrapt
-
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
 from ddtrace.llmobs._integrations.utils import openai_construct_completion_from_streamed_chunks
 from ddtrace.llmobs._integrations.utils import openai_construct_message_from_streamed_chunks
 
@@ -12,78 +12,30 @@ from ddtrace.llmobs._integrations.utils import openai_construct_message_from_str
 log = get_logger(__name__)
 
 
-class BaseTracedOpenAIStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, kwargs, operation_type="chat"):
-        super().__init__(wrapped)
-        n = kwargs.get("n", 1) or 1
-        prompts = kwargs.get("prompt", "")
-        if operation_type == "completion" and prompts and isinstance(prompts, list) and not isinstance(prompts[0], int):
-            n *= len(prompts)
-        self._dd_span = span
-        self._streamed_chunks = [[] for _ in range(n)]
-        self._dd_integration = integration
-        self._operation_type = operation_type
-        self._kwargs = kwargs
+class BaseOpenAIStreamHandler:
+    def initialize_chunk_storage(self):
+        return defaultdict(list)
 
-
-class TracedOpenAIStream(BaseTracedOpenAIStream):
-    """
-    This class is used to trace OpenAI stream objects for chat/completion/response.
-    """
-
-    def __enter__(self):
-        self.__wrapped__.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-
-    def __iter__(self):
-        exception_raised = False
-        try:
-            for chunk in self.__wrapped__:
-                self._extract_token_chunk(chunk)
-                yield chunk
-                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            exception_raised = True
-            raise
-        finally:
-            if not exception_raised:
-                _process_finished_stream(
-                    self._dd_integration,
-                    self._dd_span,
-                    self._kwargs,
-                    self._streamed_chunks,
-                    self._operation_type,
-                )
-            self._dd_span.finish()
-
-    def __next__(self):
-        try:
-            chunk = self.__wrapped__.__next__()
-            self._extract_token_chunk(chunk)
-            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            return chunk
-        except StopIteration:
+    def finalize_stream(self, exception=None):
+        if not exception:
             _process_finished_stream(
-                self._dd_integration,
-                self._dd_span,
-                self._kwargs,
-                self._streamed_chunks,
-                self._operation_type,
+                self.integration,
+                self.primary_span,
+                self.request_kwargs,
+                self.chunks,
+                self.options.get("operation_type", ""),
             )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
+        self.primary_span.finish()
 
-    def _extract_token_chunk(self, chunk):
+
+class OpenAIStreamHandler(BaseOpenAIStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self._extract_token_chunk(chunk, iterator)
+        _loop_handler(self.primary_span, chunk, self.chunks)
+
+    def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
         choices = getattr(chunk, "choices")
         if not choices:
@@ -95,62 +47,20 @@ class TracedOpenAIStream(BaseTracedOpenAIStream):
         try:
             # User isn't expecting last token chunk to be present since it's not part of the default streamed response,
             # so we consume it and extract the token usage metadata before it reaches the user.
-            usage_chunk = self.__wrapped__.__next__()
-            self._streamed_chunks[0].insert(0, usage_chunk)
+            usage_chunk = iterator.__next__()
+            self.chunks[0].insert(0, usage_chunk)
         except (StopIteration, GeneratorExit):
             return
 
 
-class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
-    """
-    This class is used to trace AsyncOpenAI stream objects for chat/completion/response.
-    """
+class OpenAIAsyncStreamHandler(BaseOpenAIStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        await self._extract_token_chunk(chunk, iterator)
+        _loop_handler(self.primary_span, chunk, self.chunks)
 
-    async def __aenter__(self):
-        await self.__wrapped__.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-
-    async def __aiter__(self):
-        exception_raised = False
-        try:
-            async for chunk in self.__wrapped__:
-                await self._extract_token_chunk(chunk)
-                yield chunk
-                _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            exception_raised = True
-            raise
-        finally:
-            if not exception_raised:
-                _process_finished_stream(
-                    self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
-                )
-            self._dd_span.finish()
-
-    async def __anext__(self):
-        try:
-            chunk = await self.__wrapped__.__anext__()
-            await self._extract_token_chunk(chunk)
-            _loop_handler(self._dd_span, chunk, self._streamed_chunks)
-            return chunk
-        except StopAsyncIteration:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._kwargs, self._streamed_chunks, self._operation_type
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-    async def _extract_token_chunk(self, chunk):
+    async def _extract_token_chunk(self, chunk, iterator=None):
         """Attempt to extract the token chunk (last chunk in the stream) from the streamed response."""
-        if not self._dd_span._get_ctx_item("_dd.auto_extract_token_chunk"):
+        if not self.primary_span._get_ctx_item("_dd.auto_extract_token_chunk"):
             return
         choices = getattr(chunk, "choices")
         if not choices:
@@ -159,8 +69,8 @@ class TracedOpenAIAsyncStream(BaseTracedOpenAIStream):
         if not getattr(choice, "finish_reason", None):
             return
         try:
-            usage_chunk = await self.__wrapped__.__anext__()
-            self._streamed_chunks[0].insert(0, usage_chunk)
+            usage_chunk = await iterator.__anext__()
+            self.chunks[0].insert(0, usage_chunk)
         except (StopAsyncIteration, GeneratorExit):
             return
 
@@ -226,6 +136,8 @@ def _loop_handler(span, chunk, streamed_chunks):
 
 
 def _process_finished_stream(integration, span, kwargs, streamed_chunks, operation_type=""):
+    if isinstance(streamed_chunks, dict) and operation_type != "response":
+        streamed_chunks = streamed_chunks.values()
     try:
         if operation_type == "response":
             formatted_completions = streamed_chunks[0][0] if streamed_chunks and streamed_chunks[0] else None

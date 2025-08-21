@@ -763,7 +763,7 @@ def test_memory_collector_thread_lifecycle():
     """Test that continuously creates and destroys threads while they perform allocations,
     verifying that the collector can track allocations across changing thread contexts.
     """
-    mc = memalloc.MemoryCollector(heap_sample_size=512)
+    mc = memalloc.MemoryCollector(heap_sample_size=8)
 
     with mc:
         threads = []

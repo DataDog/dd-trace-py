@@ -29,6 +29,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -137,7 +138,10 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
 
     for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag_str(tk, tv)
+        span.set_tag(tk, tv)
+    if ctx.get_item("measured"):
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     ctx.span = span
 
@@ -777,6 +781,18 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+    span = ctx.span
+    if args is not None:
+        # PERF: avoid extra overhead from checks in Span.set_metric
+        span._metrics[redisx.ARGS_LEN] = len(args)
+    else:
+        for attr in ("command_stack", "_command_stack"):
+            if hasattr(instance, attr):
+                # PERF: avoid extra overhead from checks in Span.set_metric
+                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+
+
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
@@ -918,6 +934,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
@@ -981,6 +998,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "redis.execute_pipeline",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
@@ -991,6 +1009,7 @@ def listen():
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
         "azure.servicebus.patched_producer",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
@@ -1003,6 +1022,9 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "redis.execute_pipeline",
+        "redis.command",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.ended.{name}", _finish_span)
 

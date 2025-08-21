@@ -58,7 +58,7 @@ def test_evaluate_tool_allow(mock_execute_request, ai_guard_client, tracer):
 
     workflow = ai_guard_client.new_workflow()
     workflow.add_user_prompt("I want to query system's time", "You have to run date")
-    result = workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "date"]})
+    result = workflow.evaluate_tool("shell", {"cmd": ["sh", "-c", "date"]}, output='{"cmd": ["sh", "-c", "date"]}')
 
     assert result is True
     _assert_ai_guard_span(
@@ -68,7 +68,7 @@ def test_evaluate_tool_allow(mock_execute_request, ai_guard_client, tracer):
         mock_execute_request,
         ai_guard_client,
         [Prompt(role="user", content="I want to query system's time", output="You have to run date")],
-        ToolCall(tool_name="shell", tool_args={"cmd": ["sh", "-c", "date"]}),
+        ToolCall(tool_name="shell", tool_args={"cmd": ["sh", "-c", "date"]}, output='{"cmd": ["sh", "-c", "date"]}'),
     )
 
 
@@ -236,6 +236,6 @@ def test_tags_set_in_span(mock_execute_request, ai_guard_client, tracer):
     tags = {"tag1": "value1", "tag2": "value2"}
 
     workflow = ai_guard_client.new_workflow()
-    workflow.evaluate_prompt("user", "Tell me 10 things I should know about DataDog", tags)
+    workflow.evaluate_prompt("user", "Tell me 10 things I should know about DataDog", tags=tags)
 
     _assert_ai_guard_span(tracer, tags)

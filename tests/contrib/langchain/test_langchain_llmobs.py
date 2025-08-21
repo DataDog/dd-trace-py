@@ -19,6 +19,8 @@ from tests.contrib.langchain.utils import mock_langchain_chat_generate_response
 from tests.contrib.langchain.utils import mock_langchain_llm_generate_response
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 from tests.subprocesstest import SubprocessTestCase
 from tests.subprocesstest import run_in_subprocess
 
@@ -531,7 +533,8 @@ def test_llmobs_base_tool_invoke(llmobs_events, tracer):
     )
 
 
-def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, openai_url):
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
     prompt = langchain_core.prompts.ChatPromptTemplate.from_messages(
         [("system", "You are a world class technical documentation writer."), ("user", "{input}")]
     )
@@ -540,8 +543,7 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
 
     chain = prompt | llm | parser
 
-    for _ in chain.stream({"input": "how can langsmith help with testing?"}):
-        pass
+    consume_stream(chain.stream({"input": "how can langsmith help with testing?"}))
 
     trace = tracer.pop_traces()[0]
     assert len(llmobs_events) == 2
@@ -568,12 +570,11 @@ def test_llmobs_streamed_chain(langchain_core, langchain_openai, llmobs_events, 
     )
 
 
-def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, openai_url):
+@pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+def test_llmobs_streamed_llm(langchain_openai, llmobs_events, tracer, openai_url, consume_stream):
     llm = langchain_openai.OpenAI(base_url=openai_url, n=1, seed=1, logprobs=None, logit_bias=None)
 
-    for _ in llm.stream("What is 2+2?\n\n"):
-        pass
-
+    consume_stream(llm.stream("What is 2+2?\n\n"))
     span = tracer.pop_traces()[0][0]
     assert len(llmobs_events) == 1
     assert llmobs_events[0] == _expected_llmobs_llm_span_event(

@@ -15,8 +15,6 @@ from ddtrace._trace.sampler import RateSampler
 from ddtrace._trace.span import Span
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import _APM_ENABLED_METRIC_KEY as MK_APM_ENABLED
-from ddtrace.constants import _SAMPLING_PRIORITY_KEY
-from ddtrace.constants import USER_KEEP
 from ddtrace.internal import gitmetadata
 from ddtrace.internal import telemetry
 from ddtrace.internal.constants import COMPONENT
@@ -26,7 +24,6 @@ from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
-from ddtrace.internal.sampling import is_single_span_sampled
 from ddtrace.internal.service import ServiceStatusError
 from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
@@ -155,36 +152,35 @@ class TraceSamplingProcessor(TraceProcessor):
                     if span._local_root_value is None:
                         span.set_metric(MK_APM_ENABLED, 0)
 
-            # only trace sample if we haven't already sampled
             if chunk_root.context.sampling_priority is None:
                 self.sampler.sample(chunk_root._local_root)
-            # When stats computation is enabled in the tracer then we can
-            # safely drop the traces. When using the NativeWriter this is handled by native code.
-            if (
-                not config._trace_writer_native
-                and self._compute_stats_enabled
-                and not self.apm_opt_out
-                and chunk_root.context.sampling_priority is not None
-                and chunk_root.context.sampling_priority <= 0
-            ):
-                # When any span is marked as keep by a single span sampling
-                # decision then we still send all and only those spans.
-                single_spans = [_ for _ in trace if is_single_span_sampled(_)]
-                return single_spans or None
+                if chunk_root.context.sampling_priority is None:
+                    # NOTE: This should never happen, `self.sampler.sample(..)` should always set the sampling priority.
+                    log.error(
+                        "DatadogSampler failed to sample trace. Local Root: %s",
+                        chunk_root._local_root,
+                    )
+                    return trace
 
-            # single span sampling rules are applied after trace sampling
-            if self.single_span_rules:
+            # single span sampling rules are applied if the trace is about to be dropped
+            if self.single_span_rules and chunk_root.context.sampling_priority <= 0:
+                single_spans = []
+                # When stats computation is enabled in the tracer then we can safely drop the traces.
+                # When using the NativeWriter this is handled by native code.
+                can_drop_trace = (
+                    not config._trace_writer_native and self._compute_stats_enabled and not self.apm_opt_out
+                )
                 for span in trace:
-                    if span.context.sampling_priority is not None and span.context.sampling_priority <= 0:
-                        for rule in self.single_span_rules:
-                            if rule.match(span):
-                                rule.sample(span)
-                                # If stats computation is enabled, we won't send all spans to the agent.
-                                # In order to ensure that the agent does not update priority sampling rates
-                                # due to single spans sampling, we set all of these spans to manual keep.
-                                if config._trace_compute_stats:
-                                    span.set_metric(_SAMPLING_PRIORITY_KEY, USER_KEEP)
-                                break
+                    for rule in self.single_span_rules:
+                        if rule.match(span):
+                            # Sampling a span here does NOT effect the sampling priotiy. This operation
+                            # simply marks a span as single-span sampled.
+                            rule.sample(span)
+                            if can_drop_trace:
+                                single_spans.append(span)
+                            break
+                if can_drop_trace:
+                    return single_spans
             return trace
         return None
 
@@ -382,7 +378,7 @@ class SpanAggregator(SpanProcessor):
                         log.error("error applying processor %r", tp, exc_info=True)
 
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans is not None:
+                if spans:
                     for span in spans:
                         if span.service:
                             # report extra service name as it may have been set after the span creation by the customer

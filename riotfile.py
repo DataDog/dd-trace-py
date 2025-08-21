@@ -3418,6 +3418,7 @@ venv = Venv(
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
                 "flask-babel": latest,
+                "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
