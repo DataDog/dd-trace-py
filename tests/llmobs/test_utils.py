@@ -143,7 +143,7 @@ def test_messages_with_tool_results_minimal():
 
 
 def test_messages_with_both_tool_calls_and_results():
-    """Test that a message can have both tool calls and tool results (edge case)."""
+    """Test that a message can have both tool calls and tool results"""
     messages = Messages(
         [
             {
@@ -163,6 +163,36 @@ def test_messages_with_both_tool_calls_and_results():
         }
     ]
     assert messages.messages == expected
+
+
+def test_messages_tool_calls_missing_required_fields():
+    """Test that tool_calls raise errors when required fields are missing."""
+    # Missing name field
+    with pytest.raises(TypeError, match="ToolCall name must be a non-empty string"):
+        Messages([{"content": "test", "tool_calls": [{"arguments": {"x": 5}}]}])
+
+    # Missing arguments field
+    with pytest.raises(TypeError, match="ToolCall arguments must be a dictionary"):
+        Messages([{"content": "test", "tool_calls": [{"name": "calculator"}]}])
+
+    # Empty name field
+    with pytest.raises(TypeError, match="ToolCall name must be a non-empty string"):
+        Messages([{"content": "test", "tool_calls": [{"name": "", "arguments": {"x": 5}}]}])
+
+    # Invalid arguments type
+    with pytest.raises(TypeError, match="ToolCall arguments must be a dictionary"):
+        Messages([{"content": "test", "tool_calls": [{"name": "calculator", "arguments": "invalid"}]}])
+
+
+def test_messages_tool_results_missing_required_fields():
+    """Test that tool_results raise errors when required fields are missing."""
+    # Missing result field
+    with pytest.raises(TypeError, match="ToolResult result must be a string"):
+        Messages([{"content": "test", "tool_results": [{"name": "calculator"}]}])
+
+    # Invalid result type
+    with pytest.raises(TypeError, match="ToolResult result must be a string"):
+        Messages([{"content": "test", "tool_results": [{"result": 123}]}])
 
 
 def test_documents_with_string():
