@@ -57,7 +57,7 @@ class Prompt(TypedDict, total=False):
     A Prompt object that contains the information needed to render a prompt.
         id: str - the id of the prompt set by the user. Should be unique per ml_app.
         prompt_name: str - the name of the prompt template.
-        prompt_version: str - user tag for the version of the prompt.
+        version: str - user tag for the version of the prompt.
         variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
             - A list of dicts of (role,template)
@@ -71,8 +71,8 @@ class Prompt(TypedDict, total=False):
     """
 
     prompt_name: Optional[str]
-    prompt_version: Optional[str]
-    prompt_id: Optional[str]
+    version: Optional[str]
+    id: Optional[str]
     template: Optional[str]
     chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
     variables: Optional[Dict[str, str]]

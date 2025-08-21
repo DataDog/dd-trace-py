@@ -767,15 +767,15 @@ def test_annotate_prompt_dict(llmobs):
             prompt={
                 "template": "{var1} {var3}",
                 "variables": {"var1": "var1", "var2": "var3"},
-                "prompt_version": "1.0.0",
-                "prompt_id": "test_prompt",
+                "version": "1.0.0",
+                "id": "test_prompt",
             },
         )
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "prompt_version": "1.0.0",
-            "prompt_id": "test_prompt",
+            "version": "1.0.0",
+            "id": "test_prompt",
             "prompt_name": "test_prompt",
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
@@ -789,8 +789,8 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
             prompt={
                 "template": "{var1} {var3}",
                 "variables": {"var1": "var1", "var2": "var3"},
-                "prompt_version": "1.0.0",
-                "prompt_id": "test_prompt",
+                "version": "1.0.0",
+                "id": "test_prompt",
                 "rag_context_variables": ["var1", "var2"],
                 "rag_query_variables": ["user_input"],
             },
@@ -798,8 +798,8 @@ def test_annotate_prompt_dict_with_context_var_keys(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "prompt_version": "1.0.0",
-            "prompt_id": "test_prompt",
+            "version": "1.0.0",
+            "id": "test_prompt",
             "prompt_name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
@@ -813,8 +813,8 @@ def test_annotate_prompt_typed_dict(llmobs):
             prompt=Prompt(
                 template="{var1} {var3}",
                 variables={"var1": "var1", "var2": "var3"},
-                prompt_version="1.0.0",
-                prompt_id="test_prompt",
+                version="1.0.0",
+                id="test_prompt",
                 rag_context_variables=["var1", "var2"],
                 rag_query_variables=["user_input"],
             ),
@@ -822,8 +822,8 @@ def test_annotate_prompt_typed_dict(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "template": "{var1} {var3}",
             "variables": {"var1": "var1", "var2": "var3"},
-            "prompt_version": "1.0.0",
-            "prompt_id": "test_prompt",
+            "version": "1.0.0",
+            "id": "test_prompt",
             "prompt_name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
@@ -831,13 +831,13 @@ def test_annotate_prompt_typed_dict(llmobs):
 
 
 def test_prompt_strict_validation(llmobs):
-    with pytest.raises(ValueError, match="'prompt_id' must be provided"):
-        prompt_with_no_id = Prompt(template="{var1} {var3}", prompt_version="1.0.0")
+    with pytest.raises(ValueError, match="'id' must be provided"):
+        prompt_with_no_id = Prompt(template="{var1} {var3}", version="1.0.0")
         with llmobs.llm(model_name="test_model", prompt=prompt_with_no_id) as span:
             assert span._get_ctx_item(INPUT_PROMPT) is None
 
     with pytest.raises(ValueError, match="One of 'template' or 'chat_template' must be provided to annotate a prompt."):
-        prompt_with_no_template = Prompt(prompt_id="test_prompt", prompt_version="1.0.0")
+        prompt_with_no_template = Prompt(id="test_prompt", version="1.0.0")
         with llmobs.llm(model_name="test_model", prompt=prompt_with_no_template) as span:
             assert span._get_ctx_item(INPUT_PROMPT) is None
 
@@ -848,8 +848,8 @@ def test_prompt_in_llm_annotation(llmobs):
         prompt=Prompt(
             chat_template=[{"role": "user", "content": "{var1} {var3}"}],
             variables={"var1": "var1", "var2": "var3"},
-            prompt_version="1.0.0",
-            prompt_id="test_prompt",
+            version="1.0.0",
+            id="test_prompt",
             rag_context_variables=["var1", "var2"],
             rag_query_variables=["user_input"],
         ),
@@ -857,8 +857,8 @@ def test_prompt_in_llm_annotation(llmobs):
         assert span._get_ctx_item(INPUT_PROMPT) == {
             "chat_template": [{"role": "user", "content": "{var1} {var3}"}],
             "variables": {"var1": "var1", "var2": "var3"},
-            "prompt_version": "1.0.0",
-            "prompt_id": "test_prompt",
+            "version": "1.0.0",
+            "id": "test_prompt",
             "prompt_name": "test_prompt",
             "_dd_context_variable_keys": ["var1", "var2"],
             "_dd_query_variable_keys": ["user_input"],
@@ -1755,7 +1755,7 @@ def test_annotation_context_modifies_prompt(llmobs):
     with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
-                "prompt_id": "unnamed-ml-app_unnamed-prompt",
+                "id": "unnamed-ml-app_unnamed-prompt",
                 "prompt_name": "unnamed-prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],
@@ -1766,13 +1766,13 @@ def test_annotation_context_modifies_prompt(llmobs):
 def test_prompt_context_modifies_prompt(llmobs, llmobs_backend):
     with llmobs.prompt_context(
         prompt_name="test",
-        prompt_id="test",
+        id="test",
         chat_template=[{"role": "user", "content": "test {{value}}"}],
         variables={"value": "test"},
     ):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
-                "prompt_id": "test",
+                "id": "test",
                 "prompt_name": "test",
                 "chat_template": [{"role": "user", "content": "test {{value}}"}],
                 "variables": {"value": "test"},
@@ -1784,13 +1784,13 @@ def test_prompt_context_modifies_prompt(llmobs, llmobs_backend):
 def test_llm_annotation_modifies_prompt(llmobs, llmobs_backend):
     prompt = Prompt(
         prompt_name="test",
-        prompt_id="test",
+        id="test",
         chat_template=[{"role": "user", "content": "test {{value}}"}],
         variables={"value": "test"},
     )
     with llmobs.llm(name="test_agent", model_name="test", prompt=prompt) as span:
         assert span._get_ctx_item(INPUT_PROMPT) == {
-            "prompt_id": "test",
+            "id": "test",
             "prompt_name": "test",
             "chat_template": [{"role": "user", "content": "test {{value}}"}],
             "variables": {"value": "test"},
@@ -1939,7 +1939,7 @@ async def test_annotation_context_async_modifies_prompt(llmobs):
     async with llmobs.annotation_context(prompt=prompt):
         with llmobs.llm(name="test_agent", model_name="test") as span:
             assert span._get_ctx_item(INPUT_PROMPT) == {
-                "prompt_id": "unnamed-ml-app_unnamed-prompt",
+                "id": "unnamed-ml-app_unnamed-prompt",
                 "prompt_name": "unnamed-prompt",
                 "template": "test_template",
                 "_dd_context_variable_keys": ["context"],

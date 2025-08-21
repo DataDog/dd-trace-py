@@ -465,7 +465,7 @@ def test_structured_prompt_data_v1(llmobs, llmobs_backend):
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"]["prompt"] == {
-        "prompt_id": "unnamed-ml-app_unnamed-prompt",
+        "id": "unnamed-ml-app_unnamed-prompt",
         "prompt_name": "unnamed-prompt",
         "template": "test {{value}}",
         "_dd_context_variable_keys": ["context"],
@@ -475,7 +475,7 @@ def test_structured_prompt_data_v1(llmobs, llmobs_backend):
 
 def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     prompt = Prompt(
-        prompt_id="test",
+        id="test",
         prompt_name="test",
         chat_template=[{"role": "user", "content": "test {{value}}"}],
         variables={"value": "test"},
@@ -489,7 +489,7 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
-            "prompt_id": "test",
+            "id": "test",
             "prompt_name": "test",
             "chat_template": [{"role": "user", "content": "test {{value}}"}],
             "variables": {"value": "test"},

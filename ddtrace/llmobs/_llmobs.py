@@ -872,8 +872,8 @@ class LLMObs(Service):
         :param prompt: A dictionary that represents the prompt used for an LLM call in the following form:
                         `{
                             "prompt_name":"my-prompt",
-                            "prompt_version": "...",
-                            "prompt_id": "...",
+                            "version": "...",
+                            "id": "...",
                             "chat_template": [{"content": "...", "role": "..."}, ...],
                             "variables": {"variable_1": "...", ...}}`.
                             "tags": {"key1": "value1", "key2": "value2"},
@@ -1328,9 +1328,9 @@ class LLMObs(Service):
                         `{
                             "template": "...",
                             "chat_template": [{"content": "...", "role": "..."}, ...])
-                            "prompt_id": "...",
+                            "id": "...",
                             "prompt_name": "...",
-                            "prompt_version": "...",
+                            "version": "...",
                             "variables": {"variable_1": "...", ...},
                             tags": {"tag_1": "...", ...},
                         }`.
@@ -1919,12 +1919,12 @@ class LLMObs(Service):
     @classmethod
     def prompt_context(
         cls,
-        prompt_id: Optional[str] = None,
+        id: Optional[str] = None,
         prompt_name: Optional[str] = None,
         template: Optional[str] = None,
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]] = None,
         variables: Optional[Dict[str, Any]] = None,
-        prompt_version: Optional[str] = None,
+        version: Optional[str] = None,
         tags: Optional[Dict[str, str]] = None,
         rag_context_variable_keys: Optional[List[str]] = None,
         rag_query_variable_keys: Optional[List[str]] = None,
@@ -1934,8 +1934,8 @@ class LLMObs(Service):
         """
         prompt = Prompt(
             prompt_name=prompt_name,
-            prompt_version=prompt_version,
-            prompt_id=prompt_id,
+            version=version,
+            id=id,
             template=template,
             chat_template=chat_template,
             variables=variables,
