@@ -1294,6 +1294,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        tool_definitions: Optional[List[Dict[str, Any]]] = None,
         _name: Optional[str] = None,
     ) -> None:
         """
@@ -1336,6 +1337,9 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param tool_definitions: List of tool definition dictionaries for function calling scenarios.
+                                Each tool definition should have a required "name" key and optional "description"
+                                and "schema" keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
@@ -1376,6 +1380,26 @@ class LLMObs(Service):
                     if session_id:
                         span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
+            if tool_definitions is not None:
+                if not isinstance(tool_definitions, list):
+                    error = "invalid_tool_definitions"
+                    log.warning("tool_definitions must be a list of dictionaries.")
+                else:
+                    # Validate each tool definition has a name
+                    valid_tool_definitions = []
+                    for tool_def in tool_definitions:
+                        if not isinstance(tool_def, dict):
+                            error = "invalid_tool_definitions"
+                            log.warning("Each tool_definition must be a dictionary.")
+                            break
+                        if not tool_def.get("name") or not isinstance(tool_def.get("name"), str):
+                            error = "invalid_tool_definitions"
+                            log.warning("Each tool_definition must have a non-empty 'name' field.")
+                            break
+                        valid_tool_definitions.append(tool_def)
+                    else:
+                        # Only set if all tool definitions are valid
+                        span._set_ctx_item(TOOL_DEFINITIONS, valid_tool_definitions)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
                 span.name = _name
