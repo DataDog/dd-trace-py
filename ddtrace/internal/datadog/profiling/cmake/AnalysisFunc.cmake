@@ -43,8 +43,8 @@ function(add_ddup_config target)
             -Wl,--exclude-libs,ALL)
     endif()
 
-    # If we can IPO, then do so Note: We use thin LTO where supported to preserve debug symbols and match Rust's LTO
-    # strategy
+    # If we can IPO, then do so. We use thin LTO where supported to preserve debug symbols and match Rust's
+    # LTO strategy.
     check_ipo_supported(RESULT result)
 
     if(result)
