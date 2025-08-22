@@ -40,6 +40,12 @@ DEFAULT_SERVICE_NAME = "unnamed-python-service"
 COMPONENT = "component"
 HIGHER_ORDER_TRACE_ID_BITS = "_dd.p.tid"
 MAX_UINT_64BITS = (1 << 64) - 1
+MIN_INT_64BITS = -(2**63)
+MAX_INT_64BITS = 2**63 - 1
+SAMPLING_DECISION_MAKER_INHERITED = "_dd.dm.inherited"
+SAMPLING_DECISION_MAKER_SERVICE = "_dd.dm.service"
+SAMPLING_DECISION_MAKER_RESOURCE = "_dd.dm.resource"
+SPAN_LINK_KIND = "dd.kind"
 SPAN_LINKS_KEY = "_dd.span_links"
 SPAN_EVENTS_KEY = "events"
 SPAN_API_DATADOG = "datadog"
@@ -72,9 +78,10 @@ ENTITY_ID_HEADER_NAME = "Datadog-Entity-ID"
 EXTERNAL_ENV_HEADER_NAME = "Datadog-External-Env"
 EXTERNAL_ENV_ENVIRONMENT_VARIABLE = "DD_EXTERNAL_ENV"
 
-MESSAGING_SYSTEM = "messaging.system"
 MESSAGING_DESTINATION_NAME = "messaging.destination.name"
+MESSAGING_MESSAGE_ID = "messaging.message_id"
 MESSAGING_OPERATION = "messaging.operation"
+MESSAGING_SYSTEM = "messaging.system"
 
 NETWORK_DESTINATION_NAME = "network.destination.name"
 
@@ -123,6 +130,7 @@ SAMPLING_MECHANISM_TO_PRIORITIES = {
     SamplingMechanism.AGENT_RATE_BY_SERVICE: (AUTO_KEEP, AUTO_REJECT),
     SamplingMechanism.DEFAULT: (AUTO_KEEP, AUTO_REJECT),
     SamplingMechanism.MANUAL: (USER_KEEP, USER_REJECT),
+    SamplingMechanism.APPSEC: (AUTO_KEEP, AUTO_REJECT),
     SamplingMechanism.LOCAL_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
     SamplingMechanism.REMOTE_USER_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
     SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE: (USER_KEEP, USER_REJECT),
@@ -135,3 +143,8 @@ _REJECT_PRIORITY_INDEX = 1
 class EXPERIMENTAL_FEATURES:
     # Enables submitting runtime metrics as gauges (instead of distributions)
     RUNTIME_METRICS = "DD_RUNTIME_METRICS_ENABLED"
+
+
+AI_GUARD_ENABLED = "DD_AI_GUARD_ENABLED"
+AI_GUARD_ENDPOINT = "DD_AI_GUARD_ENDPOINT"
+DD_APPLICATION_KEY = "DD_APP_KEY"

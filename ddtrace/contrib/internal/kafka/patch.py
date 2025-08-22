@@ -1,11 +1,13 @@
 import os
 import sys
+from time import time
 from time import time_ns
 from typing import Dict
 
 import confluent_kafka
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -26,7 +28,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTPPropagator as Propagator
-from ddtrace.trace import Pin
 
 
 _Producer = confluent_kafka.Producer
@@ -204,7 +205,8 @@ def traced_produce(func, instance, args, kwargs):
 
         span.set_tag(kafkax.PARTITION, partition)
         span.set_tag_str(kafkax.TOMBSTONE, str(value is None))
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         if instance._dd_bootstrap_servers is not None:
             span.set_tag_str(kafkax.HOST_LIST, instance._dd_bootstrap_servers)
 
@@ -300,7 +302,8 @@ def _instrument_message(messages, pin, start_ns, instance, err):
                 pass
             span.set_tag_str(kafkax.TOMBSTONE, str(is_tombstone))
             span.set_tag(kafkax.MESSAGE_OFFSET, message_offset)
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         if err is not None:
             span.set_exc_info(*sys.exc_info())
@@ -331,14 +334,26 @@ def serialize_key(instance, topic, key, headers):
 
 
 def _get_cluster_id(instance, topic):
+    # Check success cache
     if instance and getattr(instance, "_dd_cluster_id", None):
         return instance._dd_cluster_id
+
+    # Check failure cache - skip for 5 minutes if we fail
+    last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
+    if time() - last_failure < 300:
+        return None
 
     if getattr(instance, "list_topics", None) is None:
         return None
 
-    cluster_metadata = instance.list_topics(topic=topic)
-    if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
-        instance._dd_cluster_id = cluster_metadata.cluster_id
-        return cluster_metadata.cluster_id
+    try:
+        cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
+        if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
+            instance._dd_cluster_id = cluster_metadata.cluster_id
+            return cluster_metadata.cluster_id
+    except Exception:
+        # Cache the failure time to avoid repeated slow calls
+        instance._dd_cluster_id_failure_time = time()
+        log.debug("Failed to get Kafka cluster ID, will retry after 5 minutes")
+
     return None

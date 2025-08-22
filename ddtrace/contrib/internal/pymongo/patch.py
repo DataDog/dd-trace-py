@@ -4,6 +4,7 @@ from typing import Dict
 import pymongo
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -17,7 +18,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.wrapping import unwrap as _u
 from ddtrace.internal.wrapping import wrap as _w
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
-from ddtrace.trace import Pin
 from ddtrace.vendor.sqlcommenter import _generate_comment_from_metadata as _generate_comment_from_metadata
 
 from ....internal.schema import schematize_service_name
@@ -146,7 +146,8 @@ def traced_get_socket(func, args, kwargs):
 
         with func(*args, **kwargs) as sock_info:
             set_address_tags(span, sock_info.address)
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
             # Ensure the pin used on the traced mongo client is passed down to the socket instance
             # (via the server instance)
             Pin.get_from(instance).onto(sock_info)

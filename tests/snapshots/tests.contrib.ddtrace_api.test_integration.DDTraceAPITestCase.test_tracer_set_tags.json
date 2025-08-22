@@ -1,0 +1,27 @@
+[[
+  {
+    "name": "web.request",
+    "service": "tests.contrib.ddtrace_api",
+    "resource": "web.request",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "6862c99700000000",
+      "language": "python",
+      "runtime-id": "189ff080b5004f2186829183a50e3c67",
+      "tag1": "value1",
+      "tag2": "value2"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 1638
+    },
+    "duration": 112708,
+    "start": 1751304599164607503
+  }]]

@@ -101,9 +101,7 @@ like this::
 The names of these events follow the pattern ``context.[started|ended].<context_name>``.
 """
 
-from contextlib import AbstractContextManager
 import logging
-import sys
 import types
 import typing
 from typing import Any  # noqa:F401
@@ -111,9 +109,6 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace.vendor.debtcollector import deprecate
-
-from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -129,55 +124,32 @@ if typing.TYPE_CHECKING:
 import contextvars
 
 
+_MISSING = object()
+
 tracer = None
 
 log = logging.getLogger(__name__)
 
 
 ROOT_CONTEXT_ID = "__root"
-SPAN_DEPRECATION_MESSAGE = (
-    "The 'span' keyword argument on ExecutionContext methods is deprecated and will be removed in a future version."
-)
-SPAN_DEPRECATION_SUGGESTION = (
-    "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
-)
-DEPRECATION_MEMO = set()
 
 
-def _deprecate_span_kwarg(span):
-    if (
-        span is not None
-        and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
-        # https://github.com/tiangolo/fastapi/pull/10876
-        and "fastapi" not in sys.modules
-        and "fastapi.applications" not in sys.modules
-    ):
-        DEPRECATION_MEMO.add(id(_CURRENT_CONTEXT))
-        deprecate(
-            SPAN_DEPRECATION_MESSAGE,
-            message=SPAN_DEPRECATION_SUGGESTION,
-            category=DDTraceDeprecationWarning,
-        )
+class ExecutionContext(object):
+    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-
-class ExecutionContext(AbstractContextManager):
-    def __init__(
-        self, identifier: str, parent: Optional["ExecutionContext"] = None, span: Optional["Span"] = None, **kwargs
-    ) -> None:
-        _deprecate_span_kwarg(span)
+    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
         self.identifier: str = identifier
         self._data: Dict[str, Any] = {}
-        self._span: Optional["Span"] = span
         self._suppress_exceptions: List[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
         self._inner_span: Optional["Span"] = None
+        self._token: Optional[contextvars.Token["ExecutionContext"]] = None
 
     def __enter__(self) -> "ExecutionContext":
-        if self._span is None and "_CURRENT_CONTEXT" in globals():
-            self._token: contextvars.Token["ExecutionContext"] = _CURRENT_CONTEXT.set(self)
+        if "_CURRENT_CONTEXT" in globals():
+            self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
-        dispatch("context.started.start_span.%s" % self.identifier, (self,))
         return self
 
     def __repr__(self) -> str:
@@ -194,26 +166,23 @@ class ExecutionContext(AbstractContextManager):
         self._parent = value
 
     def __exit__(
-        self, exc_type: Optional[type], exc_value: Optional[BaseException], traceback: Optional[types.TracebackType]
+        self,
+        exc_type: Optional[type],
+        exc_value: Optional[BaseException],
+        traceback: Optional[types.TracebackType],
     ) -> bool:
-        dispatch("context.ended.%s" % self.identifier, (self,))
-        if self._span is None:
-            try:
-                if hasattr(self, "_token"):
-                    _CURRENT_CONTEXT.reset(self._token)
-            except ValueError:
-                log.debug(
-                    "Encountered ValueError during core contextvar reset() call. "
-                    "This can happen when a span holding an executioncontext is "
-                    "finished in a Context other than the one that started it."
-                )
-            except LookupError:
-                log.debug(
-                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
-                )
-        if id(self) in DEPRECATION_MEMO:
-            DEPRECATION_MEMO.remove(id(self))
-
+        dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
+        try:
+            if self._token is not None:
+                _CURRENT_CONTEXT.reset(self._token)
+        except ValueError:
+            log.debug(
+                "Encountered ValueError during core contextvar reset() call. "
+                "This can happen when a span holding an executioncontext is "
+                "finished in a Context other than the one that started it."
+            )
+        except LookupError:
+            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
         return (
             True
             if exc_type is None
@@ -224,9 +193,10 @@ class ExecutionContext(AbstractContextManager):
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
-            if data_key in current._data:
-                return current._data.get(data_key)
-            current = current.parent
+            value = current._data.get(data_key, _MISSING)
+            if value is not _MISSING:
+                return value
+            current = current._parent
         return default
 
     def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
@@ -260,7 +230,7 @@ class ExecutionContext(AbstractContextManager):
             if data_key in current._data:
                 del current._data[data_key]
                 return
-            current = current.parent
+            current = current._parent
 
     def discard_local_item(self, data_key: str) -> None:
         self._data.pop(data_key, None)
@@ -269,8 +239,8 @@ class ExecutionContext(AbstractContextManager):
         if self.identifier == ROOT_CONTEXT_ID:
             return self
         current = self
-        while current.parent is not None:
-            current = current.parent
+        while current._parent is not None:
+            current = current._parent
         return current
 
     @property
@@ -313,21 +283,15 @@ def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
-def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return span._local_root._get_ctx_item(data_key)
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+def get_item(data_key: str, default: Optional[Any] = None) -> Any:
+    return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
-def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
+def get_local_item(data_key: str) -> Any:
     return _CURRENT_CONTEXT.get().get_local_item(data_key)
 
 
-def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optional[Any]]:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return [span._local_root._get_ctx_item(key) for key in data_keys]
+def get_items(data_keys: List[str]) -> List[Optional[Any]]:
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
@@ -336,20 +300,12 @@ def set_safe(data_key: str, data_value: Optional[Any]) -> None:
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key: str, data_value: Optional[Any], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_item(data_key, data_value)
-    else:
-        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
+def set_item(data_key: str, data_value: Optional[Any]) -> None:
+    _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: Dict[str, Optional[Any]], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_items(keys_values)
-    else:
-        _CURRENT_CONTEXT.get().set_items(keys_values)
+def set_items(keys_values: Dict[str, Optional[Any]]) -> None:
+    _CURRENT_CONTEXT.get().set_items(keys_values)
 
 
 def discard_item(data_key: str) -> None:
@@ -365,7 +321,7 @@ def get_span() -> Optional["Span"]:
     while current is not None:
         if current._inner_span is not None:
             return current._inner_span
-        current = current.parent
+        current = current._parent
     return None
 
 

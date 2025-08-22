@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Sampling rules now only support glob matchers; regex and callable matchers are no longer supported.
+    This simplifies the code and removes functionality that was removed from the public API in ddtrace v3.0.0.

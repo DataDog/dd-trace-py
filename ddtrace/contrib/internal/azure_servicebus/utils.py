@@ -6,14 +6,14 @@ from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_messaging_operation
+from ddtrace.internal.schema import schematize_cloud_messaging_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
 
 
 def create_context(context_name, pin, resource=None):
-    operation_name = schematize_messaging_operation(
-        azure_servicebusx.PRODUCE, provider="azure_servicebus", direction=SpanDirection.OUTBOUND
+    operation_name = schematize_cloud_messaging_operation(
+        azure_servicebusx.PRODUCE, cloud_provider="azure", cloud_service="servicebus", direction=SpanDirection.OUTBOUND
     )
     return core.context_with_data(
         context_name,

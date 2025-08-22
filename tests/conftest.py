@@ -6,6 +6,7 @@ import http.client as httplib
 import importlib
 from itertools import product
 import json
+import logging
 import os
 from os.path import split
 from os.path import splitext
@@ -620,7 +621,7 @@ class TelemetryTestSession(object):
             for series in event["payload"]["series"]:
                 if name is None or series["metric"] == name:
                     metrics.append(series)
-        metrics.sort(key=lambda x: (x["metric"], x["tags"]), reverse=False)
+        metrics.sort(key=lambda x: (x["metric"], x["tags"]))
         return metrics
 
     def get_dependencies(self, name=None):
@@ -629,18 +630,29 @@ class TelemetryTestSession(object):
             for dep in event["payload"]["dependencies"]:
                 if name is None or dep["name"] == name:
                     deps.append(dep)
-        deps.sort(key=lambda x: x["name"], reverse=False)
+        deps.sort(key=lambda x: x["name"])
         return deps
 
-    def get_configurations(self, name=None, ignores=None):
+    def get_configurations(self, name=None, ignores=None, remove_seq_id=False, effective=False):
         ignores = ignores or []
         configurations = []
         events_with_configs = self.get_events("app-started") + self.get_events("app-client-configuration-change")
         for event in events_with_configs:
-            for c in event["payload"]["configuration"]:
-                if c["name"] == name or (name is None and c["name"] not in ignores):
-                    configurations.append(c)
-        configurations.sort(key=lambda x: x["name"], reverse=False)
+            for config in event["payload"]["configuration"]:
+                if config["name"] == name or (name is None and config["name"] not in ignores):
+                    configurations.append(config)
+
+        configurations.sort(key=lambda x: x["seq_id"])
+        if effective:
+            config_map = {}
+            for c in configurations:
+                config_map[c["name"]] = c
+            configurations = list(config_map.values())
+
+        if remove_seq_id:
+            for c in configurations:
+                c.pop("seq_id")
+
         return configurations
 
 
@@ -678,3 +690,21 @@ def test_agent_session(telemetry_writer, request):
     finally:
         os.environ["DD_CIVISIBILITY_AGENTLESS_ENABLED"] = p_agentless
         telemetry_writer.reset_queues()
+
+
+@pytest.fixture()
+def caplog(caplog):
+    """
+    During tests, ddtrace logs are not propagated to the root logger by default (see PR #14121).
+    This breaks caplog tests that capture logs from the ddtrace logger, so we need to re-enable propagation for those.
+    """
+    ddtrace_logger = logging.getLogger("ddtrace")
+
+    try:
+        original_propagate = ddtrace_logger.propagate
+        ddtrace_logger.propagate = True
+        ddtrace_logger.setLevel(logging.NOTSET)
+        yield caplog
+
+    finally:
+        ddtrace_logger.propagate = original_propagate

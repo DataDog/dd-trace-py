@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from functools import partial
-import re
 import sys
 import time
 import traceback
@@ -11,6 +10,7 @@ import pytest
 
 from ddtrace._trace._span_link import SpanLink
 from ddtrace._trace._span_pointer import _SpanPointerDirection
+from ddtrace._trace.context import Context
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ENV_KEY
 from ddtrace.constants import ERROR_MSG
@@ -554,9 +554,7 @@ class SpanTestCase(TracerTestCase):
         span.finish()
 
         span.assert_span_event_count(1)
-        span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
-        )
+        span.assert_span_event_attributes(0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim"})
 
     def test_span_record_multiple_exceptions(self):
         span = self.start_span("span")
@@ -572,33 +570,66 @@ class SpanTestCase(TracerTestCase):
         span.finish()
 
         span.assert_span_event_count(2)
-        span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": False}
-        )
-        span.assert_span_event_attributes(
-            1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam", "exception.escaped": False}
-        )
+        span.assert_span_event_attributes(0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim"})
+        span.assert_span_event_attributes(1, {"exception.type": "builtins.RuntimeError", "exception.message": "bam"})
 
-    def test_span_record_escaped_exception(self):
-        exc = RuntimeError("bim")
+    def test_span_record_exception_with_attributes(self):
         span = self.start_span("span")
         try:
-            raise exc
+            raise RuntimeError("bim")
         except RuntimeError as e:
-            span.record_exception(e, escaped=True)
+            span.record_exception(e, {"foo": "bar"})
         span.finish()
 
-        span.assert_matches(
-            error=1,
-            meta={
-                "error.message": str(exc),
-                "error.type": "%s.%s" % (exc.__class__.__module__, exc.__class__.__name__),
-            },
-        )
         span.assert_span_event_count(1)
         span.assert_span_event_attributes(
-            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "exception.escaped": True}
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "foo": "bar"}
         )
+
+    @mock.patch("ddtrace._trace.span.log")
+    def test_span_record_exception_with_invalid_attributes(self, span_log):
+        span = self.start_span("span")
+        try:
+            raise RuntimeError("bim")
+        except RuntimeError as e:
+            span.record_exception(
+                e, {"foo": "bar", "toto": ["titi", 1], "bim": 2**100, "tata": [[1]], "tutu": {"a": "b"}}
+            )
+        span.finish()
+
+        span.assert_span_event_count(1)
+        span.assert_span_event_attributes(
+            0, {"exception.type": "builtins.RuntimeError", "exception.message": "bim", "foo": "bar"}
+        )
+        expected_calls = [
+            mock.call("record_exception: Attribute %s must be a string, number, or boolean: %s.", "tutu", {"a": "b"}),
+            mock.call("record_exception: Attribute %s array must be homogeneous: %s.", "toto", ["titi", 1]),
+            mock.call("record_exception: List values %s must be string, number, or boolean: %s.", "tata", [[1]]),
+            mock.call(
+                "record_exception: Attribute %s must be within the range of a signed 64-bit integer: %s.",
+                "bim",
+                2**100,
+            ),
+        ]
+        span_log.warning.assert_has_calls(expected_calls, any_order=True)
+        assert span_log.warning.call_count == 4
+
+    def test_service_entry_span(self):
+        parent = self.start_span("parent", service="service1")
+        child1 = self.start_span("child1", service="service1", child_of=parent)
+        child2 = self.start_span("child2", service="service2", child_of=parent)
+
+        assert parent._service_entry_span is parent
+        assert child1._service_entry_span is parent
+        assert child2._service_entry_span is child2
+
+        # Renaming the service does not change the service entry span
+        child1.service = "service3"
+        assert child1._service_entry_span is parent
+
+        # Service entry span only works for the immediate parent
+        grandchild = self.start_span("grandchild", service="service1", child_of=child2)
+        assert grandchild._service_entry_span is grandchild
 
 
 @pytest.mark.parametrize(
@@ -836,7 +867,7 @@ def test_span_preconditions(arg):
 
 
 def test_span_pprint():
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
+    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB, context=Context(trace_id=1, span_id=2))
     root.set_tag("t", "v")
     root.set_metric("m", 1.0)
     root._add_event("message", {"importance": 10}, 16789898242)
@@ -851,36 +882,31 @@ def test_span_pprint():
     assert "error=0" in actual
     assert "tags={'t': 'v'}" in actual
     assert "metrics={'m': 1.0}" in actual
-    assert "events='name=message time=16789898242 attributes=importance:10'" in actual
+    assert "events=[SpanEvent(name='message', time=16789898242, attributes={'importance': 10})]" in actual
     assert (
-        "links='trace_id=99 span_id=10 attributes=link.name:s1_to_s2,link.kind:scheduled_by "
-        "tracestate=None flags=None dropped_attributes=0'" in actual
-    )
-    assert re.search("id=[0-9]+", actual) is not None
-    assert re.search("trace_id=[0-9]+", actual) is not None
-    assert "parent_id=None" in actual
-    assert re.search("duration=[0-9.]+", actual) is not None
-    assert re.search("start=[0-9.]+", actual) is not None
-    assert re.search("end=[0-9.]+", actual) is not None
-
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    actual = root._pprint()
-    assert "duration=None" in actual
-    assert "end=None" in actual
+        "[SpanLink(trace_id=99, span_id=10, attributes={'link.name': 's1_to_s2', 'link.kind': 'scheduled_by'}, "
+        "tracestate=None, flags=None, dropped_attributes=0)]"
+    ) in actual
+    assert (
+        f"context=Context(trace_id={root.trace_id}, span_id={root.span_id}, _meta={{}}, "
+        "_metrics={}, _span_links=[], _baggage={}, _is_remote=False)"
+    ) in actual
+    assert f"span_id={root.span_id}" in actual
+    assert f"trace_id={root.trace_id}" in actual
+    assert f"parent_id={root.parent_id}" in actual
+    assert f"start={root.start_ns}" in actual
+    assert f"duration={root.duration_ns}" in actual
+    assert f"end={root.start_ns + root.duration_ns}" in actual
 
     root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
     root.error = 1
+    kv = {f"😌{i}": "😌" for i in range(100)}
+    root.set_tags(kv)
     actual = root._pprint()
+    assert "duration=None" in actual
+    assert "end=None" in actual
     assert "error=1" in actual
-
-    root = Span("test.span", service="s", resource="r", span_type=SpanTypes.WEB)
-    root.set_tag("😌", "😌")
-    actual = root._pprint()
-    assert "tags={'😌': '😌'}" in actual
-
-    root = Span("test.span", service=object())
-    actual = root._pprint()
-    assert "service=<object object at" in actual
+    assert f"tags={kv}" in actual
 
 
 def test_manual_context_usage():

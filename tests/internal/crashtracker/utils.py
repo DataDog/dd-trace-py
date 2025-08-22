@@ -1,71 +1,41 @@
 # Utility functions for testing crashtracker in subprocesses
+from contextlib import contextmanager
 import os
 import random
-import select
-import socket
+import time
+from typing import Generator
+from typing import List
+from typing import Optional
+
+import ddtrace
+from tests.utils import TestAgentClient
+from tests.utils import TestAgentRequest
 
 
-def crashtracker_receiver_bind():
-    """Bind to a random port in the range 10000-19999"""
-    port = None
-    sock = None
-    for i in range(5):
-        port = 10000
-        port += random.randint(0, 9999)
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.bind(("localhost", port))
-            sock.listen(1)
-            break
-        except Exception:
-            port = None
-            sock = None
-    return port, sock
-
-
-def listen_get_conn(sock):
-    """Given a listening socket, wait for a connection and return it"""
-    if not sock:
-        return None
-    rlist, _, _ = select.select([sock], [], [], 5.0)  # 5 second timeout
-    if not rlist:
-        return None
-    conn, _ = sock.accept()
-    return conn
-
-
-def conn_to_bytes(conn):
-    """Read all data from a connection and return it"""
-    # Don't assume nonblocking socket, so go back up to select for everything
-    ret = b""
-    while True:
-        rlist, _, _ = select.select([conn], [], [], 1.0)
-        if not rlist:
-            break
-        msg = conn.recv(4096)
-        if not msg:
-            break
-        ret += msg
-    return ret
-
-
-def start_crashtracker(port: int, stdout=None, stderr=None):
+def start_crashtracker(port: int, stdout: Optional[str] = None, stderr: Optional[str] = None, tags: dict = {}) -> bool:
     """Start the crashtracker with some placeholder values"""
     ret = False
     try:
-        import ddtrace.internal.datadog.profiling.crashtracker as crashtracker
+        from ddtrace.internal.core import crashtracking
+        from ddtrace.settings.crashtracker import config as crashtracker_config
 
-        crashtracker.set_url("http://localhost:%d" % port)
-        crashtracker.set_service("my_favorite_service")
-        crashtracker.set_version("v0.0.0.0.0.0.1")
-        crashtracker.set_runtime("shmython")
-        crashtracker.set_runtime_version("v9001")
-        crashtracker.set_runtime_id("0")
-        crashtracker.set_library_version("v2.7.1.8")
-        crashtracker.set_stdout_filename(stdout)
-        crashtracker.set_stderr_filename(stderr)
-        crashtracker.set_resolve_frames_full()
-        ret = crashtracker.start()
+        crashtracker_config.debug_url = "http://localhost:%d" % port
+        crashtracker_config.stdout_filename = stdout
+        crashtracker_config.stderr_filename = stderr
+        crashtracker_config.resolve_frames = "full"
+
+        tags.update(
+            {
+                "service": "my_favorite_service",
+                "version": "v0.0.0.0.0.0.1",
+                "runtime": "shmython",
+                "runtime_version": "v9001",
+                "runtime_id": "0",
+                "library_version": "v2.7.1.8",
+            }
+        )
+
+        ret = crashtracking.start(tags)
     except Exception as e:
         print("Failed to start crashtracker: %s" % str(e))
         ret = False
@@ -114,13 +84,14 @@ def set_cerulean_mollusk():
 class CrashtrackerWrapper:
     _seed = 0
 
-    def __init__(self, port: int, base_name=""):
+    def __init__(self, port: int = 9126, base_name="", tags={}):
         if CrashtrackerWrapper._seed == 0:
             CrashtrackerWrapper._seed = random.randint(0, 999999)
 
         self.port = port
         self.stdout = f"stdout.{base_name}.{CrashtrackerWrapper._seed}.log"
         self.stderr = f"stderr.{base_name}.{CrashtrackerWrapper._seed}.log"
+        self.tags = tags
 
         for file in [self.stdout, self.stderr]:
             if os.path.exists(file):
@@ -135,7 +106,38 @@ class CrashtrackerWrapper:
         return [self.stdout, self.stderr]
 
     def start(self):
-        return start_crashtracker(self.port, self.stdout, self.stderr)
+        return start_crashtracker(self.port, self.stdout, self.stderr, self.tags)
 
     def logs(self):
         return read_files([self.stdout, self.stderr])
+
+
+def wait_for_crash_reports(test_agent_client: TestAgentClient) -> List[TestAgentRequest]:
+    crash_reports = []
+    for _ in range(5):
+        crash_reports = test_agent_client.crash_reports()
+        if crash_reports:
+            return crash_reports
+        time.sleep(0.1)
+
+    return crash_reports
+
+
+def get_crash_report(test_agent_client: TestAgentClient) -> TestAgentRequest:
+    """Wait for a crash report from the crashtracker listener socket."""
+    crash_reports = wait_for_crash_reports(test_agent_client)
+    assert len(crash_reports) == 1
+    return crash_reports[0]
+
+
+@contextmanager
+def with_test_agent() -> Generator[TestAgentClient, None, None]:
+    base_url = ddtrace.tracer.agent_trace_url or "http://localhost:9126"  # default to local test agent
+    client = TestAgentClient(base_url=base_url, token=None)
+    try:
+        # Reset state before starting the test
+        client.clear()
+        yield client
+    finally:
+        # Always reset state at the end of the test
+        client.clear()

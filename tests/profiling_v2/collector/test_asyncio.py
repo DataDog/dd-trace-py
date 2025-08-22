@@ -60,7 +60,7 @@ class TestAsyncioLockCollector:
         ddup.upload()
 
         linenos = get_lock_linenos("test_asyncio_lock_events")
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
         pprof_utils.assert_lock_events(
             profile,
@@ -108,7 +108,7 @@ class TestAsyncioLockCollector:
         linenos_2 = get_lock_linenos("test_asyncio_lock_events_tracer_2")
         linenos_3 = get_lock_linenos("test_asyncio_lock_events_tracer_3", with_stmt=True)
 
-        profile = pprof_utils.parse_profile(self.output_filename)
+        profile = pprof_utils.parse_newest_profile(self.output_filename)
         expected_thread_id = _thread.get_ident()
 
         pprof_utils.assert_lock_events(

@@ -8,8 +8,8 @@ import mock
 import pytest
 
 from ddtrace.internal.atexit import register_on_exit_signal
-from tests.integration.utils import import_ddtrace_in_subprocess
 from tests.integration.utils import parametrize_with_all_encodings
+from tests.integration.utils import skip_if_native_writer
 from tests.integration.utils import skip_if_testagent
 from tests.utils import DummyTracer
 from tests.utils import call_program
@@ -32,20 +32,6 @@ def test_shutdown_on_exit_signal(mock_get_signal, mock_signal):
     mock_signal.call_args_list[0][0][1]("", "")
     assert tracer.shutdown.call_count == 1
     tracer.shutdown = original_shutdown
-
-
-def test_debug_mode_generates_debug_output():
-    p = import_ddtrace_in_subprocess(None)
-    assert p.stdout.read() == b""
-    assert b"DEBUG:ddtrace" not in p.stderr.read(), "stderr should have no debug lines when DD_TRACE_DEBUG is unset"
-
-    env = os.environ.copy()
-    env.update({"DD_TRACE_DEBUG": "true"})
-    p = import_ddtrace_in_subprocess(env)
-    assert p.stdout.read() == b""
-    assert (
-        b"debug mode has been enabled for the ddtrace logger" in p.stderr.read()
-    ), "stderr should have some debug lines when DD_TRACE_DEBUG is set"
 
 
 def test_import_ddtrace_generates_no_output_by_default(ddtrace_run_python_code_in_subprocess):
@@ -97,20 +83,33 @@ def test_uds_wrong_socket_path():
 
     import mock
 
+    from ddtrace import config
     from ddtrace.trace import tracer as t
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         t.trace("client.testing").finish()
         t.shutdown()
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries",
-            1,
-            "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
-            3,
-        )
-    ]
+
+    if config._trace_writer_native:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                "client error (Connect)",
+            )
+        ]
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s after %d retries",
+                1,
+                "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
+                3,
+                exc_info=True,
+            )
+        ]
     log.error.assert_has_calls(calls)
 
 
@@ -195,6 +194,7 @@ def test_child_spans_do_not_cause_warning_logs():
 def test_metrics():
     import mock
 
+    from ddtrace import config
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
@@ -216,25 +216,31 @@ def test_metrics():
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-    statsd_mock.distribution.assert_has_calls(
-        [
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+    calls = [
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 300, tags=None),
+    ]
+
+    if not config._trace_writer_native:
+        calls += [
             mock.call("datadog.tracer.http.requests", 1, tags=None),
             mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
             mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
             mock.call("datadog.tracer.http.sent.traces", 4, tags=None),
-        ],
+        ]
+
+    statsd_mock.distribution.assert_has_calls(
+        calls,
         any_order=True,
     )
 
@@ -245,6 +251,7 @@ def test_metrics():
 def test_metrics_partial_flush_disabled():
     import mock
 
+    from ddtrace import config
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import override_global_config
@@ -264,19 +271,25 @@ def test_metrics_partial_flush_disabled():
             log.warning.assert_not_called()
             log.error.assert_not_called()
 
-    statsd_mock.distribution.assert_has_calls(
-        [
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
-            mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
-            mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+    calls = [
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+        mock.call("datadog.tracer.writer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.traces", 1, tags=None),
+        mock.call("datadog.tracer.buffer.accepted.spans", 600, tags=None),
+    ]
+
+    if not config._trace_writer_native:
+        calls += [
             mock.call("datadog.tracer.http.requests", 1, tags=None),
             mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
             mock.call("datadog.tracer.http.sent.bytes", AnyInt(), tags=None),
             mock.call("datadog.tracer.http.sent.traces", 2, tags=None),
-        ],
+        ]
+
+    statsd_mock.distribution.assert_has_calls(
+        calls,
         any_order=True,
     )
 
@@ -285,13 +298,12 @@ def test_metrics_partial_flush_disabled():
 def test_single_trace_too_large():
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
     from ddtrace.trace import tracer as t
     from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     assert t._span_aggregator.partial_flush_enabled is True
-    with mock.patch.object(AgentWriter, "flush_queue", return_value=None), mock.patch(
+    with mock.patch.object(t._span_aggregator.writer, "flush_queue", return_value=None), mock.patch(
         "ddtrace.internal.writer.writer.log"
     ) as log:
         with t.trace("huge"):
@@ -343,6 +355,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
 
     import mock
 
+    from ddtrace import config
     from ddtrace.trace import tracer as t
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
@@ -350,17 +363,30 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
         t.shutdown()
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    calls = [
-        mock.call(
-            "failed to send, dropping %d traces to intake at %s after %d retries",
-            1,
-            "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
-            3,
-        )
-    ]
+
+    if config._trace_writer_native:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s: %s",
+                1,
+                "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
+                "client error (Connect)",
+            )
+        ]
+    else:
+        calls = [
+            mock.call(
+                "failed to send, dropping %d traces to intake at %s after %d retries",
+                1,
+                "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
+                3,
+                exc_info=True,
+            )
+        ]
     log.error.assert_has_calls(calls)
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings(check_logs=False)
 def test_inode_entity_id_header_present():
@@ -396,6 +422,7 @@ def test_inode_entity_id_header_present():
         t.shutdown()
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings(check_logs=False)
 def test_external_env_header_present():
@@ -415,6 +442,7 @@ def test_external_env_header_present():
     assert headers["Datadog-External-Env"] == mocked_external_env
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_multiple_traces():
@@ -431,6 +459,7 @@ def test_validate_headers_in_payload_to_intake_with_multiple_traces():
     assert headers.get("X-Datadog-Trace-Count") == "100"
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @parametrize_with_all_encodings()
 def test_validate_headers_in_payload_to_intake_with_nested_spans():
@@ -449,6 +478,7 @@ def test_validate_headers_in_payload_to_intake_with_nested_spans():
     assert headers.get("X-Datadog-Trace-Count") == "10"
 
 
+@skip_if_native_writer
 @parametrize_with_all_encodings()
 def test_trace_with_invalid_client_endpoint_generates_error_log():
     import mock
@@ -466,7 +496,7 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
             "unsupported endpoint '%s': received response %s from intake (%s)",
             "/bad",
             404,
-            t._span_aggregator.writer.agent_url,
+            t._span_aggregator.writer.intake_url,
         )
     ]
     log.error.assert_has_calls(calls)
@@ -477,19 +507,32 @@ def test_trace_with_invalid_client_endpoint_generates_error_log():
 def test_trace_with_invalid_payload_generates_error_log():
     import mock
 
+    from ddtrace import config
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
-    log.error.assert_has_calls(
-        [
-            mock.call(
-                "failed to send traces to intake at %s: HTTP error status %s, reason %s",
-                "http://localhost:8126/v0.5/traces",
-                400,
-                "Bad Request",
-            )
-        ]
-    )
+    if config._trace_writer_native:
+        log.error.assert_has_calls(
+            [
+                mock.call(
+                    "failed to send, dropping %d traces to intake at %s: %s",
+                    0,
+                    "http://localhost:8126/v0.5/traces",
+                    "Invalid format: Unable to read payload len",
+                )
+            ]
+        )
+    else:
+        log.error.assert_has_calls(
+            [
+                mock.call(
+                    "failed to send traces to intake at %s: HTTP error status %s, reason %s",
+                    "http://localhost:8126/v0.5/traces",
+                    400,
+                    "Bad Request",
+                )
+            ]
+        )
 
 
 @skip_if_testagent
@@ -497,22 +540,37 @@ def test_trace_with_invalid_payload_generates_error_log():
 def test_trace_with_invalid_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
     import mock
 
+    from ddtrace import config
     from tests.integration.utils import send_invalid_payload_and_get_logs
 
     log = send_invalid_payload_and_get_logs()
-    log.error.assert_has_calls(
-        [
-            mock.call(
-                "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
-                "http://localhost:8126/v0.5/traces",
-                400,
-                "Bad Request",
-                "6261645f7061796c6f6164",
-            )
-        ]
-    )
+    if config._trace_writer_native:
+        log.error.assert_has_calls(
+            [
+                mock.call(
+                    "failed to send, dropping %d traces to intake at %s: %s, payload %s",
+                    0,
+                    "http://localhost:8126/v0.5/traces",
+                    "Invalid format: Unable to read payload len",
+                    "6261645f7061796c6f6164",
+                )
+            ]
+        )
+    else:
+        log.error.assert_has_calls(
+            [
+                mock.call(
+                    "failed to send traces to intake at %s: HTTP error status %s, reason %s, payload %s",
+                    "http://localhost:8126/v0.5/traces",
+                    400,
+                    "Bad Request",
+                    "6261645f7061796c6f6164",
+                )
+            ]
+        )
 
 
+@skip_if_native_writer
 @skip_if_testagent
 @pytest.mark.subprocess(env={"_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS": "true", "DD_TRACE_API_VERSION": "v0.5"}, err=None)
 def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
@@ -523,7 +581,7 @@ def test_trace_with_non_bytes_payload_logs_payload_when_LOG_ERROR_PAYLOADS():
 
     class NonBytesBadEncoder(BadEncoder):
         def encode(self):
-            return "bad_payload", 1
+            return [("bad_payload", 1)]
 
         def encode_traces(self, traces):
             return "bad_payload"
@@ -577,6 +635,7 @@ def test_api_version_downgrade_generates_no_warning_logs():
 
 
 @skip_if_testagent
+@skip_if_native_writer
 @parametrize_with_all_encodings()
 def test_writer_flush_queue_generates_debug_log():
     import logging
@@ -584,13 +643,13 @@ def test_writer_flush_queue_generates_debug_log():
 
     import mock
 
-    from ddtrace.internal.writer import AgentWriter
-    from ddtrace.settings._agent import config as agent_config
+    from ddtrace.internal.writer import create_trace_writer
     from tests.utils import AnyFloat
+    from tests.utils import AnyInt
     from tests.utils import AnyStr
 
     encoding = os.environ["DD_TRACE_API_VERSION"]
-    writer = AgentWriter(agent_config.trace_agent_url)
+    writer = create_trace_writer()
 
     with mock.patch("ddtrace.internal.writer.writer.log") as log:
         writer.write([])
@@ -598,10 +657,12 @@ def test_writer_flush_queue_generates_debug_log():
         calls = [
             mock.call(
                 logging.DEBUG,
-                "sent %s in %.5fs to %s",
+                "Got response: %d %s sent %s in %.5fs to %s",
+                AnyInt(),
+                AnyStr(),
                 AnyStr(),
                 AnyFloat(),
-                "{}/{}/traces".format(writer.agent_url, encoding),
+                "{}/{}/traces".format(writer.intake_url, encoding),
             )
         ]
         log.log.assert_has_calls(calls)
@@ -695,8 +756,6 @@ def test_partial_flush_log():
 
     from ddtrace.trace import tracer as t
 
-    partial_flush_min_spans = 2
-
     s1 = t.trace("1")
     s2 = t.trace("2")
     s3 = t.trace("3")
@@ -706,12 +765,23 @@ def test_partial_flush_log():
         s3.finish()
         s2.finish()
 
-    calls = [
-        mock.call("trace %d has %d spans, %d finished", t_id, 3, 1),
-        mock.call("Partially flushing %d spans for trace %d", partial_flush_min_spans, t_id),
-    ]
+    log.debug.assert_has_calls(
+        [
+            mock.call(
+                "Encoding %d spans. Spans processed: %d. Spans dropped by trace processors: %d. Unfinished "
+                "spans remaining in the span aggregator: %d. (trace_id: %d) (top level span: name=%s) "
+                "(partial flush triggered: %s)",
+                2,
+                3,
+                0,
+                1,
+                t_id,
+                "2",
+                True,
+            ),
+        ]
+    )
 
-    log.debug.assert_has_calls(calls)
     s1.finish()
     t.shutdown()
 

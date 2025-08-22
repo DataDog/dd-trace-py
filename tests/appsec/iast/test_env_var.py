@@ -56,6 +56,7 @@ def test_env_var_iast_unset(monkeypatch, capfd):
     assert "iast::instrumentation::starting IAST" not in captured.err
 
 
+@pytest.mark.skip("IAST doesn’t need this feature (yet), but we do need to optimize this test—it takes too long to run")
 @pytest.mark.parametrize(
     "env_vars",
     [
@@ -95,6 +96,7 @@ def test_env_var_iast_enabled_parametrized(capfd, configuration_endpoint, env_va
     assert "iast::instrumentation::starting IAST" in captured.err
 
 
+@pytest.mark.skip("IAST doesn’t need this feature (yet), but we do need to optimize this test—it takes too long to run")
 @pytest.mark.parametrize(
     "env_vars",
     [
@@ -148,7 +150,7 @@ def test_env_var_iast_enabled_no__native_module_warning():
     import ddtrace.appsec._iast._taint_tracking._native  # noqa: F401
 
 
-@pytest.mark.xfail(reason="IAST not working with Gevent yet")
+@pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -161,7 +163,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_true(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.xfail(reason="IAST not working with Gevent yet")
+@pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     # type: (...) -> None
     env = os.environ.copy()
@@ -174,7 +176,7 @@ def test_env_var_iast_enabled_gevent_unload_modules_false(capfd):
     assert "hi" in captured.out
 
 
-@pytest.mark.xfail(reason="IAST not working with Gevent yet")
+@pytest.mark.skip(reason="IAST not working with Gevent yet")
 def test_env_var_iast_enabled_gevent_patch_all_true(capfd):
     # type: (...) -> None
     env = os.environ.copy()

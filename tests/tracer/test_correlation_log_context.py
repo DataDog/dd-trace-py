@@ -111,8 +111,8 @@ def test_get_log_correlation_context_disabled_tracer():
 
 
 @pytest.mark.subprocess(ddtrace_run=True)
-def test_structored_logging_injection():
-    """Ensure the structored loggers automatically injects trace attributes into the
+def test_structured_logging_injection():
+    """Ensure the structured loggers automatically injects trace attributes into the
     log records when ddtrace_run is used.
     """
     import structlog
@@ -147,8 +147,8 @@ def test_structored_logging_injection():
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_VERSION": "global-version", "DD_ENV": "global-env", "DD_SERVICE": "global-service"}
 )
-def test_structored_logging_injection_no_span():
-    """Ensure the structored loggers automatically injects global config attributes into the log records."""
+def test_structured_logging_injection_no_span():
+    """Ensure the structured loggers automatically injects global config attributes into the log records."""
     import structlog
 
     capture_log = structlog.testing.LogCapture()
@@ -171,8 +171,8 @@ def test_structored_logging_injection_no_span():
 @pytest.mark.subprocess(
     ddtrace_run=True, env={"DD_LOGS_INJECTION": None, "DD_VERSION": None, "DD_ENV": None, "DD_SERVICE": None}
 )
-def test_structored_logging_injection_default_configs():
-    """Ensure the structored loggers automatically injects default trace attributes into the log records."""
+def test_structured_logging_injection_default_configs():
+    """Ensure the structured loggers automatically injects default trace attributes into the log records."""
     import structlog
 
     from ddtrace.internal.utils.formats import format_trace_id

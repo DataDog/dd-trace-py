@@ -103,7 +103,7 @@
     {
         "dependency": "azure-functions",
         "integration": "azure_functions",
-        "minimum_tracer_supported": "1.20.0",
+        "minimum_tracer_supported": "1.10.1",
         "max_tracer_supported": "1.23.0",
         "pinned": "true",
         "auto-instrumented": true
@@ -149,8 +149,8 @@
     {
         "dependency": "celery",
         "integration": "celery",
-        "minimum_tracer_supported": "5.3.6",
-        "max_tracer_supported": "5.4.0",
+        "minimum_tracer_supported": "5.5.3",
+        "max_tracer_supported": "5.5.3",
         "auto-instrumented": true
     },
     {
@@ -171,8 +171,7 @@
         "dependency": "crewai",
         "integration": "crewai",
         "minimum_tracer_supported": "0.102.0",
-        "max_tracer_supported": "0.121.1",
-        "pinned": "true",
+        "max_tracer_supported": "0.157.0",
         "auto-instrumented": true
     },
     {
@@ -277,7 +276,7 @@
         "dependency": "fastapi",
         "integration": "fastapi",
         "minimum_tracer_supported": "0.64.0",
-        "max_tracer_supported": "0.115.12",
+        "max_tracer_supported": "0.116.1",
         "auto-instrumented": true
     },
     {
@@ -307,7 +306,7 @@
         "minimum_tracer_supported": "1.3.1",
         "max_tracer_supported": "1.5.2",
         "pinned": "true",
-        "auto-instrumented": true
+        "auto-instrumented": false
     },
     {
         "dependency": "gevent",
@@ -382,17 +381,22 @@
     {
         "dependency": "langgraph",
         "integration": "langgraph",
-        "minimum_tracer_supported": "0.2.60",
-        "max_tracer_supported": "0.2.61",
-        "pinned": "true",
+        "minimum_tracer_supported": "0.2.23",
+        "max_tracer_supported": "0.6.3",
         "auto-instrumented": true
     },
     {
         "dependency": "langgraph-checkpoint",
         "integration": "langgraph",
-        "minimum_tracer_supported": "2.0.9",
-        "max_tracer_supported": "2.0.9",
-        "pinned": "true",
+        "minimum_tracer_supported": "1.0.12",
+        "max_tracer_supported": "2.1.1",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "langgraph-prebuilt",
+        "integration": "langgraph",
+        "minimum_tracer_supported": "0.1.8",
+        "max_tracer_supported": "0.6.3",
         "auto-instrumented": true
     },
     {
@@ -429,6 +433,13 @@
         "integration": "mariadb",
         "minimum_tracer_supported": "1.0.11",
         "max_tracer_supported": "1.1.12",
+        "auto-instrumented": true
+    },
+    {
+        "dependency": "mcp",
+        "integration": "mcp",
+        "minimum_tracer_supported": "1.10.1",
+        "max_tracer_supported": "1.11.0",
         "auto-instrumented": true
     },
     {
@@ -495,6 +506,14 @@
         "auto-instrumented": true
     },
     {
+        "dependency": "pydantic-ai-slim",
+        "integration": "pydantic_ai",
+        "minimum_tracer_supported": "0.3.0",
+        "max_tracer_supported": "0.4.4",
+        "pinned": "true",
+        "auto-instrumented": true
+    },
+    {
         "dependency": "pylibmc",
         "integration": "pylibmc",
         "minimum_tracer_supported": "1.6.3",
@@ -512,7 +531,7 @@
         "dependency": "pymongo",
         "integration": "pymongo",
         "minimum_tracer_supported": "3.8.0",
-        "max_tracer_supported": "4.10.1",
+        "max_tracer_supported": "4.13.2",
         "auto-instrumented": true
     },
     {
@@ -548,7 +567,7 @@
         "dependency": "pytest",
         "integration": "pytest",
         "minimum_tracer_supported": "6.2.5",
-        "max_tracer_supported": "8.3.5",
+        "max_tracer_supported": "8.4.1",
         "auto-instrumented": false
     },
     {
@@ -619,7 +638,7 @@
         "dependency": "starlette",
         "integration": "starlette",
         "minimum_tracer_supported": "0.14.2",
-        "max_tracer_supported": "0.39.2",
+        "max_tracer_supported": "0.47.1",
         "auto-instrumented": true
     },
     {

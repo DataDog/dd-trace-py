@@ -1,2 +1,2 @@
 SERVICE = "servicebus"
-PRODUCE = "azure.servicebus.produce"
+PRODUCE = "azure.servicebus.send"

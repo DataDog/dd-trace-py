@@ -1,0 +1,4 @@
+fixes:
+  - |
+    litellm: This fix resolves an issue where potentially sensitive parameters were being tagged as metadata on LLM Observability spans.
+    Now, metadata tags are based on an allowlist instead of a denylist.

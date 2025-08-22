@@ -29,14 +29,18 @@ try:
         yield
         if ddspan is None:
             return
-        data = ddspan.get_tag(IAST.JSON)
-        if not data:
-            return
 
-        json_data = json.loads(data)
+        # looking for IAST data in the span
+        dict_data = ddspan.get_struct_tag(IAST.STRUCT)
+        if dict_data is None:
+            data = ddspan.get_tag(IAST.JSON)
+            if data is None:
+                return
+            else:
+                dict_data = json.loads(data)
 
-        if json_data["vulnerabilities"]:
-            for vuln in json_data["vulnerabilities"]:
+        if dict_data["vulnerabilities"]:
+            for vuln in dict_data["vulnerabilities"]:
                 vuln_data.append(
                     VulnerabilityFoundInTest(
                         test=request.node.nodeid,
@@ -47,7 +51,7 @@ try:
                 )
 
             if request.config.getoption("ddtrace-iast-fail-tests"):
-                vulns = ", ".join([vuln["type"] for vuln in json_data["vulnerabilities"]])
+                vulns = ", ".join([vuln["type"] for vuln in dict_data["vulnerabilities"]])
                 pytest.fail(f"There are vulnerabilities in the code: {vulns}")
 
 except ImportError:

@@ -1,0 +1,8 @@
+---
+deprecations:
+  - |
+    tracing: Deprecate the non_active_span parameter in the ``HTTPPropagator.inject`` method. ``HTTPPropagator.inject(context=...)``
+    should be used to inject headers instead.
+other:
+  - |
+    tracing: Improves debug logging in ``HTTPPropagator.inject`` method to help diagnose issues with sampling decisions.

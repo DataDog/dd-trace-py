@@ -15,6 +15,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 import urllib.parse as parse
 
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
@@ -98,10 +99,11 @@ class _TelemetryClient:
                 resp = conn.getresponse()
             if resp.status < 300:
                 log.debug(
-                    "Instrumentation Telemetry sent %d in %.5fs to %s. response: %s",
+                    "Instrumentation Telemetry sent %d bytes in %.5fs to %s. Event: %s. Response: %s",
                     len(rb_json),
                     sw.elapsed(),
                     self.url,
+                    request["request_type"],
                     resp.status,
                 )
             else:
@@ -144,7 +146,8 @@ class TelemetryWriter(PeriodicService):
     # Counter representing the number of events sent by the writer. Here we are relying on the atomicity
     # of `itertools.count()` which is a CPython implementation detail. The sequence field in telemetry
     # payloads is only used in tests and is not required to process Telemetry events.
-    _sequence = itertools.count(1)
+    _sequence_payloads = itertools.count(1)
+    _sequence_configurations = itertools.count(1)
     _ORIGINAL_EXCEPTHOOK = staticmethod(sys.excepthook)
     CWD = os.getcwd()
 
@@ -167,7 +170,7 @@ class TelemetryWriter(PeriodicService):
         self._logs = set()  # type: Set[Dict[str, Any]]
         self._forked = False  # type: bool
         self._events_queue = []  # type: List[Dict]
-        self._configuration_queue = {}  # type: Dict[str, Dict]
+        self._configuration_queue = []  # type: List[Dict]
         self._imported_dependencies: Dict[str, str] = dict()
         self._modules_already_imported: Set[str] = set()
         self._product_enablement = {product.value: False for product in TELEMETRY_APM_PRODUCT}
@@ -265,7 +268,7 @@ class TelemetryWriter(PeriodicService):
                 "tracer_time": int(time.time()),
                 "runtime_id": get_runtime_id(),
                 "api_version": "v2",
-                "seq_id": next(self._sequence),
+                "seq_id": next(self._sequence_payloads),
                 "debug": self._debug,
                 "application": get_application(config.SERVICE, config.VERSION, config.ENV),
                 "host": get_host_info(),
@@ -387,8 +390,8 @@ class TelemetryWriter(PeriodicService):
         # type: () -> List[Dict]
         """Flushes and returns a list of all queued configurations"""
         with self._service_lock:
-            configurations = list(self._configuration_queue.values())
-            self._configuration_queue = {}
+            configurations = self._configuration_queue
+            self._configuration_queue = []
         return configurations
 
     def _app_client_configuration_changed_event(self, configurations):
@@ -416,6 +419,21 @@ class TelemetryWriter(PeriodicService):
         if packages:
             payload = {"dependencies": packages}
             self.add_event(payload, "app-dependencies-loaded")
+
+    def _add_endpoints_event(self):
+        """Adds a Telemetry event which sends the list of HTTP endpoints found at startup to the agent"""
+        import ddtrace.settings.asm as asm_config_module
+
+        if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
+            return
+
+        if not endpoint_collection.endpoints:
+            return
+
+        with self._service_lock:
+            payload = endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
+
+        self.add_event(payload, "app-endpoints")
 
     def _app_product_change(self):
         # type: () -> None
@@ -446,10 +464,6 @@ class TelemetryWriter(PeriodicService):
         if self.started:
             self._send_product_change_updates = True
 
-    def remove_configuration(self, configuration_name):
-        with self._service_lock:
-            del self._configuration_queue[configuration_name]
-
     def add_configuration(self, configuration_name, configuration_value, origin="unknown", config_id=None):
         # type: (str, Any, str, Optional[str]) -> None
         """Creates and queues the name, origin, value of a configuration"""
@@ -470,17 +484,21 @@ class TelemetryWriter(PeriodicService):
             config["config_id"] = config_id
 
         with self._service_lock:
-            self._configuration_queue[configuration_name] = config
+            config["seq_id"] = next(self._sequence_configurations)
+            self._configuration_queue.append(config)
 
-    def add_configurations(self, configuration_list):
+    def add_configurations(self, configuration_list: List[Tuple[str, str, str]]):
         """Creates and queues a list of configurations"""
         with self._service_lock:
-            for name, value, _origin in configuration_list:
-                self._configuration_queue[name] = {
-                    "name": name,
-                    "origin": _origin,
-                    "value": value,
-                }
+            for name, value, origin in configuration_list:
+                self._configuration_queue.append(
+                    {
+                        "name": name,
+                        "origin": origin,
+                        "value": value,
+                        "seq_id": next(self._sequence_configurations),
+                    }
+                )
 
     def add_log(self, level, message, stack_trace="", tags=None):
         """
@@ -622,10 +640,17 @@ class TelemetryWriter(PeriodicService):
         log.debug("%s request payload", TELEMETRY_TYPE_LOGS)
         self.add_event({"logs": list(logs)}, TELEMETRY_TYPE_LOGS)
 
+    def _dispatch(self):
+        # moved core here to avoid circular import
+        from ddtrace.internal import core
+
+        core.dispatch("telemetry.periodic")
+
     def periodic(self, force_flush=False, shutting_down=False):
         # ensure app_started is called at least once in case traces weren't flushed
         self._app_started()
         self._app_product_change()
+        self._dispatch()
 
         namespace_metrics = self._namespace.flush(float(self.interval))
         if namespace_metrics:
@@ -652,6 +677,7 @@ class TelemetryWriter(PeriodicService):
             self._app_client_configuration_changed_event(configurations)
 
         self._app_dependencies_loaded_event()
+        self._add_endpoints_event()
 
         if shutting_down:
             self._app_closing_event()
@@ -675,7 +701,7 @@ class TelemetryWriter(PeriodicService):
         self._namespace.flush()
         self._logs = set()
         self._imported_dependencies = {}
-        self._configuration_queue = {}
+        self._configuration_queue = []
 
     def _flush_events_queue(self):
         # type: () -> List[Dict]
@@ -701,7 +727,8 @@ class TelemetryWriter(PeriodicService):
         self.enable()
 
     def _restart_sequence(self):
-        self._sequence = itertools.count(1)
+        self._sequence_payloads = itertools.count(1)
+        self._sequence_configurations = itertools.count(1)
 
     def _stop_service(self, join=True, *args, **kwargs):
         # type: (...) -> None

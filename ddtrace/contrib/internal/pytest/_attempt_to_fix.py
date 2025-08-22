@@ -8,7 +8,6 @@ from ddtrace.contrib.internal.pytest._retry_utils import RetryReason
 from ddtrace.contrib.internal.pytest._retry_utils import UserProperty
 from ddtrace.contrib.internal.pytest._retry_utils import _get_outcome_from_retry
 from ddtrace.contrib.internal.pytest._retry_utils import _get_retry_attempt_string
-from ddtrace.contrib.internal.pytest._retry_utils import set_retry_num
 from ddtrace.contrib.internal.pytest._types import _pytest_report_teststatus_return_type
 from ddtrace.contrib.internal.pytest._types import pytest_TestReport
 from ddtrace.contrib.internal.pytest._utils import PYTEST_STATUS
@@ -105,8 +104,7 @@ def _do_retries(item: pytest.Item, outcomes: RetryOutcomes) -> TestStatus:
     while InternalTest.attempt_to_fix_should_retry(test_id):
         retry_num = InternalTest.attempt_to_fix_add_retry(test_id, start_immediately=True)
 
-        with set_retry_num(item.nodeid, retry_num):
-            retry_outcome = _get_outcome_from_retry(item, outcomes)
+        retry_outcome = _get_outcome_from_retry(item, outcomes, retry_num)
 
         InternalTest.attempt_to_fix_finish_retry(
             test_id, retry_num, retry_outcome.status, retry_outcome.skip_reason, retry_outcome.exc_info
@@ -120,19 +118,19 @@ def attempt_to_fix_get_teststatus(report: pytest_TestReport) -> _pytest_report_t
         return (
             _RETRY_OUTCOMES.ATTEMPT_PASSED,
             "r",
-            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}PASSED", {"green": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report)}PASSED", {"green": True}),
         )
     if report.outcome == _RETRY_OUTCOMES.ATTEMPT_FAILED:
         return (
             _RETRY_OUTCOMES.ATTEMPT_FAILED,
             "R",
-            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}FAILED", {"yellow": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report)}FAILED", {"yellow": True}),
         )
     if report.outcome == _RETRY_OUTCOMES.ATTEMPT_SKIPPED:
         return (
             _RETRY_OUTCOMES.ATTEMPT_SKIPPED,
             "s",
-            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report.nodeid)}SKIPPED", {"yellow": True}),
+            (f"ATTEMPT TO FIX RETRY {_get_retry_attempt_string(report)}SKIPPED", {"yellow": True}),
         )
     if get_user_property(report, UserProperty.RETRY_REASON) == RetryReason.ATTEMPT_TO_FIX:
         final_outcome = get_user_property(report, UserProperty.RETRY_FINAL_OUTCOME)

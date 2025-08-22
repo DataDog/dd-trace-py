@@ -8,13 +8,13 @@ import starlette
 from starlette.testclient import TestClient
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.sqlalchemy.patch import patch as sql_patch
 from ddtrace.contrib.internal.sqlalchemy.patch import unpatch as sql_unpatch
 from ddtrace.contrib.internal.starlette.patch import patch as starlette_patch
 from ddtrace.contrib.internal.starlette.patch import unpatch as starlette_unpatch
 from ddtrace.propagation import http as http_propagation
-from ddtrace.trace import Pin
 from tests.contrib.starlette.app import get_app
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import DummyTracer
@@ -26,6 +26,8 @@ from tests.utils import snapshot
 
 starlette_version_str = getattr(starlette, "__version__", "0.0.0")
 starlette_version = tuple([int(i) for i in starlette_version_str.split(".")[:3]])
+httpx_version_str = getattr(httpx, "__version__", "0.0.0")
+httpx_version = tuple([int(i) for i in httpx_version_str.split(".")[:3]])
 
 
 @pytest.fixture
@@ -236,8 +238,11 @@ def test_distributed_tracing(client, tracer, test_spans):
 
 @pytest.mark.asyncio
 async def test_multiple_requests(app, tracer, test_spans):
+    asyncclient_kwargs = {"app": app}
+    if httpx_version >= (0, 28):
+        asyncclient_kwargs = {"transport": httpx._transports.ASGITransport(app=app)}
     with override_http_config("starlette", dict(trace_query_string=True)):
-        async with httpx.AsyncClient(app=app) as client:
+        async with httpx.AsyncClient(**asyncclient_kwargs) as client:
             responses = await asyncio.gather(
                 client.get("http://testserver/", params={"sleep": True}),
                 client.get("http://testserver/", params={"sleep": True}),
@@ -520,7 +525,7 @@ with TestClient(app) as test_client:
     out, err, status, _ = run_python_code_in_subprocess(code)
     assert status == 0, err
     assert out == b"", err
-    assert err == b"datadog context not present in ASGI request scope, trace middleware may be missing\n"
+    assert b"datadog context not present in ASGI request scope, trace middleware may be missing\n" in err, err
 
 
 # Ignoring span link attributes until values are

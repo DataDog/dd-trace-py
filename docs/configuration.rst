@@ -425,6 +425,42 @@ Trace Context propagation
      version_added:
        v1.7.0: The ``b3multi`` propagation style was added and ``b3`` was deprecated in favor it.
 
+Metrics
+-------
+
+.. ddtrace-configuration-options::
+
+   DD_RUNTIME_METRICS_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
+         These metrics track the memory management and concurrency of the python runtime. 
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
+     type: Boolean
+     default: False
+     version_added:
+       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
+       v3.2.0: Adds initial support
+
+     description: |
+         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
+         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
+
+   DD_METRICS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+     
+     description: |
+        When used with ``ddtrace-run`` this configuration enables support for exporting OTLP metrics generated
+        by the OpenTelemetry Metrics API. The application must also include its own OTLP metrics exporter.
+     
+     version_added:
+       v3.11.0:
+
 AppSec
 ------
 
@@ -653,6 +689,18 @@ Test Visibility
      version_added:
         v2.18.0:
 
+   DD_CIVISIBILITY_USE_BETA_WRITER:
+     type: Boolean
+     default: False
+
+     description: |
+        Configures the ``CIVisibility`` service to use an alternative method for collecting and sending test spans.
+        In this mode, the ``CIVisibility`` tracer is kept separate from the global ``ddtrace`` tracer, which helps avoid
+        interference between test and non-test tracer configurations. This mode is currently experimental.
+
+     version_added:
+        v3.12.0:
+
 Agent
 -----
 
@@ -749,9 +797,16 @@ Logs
 .. ddtrace-configuration-options::
 
    DD_LOGS_INJECTION:
-     type: string
-     default: structured
-     description: Enables :ref:`Logs Injection`. Supported values are ``false``, ``true``, and ``structured``.
+     type: Boolean
+     default: True
+     description: Enables :ref:`Logs Injection`. Supported values are ``false``, and ``true``.
+     version_added:
+       v0.51.0: |
+         Added support for correlating traces to log using the builtin logger. This feature was disabled by default.
+       v3.10.0: |
+         The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
+         To disable this behavior, set ``DD_LOGS_INJECTION=false``.
+       
 
    DD_TRACE_DEBUG:
      type: Boolean
@@ -871,26 +926,6 @@ Other
      description: |
          Enables sending :ref:`telemetry <Instrumentation Telemetry>` events to the agent.
 
-   DD_RUNTIME_METRICS_ENABLED:
-     type: Boolean
-     default: False
-     
-     description: |
-         When used with ``ddtrace-run`` this configuration enables sending runtime metrics to Datadog.
-         These metrics track the memory management and concurrency of the python runtime. 
-         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
-
-   DD_RUNTIME_METRICS_RUNTIME_ID_ENABLED:
-     type: Boolean
-     default: False
-     version_added:
-       v3.10.0: Renamed from ``DD_TRACE_EXPERIMENTAL_RUNTIME_ID_ENABLED``
-       v3.2.0: Adds initial support
-
-     description: |
-         Adds support for tagging runtime metrics with the current runtime ID. This is useful for tracking runtime metrics across multiple processes.
-         Refer to the following `docs <https://docs.datadoghq.com/tracing/metrics/runtime_metrics/python/>` _ for more information.
-
    DD_TRACE_EXPERIMENTAL_FEATURES_ENABLED:
      type: string
      version_added:
@@ -979,6 +1014,7 @@ Code Origin
 -----------
 
 .. ddtrace-envier-configuration:: ddtrace.settings.code_origin:CodeOriginConfig
+  :recursive: true
 
 
 Live Debugging

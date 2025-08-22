@@ -8,6 +8,7 @@
 from dataclasses import dataclass
 import datetime
 import os
+import re
 import subprocess
 import typing as t
 
@@ -16,6 +17,7 @@ import typing as t
 class JobSpec:
     name: str
     runner: str
+    stage: str
     pattern: t.Optional[str] = None
     snapshot: bool = False
     services: t.Optional[t.List[str]] = None
@@ -34,8 +36,19 @@ class JobSpec:
         if self.snapshot:
             base += "_snapshot"
 
-        lines.append(f"{self.name}:")
+        lines.append(f"{self.stage}/{self.name.replace('::', '/')}:")
         lines.append(f"  extends: {base}")
+
+        # Set stage
+        lines.append(f"  stage: {self.stage}")
+
+        # Set needs based on runner type
+        lines.append("  needs:")
+        lines.append("    - prechecks")
+        if self.runner == "riot":
+            # Riot jobs need build_base_venvs artifacts
+            lines.append("    - job: build_base_venvs")
+            lines.append("      artifacts: true")
 
         services = set(self.services or [])
         if services:
@@ -71,12 +84,12 @@ class JobSpec:
                 subprocess.check_output([".gitlab/scripts/get-riot-pip-cache-key.sh", suite_name]).decode().strip()
             )
             lines.append("  cache:")
-            lines.append("    key: v0-pip-${PIP_CACHE_KEY}-cache")
+            lines.append("    key: v1-pip-${PIP_CACHE_KEY}-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
         else:
             lines.append("  cache:")
-            lines.append("    key: v0-${CI_JOB_NAME}-pip-cache")
+            lines.append("    key: v1-${CI_JOB_NAME}-pip-cache")
             lines.append("    paths:")
             lines.append("      - .cache")
 
@@ -128,10 +141,42 @@ def gen_required_suites() -> None:
 
     # Copy the template file
     TESTS_GEN.write_text((GITLAB / "tests.yml").read_text())
+
+    # Collect stages from suite configurations
+    stages = {"setup"}  # setup is always needed
+    for suite_name, suite_config in suites.items():
+        # Extract stage from suite name prefix if present
+        if "::" in suite_name:
+            stage, _, clean_name = suite_name.partition("::")
+        else:
+            stage = "core"
+            clean_name = suite_name
+
+        stages.add(stage)
+        # Store the stage in the suite config for later use
+        suite_config["_stage"] = stage
+        suite_config["_clean_name"] = clean_name
+
+    # Sort stages: setup first, then alphabetically
+    sorted_stages = ["setup"] + sorted(stages - {"setup"})
+
+    # Update the stages in the generated file
+    content = TESTS_GEN.read_text()
+
+    stages_yaml = "stages:\n" + "\n".join(f"  - {stage}" for stage in sorted_stages)
+    content = re.sub(r"stages:.*?(?=\n\w|\n\n|\Z)", stages_yaml, content, flags=re.DOTALL)
+    TESTS_GEN.write_text(content)
+
     # Generate the list of suites to run
     with TESTS_GEN.open("a") as f:
         for suite in required_suites:
-            jobspec = JobSpec(suite, **suites[suite])
+            suite_config = suites[suite].copy()
+            # Extract stage and clean name from config
+            stage = suite_config.pop("_stage", "core")
+            clean_name = suite_config.pop("_clean_name", suite)
+
+            # Create JobSpec with clean name and explicit stage
+            jobspec = JobSpec(clean_name, stage=stage, **suite_config)
             if jobspec.skip:
                 LOGGER.debug("Skipping suite %s", suite)
                 continue
@@ -144,13 +189,22 @@ def gen_build_docs() -> None:
     from needs_testrun import pr_matches_patterns
 
     if pr_matches_patterns(
-        {"docker*", "docs/*", "ddtrace/*", "scripts/docs/*", "releasenotes/*", "benchmarks/README.rst"}
+        {
+            "docker*",
+            "docs/*",
+            "ddtrace/*",
+            "scripts/docs/*",
+            "releasenotes/*",
+            "benchmarks/README.rst",
+            ".readthedocs.yml",
+        }
     ):
         with TESTS_GEN.open("a") as f:
             print("build_docs:", file=f)
             print("  extends: .testrunner", file=f)
-            print("  stage: hatch", file=f)
-            print("  needs: []", file=f)
+            print("  stage: core", file=f)
+            print("  needs:", file=f)
+            print("    - prechecks", file=f)
             print("  variables:", file=f)
             print("    PIP_CACHE_DIR: '${CI_PROJECT_DIR}/.cache/pip'", file=f)
             print("  script:", file=f)
@@ -158,7 +212,7 @@ def gen_build_docs() -> None:
             print("      hatch run docs:build", file=f)
             print("      mkdir -p /tmp/docs", file=f)
             print("  cache:", file=f)
-            print("    key: v1-build_docs-pip-cache", file=f)
+            print("    key: v2-build_docs-pip-cache", file=f)
             print("    paths:", file=f)
             print("      - .cache", file=f)
             print("  artifacts:", file=f)
@@ -242,7 +296,7 @@ prechecks:
         f.write(
             """
   cache:
-    key: v1-precheck-pip-cache
+    key: v2-precheck-pip-cache
     paths:
       - .cache
 """
@@ -263,6 +317,35 @@ def gen_build_base_venvs() -> None:
     """
     with TESTS_GEN.open("a") as f:
         f.write(template("build-base-venvs"))
+
+
+def gen_debugger_exploration() -> None:
+    """Generate the cached testrunner job.
+
+    We need to generate this dynamically from a template because it depends
+    on the cached testrunner job, which is also generated dynamically.
+    """
+    from needs_testrun import pr_matches_patterns
+
+    if not pr_matches_patterns(
+        {
+            ".gitlab/templates/debugging/exploration.yml",
+            "ddtrace/debugging/*",
+            "ddtrace/internal/bytecode_injection/__init__.py",
+            "ddtrace/internal/wrapping/context.py",
+            "tests/debugging/exploration/*",
+        }
+    ):
+        return
+
+    with TESTS_GEN.open("a") as f:
+        f.write(template("debugging/exploration"))
+
+
+def gen_detect_global_locks() -> None:
+    """Generate the global lock detection job."""
+    with TESTS_GEN.open("a") as f:
+        f.write(template("detect-global-locks"))
 
 
 # -----------------------------------------------------------------------------

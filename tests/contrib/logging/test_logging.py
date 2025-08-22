@@ -1,5 +1,6 @@
 from io import StringIO
 import logging
+import os
 
 import pytest
 import wrapt
@@ -262,7 +263,8 @@ class LoggingTestCase(TracerTestCase):
                     ) == lines[0]
 
     def test_log_strformat_style_dollar_sign(self):
-        # FIXME: This test that verifies that the logging integration doesnt work with dollar sign style format strings.
+        # FIXME: This test that verifies that the logging integration
+        # doesn't work with dollar sign style format strings.
         def func():
             with self.tracer.trace("test.logging") as span:
                 logger.info("Hello!")
@@ -299,3 +301,29 @@ class LoggingTestCase(TracerTestCase):
                 assert not hasattr(record, "dd")
                 assert getattr(record, LOG_ATTR_TRACE_ID) == "{:032x}".format(span.trace_id)
                 assert getattr(record, LOG_ATTR_SPAN_ID) == str(span.span_id)
+
+
+@pytest.mark.parametrize("dd_logs_enabled", ["true", "structured"])
+def test_manual_log_formatter_injection(dd_logs_enabled: str, run_python_code_in_subprocess):
+    code = """
+import ddtrace.auto
+
+import logging
+
+format_string = (
+    "%(message)s - dd.service=%(dd.service)s dd.version=%(dd.version)s dd.env=%(dd.env)s"
+    " dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s"
+)
+
+log = logging.getLogger()
+logging.basicConfig(level=logging.INFO, format=format_string)
+log.info("Hello!")
+    """
+
+    env = os.environ.copy()
+    env["DD_LOGS_INJECTION"] = dd_logs_enabled
+    stdout, stderr, status, _ = run_python_code_in_subprocess(code, env=env)
+    assert status == 0, stderr
+
+    assert stdout == b"", stderr
+    assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"

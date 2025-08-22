@@ -46,7 +46,6 @@ register_post_preload(manager.post_preload_products)
 
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
-    log.debug("crashtracking enabled via environment variable")
     try:
         from ddtrace.internal.core import crashtracking
 
@@ -74,6 +73,15 @@ if config._otel_enabled:
         from ddtrace.opentelemetry import TracerProvider
 
         set_tracer_provider(TracerProvider())
+
+
+if config._otel_metrics_enabled:
+
+    @ModuleWatchdog.after_module_imported("opentelemetry.metrics")
+    def _otel_metrics(_):
+        from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
+
+        set_otel_meter_provider()
 
 
 if config._llmobs_enabled:

@@ -1,8 +1,11 @@
+from typing import Any  # noqa:F401
+from typing import Dict  # noqa:F401
 from typing import Optional  # noqa:F401
 from urllib import parse
 
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -16,7 +19,6 @@ from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -75,7 +77,11 @@ def _wrap_send(func, instance, args, kwargs):
     hostname, path = _extract_hostname_and_path(url)
     host_without_port = hostname.split(":")[0] if hostname is not None else None
 
-    cfg = ddtrace.trace.Pin._get_config(instance)
+    cfg: Dict[str, Any] = {}
+    pin = Pin.get_from(instance)
+    if pin:
+        cfg = pin._config
+
     service = None
     if cfg["split_by_domain"] and hostname:
         service = hostname
@@ -93,11 +99,8 @@ def _wrap_send(func, instance, args, kwargs):
         # set span.kind to the type of operation being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        span.set_tag(_SPAN_MEASURED_KEY)
-
-        # Configure trace search sample rate
-        # DEV: analytics enabled on per-session basis
-        cfg = Pin._get_config(instance)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         # propagate distributed tracing headers
         if cfg.get("distributed_tracing"):

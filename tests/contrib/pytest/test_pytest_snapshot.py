@@ -3,12 +3,13 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.internal.ci_visibility._api_client import TestVisibilityAPISettings
 from tests.ci_visibility.util import _get_default_ci_env_vars
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(_USE_PLUGIN_V2, reason="Tests in this module are for v1 of the pytest plugin")
 
@@ -85,7 +86,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
@@ -131,7 +132,7 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_PATCH_MODULES="sqlite3:false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )
@@ -166,8 +167,8 @@ class PytestSnapshotTestCase(TracerTestCase):
                         DD_CIVISIBILITY_ITR_ENABLED="false",
                         CI_PROJECT_DIR=str(self.testdir.tmpdir),
                         DD_CIVISIBILITY_AGENTLESS_ENABLED="false",
-                        _DD_PYTEST_USE_LEGACY_PLUGIN="true",
                         DD_PATCH_MODULES="httpx:true",
+                        _DD_CIVISIBILITY_DISABLE_EVP_PROXY="true",
                     )
                 ),
             )

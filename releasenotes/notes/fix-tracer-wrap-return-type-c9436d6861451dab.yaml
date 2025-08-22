@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    tracing: This fix resolves an issue where the ``@tracer.wrap()`` decorator failed to preserve the decorated function's return type, returning ``Any`` instead of the original return type.

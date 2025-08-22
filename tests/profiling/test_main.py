@@ -90,7 +90,6 @@ def test_multiprocessing(method, tmp_path, monkeypatch):
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
     monkeypatch.setenv("DD_PROFILING_ENABLED", "1")
     monkeypatch.setenv("DD_PROFILING_CAPTURE_PCT", "1")
-    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "0.1")
     stdout, stderr, exitcode, _ = call_program(
         "ddtrace-run",
         sys.executable,

@@ -1,5 +1,7 @@
-use datadog_library_config::{Configurator, ProcessInfo};
-use ddcommon::tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata};
+use datadog_library_config::{
+    tracer_metadata::{store_tracer_metadata, AnonymousFileHandle, TracerMetadata},
+    Configurator, ProcessInfo,
+};
 use pyo3::exceptions::PyException;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -53,7 +55,7 @@ impl PyConfigurator {
                 Ok(list.into())
             }
             Err(e) => {
-                let err_msg = format!("Failed to get configuration: {:?}", e);
+                let err_msg = format!("Failed to get configuration: {e:?}");
                 Err(PyException::new_err(err_msg))
             }
         }
@@ -116,7 +118,7 @@ pub fn store_metadata(data: &PyTracerMetadata) -> PyResult<PyAnonymousFileHandle
     match res {
         Ok(handle) => Ok(PyAnonymousFileHandle { internal: handle }),
         Err(e) => {
-            let err_msg = format!("Failed to store the tracer configuration: {:?}", e);
+            let err_msg = format!("Failed to store the tracer configuration: {e:?}");
             Err(PyException::new_err(err_msg))
         }
     }

@@ -2,11 +2,11 @@ stages:
   - setup
   - riot
   - hatch
+  - exploration
 
 variables:
   RIOT_RUN_CMD: riot -P -v run --exitfirst --pass-env -s
   REPO_LANG: python # "python" is used everywhere rather than "py"
-  PYTEST_ADDOPTS: "-s"
   # CI_DEBUG_SERVICES: "true"
 
 include:
@@ -65,7 +65,6 @@ include:
   # DEV: This is the max retries that GitLab currently allows for
   before_script:
     - !reference [.testrunner, before_script]
-    - pip install riot==0.20.1
     - unset DD_SERVICE
     - unset DD_ENV
     - unset DD_TAGS
@@ -81,6 +80,7 @@ include:
       do
         echo "Running riot hash: ${hash}"
         riot list "${hash}"
+        export _CI_DD_TAGS="test.configuration.riot_hash:${hash}"
         ${RIOT_RUN_CMD} "${hash}" -- --ddtrace
       done
       ./scripts/check-diff ".riot/requirements/" \
@@ -99,7 +99,7 @@ include:
     # DEV: All job variables get shared with services, setting `DD_TRACE_AGENT_URL` on the testagent will tell it to forward all requests to the
     # agent at that host. Therefore setting this as a variable will cause recursive requests to the testagent
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
-    - ln -s "${CI_PROJECT_DIR}" "/root/project"
+    - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
 
 # Required jobs will appear here

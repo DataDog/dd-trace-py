@@ -42,6 +42,7 @@ from ddtrace.internal.ci_visibility.coverage import _report_coverage_to_span
 from ddtrace.internal.ci_visibility.coverage import _start_coverage
 from ddtrace.internal.ci_visibility.coverage import _stop_coverage
 from ddtrace.internal.ci_visibility.coverage import _switch_coverage_context
+from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.utils import _add_pct_covered_to_span
 from ddtrace.internal.ci_visibility.utils import _add_start_end_source_file_path_data_to_span
 from ddtrace.internal.ci_visibility.utils import _generate_fully_qualified_test_name
@@ -80,6 +81,7 @@ def _enable_unittest_if_not_started():
     if _CIVisibility.enabled:
         return
     _CIVisibility.enable(config=ddtrace.config.unittest)
+    _check_if_code_coverage_available()
 
 
 def _initialize_unittest_data():
@@ -96,6 +98,15 @@ def _initialize_unittest_data():
 def _set_tracer(tracer: ddtrace.tracer):
     """Manually sets the tracer instance to `unittest.`"""
     unittest._datadog_tracer = tracer
+
+
+def _check_if_code_coverage_available():
+    if _CIVisibility._instance._collect_coverage_enabled and not is_coverage_available():
+        log.warning(
+            "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed. "
+            "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
+        )
+        _CIVisibility._instance._collect_coverage_enabled = False
 
 
 def _is_test_coverage_enabled(test_object) -> bool:

@@ -6,6 +6,7 @@ from wrapt import BoundFunctionWrapper
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import distributed_tracing_enabled
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 
 HTTPX_VERSION = parse_version(httpx.__version__)
@@ -90,7 +90,8 @@ def _get_service_name(pin, request):
 
 def _init_span(span, request):
     # type: (Span, httpx.Request) -> None
-    span.set_tag(_SPAN_MEASURED_KEY)
+    # PERF: avoid setting via Span.set_tag
+    span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     if distributed_tracing_enabled(config.httpx):
         HTTPPropagator.inject(span.context, request.headers)

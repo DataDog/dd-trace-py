@@ -5,6 +5,7 @@ import MySQLdb
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.dbapi import TracedConnection
@@ -21,7 +22,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 config._add(
@@ -107,7 +107,8 @@ def _connect(func, instance, args, kwargs):
             # set span.kind to the type of operation being performed
             span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-            span.set_tag(_SPAN_MEASURED_KEY)
+            # PERF: avoid setting via Span.set_tag
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
             conn = func(*args, **kwargs)
     return patch_conn(conn, *args, **kwargs)
 

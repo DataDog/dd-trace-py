@@ -19,7 +19,13 @@ def injected_hook(f, hook, arg, line=None):
     if line is None:
         line = min(linenos(f))
 
-    inject_hook(f, hook, line, arg)
+    try:
+        inject_hook(f, hook, line, arg)
+    except InvalidLine:
+        import dis
+
+        dis.dis(f)
+        raise
 
     yield f
 
@@ -251,6 +257,25 @@ def test_finally():
     with injected_hook(f, hook, arg, line=157):
         f()
     f()
+
+    hook.assert_called_once_with(arg)
+
+
+def test_try_except():
+    def target():
+        try:
+            response = 42
+            for a in range(100):
+                if a == response:
+                    break
+        except ValueError as e:
+            if not e.args:
+                raise
+
+    hook, arg = mock.Mock(), mock.Mock()
+
+    with injected_hook(target, hook, arg, line=target.__code__.co_firstlineno + 1):
+        target()
 
     hook.assert_called_once_with(arg)
 

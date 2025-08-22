@@ -2,15 +2,17 @@ import os
 
 from agents import Agent
 from agents import GuardrailFunctionOutput
+from agents import WebSearchTool
 from agents import function_tool
 from agents import input_guardrail
+from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config
@@ -57,6 +59,7 @@ def research_workflow():
     summarizer = Agent(
         name="Summarizer",
         instructions="""You are a helpful assistant that can summarize a research results.""",
+        model="gpt-4o",
     )
     yield Agent(
         name="Researcher",
@@ -66,6 +69,7 @@ def research_workflow():
         ),
         tools=[research],
         handoffs=[summarizer],
+        model="gpt-4o",
     )
 
 
@@ -76,6 +80,7 @@ def addition_agent():
         name="Addition Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         tools=[add],
+        model="gpt-4o",
     )
 
 
@@ -95,6 +100,22 @@ def addition_agent_with_tool_errors():
             "Do not retry the tool call if it errors and instead return immediately"
         ),
         tools=[add_with_error],
+        model="gpt-4o",
+    )
+
+
+@pytest.fixture
+def web_search():
+    yield WebSearchTool(user_location=UserLocation(type="approximate", city="New York"))
+
+
+@pytest.fixture
+def weather_agent(web_search):
+    yield Agent(
+        name="Weather Agent",
+        instructions=("You are a helpful assistant specialized in searching the web for weather information."),
+        tools=[web_search],
+        model="gpt-4o",
     )
 
 
@@ -117,6 +138,7 @@ def simple_agent_with_guardrail():
         name="Simple Agent",
         instructions="You are a helpful assistant specialized in addition calculations.",
         input_guardrails=[simple_guardrail],
+        model="gpt-4o",
     )
 
 
@@ -126,6 +148,7 @@ def simple_agent():
     yield Agent(
         name="Simple Agent",
         instructions="You are a helpful assistant who answers questions concisely and accurately.",
+        model="gpt-4o",
     )
 
 

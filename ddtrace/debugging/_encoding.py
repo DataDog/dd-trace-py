@@ -10,6 +10,7 @@ from types import FrameType
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import Iterator
 from typing import List
 from typing import Optional
 from typing import Union
@@ -156,13 +157,13 @@ class JSONTree:
                 for child in self.children[::-1]:
                     yield from child.leaves
 
-    def __init__(self, data):
+    def __init__(self, data: str) -> None:
         self._iter = enumerate(data)
-        self._stack: List["JSONTree.Node"] = []  # TODO: deque
-        self.root = None
+        self._stack: List[JSONTree.Node] = []  # TODO: deque
+        self.root: Optional[JSONTree.Node] = None
         self.level = 0
 
-        self._string_iter = None
+        self._string_iter: Optional[Iterator[str]] = None
 
         self._state = self._object
         self._on_string_match = self._not_captured

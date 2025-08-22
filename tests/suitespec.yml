@@ -177,7 +177,7 @@ suites:
     pattern: integration-latest*
     runner: riot
   integration_testagent:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@tracing'
       - '@bootstrap'
@@ -223,19 +223,6 @@ suites:
       - 'ddtrace/**/*.py'
     runner: riot
     snapshot: false
-  profile:
-    env:
-      DD_TRACE_AGENT_URL: ''
-    parallelism: 20
-    paths:
-      - '@bootstrap'
-      - '@core'
-      - '@profiling'
-      - tests/profiling/*
-      - tests/profiling_v2/*
-    pattern: profile$|profile-v2
-    retry: 2
-    runner: riot
   runtime:
     paths:
       - '@bootstrap'

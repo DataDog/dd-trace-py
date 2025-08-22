@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    LLM Observability: Addresses an upstream issue in Bedrock prompt caching, which reports input tokens as the number of non-cached tokens instead of the total tokens sent to the model. With this fix, LLM Observability correctly counts input tokens to include cached read/write prompt tokens. 

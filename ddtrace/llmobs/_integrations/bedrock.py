@@ -9,8 +9,11 @@ from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_VALUE
+from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import METRICS
 from ddtrace.llmobs._constants import MODEL_NAME
@@ -20,14 +23,19 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import TAGS
+from ddtrace.llmobs._constants import TOOL_DEFINITIONS
 from ddtrace.llmobs._integrations import BaseLLMIntegration
 from ddtrace.llmobs._integrations.bedrock_agents import _create_or_update_bedrock_trace_step_span
 from ddtrace.llmobs._integrations.bedrock_agents import _extract_trace_step_id
 from ddtrace.llmobs._integrations.bedrock_agents import translate_bedrock_trace
+from ddtrace.llmobs._integrations.bedrock_utils import normalize_input_tokens
 from ddtrace.llmobs._integrations.utils import get_final_message_converse_stream_message
 from ddtrace.llmobs._integrations.utils import get_messages_from_converse_content
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._telemetry import record_bedrock_agent_span_event_created
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._writer import LLMObsSpanEvent
+from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.trace import Span
 
 
@@ -79,6 +87,8 @@ class BedrockIntegration(BaseLLMIntegration):
         if ctx.get_item("llmobs.usage"):
             usage_metrics = ctx["llmobs.usage"]
 
+        normalize_input_tokens(usage_metrics)
+
         if "total_tokens" not in usage_metrics and (
             "input_tokens" in usage_metrics or "output_tokens" in usage_metrics
         ):
@@ -90,6 +100,10 @@ class BedrockIntegration(BaseLLMIntegration):
             metadata["max_tokens"] = int(request_params.get("max_tokens") or 0)
 
         prompt = request_params.get("prompt", "")
+        tool_config = request_params.get("tool_config", {})
+        tool_definitions = self._extract_tool_definitions(tool_config)
+        if tool_definitions:
+            span._set_ctx_item(TOOL_DEFINITIONS, tool_definitions)
 
         is_converse = ctx["resource"] in ("Converse", "ConverseStream")
         input_messages = (
@@ -146,6 +160,7 @@ class BedrockIntegration(BaseLLMIntegration):
                 INPUT_VALUE: str(input_value),
                 TAGS: {"session_id": session_id},
                 METADATA: {"agent_id": agent_id, "agent_alias_id": agent_alias_id},
+                INTEGRATION: "bedrock_agents",
             }
         )
         if not response:
@@ -171,6 +186,7 @@ class BedrockIntegration(BaseLLMIntegration):
             )
         for _, span_event in self._spans.items():
             LLMObs._instance._llmobs_span_writer.enqueue(span_event)
+            record_bedrock_agent_span_event_created(span_event)
         self._spans.clear()
         self._active_span_by_step_id.clear()
 
@@ -259,6 +275,18 @@ class BedrockIntegration(BaseLLMIntegration):
                     if "{}Tokens".format(token_type) in usage:
                         usage_metrics["{}_tokens".format(token_type)] = usage["{}Tokens".format(token_type)]
 
+                cache_read_tokens = usage.get("cacheReadInputTokenCount", None) or usage.get(
+                    "cacheReadInputTokens", None
+                )
+                cache_write_tokens = usage.get("cacheWriteInputTokenCount", None) or usage.get(
+                    "cacheWriteInputTokens", None
+                )
+
+                if cache_read_tokens is not None:
+                    usage_metrics[CACHE_READ_INPUT_TOKENS_METRIC_KEY] = cache_read_tokens
+                if cache_write_tokens is not None:
+                    usage_metrics[CACHE_WRITE_INPUT_TOKENS_METRIC_KEY] = cache_write_tokens
+
             if "messageStart" in chunk:
                 message_data = chunk["messageStart"]
                 current_message = {"role": message_data.get("role", "assistant"), "content_block_indicies": []}
@@ -310,6 +338,7 @@ class BedrockIntegration(BaseLLMIntegration):
         if not messages:
             messages.append({"role": "assistant", "content": ""})
 
+        normalize_input_tokens(usage_metrics)
         return messages, metadata, usage_metrics
 
     @staticmethod
@@ -359,3 +388,17 @@ class BedrockIntegration(BaseLLMIntegration):
         base_url = self._get_base_url(instance=ctx.get_item("instance"))
         if self._is_instrumented_proxy_url(base_url):
             ctx.set_item(PROXY_REQUEST, True)
+
+    def _extract_tool_definitions(self, tool_config: Dict[str, Any]) -> List[ToolDefinition]:
+        """Extract tool definitions from the stored tool config."""
+        tools = _get_attr(tool_config, "tools", [])
+        tool_definitions = []
+        for tool in tools:
+            tool_spec = _get_attr(tool, "toolSpec", {})
+            tool_definition_info = ToolDefinition(
+                name=_get_attr(tool_spec, "name", ""),
+                description=_get_attr(tool_spec, "description", ""),
+                schema=_get_attr(tool_spec, "inputSchema", {}),
+            )
+            tool_definitions.append(tool_definition_info)
+        return tool_definitions

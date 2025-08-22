@@ -2,6 +2,7 @@ import json
 import traceback
 
 from flask import request
+from flask_babel import Babel
 import pytest
 
 from ddtrace.appsec._constants import IAST
@@ -23,6 +24,7 @@ from ddtrace.appsec._iast.taint_sinks.xss import patch as patch_xss_injection
 from ddtrace.contrib.internal.sqlite3.patch import patch as patch_sqlite_sqli
 from ddtrace.settings.asm import config as asm_config
 from tests.appsec.iast.iast_utils import get_line_and_hash
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.flask_tests.utils import flask_version
 from tests.appsec.integrations.flask_tests.utils import werkzeug_version
 from tests.contrib.flask import BaseFlaskTestCase
@@ -56,6 +58,11 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             self.tracer.configure(iast_enabled=True)
             oce.reconfigure()
 
+            # Initialize Flask-Babel
+            self.babel = Babel(self.app)
+            self.app.config["BABEL_DEFAULT_LOCALE"] = "en"
+            self.app.config["BABEL_TRANSLATION_DIRECTORIES"] = "translations"
+
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_http_request_path_parameter(self):
         @self.app.route("/sqli/<string:param_str>/", methods=["GET", "POST"])
@@ -85,7 +92,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.path.parameter", "name": "param_str", "value": "sqlite_master"}
             ]
@@ -140,7 +147,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
             ]
@@ -198,7 +205,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.header", "name": "User-Agent", "value": "sqlite_master"}
             ]
@@ -257,7 +264,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header.name", "name": "Master", "value": "Master"}]
 
             line, hash_value = get_line_and_hash(
@@ -311,7 +318,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -452,7 +459,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.cookie.value", "name": "test-cookie1", "value": "sqlite_master"}
             ]
@@ -518,7 +525,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.cookie.name", "name": "sqlite_master", "value": "sqlite_master"}
             ]
@@ -576,7 +583,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "table", "value": "sqlite_master"}
             ]
@@ -633,7 +640,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter.name", "name": "sqlite_master", "value": "sqlite_master"}
             ]
@@ -692,7 +699,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter.name", "name": "sqlite_master", "value": "sqlite_master"}
             ]
@@ -760,7 +767,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -826,7 +833,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -892,7 +899,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body3", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -960,7 +967,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "body4", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -1099,7 +1106,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "extra", "origin": "http.request.body", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -1170,7 +1177,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"name": "json_body", "origin": "http.request.body", "value": "master"}]
 
             list_metrics_logs = list(self._telemetry_writer._logs)
@@ -1207,7 +1214,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [{"origin": "http.request.header", "name": "User-Agent", "value": "master"}]
 
             line, hash_value = get_line_and_hash(
@@ -1271,7 +1278,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     def test_flask_header_injection_direct_access_to_header(self):
         @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
@@ -1298,7 +1305,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     def test_flask_header_injection_direct_access_to_header_exception(self):
         @self.app.route("/header_injection_insecure/", methods=["GET", "POST"])
@@ -1329,7 +1336,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
 
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_transfer_encoding(self):
@@ -1356,7 +1363,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_header_injection_exclusions_access_control(self):
@@ -1383,7 +1390,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_insecure_cookie(self):
@@ -1412,7 +1419,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
@@ -1453,7 +1460,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = root_span.get_tag(IAST.JSON)
+            loaded = load_iast_report(root_span)
             assert loaded is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1483,7 +1490,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
@@ -1523,7 +1530,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = root_span.get_tag(IAST.JSON)
+            loaded = load_iast_report(root_span)
             assert loaded is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1553,7 +1560,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
@@ -1591,7 +1598,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             assert resp.status_code == 200
 
             root_span = self.pop_spans()[0]
-            loaded = root_span.get_tag(IAST.JSON)
+            loaded = load_iast_report(root_span)
             assert loaded is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1620,7 +1627,7 @@ class FlaskAppSecIASTEnabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = root_span.get_tag(IAST.JSON)
+            loaded = load_iast_report(root_span)
             assert loaded is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
@@ -1667,7 +1674,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
@@ -1713,7 +1720,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == []
             assert len(loaded["vulnerabilities"]) == 1
             vulnerability = loaded["vulnerabilities"][0]
@@ -1750,7 +1757,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
             ]
@@ -1793,7 +1800,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
             ]
@@ -1837,7 +1844,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "url", "value": "http://localhost:8080/malicious"}
             ]
@@ -1876,7 +1883,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
             ]
@@ -1921,7 +1928,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     def test_flask_xss_template(self):
         @self.app.route("/xss/template/", methods=["GET"])
@@ -1948,7 +1955,7 @@ Lorem Ipsum Foobar
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) == 1.0
 
-            loaded = json.loads(root_span.get_tag(IAST.JSON))
+            loaded = load_iast_report(root_span)
             assert loaded["sources"] == [
                 {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
             ]
@@ -1962,6 +1969,58 @@ Lorem Ipsum Foobar
                 ]
             }
             assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_insecure.html"
+
+    def test_flask_xss_trans_template(self):
+        # Add a route path function that the template will use
+        @self.app.route("/search")
+        def search():
+            return "search page"
+
+        @self.app.route("/xss/trans-template/", methods=["GET"])
+        def xss_view_trans_template():
+            from flask import render_template
+            from flask import request
+
+            user_input = request.args.get("input", "")
+
+            # label test_flask_xss_trans_template
+            return render_template(
+                "test_trans_insecure.html",
+                user_input=user_input,
+                request=request,  # Make request available in the template
+            )
+
+        with override_global_config(
+            dict(
+                _iast_enabled=True,
+                _iast_deduplication_enabled=False,
+                _iast_request_sampling=100.0,
+            )
+        ):
+            resp = self.client.get("/xss/trans-template/?input=<script>alert('XSS')</script>")
+            assert resp.status_code == 200
+            # The response should contain the translated text and escaped user input
+            assert b'Click <a href="/search">here</a> to search' in resp.data
+            # The user input should be escaped in the response
+            assert b"<div><script>alert('XSS')</script></div>" in resp.data
+
+            root_span = self.pop_spans()[0]
+            assert root_span.get_metric(IAST.ENABLED) == 1.0
+
+            loaded = load_iast_report(root_span)
+            assert loaded["sources"] == [
+                {"origin": "http.request.parameter", "name": "input", "value": "<script>alert('XSS')</script>"}
+            ]
+
+            line, hash_value = get_line_and_hash("test_flask_xss_trans_template", VULN_XSS, filename=TEST_FILE_PATH)
+            vulnerability = loaded["vulnerabilities"][0]
+            assert vulnerability["type"] == VULN_XSS
+            assert vulnerability["evidence"] == {
+                "valueParts": [
+                    {"value": "<script>alert('XSS')</script>", "source": 0},
+                ]
+            }
+            assert vulnerability["location"]["path"] == "tests/contrib/flask/test_templates/test_trans_insecure.html"
 
     def test_flask_iast_sampling(self):
         @self.app.route("/appsec/iast_sampling/", methods=["GET"])
@@ -2009,10 +2068,9 @@ Lorem Ipsum Foobar
 
                 root_span = self.pop_spans()[0]
                 assert str(resp.data, encoding="utf-8") == f"OK:value{i}", resp.data
-                iast_data = root_span.get_tag(IAST.JSON)
+                loaded = load_iast_report(root_span)
                 if i < 8:
-                    assert iast_data, f"No data({i}): {iast_data}"
-                    loaded = json.loads(iast_data)
+                    assert loaded, f"No data({i}): {loaded}"
                     assert len(loaded["vulnerabilities"]) == 2
                     assert loaded["sources"] == [
                         {"origin": "http.request.parameter", "name": "param", "redacted": True, "pattern": "abcdef"}
@@ -2021,7 +2079,7 @@ Lorem Ipsum Foobar
                         assert vuln["type"] == VULN_SQL_INJECTION
                         list_vulnerabilities.append(vuln["location"]["line"])
                 else:
-                    assert iast_data is None
+                    assert loaded is None
             assert (
                 len(list_vulnerabilities) == 16
             ), f"Num vulnerabilities: ({len(list_vulnerabilities)}): {list_vulnerabilities}"
@@ -2073,7 +2131,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) is None
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_getitem(self):
@@ -2105,7 +2163,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) is None
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_name_keys(self):
@@ -2137,7 +2195,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) is None
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_full_sqli_iast_disabled_http_request_header_values(self):
@@ -2169,7 +2227,7 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) is None
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None
 
     @pytest.mark.skipif(not asm_config._iast_supported, reason="Python version not supported by IAST")
     def test_flask_simple_iast_path_header_and_querystring_not_tainted_if_iast_disabled(self):
@@ -2228,4 +2286,4 @@ class FlaskAppSecIASTDisabledTestCase(BaseFlaskTestCase):
             root_span = self.pop_spans()[0]
             assert root_span.get_metric(IAST.ENABLED) is None
 
-            assert root_span.get_tag(IAST.JSON) is None
+            assert load_iast_report(root_span) is None

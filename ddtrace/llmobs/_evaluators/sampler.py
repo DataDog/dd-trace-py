@@ -17,6 +17,7 @@ logger = get_logger(__name__)
 
 
 class EvaluatorRunnerSamplingRule(SamplingRule):
+    NO_RULE = object()
     SAMPLE_RATE_KEY = "sample_rate"
     EVALUATOR_LABEL_KEY = "evaluator_label"
     SPAN_NAME_KEY = "span_name"
@@ -102,8 +103,10 @@ class EvaluatorRunnerSampler:
             except ValueError:
                 parsing_failed_because("sample_rate is not a float for rule: {}".format(json.dumps(rule)), KeyError)
                 continue
-            span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, SamplingRule.NO_RULE)
-            evaluator_label = rule.get(EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, SamplingRule.NO_RULE)
+            span_name = rule.get(EvaluatorRunnerSamplingRule.SPAN_NAME_KEY, EvaluatorRunnerSamplingRule.NO_RULE)
+            evaluator_label = rule.get(
+                EvaluatorRunnerSamplingRule.EVALUATOR_LABEL_KEY, EvaluatorRunnerSamplingRule.NO_RULE
+            )
             telemetry_writer.add_distribution_metric(
                 TELEMETRY_NAMESPACE.MLOBS,
                 "evaluators.rule_sample_rate",

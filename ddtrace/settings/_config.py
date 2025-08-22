@@ -1,5 +1,4 @@
 from copy import deepcopy
-import json
 import os
 import re
 import sys
@@ -18,7 +17,6 @@ from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry import validate_otel_envs
 from ddtrace.internal.utils.cache import cachedmethod
 
-from .._logger import LogInjectionState
 from .._logger import get_log_injection_state
 from ..internal import gitmetadata
 from ..internal.constants import _PROPAGATION_BEHAVIOR_DEFAULT
@@ -175,6 +173,7 @@ INTEGRATION_CONFIGS = frozenset(
         "genai",
         "openai",
         "crewai",
+        "pydantic_ai",
         "logging",
         "cassandra",
         "boto",
@@ -197,6 +196,7 @@ INTEGRATION_CONFIGS = frozenset(
         "grpc_aio_server",
         "yaaredis",
         "openai_agents",
+        "mcp",
     }
 )
 
@@ -313,19 +313,14 @@ class _ConfigItem:
         if val is not self._default_value:
             self._env_value = val
 
-    def set_value_source(self, value: Any, source: _ConfigSource) -> None:
+    def set_value(self, value: Any, source: _ConfigSource) -> None:
         if source == "code":
             self._code_value = value
         elif source == "remote_config":
             self._rc_value = value
         else:
             log.warning("Invalid source: %s", source)
-
-    def set_code(self, value: _JSONType) -> None:
-        self._code_value = value
-
-    def unset_rc(self) -> None:
-        self._rc_value = None
+        telemetry_writer.add_configuration(self._name, self.value(), self.source())
 
     def value(self) -> _JSONType:
         if self._rc_value is not None:
@@ -365,7 +360,7 @@ def _default_config() -> Dict[str, _ConfigItem]:
             modifier=str,
         ),
         "_logs_injection": _ConfigItem(
-            default=LogInjectionState.STRUCTURED,
+            default=True,
             envs=["DD_LOGS_INJECTION"],
             modifier=get_log_injection_state,
         ),
@@ -478,6 +473,9 @@ class Config(object):
             "DD_TRACE_WRITER_REUSE_CONNECTIONS", DEFAULT_REUSE_CONNECTIONS, asbool
         )
         self._trace_writer_log_err_payload = _get_config("_DD_TRACE_WRITER_LOG_ERROR_PAYLOADS", False, asbool)
+
+        # Use the NativeWriter instead of the AgentWriter
+        self._trace_writer_native = _get_config("_DD_TRACE_WRITER_NATIVE", False, asbool)
 
         # TODO: Remove the configurations below. ddtrace.internal.agent.config should be used instead.
         self._trace_agent_url = _get_config("DD_TRACE_AGENT_URL")
@@ -631,11 +629,11 @@ class Config(object):
             "DD_CIVISIBILITY_EARLY_FLAKE_DETECTION_ENABLED", True, asbool
         )
         self._otel_enabled = _get_config("DD_TRACE_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
+        self._otel_metrics_enabled = _get_config("DD_METRICS_OTEL_ENABLED", False, asbool, "OTEL_SDK_DISABLED")
         if self._otel_enabled:
             # Replaces the default otel api runtime context with DDRuntimeContext
             # https://github.com/open-telemetry/opentelemetry-python/blob/v1.16.0/opentelemetry-api/src/opentelemetry/context/__init__.py#L53
             os.environ["OTEL_PYTHON_CONTEXT"] = "ddcontextvars_context"
-        self._subscriptions = []  # type: List[Tuple[List[str], Callable[[Config, List[str]], None]]]
 
         self._trace_methods = _get_config("DD_TRACE_METHODS")
 
@@ -763,118 +761,19 @@ class Config(object):
         rc_configs = ", ".join(self._config.keys())
         return f"{cls.__module__}.{cls.__name__} integration_configs={integrations} rc_configs={rc_configs}"
 
-    def _subscribe(self, items, handler):
-        # type: (List[str], Callable[[Config, List[str]], None]) -> None
-        self._subscriptions.append((items, handler))
-
-    def _notify_subscribers(self, changed_items):
-        # type: (List[str]) -> None
-        for sub_items, sub_handler in self._subscriptions:
-            sub_updated_items = [i for i in changed_items if i in sub_items]
-            if sub_updated_items:
-                sub_handler(self, sub_updated_items)
-
     def __setattr__(self, key, value):
         # type: (str, Any) -> None
         if key in ("_config", "_from_endpoint"):
             return super(self.__class__, self).__setattr__(key, value)
         elif key in self._config:
-            self._set_config_items([(key, value, "code")])
+            self._config[key].set_value(value, "code")
             return None
         else:
             return super(self.__class__, self).__setattr__(key, value)
 
-    def _set_config_items(self, items):
-        # type: (List[Tuple[str, Any, _ConfigSource]]) -> None
-        item_names = []
-        for key, value, origin in items:
-            item_names.append(key)
-            item = self._config[key]
-            item.set_value_source(value, origin)
-            telemetry_writer.add_configuration(item._name, item.value(), item.source())
-        self._notify_subscribers(item_names)
-
     def _reset(self):
         # type: () -> None
         self._config = _default_config()
-
-    def _get_source(self, item):
-        # type: (str) -> str
-        return self._config[item].source()
-
-    def _format_tags(self, tags: List[Union[str, Dict]]) -> Dict[str, str]:
-        if not tags:
-            return {}
-        if isinstance(tags[0], Dict):
-            pairs = [(item["header"], item["tag_name"]) for item in tags]  # type: ignore[index]
-        else:
-            pairs = [t.split(":") for t in tags]  # type: ignore[union-attr,misc]
-        return {k: v for k, v in pairs}
-
-    def _remove_invalid_rules(self, rc_rules: List) -> List:
-        """Remove invalid sampling rules from the given list"""
-        # loop through list of dictionaries, if a dictionary doesn't have certain attributes, remove it
-        for rule in rc_rules:
-            if (
-                ("service" not in rule and "name" not in rule and "resource" not in rule and "tags" not in rule)
-                or "sample_rate" not in rule
-                or "provenance" not in rule
-            ):
-                log.debug("Invalid sampling rule from remoteconfig found, rule will be removed: %s", rule)
-                rc_rules.remove(rule)
-
-        return rc_rules
-
-    def _tags_to_dict(self, tags: List[Dict]):
-        """
-        Converts a list of tag dictionaries to a single dictionary.
-        """
-        if isinstance(tags, list):
-            return {tag["key"]: tag["value_glob"] for tag in tags}
-        return tags
-
-    def _convert_rc_trace_sampling_rules(
-        self, rc_rules: List[Dict[str, Any]], global_sample_rate: Optional[float]
-    ) -> Optional[str]:
-        """Example of an incoming rule:
-        [
-          {
-            "service": "my-service",
-            "name": "web.request",
-            "resource": "*",
-            "provenance": "customer",
-            "sample_rate": 1.0,
-            "tags": [
-              {
-                "key": "care_about",
-                "value_glob": "yes"
-              },
-              {
-                "key": "region",
-                "value_glob": "us-*"
-              }
-            ]
-          }
-        ]
-
-                Example of a converted rule:
-                '[{"sample_rate":1.0,"service":"my-service","resource":"*","name":"web.request","tags":{"care_about":"yes","region":"us-*"},provenance":"customer"}]'
-        """
-        rc_rules = self._remove_invalid_rules(rc_rules)
-        for rule in rc_rules:
-            if "tags" in rule:
-                # Remote config provides sampling rule tags as a list,
-                # but DD_TRACE_SAMPLING_RULES expects them as a dict.
-                # Here we convert tags to a dict to ensure a consistent format.
-                rule["tags"] = self._tags_to_dict(rule["tags"])
-
-        if global_sample_rate is not None:
-            rc_rules.append({"sample_rate": global_sample_rate})
-
-        if rc_rules:
-            return json.dumps(rc_rules)
-        else:
-            return None
 
     def _lower(self, value):
         return value.lower()

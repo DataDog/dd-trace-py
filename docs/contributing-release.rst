@@ -16,6 +16,35 @@ Prerequisites
 
 2. Ensure the CI is green on the branch on which the release will be based.
 
+3. Ensure there are no SLO breaches on the release branch (``main`` for new major/minor, ``major.minor`` branch for patch releases). See section below for details.
+
+Pre-Release Performance Gates
+-----------------------------
+
+This repository is using pre-release performance quality gates.
+
+On ``main`` or the ``major.minor`` release branch, verify that the latest CI pipeline passed the ``check-slo-breaches`` job.
+If any SLO is breached, the release pipeline on GitLab will be blocked.
+See our thresholds file(s) at `bp-runner.macrobenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml>`_ and `bp-runner.microbenchmarks.fail-on-breach.yml <https://github.com/DataDog/dd-trace-py/blob/3cf3342a005c1ef9e345d2a82a631bc827c8617a/.gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml>`_.
+
+There are a few ways to resolve this and unblock the release.
+
+**Prerequisite**
+
+Find the change(s) that contributed the most to performance regression.
+You can check from the `Benchmarking Platform - Benchmarks tab <https://benchmarking.us1.prod.dog/benchmarks?projectId=3&ciJobDateStart=1753290587498&ciJobDateEnd=1753895387498&gitBranch=main>`_ and filter by project and branch to see these commits.
+Notify the authors in `#apm-python-release <https://dd.enterprise.slack.com/archives/C04MK6NNDG9>`_ to see if there are any easy fixes (less than a day of work) that can be pushed to the release branch.
+
+1. **Merge a fix to resolve the performance regression.**
+   This should be considered first, and owned by the author(s) for the change(s) that introduced significant performance regression(s).
+2. **Revert the change(s) that contributed the most to performance regression.**
+   This should be considered if the regression is not acceptable, but the fix will take longer than a day to merge to the release branch.
+3. **Bump the SLO(s) to accommodate for the regressions.**
+   This should only be considered if the regressions are reasonable for the change(s) introduced (ex - new feature with expected overhead, crash fixes, major security issues, etc.).
+   When updating the SLO thresholds, authors must add a comment to their PR justifying the trade offs.
+   See `Performance quality gates - User Guide <https://datadoghq.atlassian.net/wiki/spaces/APMINT/pages/5158175217/Performance+quality+gates+-+User+Guide>`_ for more details.
+
+
 Instructions
 ------------
 
@@ -41,15 +70,24 @@ Ensure you have followed the prerequisite steps above.
 
     $ git pull
     $ git checkout <branch>
-    $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm | less
+    $ reno report --branch=origin/<branch> | pandoc -f rst -t gfm --wrap=none | less
 
-5. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
+5. Include an estimated end-of-life block at the top of the new release notes:
+
+.. code-block::
+
+    Estimated end-of-life date, accurate to within three months: MM-YYYY
+    See [the support level definitions](https://docs.datadoghq.com/tracing/trace_collection/compatibility/python/#releases) for more information.
+
+Where the EOL month is calculated thus: <this release line's start month> + <18 months>
+
+6. Make sure the “Set as pre-release" box is CHECKED if publishing a release candidate.
    Make sure the “Set as latest release" box is CHECKED only if publishing a new minor release or a patch release for the latest minor version.
    Click “save draft”.
 
-6. Share the link to the GitHub draft release with someone who can confirm it's correct
+7. Share the link to the GitHub draft release with someone who can confirm it's correct
 
-7. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
+8. Click the the green “Publish release” button on the draft release. Double check that you have the correct check boxes checked and unchecked
    based on the release you’re about to publish. Wait for build and publish to succeed.
    The GitHub release will trigger the GitLab workflow that builds wheels and publishes to PyPI.
 

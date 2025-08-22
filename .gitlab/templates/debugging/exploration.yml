@@ -1,0 +1,52 @@
+".debugging/exploration":
+  stage: debugging
+  extends: .cached_testrunner
+  timeout: 30m
+  variables:
+    DD_DEBUGGER_EXPL_OUTPUT_FILE: "${{CI_PROJECT_DIR}}/debugger-expl.txt"
+    DD_DEBUGGER_EXPL_STATUS_MESSAGES: 1
+    PYTEST_PLUGINS: "exploration"
+    PYTHONPATH: "${{CI_PROJECT_DIR}}/tests/debugging/exploration/pytest"
+  before_script:
+    - !reference [.cached_testrunner, before_script]
+    - python${{PYTHON_VERSION}} -m pip install -e .
+  after_script:
+    - cat ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
+    - !reference [.cached_testrunner, after_script]
+  needs: []
+  artifacts:
+    paths:
+      - ${{DD_DEBUGGER_EXPL_OUTPUT_FILE}}
+
+"debugging/exploration/boto3":
+  extends: ".debugging/exploration"
+  variables:
+    DD_DEBUGGER_EXPL_INCLUDE: "boto3"
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        BOTO3_TAG: 1.38.44
+  script: |
+    git clone --depth 1 --branch ${{BOTO3_TAG}} https://github.com/boto/boto3.git
+    cd boto3
+    python${{PYTHON_VERSION}} scripts/ci/install
+    python${{PYTHON_VERSION}} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning"'
+
+"debugging/exploration/botocore":
+  extends: ".debugging/exploration"
+  timeout: 60m
+  variables:
+    DD_DEBUGGER_EXPL_INCLUDE: "botocore"
+    DD_DEBUGGER_EXPL_PROFILER_DELETE_FUNCTION_PROBES: 1
+    DD_DEBUGGER_EXPL_PROFILER_INSTRUMENTATION_RATE: 0.05
+    DD_DEBUGGER_EXPL_COVERAGE_DELETE_LINE_PROBES: 1
+    DD_DEBUGGER_EXPL_COVERAGE_INSTRUMENTATION_RATE: 0.05
+  parallel:
+    matrix:
+      - PYTHON_VERSION: ["3.9", "3.10", "3.11", "3.12", "3.13"]
+        BOTO3_TAG: 1.38.44
+  script: |
+    git clone --depth 1 --branch ${{BOTO3_TAG}} https://github.com/boto/boto3.git
+    cd boto3
+    python${{PYTHON_VERSION}} scripts/ci/install
+    python${{PYTHON_VERSION}} scripts/ci/run-tests --test-runner 'pytest -svv -W error -W "ignore::dateutil.parser._parser.UnknownTimezoneWarning" -W "ignore::DeprecationWarning"'

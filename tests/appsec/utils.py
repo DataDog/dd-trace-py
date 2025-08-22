@@ -3,6 +3,7 @@ import sys
 import typing
 
 from ddtrace.appsec import _asm_request_context
+from ddtrace.appsec._processor import AppSecSpanProcessor
 from ddtrace.ext import SpanTypes
 import ddtrace.internal.core as core
 from ddtrace.trace import Span
@@ -53,12 +54,14 @@ def get_waf_addresses(address: str) -> typing.Optional[typing.Any]:
 def asm_context(
     tracer=None,
     span_name: str = "",
+    span_type: str = SpanTypes.WEB,
     ip_addr: typing.Optional[str] = None,
     headers_case_sensitive: bool = False,
     headers: typing.Optional[typing.Dict[str, str]] = None,
     block_request_callable: typing.Optional[typing.Callable[[], bool]] = None,
     service: typing.Optional[str] = None,
     config=None,
+    rc_payload=None,
 ) -> typing.Iterator[Span]:
     with override_global_config(config) if config else contextlib.nullcontext():
         if tracer is None:
@@ -68,6 +71,10 @@ def asm_context(
             tracer._span_aggregator.writer._api_version = "v0.4"
             tracer._recreate()
         patch_for_waf_addresses()
+        if rc_payload:
+            processor = AppSecSpanProcessor._instance
+            if processor:
+                processor._update_rules([], rc_payload)
         with core.context_with_data(
             "test.asm",
             remote_addr=ip_addr,
@@ -75,7 +82,7 @@ def asm_context(
             headers=headers,
             block_request_callable=block_request_callable,
             service=service,
-        ), tracer.trace(span_name or "test", span_type=SpanTypes.WEB, service=service) as span:
+        ), tracer.trace(span_name or "test", span_type=span_type, service=service) as span:
             yield span
         unpatch_for_waf_addresses()
 

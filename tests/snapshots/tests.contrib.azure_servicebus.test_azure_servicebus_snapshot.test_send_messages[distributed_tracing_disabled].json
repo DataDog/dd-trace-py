@@ -1,6 +1,6 @@
 [[
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "topic.1",
     "trace_id": 0,
@@ -32,7 +32,7 @@
   }],
 [
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "queue.1",
     "trace_id": 1,
@@ -64,7 +64,7 @@
   }],
 [
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "queue.1",
     "trace_id": 2,
@@ -96,7 +96,7 @@
   }],
 [
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "queue.1",
     "trace_id": 3,
@@ -128,7 +128,7 @@
   }],
 [
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "topic.1",
     "trace_id": 4,
@@ -160,7 +160,7 @@
   }],
 [
   {
-    "name": "azure.servicebus.produce",
+    "name": "azure.servicebus.send",
     "service": "azure_servicebus",
     "resource": "topic.1",
     "trace_id": 5,

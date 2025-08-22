@@ -18,8 +18,10 @@ def _set_span_tag_iast_executed_sink(span):
 
     if data is not None:
         for key, value in data.items():
-            if key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK) or key.startswith(
-                IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE
+            if (
+                key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SINK)
+                or key.startswith(IAST_SPAN_TAGS.TELEMETRY_EXECUTED_SOURCE)
+                or key.startswith(IAST_SPAN_TAGS.TELEMETRY_SUPPRESSED_VULNERABILITY)
             ):
                 span.set_tag(key, value)
 

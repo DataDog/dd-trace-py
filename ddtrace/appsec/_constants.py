@@ -52,6 +52,9 @@ class APPSEC(metaclass=Constant_Class):
     APM_TRACING_ENV: Literal["DD_APM_TRACING_ENABLED"] = "DD_APM_TRACING_ENABLED"
     RULE_FILE: Literal["DD_APPSEC_RULES"] = "DD_APPSEC_RULES"
     ENABLED: Literal["_dd.appsec.enabled"] = "_dd.appsec.enabled"
+    ENABLED_ORIGIN_UNKNOWN: Literal["unknown"] = "unknown"
+    ENABLED_ORIGIN_RC: Literal["remote_config"] = "remote_config"
+    ENABLED_ORIGIN_ENV: Literal["env_var"] = "env_var"
     JSON: Literal["_dd.appsec.json"] = "_dd.appsec.json"
     STRUCT: Literal["appsec"] = "appsec"
     EVENT_RULE_VERSION: Literal["_dd.appsec.event_rules.version"] = "_dd.appsec.event_rules.version"
@@ -66,6 +69,7 @@ class APPSEC(metaclass=Constant_Class):
     RASP_DURATION_EXT: Literal["_dd.appsec.rasp.duration_ext"] = "_dd.appsec.rasp.duration_ext"
     RASP_RULE_EVAL: Literal["_dd.appsec.rasp.rule.eval"] = "_dd.appsec.rasp.rule.eval"
     RASP_TIMEOUTS: Literal["_dd.appsec.rasp.timeout"] = "_dd.appsec.rasp.timeout"
+    RC_PRODUCTS: Literal["_dd.appsec.rc_products"] = "_dd.appsec.rc_products"
     TRUNCATION_STRING_LENGTH: Literal["_dd.appsec.truncated.string_length"] = "_dd.appsec.truncated.string_length"
     TRUNCATION_CONTAINER_SIZE: Literal["_dd.appsec.truncated.container_size"] = "_dd.appsec.truncated.container_size"
     TRUNCATION_CONTAINER_DEPTH: Literal["_dd.appsec.truncated.container_depth"] = "_dd.appsec.truncated.container_depth"
@@ -117,6 +121,7 @@ class APPSEC(metaclass=Constant_Class):
     RASP_ERROR: Literal["_dd.appsec.rasp.error"] = "_dd.appsec.rasp.error"
     ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
     ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
+    UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -135,6 +140,8 @@ class IAST(metaclass=Constant_Class):
 
     ENV: Literal["DD_IAST_ENABLED"] = "DD_IAST_ENABLED"
     ENV_DEBUG: Literal["DD_IAST_DEBUG"] = "DD_IAST_DEBUG"
+    ENV_PROPAGATION_ENABLED: Literal["DD_IAST_PROPAGATION_ENABLED"] = "DD_IAST_PROPAGATION_ENABLED"
+    ENV_SINK_POINTS_ENABLED: Literal["DD_IAST_SINK_POINTS_ENABLED"] = "DD_IAST_SINK_POINTS_ENABLED"
     ENV_PROPAGATION_DEBUG: Literal["DD_IAST_PROPAGATION_DEBUG"] = "DD_IAST_PROPAGATION_DEBUG"
     ENV_REQUEST_SAMPLING: Literal["DD_IAST_REQUEST_SAMPLING"] = "DD_IAST_REQUEST_SAMPLING"
     DD_IAST_VULNERABILITIES_PER_REQUEST: Literal[
@@ -144,6 +151,7 @@ class IAST(metaclass=Constant_Class):
     ENV_TELEMETRY_REPORT_LVL: Literal["DD_IAST_TELEMETRY_VERBOSITY"] = "DD_IAST_TELEMETRY_VERBOSITY"
     LAZY_TAINT: Literal["_DD_IAST_LAZY_TAINT"] = "_DD_IAST_LAZY_TAINT"
     JSON: Literal["_dd.iast.json"] = "_dd.iast.json"
+    STRUCT: Literal["iast"] = "iast"
     ENABLED: Literal["_dd.iast.enabled"] = "_dd.iast.enabled"
     PATCH_MODULES: Literal["_DD_IAST_PATCH_MODULES"] = "_DD_IAST_PATCH_MODULES"
     ENV_NO_DIR_PATCH: Literal["_DD_IAST_NO_DIR_PATCH"] = "_DD_IAST_NO_DIR_PATCH"
@@ -173,6 +181,9 @@ class IAST_SPAN_TAGS(metaclass=Constant_Class):
 
     TELEMETRY_REQUEST_TAINTED: Literal["_dd.iast.telemetry.request.tainted"] = "_dd.iast.telemetry.request.tainted"
     TELEMETRY_EXECUTED_SINK: Literal["_dd.iast.telemetry.executed.sink"] = "_dd.iast.telemetry.executed.sink"
+    TELEMETRY_SUPPRESSED_VULNERABILITY: Literal[
+        "_dd.iast.telemetry.suppressed.vulnerabilities"
+    ] = "_dd.iast.telemetry.suppressed.vulnerabilities"
     TELEMETRY_EXECUTED_SOURCE: Literal["_dd.iast.telemetry.executed.source"] = "_dd.iast.telemetry.executed.source"
 
 
@@ -266,6 +277,12 @@ class API_SECURITY(metaclass=Constant_Class):
     SAMPLE_RATE: Literal["DD_API_SECURITY_REQUEST_SAMPLE_RATE"] = "DD_API_SECURITY_REQUEST_SAMPLE_RATE"
     SAMPLE_DELAY: Literal["DD_API_SECURITY_SAMPLE_DELAY"] = "DD_API_SECURITY_SAMPLE_DELAY"
     MAX_PAYLOAD_SIZE: Literal[0x1000000] = 0x1000000  # 16MB maximum size
+    ENDPOINT_COLLECTION: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_ENABLED"
+    ENDPOINT_COLLECTION_LIMIT: Literal[
+        "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
+    ] = "DD_API_SECURITY_ENDPOINT_COLLECTION_MESSAGE_LIMIT"
 
 
 class WAF_CONTEXT_NAMES(metaclass=Constant_Class):
@@ -339,6 +356,7 @@ class DEFAULT(metaclass=Constant_Class):
         r"|ey[I-L][\w=-]+\.(ey[I-L][\w=-]+(?:\.[\w.+\/=-]+)?)|[\-]{5}BEGIN[a-z\s]+PRIVATE\sKEY[\-]{5}([^\-]+)[\-]"
         r"{5}END[a-z\s]+PRIVATE\sKEY|ssh-rsa\s*([a-z0-9\/\.+]{100,})"
     )
+    ENDPOINT_COLLECTION_LIMIT = 300
 
 
 class EXPLOIT_PREVENTION(metaclass=Constant_Class):

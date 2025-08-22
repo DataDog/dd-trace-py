@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    profiling: Windows support is removed. Please file an issue if you want this
+    reverted.

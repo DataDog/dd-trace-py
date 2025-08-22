@@ -1,161 +1,83 @@
 import json
-import sys
 from typing import Any
 from typing import Dict
 from typing import Tuple
 
 import anthropic
-import wrapt
 
-from ddtrace.contrib.internal.anthropic.utils import tag_tool_use_output_on_span
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
 
 
+def _text_stream_generator(traced_stream):
+    for chunk in traced_stream:
+        if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+            yield chunk.delta.text
+
+
+async def _async_text_stream_generator(traced_stream):
+    async for chunk in traced_stream:
+        if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+            yield chunk.delta.text
+
+
 def handle_streamed_response(integration, resp, args, kwargs, span):
-    if _is_stream(resp):
-        return TracedAnthropicStream(resp, integration, span, args, kwargs)
-    elif _is_async_stream(resp):
-        return TracedAnthropicAsyncStream(resp, integration, span, args, kwargs)
-    elif _is_stream_manager(resp):
-        return TracedAnthropicStreamManager(resp, integration, span, args, kwargs)
-    elif _is_async_stream_manager(resp):
-        return TracedAnthropicAsyncStreamManager(resp, integration, span, args, kwargs)
+    """
+    Creates a traced stream with a callback that adds a text_stream attribute
+    to the underlying stream object when it is created.
 
+    Overrides the `text_stream` attribute to trace yielded chunks; otherwise,
+    the underlying stream will bypass the wrapper tracing code
+    """
 
-class BaseTracedAnthropicStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped)
-        self._dd_span = span
-        self._streamed_chunks = []
-        self._dd_integration = integration
-        self._kwargs = kwargs
-        self._args = args
+    def add_text_stream(stream):
+        stream.text_stream = _text_stream_generator(stream)
 
+    def add_async_text_stream(stream):
+        stream.text_stream = _async_text_stream_generator(stream)
 
-class TracedAnthropicStream(BaseTracedAnthropicStream):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped, integration, span, args, kwargs)
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        self.text_stream = self.__stream_text__()
-
-    def __enter__(self):
-        self.__wrapped__.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        try:
-            chunk = self.__wrapped__.__next__()
-            self._streamed_chunks.append(chunk)
-            return chunk
-        except StopIteration:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._args, self._kwargs, self._streamed_chunks
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-    def __stream_text__(self):
-        # this is overridden because it is a helper function that collects all stream content chunks
-        for chunk in self:
-            if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-                yield chunk.delta.text
-
-
-class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped, integration, span, args, kwargs)
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        self.text_stream = self.__stream_text__()
-
-    async def __aenter__(self):
-        await self.__wrapped__.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            chunk = await self.__wrapped__.__anext__()
-            self._streamed_chunks.append(chunk)
-            return chunk
-        except StopAsyncIteration:
-            _process_finished_stream(
-                self._dd_integration,
-                self._dd_span,
-                self._args,
-                self._kwargs,
-                self._streamed_chunks,
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-    async def __stream_text__(self):
-        # this is overridden because it is a helper function that collects all stream content chunks
-        async for chunk in self:
-            if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-                yield chunk.delta.text
-
-
-class TracedAnthropicStreamManager(BaseTracedAnthropicStream):
-    def __enter__(self):
-        stream = self.__wrapped__.__enter__()
-        traced_stream = TracedAnthropicStream(
-            stream,
-            self._dd_integration,
-            self._dd_span,
-            self._args,
-            self._kwargs,
+    if _is_stream(resp) or _is_stream_manager(resp):
+        traced_stream = make_traced_stream(
+            resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
+        )
+        return traced_stream
+    elif _is_async_stream(resp) or _is_async_stream_manager(resp):
+        traced_stream = make_traced_stream(
+            resp,
+            AnthropicAsyncStreamHandler(integration, span, args, kwargs),
+            on_stream_created=add_async_text_stream,
         )
         return traced_stream
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
-
-class TracedAnthropicAsyncStreamManager(BaseTracedAnthropicStream):
-    async def __aenter__(self):
-        stream = await self.__wrapped__.__aenter__()
-        traced_stream = TracedAnthropicAsyncStream(
-            stream,
-            self._dd_integration,
-            self._dd_span,
-            self._args,
-            self._kwargs,
+class BaseAnthropicStreamHandler:
+    def finalize_stream(self, exception=None):
+        _process_finished_stream(
+            self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks
         )
-        return traced_stream
+        self.primary_span.finish()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)
+
+
+class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)
 
 
 def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):
     # builds the response message given streamed chunks and sets according span tags
     try:
         resp_message = _construct_message(streamed_chunks)
-        if integration.is_pc_sampled_span(span):
-            _tag_streamed_chat_completion_response(integration, span, resp_message)
         integration.llmobs_set_tags(span, args=[], kwargs=kwargs, response=resp_message)
     except Exception:
         log.warning("Error processing streamed completion/chat response.", exc_info=True)
@@ -201,6 +123,14 @@ def _on_message_start_chunk(chunk, message):
             message["role"] = chunk_role
         if chunk_usage:
             message["usage"] = {"input_tokens": _get_attr(chunk_usage, "input_tokens", 0)}
+
+            cache_write_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+            cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+            if cache_write_tokens is not None:
+                message["usage"]["cache_creation_input_tokens"] = cache_write_tokens
+            if cache_read_tokens is not None:
+                message["usage"]["cache_read_input_tokens"] = cache_read_tokens
+
     return message
 
 
@@ -253,6 +183,14 @@ def _on_message_delta_chunk(chunk, message):
     if chunk_usage:
         message_usage = message.get("usage", {"output_tokens": 0, "input_tokens": 0})
         message_usage["output_tokens"] = _get_attr(chunk_usage, "output_tokens", 0)
+
+        cache_creation_tokens = _get_attr(chunk_usage, "cache_creation_input_tokens", None)
+        cache_read_tokens = _get_attr(chunk_usage, "cache_read_input_tokens", None)
+        if cache_creation_tokens is not None:
+            message_usage["cache_creation_input_tokens"] = cache_creation_tokens
+        if cache_read_tokens is not None:
+            message_usage["cache_read_input_tokens"] = cache_read_tokens
+
         message["usage"] = message_usage
 
     return message
@@ -266,27 +204,6 @@ def _on_error_chunk(chunk, message):
         if _get_attr(chunk.error, "message"):
             message["error"]["message"] = chunk.error.message
     return message
-
-
-def _tag_streamed_chat_completion_response(integration, span, message):
-    """Tagging logic for streamed chat completions."""
-    if message is None:
-        return
-    for idx, block in enumerate(message["content"]):
-        span.set_tag_str(f"anthropic.response.completions.content.{idx}.type", str(block["type"]))
-        span.set_tag_str("anthropic.response.completions.role", str(message["role"]))
-        if "text" in block:
-            span.set_tag_str(
-                f"anthropic.response.completions.content.{idx}.text", integration.trunc(str(block["text"]))
-            )
-        if block["type"] == "tool_use":
-            tag_tool_use_output_on_span(integration, span, block, idx)
-
-        if message.get("finish_reason") is not None:
-            span.set_tag_str("anthropic.response.completions.finish_reason", str(message["finish_reason"]))
-
-    usage = _get_attr(message, "usage", {})
-    integration.record_usage(span, usage)
 
 
 def _is_stream(resp: Any) -> bool:

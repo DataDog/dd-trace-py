@@ -326,11 +326,43 @@ class FunctionDiscovery(defaultdict):
 
         return []
 
+    def _resolve_pair(self, pair: _FunctionCodePair, fullname: str) -> FullyNamedFunction:
+        try:
+            return pair.resolve()
+        except ValueError as e:
+            # We failed to lookup the function by its code object via the GC.
+            # This should not happen, unless the target application is doing
+            # something unusual with the GC. In this case we try our best to
+            # look up the function dynamically from the module. If the function
+            # is decorated, there are chances this might fail.
+            target = (module := self._module)
+            part = None
+            for part in fullname.replace(f"{module.__name__}.", "", 1).split("."):
+                try:
+                    target = getattr(target, part)
+                except AttributeError:
+                    raise e
+
+            if target is module:
+                # We didn't move from the module so we don't have a function.
+                raise e
+
+            code = pair.code
+            assert code is not None  # nosec
+            f = undecorated(cast(FunctionType, target), cast(str, part), Path(code.co_filename).resolve())
+            if not (isinstance(f, FunctionType) and f.__code__ is code):
+                raise e
+
+            # Cache the lookup result
+            pair.function = f
+
+            return cast(FullyNamedFunction, f)
+
     def by_name(self, qualname: str) -> FullyNamedFunction:
         """Get the function by its qualified name."""
         fullname = f"{self._module.__name__}.{qualname}"
         try:
-            return self._fullname_index[fullname].resolve()
+            return self._resolve_pair(self._fullname_index[fullname], fullname)
         except ValueError:
             pass
         except KeyError:
@@ -342,11 +374,11 @@ class FunctionDiscovery(defaultdict):
                     if qualname == name or qualname.endswith(f".{name}"):
                         for fcp in list(fcps):
                             try:
-                                f = fcp.resolve()
+                                f = self._resolve_pair(fcp, fullname)
 
                                 # We have resolved the function so we can now
                                 # get its full name
-                                self._fullname_index[f"{self._module.__name__}.{f.__qualname__}"] = fcp
+                                self._fullname_index[fullname] = fcp
 
                                 # We can remove the entry from the name index
                                 fcps.pop(0)

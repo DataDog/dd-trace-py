@@ -19,7 +19,7 @@ class BadEncoder:
         pass
 
     def encode(self):
-        return b"bad_payload", 0
+        return [(b"bad_payload", 0)]
 
     def encode_traces(self, traces):
         return b"bad_payload"
@@ -55,6 +55,12 @@ def skip_if_testagent(f):
     return pytest.mark.skipif(
         AGENT_VERSION == "testagent", reason="FIXME: Test agent doesn't support this for some reason."
     )(f)
+
+
+def skip_if_native_writer(f):
+    from ddtrace import config
+
+    return pytest.mark.skipif(config._trace_writer_native, reason="Test incompatible with the native writer")(f)
 
 
 def import_ddtrace_in_subprocess(env):

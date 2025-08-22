@@ -7,7 +7,6 @@ from typing import List  # noqa:F401
 from typing import Tuple  # noqa:F401
 
 from bytecode import Bytecode
-from bytecode import Instr
 
 from ddtrace.internal.assembly import Assembly
 from ddtrace.internal.compat import PYTHON_VERSION_INFO as PY
@@ -89,8 +88,9 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     # occurrences and inject the hook at each of them. An example of when this
     # happens is with finally blocks, which are duplicated at the end of the
     # bytecode.
-    locs: Deque[int] = deque()
+    locs: Deque[Tuple[int, str]] = deque()
     last_lineno = None
+    instrs = set()
     for i, instr in enumerate(code):
         try:
             if instr.lineno == last_lineno:
@@ -99,8 +99,9 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
             # Some lines might be implemented across multiple instruction
             # offsets, and sometimes a NOP is used as a placeholder. We skip
             # those to avoid duplicate injections.
-            if instr.lineno == lineno and instr.name != "NOP":
-                locs.appendleft(i)
+            if instr.lineno == lineno:
+                locs.appendleft((i, instr.name))
+                instrs.add(instr.name)
         except AttributeError:
             # pseudo-instruction (e.g. label)
             pass
@@ -108,8 +109,19 @@ def _inject_hook(code: Bytecode, hook: HookType, lineno: int, arg: Any) -> None:
     if not locs:
         raise InvalidLine("Line %d does not exist or is either blank or a comment" % lineno)
 
-    for i in locs:
-        if isinstance(instr := code[i], Instr) and instr.name.startswith("END_"):
+    if instrs == {"NOP"}:
+        # If the line occurs on NOPs only, we instrument only the first one
+        last_instr = locs.pop()
+        locs.clear()
+        locs.append(last_instr)
+    elif "NOP" in instrs:
+        # If the line occurs on NOPs and other instructions, we remove the NOPs
+        # to avoid injecting the hook multiple times. The NOP in this case is
+        # just a placeholder.
+        locs = deque((i, instr) for i, instr in locs if instr != "NOP")
+
+    for i, instr in locs:
+        if instr.startswith("END_"):
             # This is the end of a block, e.g. a for loop. We have already
             # instrumented the block on entry, so we skip instrumenting the
             # end as well.

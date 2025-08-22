@@ -5,8 +5,8 @@ from typing import Dict
 from openai import version
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai import _endpoint_hooks
-from ddtrace.contrib.internal.openai.utils import _format_openai_api_key
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -14,7 +14,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import OpenAIIntegration
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)
@@ -220,11 +219,7 @@ def patched_completions_with_raw_response_init(openai, pin, func, instance, args
 
 def _traced_endpoint(endpoint_hook, integration, instance, pin, args, kwargs):
     span = integration.trace(pin, endpoint_hook.OPERATION_ID, instance=instance)
-    openai_api_key = _format_openai_api_key(kwargs.get("api_key"))
     resp, err = None, None
-    if openai_api_key:
-        # API key can either be set on the import or per request
-        span.set_tag_str("openai.user.api_key", openai_api_key)
     try:
         # Start the hook
         hook = endpoint_hook().handle_request(pin, integration, instance, span, args, kwargs)
@@ -267,7 +262,7 @@ def _patched_endpoint(openai, patch_hook):
         resp, err = None, None
         try:
             resp = func(*args, **kwargs)
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:
@@ -301,7 +296,7 @@ def _patched_endpoint_async(openai, patch_hook):
         try:
             resp = await func(*args, **kwargs)
             return resp
-        except Exception as e:
+        except BaseException as e:
             err = e
             raise
         finally:

@@ -14,6 +14,9 @@ class Startup(bm.Scenario):
     send_span: bool
     env: str
 
+    # Not helpful for subprocess benchmarks
+    cprofile_loops: int = 0
+
     def run(self):
         env = os.environ.copy()
         if self.env:

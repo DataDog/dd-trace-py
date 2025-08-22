@@ -1,0 +1,26 @@
+[[
+  {
+    "name": "should_not_send",
+    "service": "ddtrace_subprocess_dir",
+    "resource": "should_not_send",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "68828b2100000000",
+      "language": "python",
+      "runtime-id": "992ed589103d4826839b0d6ec8b5766f"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 83293
+    },
+    "duration": 21000,
+    "start": 1753385761102076000
+  }]]

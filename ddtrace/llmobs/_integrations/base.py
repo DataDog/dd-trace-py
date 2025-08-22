@@ -5,6 +5,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -13,8 +14,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
-from ddtrace.settings import IntegrationConfig
-from ddtrace.trace import Pin
+from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Span
 
 
@@ -70,7 +70,8 @@ class BaseLLMIntegration:
         if self._is_instrumented_proxy_url(base_url):
             span._set_ctx_item(PROXY_REQUEST, True)
         # Enable trace metrics for these spans so users can see per-service openai usage in APM.
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         self._set_base_span_tags(span, **kwargs)
         if self.llmobs_enabled:
             span._set_ctx_item(INTEGRATION, self._integration_name)
@@ -97,7 +98,7 @@ class BaseLLMIntegration:
         operation: str = "",
     ) -> None:
         """Extract input/output information from the request and response to be submitted to LLMObs."""
-        if not self.llmobs_enabled:
+        if not self.llmobs_enabled or not self.is_pc_sampled_llmobs(span):
             return
         try:
             self._llmobs_set_tags(span, args, kwargs, response, operation)

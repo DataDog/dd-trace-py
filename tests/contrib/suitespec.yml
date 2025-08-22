@@ -3,45 +3,33 @@ components:
   aiohttp:
     - ddtrace/contrib/aiohttp.py
     - ddtrace/contrib/internal/aiohttp/*
-    - ddtrace/contrib/_aiohttp_jinja2.py
     - ddtrace/contrib/internal/aiohttp_jinja2/*
   aiopg:
-    - ddtrace/contrib/_aiopg.py
     - ddtrace/contrib/internal/aiopg/*
   algoliasearch:
-    - ddtrace/contrib/_algoliasearch.py
     - ddtrace/contrib/internal/algoliasearch/*
   asgi:
     - ddtrace/contrib/asgi.py
     - ddtrace/contrib/internal/asgi/*
   asyncio:
-    - ddtrace/contrib/_asyncio.py
     - ddtrace/contrib/internal/asyncio/*
   avro:
-    - ddtrace/contrib/_avro.py
     - ddtrace/contrib/internal/avro/*
   aws_lambda:
-    - ddtrace/contrib/_aws_lambda.py
     - ddtrace/contrib/internal/aws_lambda/*
     - ddtrace/ext/aws.py
   azure_functions:
-    - ddtrace/contrib/_azure_functions.py
     - ddtrace/contrib/internal/azure_functions/*
   azure_servicebus:
-    - ddtrace/contrib/_azure_servicebus.py
     - ddtrace/contrib/internal/azure_servicebus/*
   botocore:
-    - ddtrace/contrib/_botocore.py
     - ddtrace/contrib/internal/botocore/*
-    - ddtrace/contrib/_boto.py
     - ddtrace/contrib/internal/boto/*
-    - ddtrace/contrib/_aiobotocore.py
     - ddtrace/contrib/internal/aiobotocore/*
   bottle:
     - ddtrace/contrib/bottle.py
     - ddtrace/contrib/internal/bottle/*
   cassandra:
-    - ddtrace/contrib/_cassandra.py
     - ddtrace/contrib/internal/cassandra/*
     - ddtrace/ext/cassandra.py
   celery:
@@ -51,7 +39,6 @@ components:
     - ddtrace/contrib/cherrypy.py
     - ddtrace/contrib/internal/cherrypy/*
   consul:
-    - ddtrace/contrib/_consul.py
     - ddtrace/contrib/internal/consul/*
     - ddtrace/ext/consul.py
   contrib:
@@ -74,7 +61,6 @@ components:
     - tests/contrib/__init__.py
     - tests/contrib/suitespec.yml
   coverage:
-    - ddtrace/contrib/_coverage.py
     - ddtrace/contrib/internal/coverage/*
   dbapi:
     - ddtrace/contrib/dbapi.py
@@ -84,169 +70,122 @@ components:
     - ddtrace/contrib/internal/ddtrace_api/*
     - tests/snapshots/tests.contrib.ddtrace_api.*
   django:
-    - ddtrace/contrib/_django.py
     - ddtrace/contrib/internal/django/*
   dogpile_cache:
-    - ddtrace/contrib/_dogpile_cache.py
     - ddtrace/contrib/internal/dogpile_cache/*
   dramatiq:
-    - ddtrace/contrib/_dramatiq.py
     - ddtrace/contrib/internal/dramatiq/*
   elasticsearch:
-    - ddtrace/contrib/_elasticsearch.py
     - ddtrace/contrib/internal/elasticsearch/*
     - ddtrace/ext/elasticsearch.py
   falcon:
     - ddtrace/contrib/falcon.py
     - ddtrace/contrib/internal/falcon/*
   fastapi:
-    - ddtrace/contrib/_fastapi.py
     - ddtrace/contrib/internal/fastapi/*
   flask:
-    - ddtrace/contrib/_flask.py
     - ddtrace/contrib/internal/flask/*
     - ddtrace/contrib/flask_cache.py
     - ddtrace/contrib/internal/flask_cache/*
   freezegun:
-    - ddtrace/contrib/_freezegun.py
     - ddtrace/contrib/internal/freezegun/*
   futures:
-    - ddtrace/contrib/_futures.py
     - ddtrace/contrib/internal/futures/*
   gevent:
-    - ddtrace/contrib/_gevent.py
     - ddtrace/contrib/internal/gevent/*
   graphql:
-    - ddtrace/contrib/_graphql.py
     - ddtrace/contrib/internal/graphql/*
   grpc:
-    - ddtrace/contrib/_grpc.py
     - ddtrace/contrib/internal/grpc/*
   gunicorn:
-    - ddtrace/contrib/_gunicorn.py
+    - ddtrace/contrib/internal/gunicorn/*
   httplib:
-    - ddtrace/contrib/_httplib.py
     - ddtrace/contrib/internal/httplib/*
   httpx:
-    - ddtrace/contrib/_httpx.py
     - ddtrace/contrib/internal/httpx/*
   integration_registry:
     - ddtrace/contrib/integration_registry/*
   jinja2:
-    - ddtrace/contrib/_jinja2.py
     - ddtrace/contrib/internal/jinja2/*
   kafka:
-    - ddtrace/contrib/_kafka.py
     - ddtrace/contrib/internal/kafka/*
     - ddtrace/ext/kafka.py
   kombu:
-    - ddtrace/contrib/_kombu.py
     - ddtrace/contrib/internal/kombu/*
     - ddtrace/ext/kombu.py
   logbook:
-    - ddtrace/contrib/_logbook.py
     - ddtrace/contrib/internal/logbook/*
   logging:
-    - ddtrace/contrib/_logging.py
     - ddtrace/contrib/internal/logging/*
   loguru:
-    - ddtrace/contrib/_logging.py
-    - ddtrace/contrib/internal/logging/*
-    - ddtrace/contrib/_loguru.py
     - ddtrace/contrib/internal/loguru/*
   mako:
-    - ddtrace/contrib/_mako.py
     - ddtrace/contrib/internal/mako/*
   mariadb:
-    - ddtrace/contrib/_mariadb.py
     - ddtrace/contrib/internal/mariadb/*
   molten:
-    - ddtrace/contrib/_molten.py
     - ddtrace/contrib/internal/molten/*
   mongo:
-    - ddtrace/contrib/_pymongo.py
     - ddtrace/contrib/internal/pymongo/*
-    - ddtrace/contrib/_mongoengine.py
     - ddtrace/contrib/internal/mongoengine/*
     - ddtrace/ext/mongo.py
   mysql:
-    - ddtrace/contrib/_mysql.py
     - ddtrace/contrib/internal/mysql/*
-    - ddtrace/contrib/_mysqldb.py
     - ddtrace/contrib/internal/mysqldb/*
-    - ddtrace/contrib/_pymysql.py
     - ddtrace/contrib/internal/pymysql/*
-    - ddtrace/contrib/_aiomysql.py
     - ddtrace/contrib/internal/aiomysql/*
   pg:
-    - ddtrace/contrib/_aiopg.py
     - ddtrace/contrib/internal/aiopg/*
-    - ddtrace/contrib/_asyncpg.py
     - ddtrace/contrib/internal/psycopg/*
     - ddtrace/contrib/internal/asyncpg/*
-    - ddtrace/contrib/_psycopg.py
   protobuf:
-    - ddtrace/contrib/_protobuf.py
     - ddtrace/contrib/internal/protobuf/*
   pylibmc:
     - ddtrace/contrib/pylibmc.py
     - ddtrace/contrib/internal/pylibmc/*
   pymemcache:
-    - ddtrace/contrib/_pymemcache.py
     - ddtrace/contrib/internal/pymemcache/*
     - ddtrace/ext/memcached.py
   pynamodb:
-    - ddtrace/contrib/_pynamodb.py
     - ddtrace/contrib/internal/pynamodb/*
   pyodbc:
-    - ddtrace/contrib/_pyodbc.py
     - ddtrace/contrib/internal/pyodbc/*
   pyramid:
     - ddtrace/contrib/pyramid.py
     - ddtrace/contrib/internal/pyramid/*
+  ray:
+    - ddtrace/contrib/internal/ray/*
   redis:
-    - ddtrace/contrib/_rediscluster.py
     - ddtrace/contrib/internal/rediscluster/*
-    - ddtrace/contrib/_redis.py
     - ddtrace/contrib/internal/redis/*
-    - ddtrace/contrib/_aredis.py
     - ddtrace/contrib/internal/aredis/*
-    - ddtrace/contrib/_yaaredis.py
     - ddtrace/contrib/internal/yaaredis/*
-    - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
   requests:
     - ddtrace/contrib/requests.py
     - ddtrace/contrib/internal/requests/*
   rq:
-    - ddtrace/contrib/_rq.py
+    - ddtrace/contrib/internal/rq/*
   sanic:
-    - ddtrace/contrib/_sanic.py
     - ddtrace/contrib/internal/sanic/*
   snowflake:
-    - ddtrace/contrib/_snowflake.py
     - ddtrace/contrib/internal/snowflake/*
   sqlalchemy:
     - ddtrace/contrib/sqlalchemy.py
     - ddtrace/contrib/internal/sqlalchemy/*
   sqlite3:
-    - ddtrace/contrib/_sqlite3.py
     - ddtrace/contrib/internal/sqlite3/*
   starlette:
-    - ddtrace/contrib/_starlette.py
     - ddtrace/contrib/internal/starlette/*
   structlog:
-    - ddtrace/contrib/_structlog.py
     - ddtrace/contrib/internal/structlog/*
   subprocess:
-    - ddtrace/contrib/_subprocess.py
     - ddtrace/contrib/internal/subprocess/*
   tornado:
     - ddtrace/contrib/tornado.py
     - ddtrace/contrib/internal/tornado/*
   urllib3:
-    - ddtrace/contrib/_urllib3.py
     - ddtrace/contrib/internal/urllib3/*
   valkey:
     - ddtrace/contrib/internal/valkey/*
@@ -254,7 +193,6 @@ components:
     - ddtrace/_trace/utils_valkey.py
     - ddtrace/ext/valkey.py
   vertica:
-    - ddtrace/contrib/_vertica.py
     - ddtrace/contrib/internal/vertica/*
   wsgi:
     - ddtrace/contrib/wsgi.py
@@ -410,7 +348,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1074,6 +1012,17 @@ suites:
       - tests/snapshots/tests.contrib.pyramid.*
     runner: riot
     snapshot: true
+  ray:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ray'
+      - tests/contrib/ray/*
+    runner: riot
+    snapshot: false
   redis:
     parallelism: 5
     paths:

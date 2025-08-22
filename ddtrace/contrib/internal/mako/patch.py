@@ -5,6 +5,7 @@ from mako.template import DefTemplate
 from mako.template import Template
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
@@ -13,7 +14,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.trace import Pin
 
 from .constants import DEFAULT_TEMPLATE_NAME
 
@@ -69,7 +69,8 @@ def _wrap_render(wrapped, instance, args, kwargs):
     ) as span:
         span.set_tag_str(COMPONENT, "mako")
 
-        span.set_tag(_SPAN_MEASURED_KEY)
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
         try:
             return wrapped(*args, **kwargs)
         finally:

@@ -10,7 +10,6 @@ from typing import Union  # noqa:F401
 import django
 from django.utils.functional import SimpleLazyObject
 from wrapt import FunctionWrapper
-import xmltodict
 
 from ddtrace import config
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -28,6 +27,7 @@ from ddtrace.internal.utils.http import parse_form_params
 from ddtrace.internal.utils.importlib import func_name
 from ddtrace.propagation._utils import from_wsgi_header
 from ddtrace.trace import Span
+import ddtrace.vendor.xmltodict as xmltodict
 
 
 try:
@@ -54,7 +54,7 @@ _quantize_text = Union[Text, bytes]
 _quantize_param = Union[_quantize_text, List[_quantize_text], Dict[_quantize_text, Any], Any]
 
 
-def resource_from_cache_prefix(resource, cache):
+def resource_from_cache_prefix(resource: str, cache: Any) -> str:
     """
     Combine the resource name with the cache prefix (if any)
     """

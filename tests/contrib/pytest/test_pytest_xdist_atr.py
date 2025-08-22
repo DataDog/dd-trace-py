@@ -7,7 +7,6 @@ from unittest import mock
 
 import pytest
 
-from ddtrace.contrib.internal.pytest._utils import _USE_PLUGIN_V2
 from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_atr
 from tests.ci_visibility.util import _get_default_civisibility_ddconfig
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
@@ -20,6 +19,8 @@ if not riot_env_value:
     pytest.importorskip("xdist", reason="Auto Test Retries + xdist tests, not running under riot")
 ######
 
+
+_USE_PLUGIN_V2 = True
 
 pytestmark = pytest.mark.skipif(
     not (_USE_PLUGIN_V2 and _pytest_version_supports_atr()),
@@ -215,3 +216,22 @@ _GLOBAL_SITECUSTOMIZE_PATCH_OBJECT.start()
 
         rec = self.inline_run("--ddtrace", "--junit-xml=out.xml")
         assert rec.ret == 1
+
+    def test_pytest_xdist_atr_retry_numbers_reported_correctly(self):
+        self.testdir.makepyfile(
+            test_fail="""
+            def test_func_fail():
+                assert False
+        """
+        )
+        result = self.subprocess_run("--ddtrace", "-v", "-n", "1")
+        lines = [line for line in result.outlines if line.startswith("[gw0] [100%]")]
+        assert lines == [
+            "[gw0] [100%] ATR RETRY INITIAL ATTEMPT FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 1 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 2 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 3 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 4 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] ATR RETRY ATTEMPT 5 FAILED test_fail.py::test_func_fail ",
+            "[gw0] [100%] FAILED test_fail.py::test_func_fail ",
+        ]

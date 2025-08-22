@@ -49,6 +49,7 @@ class ddwaf_context_capsule(Generic[T]):
     def __init__(self, ctx: Type[T], free_fn: Callable[[Type[T]], None]) -> None:
         self.ctx = ctx
         self.free_fn = free_fn
+        self.rc_products: str = ""
 
     def __del__(self):
         if self.ctx:
@@ -117,7 +118,7 @@ class WAF(ABC):
     @abstractmethod
     def __init__(
         self,
-        rules: Dict[str, Any],
+        rules: bytes,
         obfuscation_parameter_key_regexp: bytes,
         obfuscation_parameter_value_regexp: bytes,
         metrics,

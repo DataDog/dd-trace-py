@@ -45,7 +45,7 @@ def ddtrace_injection_artifact():
     Session-scoped fixture to prepare the injection artifact:
     1. Copies injection source files (sitecustomize.py, etc.) into a temporary directory.
     2. Copies the host's ddtrace package source into the expected `ddtrace_pkgs/site-packages...` structure.
-    3. Installs build dependencies necesssary for setup.py to run.
+    3. Installs build dependencies necessary for setup.py to run.
     4. Generates package metadata (.egg-info) for entry point discovery using setup.py.
     5. Writes the host's ddtrace version to the `version` file.
     Yields: path_to_prepared_sources_dir
@@ -70,7 +70,7 @@ def ddtrace_injection_artifact():
         target_ddtrace_dir = os.path.join(target_site_packages_path, "ddtrace")
         shutil.copytree(host_ddtrace_path, target_ddtrace_dir, symlinks=True)
 
-        # 4. Install build dependencies necesssary for setup.py to run.
+        # 4. Install build dependencies necessary for setup.py to run.
         with open(os.path.join(PROJECT_ROOT, "pyproject.toml"), "rb") as f:
             pyproject = tomllib.load(f)
         build_requires = pyproject.get("build-system", {}).get("requires", [])
@@ -176,3 +176,23 @@ def test_venv(ddtrace_injection_artifact):
 
     for venv_path in venvs_to_clean:
         shutil.rmtree(venv_path, ignore_errors=True)
+
+
+@pytest.fixture
+def mock_telemetry_forwarder(tmp_path):
+    def _setup(env, python_executable):
+        telemetry_output_file = tmp_path / "telemetry.json"
+        forwarder_script_file = tmp_path / "forwarder.sh"
+        # Create a mock forwarder shell script. This script will be executed by sitecustomize.py
+        # and will write the telemetry payload to a file that we can inspect.
+        forwarder_script_file.write_text(
+            f"""#!/bin/sh
+cat > "{telemetry_output_file}"
+"""
+        )
+        os.chmod(forwarder_script_file, 0o755)
+
+        env["DD_TELEMETRY_FORWARDER_PATH"] = str(forwarder_script_file)
+        return telemetry_output_file
+
+    return _setup

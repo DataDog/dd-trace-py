@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where the ``pytest`` plugin would hold a reference to test exceptions
+    beyond the end of the test, preventing them from being garbage-collected and increasing memory usage.

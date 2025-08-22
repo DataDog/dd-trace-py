@@ -1,0 +1,56 @@
+[[
+  {
+    "name": "google_genai.request",
+    "service": "tests.contrib.google_genai",
+    "resource": "Models.generate_content",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "685dac8b00000000",
+      "google_genai.request.model": "gemini-2.0-flash-001",
+      "google_genai.request.provider": "google",
+      "language": "python",
+      "runtime-id": "b035b0a989074b46b243cfc98f4a290c"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 42317
+    },
+    "duration": 54000,
+    "start": 1750969483115334000
+  }],
+[
+  {
+    "name": "google_genai.request",
+    "service": "tests.contrib.google_genai",
+    "resource": "Models.generate_content",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "685dac8b00000000",
+      "google_genai.request.model": "gemini-2.0-flash-001",
+      "google_genai.request.provider": "google",
+      "language": "python",
+      "runtime-id": "b035b0a989074b46b243cfc98f4a290c"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 42317
+    },
+    "duration": 26000,
+    "start": 1750969483115498000
+  }]]

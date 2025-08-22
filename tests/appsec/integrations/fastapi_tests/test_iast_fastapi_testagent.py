@@ -1,10 +1,9 @@
-import json
-
 import pytest
 from requests.exceptions import ConnectionError  # noqa: A004
 
 from ddtrace.appsec._iast.constants import VULN_CMDI
 from tests.appsec.appsec_utils import uvicorn_server
+from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.integrations.utils_testagent import _get_span
 from tests.appsec.integrations.utils_testagent import clear_session
 from tests.appsec.integrations.utils_testagent import start_trace
@@ -29,9 +28,9 @@ def test_iast_header_injection_secure_attack():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -57,9 +56,9 @@ def test_iast_header_injection():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -84,9 +83,9 @@ def test_iast_header_injection_attack():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
+            iast_data = load_iast_report(span)
             if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -110,9 +109,9 @@ def test_iast_cmdi_uvicorn():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
-            if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+            iast_data = load_iast_report(span)
+            if iast_data and iast_data.get("vulnerabilities"):
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2
@@ -147,9 +146,9 @@ def test_iast_cmdi_form_uvicorn():
         for span in trace:
             if span.get("metrics", {}).get("_dd.iast.enabled") == 1.0:
                 spans_with_iast.append(span)
-            iast_data = span["meta"].get("_dd.iast.json")
-            if iast_data:
-                vulnerabilities.append(json.loads(iast_data).get("vulnerabilities"))
+            iast_data = load_iast_report(span)
+            if iast_data and iast_data.get("vulnerabilities"):
+                vulnerabilities.append(iast_data.get("vulnerabilities"))
     clear_session(token)
 
     assert len(spans_with_iast) == 2

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import mock
 from mock import patch
 import pytest
 
@@ -9,6 +10,10 @@ from tests.contrib.anthropic.utils import MOCK_MESSAGES_CREATE_REQUEST
 from tests.contrib.anthropic.utils import tools
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 from tests.llmobs._utils import _expected_llmobs_non_llm_span_event
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 WEATHER_PROMPT = "What is the weather in San Francisco, CA?"
@@ -27,6 +32,20 @@ WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL = [
 ]
 WEATHER_OUTPUT_MESSAGE_3 = "Based on the result from the get_weather tool, the current weather in San \
 Francisco, CA is 73°F."
+WEATHER_TOOL_RESULT = [
+    {"result": "The weather is 73f", "tool_id": "toolu_01DYJo37oETVsCdLTTcCWcdq", "type": "tool_result"}
+]
+
+EXPECTED_TOOL_DEFINITIONS = [
+    {
+        "name": "get_weather",
+        "description": "Get the weather for a specific location",
+        "schema": {
+            "type": "object",
+            "properties": {"location": {"type": "string"}},
+        },
+    }
+]
 
 
 @pytest.mark.parametrize(
@@ -193,7 +212,13 @@ class TestLLMObsAnthropic:
                 ],
                 output_messages=[{"content": "HELLO THERE! ACCORDING TO VARIOUS SOURCES, THE", "role": "assistant"}],
                 metadata={"temperature": 0.8, "max_tokens": 15.0},
-                token_metrics={"input_tokens": 43, "output_tokens": 15, "total_tokens": 58},
+                token_metrics={
+                    "input_tokens": 43,
+                    "output_tokens": 15,
+                    "total_tokens": 58,
+                    "cache_write_input_tokens": 0,
+                    "cache_read_input_tokens": 0,
+                },
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
             )
         )
@@ -243,7 +268,10 @@ class TestLLMObsAnthropic:
                     )
                 )
 
-    def test_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+    ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -267,8 +295,7 @@ class TestLLMObsAnthropic:
                 ],
                 stream=True,
             )
-            for _ in stream:
-                pass
+            consume_stream(stream)
 
             span = mock_tracer.pop_traces()[0][0]
             assert mock_llmobs_writer.enqueue.call_count == 1
@@ -295,7 +322,10 @@ class TestLLMObsAnthropic:
                 )
             )
 
-    def test_stream_helper(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_stream_helper(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+    ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -318,8 +348,7 @@ class TestLLMObsAnthropic:
                     },
                 ],
             ) as stream:
-                for _ in stream.text_stream:
-                    pass
+                consume_stream(stream.text_stream)
 
             message = stream.get_final_message()
             assert message is not None
@@ -446,6 +475,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
@@ -488,7 +518,11 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {
+                        "content": "",
+                        "role": "user",
+                        "tool_results": WEATHER_TOOL_RESULT,
+                    },
                 ],
                 output_messages=[
                     {
@@ -499,6 +533,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
@@ -542,6 +577,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 152, "total_tokens": 751},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
@@ -584,7 +620,7 @@ class TestLLMObsAnthropic:
                         "role": "assistant",
                     },
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {"content": "", "role": "user", "tool_results": WEATHER_TOOL_RESULT},
                 ],
                 output_messages=[
                     {
@@ -595,11 +631,15 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 768, "output_tokens": 29, "total_tokens": 797},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
-    def test_tools_sync_stream(self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_tools_sync_stream(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
+    ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
         Also ensure the llmobs records have the correct tagging including trace/span ID for trace correlation.
@@ -613,8 +653,7 @@ class TestLLMObsAnthropic:
                 tools=tools,
                 stream=True,
             )
-            for _ in stream:
-                pass
+            consume_stream(stream)
 
         message = [
             # this message output differs from the other weather outputs since it was produced from a different
@@ -655,6 +694,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 135, "total_tokens": 734},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
@@ -694,7 +734,7 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message[0]["text"], "role": "assistant"},
                     {"content": message[1]["text"], "role": "assistant"},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {"content": "", "role": "user", "tool_results": WEATHER_TOOL_RESULT},
                 ],
                 output_messages=[
                     {
@@ -705,13 +745,15 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 33, "total_tokens": 795},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
     @pytest.mark.asyncio
     @pytest.mark.skipif(ANTHROPIC_VERSION < (0, 27), reason="Anthropic Tools not available until 0.27.0, skipping.")
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_tools_async_stream_helper(
-        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr, consume_stream
     ):
         """Ensure llmobs records are emitted for completion endpoints when configured and there is an stream input.
 
@@ -725,8 +767,7 @@ class TestLLMObsAnthropic:
                 messages=[{"role": "user", "content": WEATHER_PROMPT}],
                 tools=tools,
             ) as stream:
-                async for _ in stream.text_stream:
-                    pass
+                await consume_stream(stream.text_stream)
 
             message = await stream.get_final_message()
             assert message is not None
@@ -760,6 +801,7 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 200.0},
                 token_metrics={"input_tokens": 599, "output_tokens": 146, "total_tokens": 745},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
         )
 
@@ -783,8 +825,7 @@ class TestLLMObsAnthropic:
                 ],
                 tools=tools,
             ) as stream:
-                async for _ in stream.text_stream:
-                    pass
+                await consume_stream(stream.text_stream)
 
             message_2 = await stream.get_final_message()
             assert message_2 is not None
@@ -804,7 +845,7 @@ class TestLLMObsAnthropic:
                     {"content": WEATHER_PROMPT, "role": "user"},
                     {"content": message.content[0].text, "role": "assistant"},
                     {"content": "", "role": "assistant", "tool_calls": WEATHER_OUTPUT_MESSAGE_2_TOOL_CALL},
-                    {"content": ["The weather is 73f"], "role": "user"},
+                    {"content": "", "role": "user", "tool_results": WEATHER_TOOL_RESULT},
                 ],
                 output_messages=[
                     {
@@ -815,5 +856,202 @@ class TestLLMObsAnthropic:
                 metadata={"max_tokens": 500.0},
                 token_metrics={"input_tokens": 762, "output_tokens": 18, "total_tokens": 780},
                 tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                tool_definitions=EXPECTED_TOOL_DEFINITIONS,
             )
+        )
+
+    def test_completion_prompt_caching(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+    ):
+        llm = anthropic.Anthropic()
+        """Test that prompt caching metrics are properly captured for both cache creation and cache read."""
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Hardware engineering best practices guide: " + "farewell " * 1024,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+        inference_args = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 100,
+            "system": large_system_prompt,
+            "temperature": 0.1,
+            "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+        }
+        with request_vcr.use_cassette("anthropic_completion_cache_write.yaml"):
+            llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+        with request_vcr.use_cassette("anthropic_completion_cache_read.yaml"):
+            llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What are the key principles for designing scalable systems?",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 2073,
+                            "output_tokens": 100,
+                            "total_tokens": 2173,
+                            "cache_write_input_tokens": 2055,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What is a system",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 2066,
+                            "output_tokens": 100,
+                            "total_tokens": 2166,
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 2055,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+            ]
+        )
+
+    def test_completion_stream_prompt_caching(
+        self, anthropic, ddtrace_global_config, mock_llmobs_writer, mock_tracer, request_vcr
+    ):
+        """Test that prompt caching metrics are properly captured for streamed completions."""
+        large_system_prompt = [
+            {
+                "type": "text",
+                "text": "Software engineering best practices guide: " + "goodbye " * 1024,
+                "cache_control": {"type": "ephemeral"},
+            },
+        ]
+        inference_args = {
+            "model": "claude-sonnet-4-20250514",
+            "max_tokens": 100,
+            "system": large_system_prompt,
+            "temperature": 0.1,
+            "extra_headers": {"anthropic-beta": "prompt-caching-2024-07-31"},
+            "stream": True,
+        }
+        llm = anthropic.Anthropic()
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_write.yaml"):
+            stream1 = llm.messages.create(
+                **inference_args,
+                messages=[{"role": "user", "content": "What are the key principles for designing scalable systems?"}],
+            )
+            for _ in stream1:
+                pass
+        with request_vcr.use_cassette("anthropic_completion_stream_cache_read.yaml"):
+            stream2 = llm.messages.create(**inference_args, messages=[{"role": "user", "content": "What is a system"}])
+            for _ in stream2:
+                pass
+
+        spans = mock_tracer.pop_traces()
+        span1, span2 = spans[0][0], spans[1][0]
+        assert mock_llmobs_writer.enqueue.call_count == 2
+
+        mock_llmobs_writer.enqueue.assert_has_calls(
+            [
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span1,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What are the key principles for designing scalable systems?",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 1049,
+                            "output_tokens": 100,
+                            "total_tokens": 1149,
+                            "cache_write_input_tokens": 1031,
+                            "cache_read_input_tokens": 0,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+                mock.call(
+                    _expected_llmobs_llm_span_event(
+                        span2,
+                        model_name="claude-sonnet-4-20250514",
+                        model_provider="anthropic",
+                        input_messages=[
+                            {
+                                "content": large_system_prompt[0]["text"],
+                                "role": "system",
+                            },
+                            {
+                                "content": "What is a system",
+                                "role": "user",
+                            },
+                        ],
+                        output_messages=[{"content": mock.ANY, "role": "assistant"}],
+                        metadata={
+                            "temperature": 0.1,
+                            "max_tokens": 100.0,
+                        },
+                        token_metrics={
+                            "input_tokens": 1042,
+                            "output_tokens": 100,
+                            "total_tokens": 1142,
+                            "cache_write_input_tokens": 0,
+                            "cache_read_input_tokens": 1031,
+                        },
+                        tags={"ml_app": "<ml-app-name>", "service": "tests.contrib.anthropic"},
+                    )
+                ),
+            ]
         )

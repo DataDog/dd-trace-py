@@ -194,7 +194,20 @@ class IastSpanReporter(NotNoneDictable):
         """
         other = IastSpanReporter()
         other.stacktrace_id = self.stacktrace_id
-        other._from_json(json_str)
+        other._from_dict(json.loads(json_str))
+        self._merge(other)
+        self.stacktrace_id = other.stacktrace_id
+
+    def _merge_dict(self, data: Dict[str, Any]) -> None:
+        """
+        Merges the current IAST span reporter with another IAST span reporter from a dictionary.
+
+        Args:
+        - data (dict[str, Any]): dictionary.
+        """
+        other = IastSpanReporter()
+        other.stacktrace_id = self.stacktrace_id
+        other._from_dict(data)
         self._merge(other)
         self.stacktrace_id = other.stacktrace_id
 
@@ -221,16 +234,10 @@ class IastSpanReporter(NotNoneDictable):
                         part["source"] = part["source"] + offset
             self.vulnerabilities.add(vuln)
 
-    def _from_json(self, json_str: str):
-        """
-        Initializes the IAST span reporter from a JSON string.
-
-        Args:
-        - json_str (str): JSON string.
-        """
+    def _from_dict(self, data: Dict[str, Any]):
+        """Initializes the IAST span reporter from a dictionary."""
         from ._taint_tracking import str_to_origin
 
-        data = json.loads(json_str)
         self.sources = []
         for i in data["sources"]:
             source = Source(

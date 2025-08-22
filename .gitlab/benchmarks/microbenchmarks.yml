@@ -1,13 +1,14 @@
 stages:
   - build
   - test
+  - gate
   - report
 
 variables:
   BENCHMARKING_IMAGE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   MICROBENCHMARKS_CI_IMAGE: $BENCHMARKING_IMAGE_REGISTRY/ci/benchmarking-platform:dd-trace-py
   PACKAGE_IMAGE: registry.ddbuild.io/images/mirror/pypa/manylinux2014_x86_64:2024-08-12-7fde9b1
-  GITHUB_CLI_IMAGE: registry.ddbuild.io/github-cli:v27480869-eafb11d-2.43.0
+  GITHUB_CLI_IMAGE: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   BENCHMARKING_BRANCH: dd-trace-py
 
 .benchmarks:
@@ -55,8 +56,6 @@ variables:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
-    FF_USE_LEGACY_KUBERNETES_EXECUTION_STRATEGY: "true"
     CARGO_NET_GIT_FETCH_WITH_CLI: "true" # use system git binary to pull git dependencies
     CMAKE_BUILD_PARALLEL_LEVEL: 12
     CARGO_BUILD_JOBS: 12
@@ -65,6 +64,9 @@ baseline:detect:
   image: $GITHUB_CLI_IMAGE
   tags: [ "arch:amd64" ]
   stage: build
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   variables:
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME
   script: |
@@ -75,7 +77,8 @@ baseline:detect:
 
     if [ -z ${GH_TOKEN} ]
     then
-      aws ssm get-parameter --region us-east-1 --name ci.$CI_PROJECT_NAME.gh_token --with-decryption --query "Parameter.Value" --out text > token
+      # Use dd-octo-sts to get GitHub token
+      dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > token
       gh auth login --with-token < token
       rm token
     fi
@@ -158,6 +161,9 @@ microbenchmarks:
         # - "appsec_iast_django_startup"
         - "appsec_iast_propagation"
         - "errortracking_django_simple"
+        # They take a long time to run and frequently time out
+        # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
+        # - "appsec_iast_django_startup"
         - "errortracking_flask_sqli"
         # Flaky. Timeout errors
         # - "encoder"
@@ -168,16 +174,9 @@ microbenchmarks:
         - "packages_update_imported_dependencies"
         - "recursive_computation"
         - "telemetry_add_metric"
-        - "startup"
-
-"microbenchmarks flaky":
-  extends: .benchmarks
-  allow_failure: true
-  parallel:
-    matrix:
-      - SCENARIO:
-        # Flaky timeouts on starting up
-        - "appsec_iast_django_startup"
+        # They take a long time to run, and now need the agent running
+        # TODO: Make benchmarks faster, or run less frequently, or as macrobenchmarks
+        # - "startup"
 
 benchmarks-pr-comment:
   image: $MICROBENCHMARKS_CI_IMAGE
@@ -204,32 +203,19 @@ benchmarks-pr-comment:
     UPSTREAM_PROJECT_NAME: $CI_PROJECT_NAME # "dd-trace-py"
     UPSTREAM_BRANCH: $CI_COMMIT_REF_NAME # The branch or tag name for which project is built.
     UPSTREAM_COMMIT_SHA: $CI_COMMIT_SHA # The commit revision the project is built for.
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
 
-check-big-regressions:
-  stage: report
-  rules:
-    # Run and warn on releases, but don't fail the pipeline
-    #   v2.10.0
-    #   v2.10.1
-    #   v2.10.0rc0
-    #   v2.10.0rc5
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+(rc[0-9]+)?$/
-      allow_failure: true
-    - allow_failure: false
+check-slo-breaches:
+  stage: gate
   when: always
   tags: ["arch:amd64"]
-  image: $MICROBENCHMARKS_CI_IMAGE
-  script: |
-    export ARTIFACTS_DIR="$(pwd)/reports/"
-    if [[ -n "$CI_JOB_TOKEN" ]];
-    then
-      git config --global url."https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ddbuild.io/DataDog/".insteadOf "https://github.com/DataDog/"
-    fi
-    git clone --branch "${BENCHMARKING_BRANCH}" https://github.com/DataDog/benchmarking-platform /platform
-    export PATH="$PATH:/platform/steps"
-
-    bp-runner /platform/bp-runner.fail-on-regression.yml --debug
-  variables:
-    # Gitlab and BP specific env vars. Do not modify.
-    KUBERNETES_SERVICE_ACCOUNT_OVERWRITE: dd-trace-py
+  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  artifacts:
+    name: "artifacts"
+    when: always
+    paths:
+      - artifacts/
+      - reports/
+    expire_in: 3 months
+  script:
+    - export ARTIFACTS_DIR="$(pwd)/reports/"
+    - bp-runner .gitlab/benchmarks/bp-runner.microbenchmarks.fail-on-breach.yml

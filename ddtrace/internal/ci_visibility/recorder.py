@@ -6,6 +6,7 @@ import re
 from typing import Any
 from typing import Callable
 from typing import Dict
+from typing import List
 from typing import Optional
 from typing import Set
 from typing import Union
@@ -51,7 +52,6 @@ from ddtrace.internal.ci_visibility.constants import TEST
 from ddtrace.internal.ci_visibility.constants import TRACER_PARTIAL_FLUSH_MIN_SPANS
 from ddtrace.internal.ci_visibility.constants import UNSUPPORTED_PROVIDER
 from ddtrace.internal.ci_visibility.context import CIContextProvider
-from ddtrace.internal.ci_visibility.coverage import is_coverage_available
 from ddtrace.internal.ci_visibility.errors import CIVisibilityAuthenticationException
 from ddtrace.internal.ci_visibility.errors import CIVisibilityError
 from ddtrace.internal.ci_visibility.filters import TraceCiVisibilityFilter
@@ -70,8 +70,11 @@ from ddtrace.internal.service import Service
 from ddtrace.internal.test_visibility._atr_mixins import AutoTestRetriesSettings
 from ddtrace.internal.test_visibility._library_capabilities import LibraryCapabilities
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.settings import IntegrationConfig
+from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.integration import IntegrationConfig
+from ddtrace.trace import Span
+from ddtrace.trace import TraceFilter
 from ddtrace.trace import Tracer
 
 
@@ -165,10 +168,17 @@ class CIVisibility(Service):
                 # Create a new CI tracer, using a specific URL if provided (only useful when testing the tracer itself)
                 self.tracer = CIVisibilityTracer()
 
+                if ci_dd_tags := os.getenv("_CI_DD_TAGS"):
+                    log.debug("Using _CI_DD_TAGS for CI Visibility tracer: %s", ci_dd_tags)
+                    self.tracer._tags.update(parse_tags_str(ci_dd_tags))
+
                 env_agent_url = os.getenv("_CI_DD_AGENT_URL")
                 if env_agent_url is not None:
                     log.debug("Using _CI_DD_AGENT_URL for CI Visibility tracer: %s", env_agent_url)
                     self.tracer._span_aggregator.writer.intake_url = env_agent_url  # type: ignore[attr-defined]
+                self.tracer.context_provider = CIContextProvider()
+            elif asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+                self.tracer = CIVisibilityTracer()
                 self.tracer.context_provider = CIContextProvider()
             else:
                 self.tracer = ddtrace.tracer
@@ -177,6 +187,14 @@ class CIVisibility(Service):
             # assume that a tracer is already configured if it's been passed in.
             self.tracer._span_aggregator.partial_flush_enabled = True
             self.tracer._span_aggregator.partial_flush_min_spans = TRACER_PARTIAL_FLUSH_MIN_SPANS
+            # Tracer.configure(...) sets Tracer.enabled to the global ddconfig._tracing_enabled value
+            # (in Tracer._reset(...)). Removing this side-effect causes some CIVisibility tests to fail.
+            # This MIGHT be due to the shutdown the global tracer in tests (calling tracer.shutdown()
+            # sets tracer.enabled to False and is meant to be an irreversible operation).
+            # To avoid breaking CIVisibility, we continue to reset self.enabled here
+            # to match the global config. Although not ideal, this is the safest way to refactor the Tracer class
+            # without disrupting existing behavior. The CIVisibility team will investigate this further in a future PR.
+            self.tracer.enabled = ddconfig._tracing_enabled
             self.tracer._recreate()
 
         self._api_client: Optional[_TestVisibilityAPIClientBase] = None
@@ -269,7 +287,7 @@ class CIVisibility(Service):
                 self._itr_skipping_level,
                 self._git_data,
                 self._configurations,
-                self.tracer._agent_url,
+                self.tracer._agent_url or agent_config.trace_agent_url,
                 self._service,
                 self._dd_env,
                 evp_proxy_base_url=evp_proxy_base_url,
@@ -323,12 +341,6 @@ class CIVisibility(Service):
         if not coverage_enabled_by_api and not asbool(
             os.getenv("_DD_CIVISIBILITY_ITR_FORCE_ENABLE_COVERAGE", default=False)
         ):
-            return False
-        if not is_coverage_available():
-            log.warning(
-                "CI Visibility code coverage tracking is enabled, but the `coverage` package is not installed."
-                "To use code coverage tracking, please install `coverage` from https://pypi.org/project/coverage/"
-            )
             return False
         return True
 
@@ -396,7 +408,7 @@ class CIVisibility(Service):
             )
         elif requests_mode == REQUESTS_MODE.EVP_PROXY_EVENTS:
             writer = CIVisibilityWriter(
-                intake_url=agent_config.trace_agent_url if url is None else url,
+                intake_url=url or agent_config.trace_agent_url,
                 headers={EVP_SUBDOMAIN_HEADER_NAME: EVP_SUBDOMAIN_HEADER_EVENT_VALUE},
                 use_evp=True,
                 coverage_enabled=coverage_enabled,
@@ -408,6 +420,9 @@ class CIVisibility(Service):
             self.tracer._recreate()
 
     def _agent_evp_proxy_base_url(self) -> Optional[str]:
+        if asbool(os.getenv("_DD_CIVISIBILITY_DISABLE_EVP_PROXY")):
+            return None
+
         try:
             info = agent.info(self.tracer._agent_url)
         except Exception:
@@ -639,6 +654,9 @@ class CIVisibility(Service):
             tracer_filters += [TraceCiVisibilityFilter(self._tags, self._service)]  # type: ignore[arg-type]
             self.tracer.configure(trace_processors=tracer_filters)
 
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+            self._set_global_span_forwarder(CIVisibilitySpanForwarder(self.tracer))
+
         def _task_fetch_tests_to_skip():
             if self.test_skipping_enabled():
                 self._fetch_tests_to_skip()
@@ -702,6 +720,17 @@ class CIVisibility(Service):
             self.tracer.shutdown()
         except Exception:
             log.warning("Failed to shutdown tracer", exc_info=True)
+
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")):
+            self._set_global_span_forwarder(None)
+
+    def _set_global_span_forwarder(self, span_forwarder: Optional[TraceFilter]) -> None:
+        log.debug("Setting CI Visibility global span forwarder: %s", span_forwarder)
+        tracer_filters = ddtrace.tracer._span_aggregator.user_processors
+        tracer_filters = [tf for tf in tracer_filters if not isinstance(tf, CIVisibilitySpanForwarder)]
+        if span_forwarder:
+            tracer_filters.append(span_forwarder)
+        ddtrace.tracer.configure(trace_processors=tracer_filters)
 
     @classmethod
     def set_codeowners_of(cls, location, span=None):
@@ -1016,3 +1045,15 @@ def on_discover_session(
 
     CIVisibility.add_session(session)
     instance.set_test_session_name(test_command=test_command)
+
+
+class CIVisibilitySpanForwarder(TraceFilter):
+    """Trace filter that forwards all spans from the global tracer to the CI Visibility tracer."""
+
+    def __init__(self, tracer):
+        self.tracer = tracer
+
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+        log.debug("Forwarding trace to CI Visibility: %r", trace)
+        self.tracer._span_aggregator.writer.write(trace)
+        return None

@@ -5,13 +5,14 @@ import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 from .utils import create_context
+from .utils import message_list_has_single_context
 from .utils import wrap_function_with_tracing
 
 
@@ -29,7 +30,7 @@ def get_version() -> str:
 
 
 def _supported_versions() -> Dict[str, str]:
-    return {"azure.functions": ">=1.20.0"}
+    return {"azure.functions": ">=1.10.1"}
 
 
 def patch():
@@ -58,6 +59,7 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
             continue
 
         trigger_type = trigger.get_binding_name()
+        trigger_details = trigger.get_dict_repr()
         trigger_arg_name = trigger.name
 
         function_name = function.get_function_name()
@@ -68,7 +70,7 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
         elif trigger_type == "timerTrigger":
             function._func = _wrap_timer_trigger(pin, func, function_name)
         elif trigger_type == "serviceBusTrigger":
-            function._func = _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name)
+            function._func = _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger_details)
 
     return functions
 
@@ -90,20 +92,40 @@ def _wrap_http_trigger(pin, func, function_name, trigger_arg_name):
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch, post_dispatch=post_dispatch)
 
 
-def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name):
+def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigger_details):
     trigger_type = "ServiceBus"
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
         msg = kwargs.get(trigger_arg_name)
-        return create_context(
-            "azure.functions.patched_service_bus", pin, resource_name, headers=msg.application_properties
-        )
+
+        # Reparent trace if single message or list of messages all with same context
+        if isinstance(msg, azure_functions.ServiceBusMessage):
+            application_properties = msg.application_properties
+        elif (
+            isinstance(msg, list)
+            and msg
+            and isinstance(msg[0], azure_functions.ServiceBusMessage)
+            and message_list_has_single_context(msg)
+        ):
+            application_properties = msg[0].application_properties
+        else:
+            application_properties = None
+
+        return create_context("azure.functions.patched_service_bus", pin, resource_name, headers=application_properties)
 
     def pre_dispatch(ctx, kwargs):
+        msg = kwargs.get(trigger_arg_name)
+
+        if isinstance(msg, azure_functions.ServiceBusMessage):
+            message_id = msg.message_id
+        else:
+            message_id = None
+
+        entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
         return (
-            "azure.functions.trigger_call_modifier",
-            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER),
+            "azure.functions.service_bus_trigger_modifier",
+            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER, entity_name, message_id),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)

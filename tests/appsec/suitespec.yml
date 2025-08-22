@@ -6,11 +6,11 @@ components:
   appsec_iast:
     - ddtrace/appsec/iast/*
   urllib:
-    - ddtrace/contrib/_urllib.py
     - ddtrace/contrib/internal/urllib/*
   webbrowser:
-    - ddtrace/contrib/_webbrowser.py
     - ddtrace/contrib/internal/webbrowser/*
+  ai_guard:
+    - ddtrace/appsec/ai_guard/*
 suites:
   appsec:
     parallelism: 4
@@ -37,7 +37,8 @@ suites:
       - '@remoteconfig'
       - tests/appsec/iast/*
     retry: 2
-    runner: hatch
+    runner: riot
+    timeout: 30m
   appsec_iast_memcheck:
     env:
       CI_DEBUG_TRACE: 'true'
@@ -64,7 +65,7 @@ suites:
       - '@appsec_iast'
       - '@remoteconfig'
     retry: 2
-    runner: hatch
+    runner: riot
   iast_aggregated_leak_testing:
     parallelism: 3
     paths:
@@ -103,7 +104,7 @@ suites:
       - tests/appsec/integrations/pygoat_tests/*
       - tests/snapshots/tests.appsec.*
     retry: 2
-    runner: hatch
+    runner: riot
     snapshot: true
   appsec_integrations_packages:
     env:
@@ -120,7 +121,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/packages_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - postgres
       - mysql
@@ -136,7 +137,7 @@ suites:
       - tests/appsec/iast/*
       - tests/appsec/integrations/langchain_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_integrations_flask:
     parallelism: 17
     paths:
@@ -148,7 +149,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/flask_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 40m
@@ -163,7 +164,7 @@ suites:
       - '@remoteconfig'
       - tests/appsec/integrations/django_tests/*
     retry: 2
-    runner: hatch
+    runner: riot
     services:
       - testagent
     timeout: 30m
@@ -196,7 +197,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_fastapi:
     parallelism: 9
     paths:
@@ -213,7 +214,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   appsec_threats_flask:
     parallelism: 10
     paths:
@@ -229,7 +230,7 @@ suites:
       - tests/appsec/*
       - tests/appsec/contrib_appsec/*
     retry: 2
-    runner: hatch
+    runner: riot
   urllib:
     paths:
       - '@bootstrap'
@@ -250,3 +251,12 @@ suites:
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     runner: riot
     skip: true  # TODO: No environment available
+  ai_guard:
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/*
+    retry: 2
+    runner: riot
