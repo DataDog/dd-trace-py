@@ -4,9 +4,10 @@ import http.client as httplib
 
 import wrapt
 
+from ddtrace._trace.pin import Pin
+
 # Project
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
-from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 
 from .test_httplib import SOCKET

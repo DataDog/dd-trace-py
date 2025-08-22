@@ -1,9 +1,9 @@
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_cmd
 from ddtrace.contrib.internal.redis_utils import _instrument_redis_execute_pipeline
 from ddtrace.contrib.internal.redis_utils import _run_redis_command_async
 from ddtrace.internal.utils.formats import stringify_cache_args
-from ddtrace.trace import Pin
 
 
 async def instrumented_async_execute_command(func, instance, args, kwargs):
