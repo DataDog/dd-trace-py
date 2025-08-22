@@ -46,6 +46,7 @@ from urllib.request import urlretrieve
 
 
 HERE = Path(__file__).resolve().parent
+native_features = []
 
 COMPILE_MODE = "Release"
 if "DD_COMPILE_DEBUG" in os.environ:
@@ -195,9 +196,7 @@ class PatchedDistribution(Distribution):
                 py_limited_api="auto",
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
-                features=(
-                    ["crashtracker", "profiling"] if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() else []
-                ),
+                features=native_features,
             )
         ]
 
@@ -933,34 +932,34 @@ if not IS_PYSTON:
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
         native_features.append("crashtracker")
-    if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python() and sys.version_info < (3, 14):
-        native_features.append("profiling")
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.ddup._ddup",
-                source_dir=DDUP_DIR,
-                extra_source_dirs=[
-                    DDUP_DIR / ".." / "cmake",
-                    DDUP_DIR / ".." / "dd_wrapper",
-                ],
-                optional=False,
-                dependencies=[
-                    DDUP_DIR.parent / "libdd_wrapper",
-                ],
+        if sys.version_info < (3, 14):
+            native_features.append("profiling")
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.ddup._ddup",
+                    source_dir=DDUP_DIR,
+                    extra_source_dirs=[
+                        DDUP_DIR / ".." / "cmake",
+                        DDUP_DIR / ".." / "dd_wrapper",
+                    ],
+                    optional=False,
+                    dependencies=[
+                        DDUP_DIR.parent / "libdd_wrapper",
+                    ],
+                )
             )
-        )
 
-        ext_modules.append(
-            CMakeExtension(
-                "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
-                source_dir=STACK_V2_DIR,
-                extra_source_dirs=[
-                    STACK_V2_DIR / ".." / "cmake",
-                    STACK_V2_DIR / ".." / "dd_wrapper",
-                ],
-                optional=False,
-            ),
-        )
+            ext_modules.append(
+                CMakeExtension(
+                    "ddtrace.internal.datadog.profiling.stack_v2._stack_v2",
+                    source_dir=STACK_V2_DIR,
+                    extra_source_dirs=[
+                        STACK_V2_DIR / ".." / "cmake",
+                        STACK_V2_DIR / ".." / "dd_wrapper",
+                    ],
+                    optional=False,
+                ),
+            )
 
 
 else:
