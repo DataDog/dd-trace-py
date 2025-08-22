@@ -94,7 +94,8 @@ write_to = "ddtrace/_version.py"
 max-line-length = 120
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
   | \.sg
   | \.riot
   | ddtrace/profiling/
@@ -108,7 +109,8 @@ target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
   | \.sg
   | \.riot/
   | ddtrace/appsec/_ddwaf.pyx$
@@ -152,6 +154,7 @@ exclude = [
   ".sg",
   ".tox",
   ".venv",
+  ".worktrees",
 ]
 
 [tool.slotscheck]
@@ -219,6 +222,7 @@ exclude = [
     ".ddriot",
     ".venv*",
     ".git",
+    ".worktrees",
     "__pycache__",
     ".eggs",
     "*.egg",

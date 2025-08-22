@@ -6,6 +6,7 @@ import kombu
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 
@@ -23,7 +24,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 from .constants import DEFAULT_SERVICE
 from .utils import HEADER_POS

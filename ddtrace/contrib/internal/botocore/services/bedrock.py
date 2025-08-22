@@ -183,12 +183,14 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     if system_content_block:
         prompt.append({"role": "system", "content": system_content_block})
     prompt += messages
+    tool_config = params.get("toolConfig", {})
     return {
         "prompt": prompt,
         "temperature": inference_config.get("temperature", ""),
         "top_p": inference_config.get("topP", ""),
         "max_tokens": inference_config.get("maxTokens", ""),
         "stop_sequences": inference_config.get("stopSequences", []),
+        "tool_config": tool_config,
     }
 
 

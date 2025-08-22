@@ -5,10 +5,10 @@ import asyncpg
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
-from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.asyncio.utils import mark_asyncio
