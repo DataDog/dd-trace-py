@@ -93,6 +93,7 @@ from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
@@ -313,6 +314,7 @@ class LLMObs(Service):
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
+
         if span._get_ctx_item(INPUT_PROMPT) is not None:
             prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
@@ -321,6 +323,13 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
+        elif span_kind == "llm":
+            parent_span = _get_nearest_llmobs_ancestor(span)
+            if parent_span is not None:
+                parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
+                if parent_prompt is not None:
+                    meta["input"]["prompt"] = parent_prompt
+
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
@@ -549,6 +558,11 @@ class LLMObs(Service):
 
         # FIXME: workaround to prevent noisy logs when using the experiments feature
         if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
+            log.debug(
+                "Tracing has been disabled: app key detected and DD_TRACE_ENABLED is not set to 'true' "
+                "(current value: DD_TRACE_ENABLED='%s')",
+                os.environ.get("DD_TRACE_ENABLED", ""),
+            )
             ddtrace.tracer.enabled = False
 
         error = None

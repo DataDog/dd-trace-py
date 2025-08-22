@@ -3,7 +3,7 @@ from async_generator import async_generator
 from async_generator import asynccontextmanager
 from async_generator import yield_
 
-from ddtrace.trace import Pin
+from ddtrace._trace.pin import Pin
 from tests.contrib.config import MOTO_CONFIG
 
 

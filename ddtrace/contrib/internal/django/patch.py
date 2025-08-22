@@ -7,11 +7,8 @@ Django internals are instrumented via normal `patch()`.
 specific Django apps like Django Rest Framework (DRF).
 """
 
-from collections.abc import Iterable
 import functools
 from inspect import getmro
-from inspect import isclass
-from inspect import isfunction
 from inspect import unwrap
 import os
 from typing import Dict
@@ -21,18 +18,14 @@ import wrapt
 from wrapt.importer import when_imported
 
 from ddtrace import config
-from ddtrace.appsec._utils import _UserInfoRetriever
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
-from ddtrace.contrib import dbapi
 from ddtrace.contrib import trace_utils
-from ddtrace.contrib.internal.trace_utils import _convert_to_string
+from ddtrace.contrib.internal.django.user import _DjangoUserInfoRetriever
 from ddtrace.contrib.internal.trace_utils import _get_request_header_user_agent
 from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import db
 from ddtrace.ext import http
-from ddtrace.ext import net
-from ddtrace.ext import sql as sqlx
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
 from ddtrace.internal.constants import COMPONENT
@@ -48,11 +41,9 @@ from ddtrace.internal.utils import http as http_utils
 from ddtrace.internal.utils import set_blocked
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.importlib import func_name
-from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.settings.asm import endpoint_collection
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.trace import Pin
 from ddtrace.vendor.packaging.version import parse as parse_version
 
 
@@ -70,6 +61,7 @@ config._add(
         instrument_middleware=asbool(os.getenv("DD_DJANGO_INSTRUMENT_MIDDLEWARE", default=True)),
         instrument_templates=asbool(os.getenv("DD_DJANGO_INSTRUMENT_TEMPLATES", default=True)),
         instrument_databases=asbool(os.getenv("DD_DJANGO_INSTRUMENT_DATABASES", default=True)),
+        always_create_database_spans=asbool(os.getenv("DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS", default=True)),
         instrument_caches=asbool(os.getenv("DD_DJANGO_INSTRUMENT_CACHES", default=True)),
         trace_query_string=None,  # Default to global config
         include_user_name=asm_config._django_include_user_name,
@@ -103,18 +95,6 @@ config._add(
 # PERF: cache the getattr lookup for the Django config
 config_django: IntegrationConfig = cast(IntegrationConfig, config.django)
 
-_NotSet = object()
-psycopg_cursor_cls = Psycopg2TracedCursor = Psycopg3TracedCursor = _NotSet
-
-
-DB_CONN_ATTR_BY_TAG = {
-    net.TARGET_HOST: "HOST",
-    net.TARGET_PORT: "PORT",
-    net.SERVER_ADDRESS: "HOST",
-    db.USER: "USER",
-    db.NAME: "NAME",
-}
-
 
 def get_version():
     # type: () -> str
@@ -125,160 +105,6 @@ def get_version():
 
 def _supported_versions() -> Dict[str, str]:
     return {"django": ">=2.2.8"}
-
-
-def patch_conn(django, conn):
-    global psycopg_cursor_cls, Psycopg2TracedCursor, Psycopg3TracedCursor
-
-    if psycopg_cursor_cls is _NotSet:
-        try:
-            from psycopg.cursor import Cursor as psycopg_cursor_cls
-
-            from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-        except ImportError:
-            Psycopg3TracedCursor = None
-            try:
-                from psycopg2._psycopg import cursor as psycopg_cursor_cls
-
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-            except ImportError:
-                psycopg_cursor_cls = None
-                Psycopg2TracedCursor = None
-
-    tags = {}
-    settings_dict = getattr(conn, "settings_dict", {})
-    for tag, attr in DB_CONN_ATTR_BY_TAG.items():
-        if attr in settings_dict:
-            try:
-                tags[tag] = _convert_to_string(conn.settings_dict.get(attr))
-            except Exception:
-                tags[tag] = str(conn.settings_dict.get(attr))
-    conn._datadog_tags = tags
-
-    def cursor(django, pin, func, instance, args, kwargs):
-        alias = getattr(conn, "alias", "default")
-
-        service = config_django.database_service_name
-        if not service:
-            database_prefix = config_django.database_service_name_prefix
-            service = "{}{}{}".format(database_prefix, alias, "db")
-            service = schematize_service_name(service)
-
-        vendor = getattr(conn, "vendor", "db")
-        prefix = sqlx.normalize_vendor(vendor)
-
-        tags = {"django.db.vendor": vendor, "django.db.alias": alias}
-        tags.update(getattr(conn, "_datadog_tags", {}))
-
-        tracer = pin.tracer
-        pin = Pin(service, tags=tags)
-        pin._tracer = tracer
-
-        cursor = func(*args, **kwargs)
-
-        traced_cursor_cls = dbapi.TracedCursor
-        try:
-            if cursor.cursor.__class__.__module__.startswith("psycopg2."):
-                # Import lazily to avoid importing psycopg2 if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg2TracedCursor
-
-                traced_cursor_cls = Psycopg2TracedCursor
-            elif type(cursor.cursor).__name__ == "Psycopg3TracedCursor":
-                # Import lazily to avoid importing psycopg if not already imported.
-                from ddtrace.contrib.internal.psycopg.cursor import Psycopg3TracedCursor
-
-                traced_cursor_cls = Psycopg3TracedCursor
-        except AttributeError:
-            pass
-
-        # Each db alias will need its own config for dbapi
-        cfg = IntegrationConfig(
-            config_django.global_config,
-            "django-database",
-            _default_service=config.django._default_service,
-            _dbapi_span_name_prefix=prefix,
-            trace_fetch_methods=config_django.trace_fetch_methods,
-            _dbm_propagator=_DBM_Propagator(0, "query"),
-        )
-        return traced_cursor_cls(cursor, pin, cfg)
-
-    if not isinstance(conn.cursor, wrapt.ObjectProxy):
-        conn.cursor = wrapt.FunctionWrapper(conn.cursor, trace_utils.with_traced_module(cursor)(django))
-
-
-def instrument_dbs(django):
-    def get_connection(wrapped, instance, args, kwargs):
-        conn = wrapped(*args, **kwargs)
-        try:
-            patch_conn(django, conn)
-        except Exception:
-            log.debug("Error instrumenting database connection %r", conn, exc_info=True)
-        return conn
-
-    if not isinstance(django.db.utils.ConnectionHandler.__getitem__, wrapt.ObjectProxy):
-        django.db.utils.ConnectionHandler.__getitem__ = wrapt.FunctionWrapper(
-            django.db.utils.ConnectionHandler.__getitem__, get_connection
-        )
-
-
-@trace_utils.with_traced_module
-def traced_cache(django, pin, func, instance, args, kwargs):
-    from . import utils
-
-    if not config_django.instrument_caches:
-        return func(*args, **kwargs)
-
-    cache_backend = "{}.{}".format(instance.__module__, instance.__class__.__name__)
-    tags = {COMPONENT: config_django.integration_name, "django.cache.backend": cache_backend}
-    if args:
-        keys = utils.quantize_key_values(args[0])
-        tags["django.cache.key"] = keys
-
-    with core.context_with_data(
-        "django.cache",
-        span_name="django.cache",
-        span_type=SpanTypes.CACHE,
-        service=schematize_service_name(config_django.cache_service_name),
-        resource=utils.resource_from_cache_prefix(func_name(func), instance),
-        tags=tags,
-        pin=pin,
-    ) as ctx, ctx.span:
-        result = func(*args, **kwargs)
-        rowcount = 0
-        if func.__name__ == "get_many":
-            rowcount = sum(1 for doc in result if doc) if result and isinstance(result, Iterable) else 0
-        elif func.__name__ == "get":
-            try:
-                # check also for special case for Django~3.2 that returns an empty Sentinel
-                # object for empty results
-                # also check if result is Iterable first since some iterables return ambiguous
-                # truth results with ``==``
-                if result is None or (
-                    not isinstance(result, Iterable) and result == getattr(instance, "_missing_key", None)
-                ):
-                    rowcount = 0
-                else:
-                    rowcount = 1
-            except (AttributeError, NotImplementedError, ValueError):
-                pass
-        core.dispatch("django.cache", (ctx, rowcount))
-        return result
-
-
-def instrument_caches(django):
-    cache_backends = set([cache["BACKEND"] for cache in django.conf.settings.CACHES.values()])
-    for cache_path in cache_backends:
-        split = cache_path.split(".")
-        cache_module = ".".join(split[:-1])
-        cache_cls = split[-1]
-        for method in ["get", "set", "add", "delete", "incr", "decr", "get_many", "set_many", "delete_many"]:
-            try:
-                cls = django.utils.module_loading.import_string(cache_path)
-                # DEV: this can be removed when we add an idempotent `wrap`
-                if not trace_utils.iswrapped(cls, method):
-                    trace_utils.wrap(cache_module, "{0}.{1}".format(cache_cls, method), traced_cache(django))
-            except Exception:
-                log.debug("Error instrumenting cache %r", cache_path, exc_info=True)
 
 
 @trace_utils.with_traced_module
@@ -312,6 +138,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Instrument databases
     if config_django.instrument_databases:
         try:
+            from .database import instrument_dbs
+
             instrument_dbs(django)
         except Exception:
             log.debug("Error instrumenting Django database connections", exc_info=True)
@@ -319,6 +147,8 @@ def traced_populate(django, pin, func, instance, args, kwargs):
     # Instrument caches
     if config_django.instrument_caches:
         try:
+            from .cache import instrument_caches
+
             instrument_caches(django)
         except Exception:
             log.debug("Error instrumenting Django caches", exc_info=True)
@@ -358,27 +188,14 @@ def traced_func(django, name, resource=None, ignored_excs=None):
     return trace_utils.with_traced_module(wrapped)(django)
 
 
-def traced_process_exception(django, name, resource=None):
-    def wrapped(django, pin, func, instance, args, kwargs):
-        tags = {COMPONENT: config_django.integration_name}
-        with core.context_with_data(
-            "django.process_exception", span_name=name, resource=resource, tags=tags, pin=pin
-        ) as ctx:
-            resp = func(*args, **kwargs)
-
-            # Tell finish span that we should collect the traceback
-            ctx.set_item("should_set_traceback", hasattr(resp, "status_code") and 500 <= resp.status_code < 600)
-            return resp
-
-    return trace_utils.with_traced_module(wrapped)(django)
-
-
 @trace_utils.with_traced_module
 def traced_load_middleware(django, pin, func, instance, args, kwargs):
     """
     Patches django.core.handlers.base.BaseHandler.load_middleware to instrument all
     middlewares.
     """
+    from ddtrace.contrib.internal.django.middleware import wrap_middleware
+
     settings_middleware = []
     # Gather all the middleware
     if getattr(django.conf.settings, "MIDDLEWARE", None):
@@ -390,58 +207,7 @@ def traced_load_middleware(django, pin, func, instance, args, kwargs):
     # Each middleware can either be a function or a class
     for mw_path in settings_middleware:
         mw = django.utils.module_loading.import_string(mw_path)
-
-        # Instrument function-based middleware
-        if isfunction(mw) and not trace_utils.iswrapped(mw):
-            split = mw_path.split(".")
-            if len(split) < 2:
-                continue
-            base = ".".join(split[:-1])
-            attr = split[-1]
-
-            # DEV: We need to have a closure over `mw_path` for the resource name or else
-            # all function based middleware will share the same resource name
-            def _wrapper(resource):
-                # Function-based middleware is a factory which returns a handler function for
-                # requests.
-                # So instead of tracing the factory, we want to trace its returned value.
-                # We wrap the factory to return a traced version of the handler function.
-                def wrapped_factory(func, instance, args, kwargs):
-                    # r is the middleware handler function returned from the factory
-                    r = func(*args, **kwargs)
-                    if r:
-                        return wrapt.FunctionWrapper(
-                            r,
-                            traced_func(django, "django.middleware", resource=resource),
-                        )
-                    # If r is an empty middleware function (i.e. returns None), don't wrap since
-                    # NoneType cannot be called
-                    else:
-                        return r
-
-                return wrapped_factory
-
-            trace_utils.wrap(base, attr, _wrapper(resource=mw_path))
-
-        # Instrument class-based middleware
-        elif isclass(mw):
-            for hook in [
-                "process_request",
-                "process_response",
-                "process_view",
-                "process_template_response",
-                "__call__",
-            ]:
-                if hasattr(mw, hook) and not trace_utils.iswrapped(mw, hook):
-                    trace_utils.wrap(
-                        mw, hook, traced_func(django, "django.middleware", resource=mw_path + ".{0}".format(hook))
-                    )
-            # Do a little extra for `process_exception`
-            if hasattr(mw, "process_exception") and not trace_utils.iswrapped(mw, "process_exception"):
-                res = mw_path + ".{0}".format("process_exception")
-                trace_utils.wrap(
-                    mw, "process_exception", traced_process_exception(django, "django.middleware", resource=res)
-                )
+        wrap_middleware(mw, mw_path)
 
     return func(*args, **kwargs)
 
@@ -733,82 +499,6 @@ def traced_get_asgi_application(django, pin, func, instance, args, kwargs):
     return TraceMiddleware(func(*args, **kwargs), integration_config=config_django, span_modifier=django_asgi_modifier)
 
 
-class _DjangoUserInfoRetriever(_UserInfoRetriever):
-    def __init__(self, user, credentials=None):
-        super(_DjangoUserInfoRetriever, self).__init__(user)
-
-        self.credentials = credentials if credentials else {}
-        if self.credentials and not user:
-            self._try_load_user()
-
-    def _try_load_user(self):
-        self.user_model = None
-
-        try:
-            from django.contrib.auth import get_user_model
-        except ImportError:
-            log.debug("user_exist: Could not import Django get_user_model", exc_info=True)
-            return
-
-        try:
-            self.user_model = get_user_model()
-            if not self.user_model:
-                return
-        except Exception:
-            log.debug("user_exist: Could not get the user model", exc_info=True)
-            return
-
-        login_field = asm_config._user_model_login_field
-        login_field_value = self.credentials.get(login_field, None) if login_field else None
-
-        if not login_field or not login_field_value:
-            # Try to get the username from the credentials
-            for possible_login_field in self.possible_login_fields:
-                if possible_login_field in self.credentials:
-                    login_field = possible_login_field
-                    login_field_value = self.credentials[login_field]
-                    break
-            else:
-                # Could not get what the login field, so we can't check if the user exists
-                log.debug("try_load_user_model: could not get the login field from the credentials")
-                return
-
-        try:
-            self.user = self.user_model.objects.get(**{login_field: login_field_value})
-        except self.user_model.DoesNotExist:
-            log.debug("try_load_user_model: could not load user model", exc_info=True)
-
-    def user_exists(self):
-        return self.user is not None
-
-    def get_username(self):
-        if hasattr(self.user, "USERNAME_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.USERNAME_FIELD, None)
-
-        return super(_DjangoUserInfoRetriever, self).get_username()
-
-    def get_name(self):
-        if not asm_config._user_model_name_field:
-            if hasattr(self.user, "get_full_name"):
-                try:
-                    return self.user.get_full_name()
-                except Exception:
-                    log.debug("User model get_full_name member produced an exception: ", exc_info=True)
-
-            if hasattr(self.user, "first_name") and hasattr(self.user, "last_name"):
-                return "%s %s" % (self.user.first_name, self.user.last_name)
-
-        return super(_DjangoUserInfoRetriever, self).get_name()
-
-    def get_user_email(self):
-        if hasattr(self.user, "EMAIL_FIELD") and not asm_config._user_model_name_field:
-            user_type = type(self.user)
-            return getattr(self.user, user_type.EMAIL_FIELD, None)
-
-        return super(_DjangoUserInfoRetriever, self).get_user_email()
-
-
 @trace_utils.with_traced_module
 def traced_login(django, pin, func, instance, args, kwargs):
     func(*args, **kwargs)
@@ -840,58 +530,6 @@ def traced_authenticate(django, pin, func, instance, args, kwargs):
         log.debug("Error while trying to trace Django authenticate", exc_info=True)
 
     return result_user
-
-
-@trace_utils.with_traced_module
-def traced_process_request(django, pin, func, instance, args, kwargs):
-    tags = {COMPONENT: config_django.integration_name}
-    with core.context_with_data(
-        "django.func.wrapped",
-        span_name="django.middleware",
-        resource="django.contrib.auth.middleware.AuthenticationMiddleware.process_request",
-        tags=tags,
-        pin=pin,
-    ) as ctx, ctx.span:
-        core.dispatch(
-            "django.func.wrapped",
-            (
-                args,
-                kwargs,
-                django.core.handlers.wsgi.WSGIRequest if hasattr(django.core.handlers, "wsgi") else object,
-                ctx,
-                None,
-            ),
-        )
-        func(*args, **kwargs)
-        mode = asm_config._user_event_mode
-        if mode == "disabled":
-            return
-        try:
-            request = get_argument_value(args, kwargs, 0, "request")
-            if request:
-                if hasattr(request, "user") and hasattr(request.user, "_setup"):
-                    request.user._setup()
-                    request_user = request.user._wrapped
-                else:
-                    request_user = request.user
-                if hasattr(request, "session") and hasattr(request.session, "session_key"):
-                    session_key = request.session.session_key
-                else:
-                    session_key = None
-                core.dispatch(
-                    "django.process_request",
-                    (
-                        request_user,
-                        session_key,
-                        mode,
-                        kwargs,
-                        pin,
-                        _DjangoUserInfoRetriever(request_user, credentials=kwargs),
-                        config_django,
-                    ),
-                )
-        except Exception:
-            log.debug("Error while trying to trace Django AuthenticationMiddleware process_request", exc_info=True)
 
 
 @trace_utils.with_traced_module
@@ -954,10 +592,6 @@ def _patch(django):
     def _(m):
         trace_utils.wrap(m, "login", traced_login(django))
         trace_utils.wrap(m, "authenticate", traced_authenticate(django))
-
-    @when_imported("django.contrib.auth.middleware")
-    def _(m):
-        trace_utils.wrap(m, "AuthenticationMiddleware.process_request", traced_process_request(django))
 
     # Only wrap get_asgi_application if get_response_async exists. Otherwise we will effectively double-patch
     # because get_response and get_asgi_application will be used. We must rely on the version instead of coalescing
@@ -1044,9 +678,9 @@ def _unpatch(django):
     trace_utils.unwrap(django.db.utils.ConnectionHandler, "__getitem__")
 
     if config.django.instrument_templates:
-        from .templates import DjangoTemplateWrappingContext
+        from . import templates
 
-        DjangoTemplateWrappingContext.uninstrument_module(django.template.base)
+        templates.uninstrument_module(django.template.base)
 
 
 def unpatch():
