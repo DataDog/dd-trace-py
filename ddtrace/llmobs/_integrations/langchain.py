@@ -534,7 +534,8 @@ class LangChainIntegration(BaseLLMIntegration):
                                 },
                             ),
                         )
-                    output_message["tool_calls"] = tool_calls_info
+                    if tool_calls_info:
+                        output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
