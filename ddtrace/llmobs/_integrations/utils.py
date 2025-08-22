@@ -28,6 +28,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.utils import ToolCall
 from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.llmobs.utils import ToolResult
@@ -427,11 +428,7 @@ def _openai_extract_tool_calls_and_results_chat(
                     },
                 ),
             )
-        try:
-            if isinstance(raw_args, str):
-                raw_args = json.loads(raw_args)
-        except (json.JSONDecodeError, TypeError):
-            raw_args = {"value": str(raw_args)}
+        raw_args = safe_load_json(raw_args)
 
         tool_call_info = ToolCall(
             name=tool_name,
@@ -456,10 +453,7 @@ def _openai_extract_tool_calls_and_results_chat(
     function_call = _get_attr(message, "function_call", {})
     if function_call:
         arguments = _get_attr(function_call, "arguments", {})
-        try:
-            arguments = json.loads(arguments)
-        except (json.JSONDecodeError, TypeError):
-            arguments = {"value": str(arguments)}
+        arguments = safe_load_json(arguments)
         tool_call_info = ToolCall(
             name=_get_attr(function_call, "name", ""),
             arguments=arguments,
@@ -491,7 +485,7 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
             tool_calls_info.append(
                 ToolCall(
                     name=tool_name,
-                    arguments=json.loads(tool_input),
+                    arguments=safe_load_json(tool_input),
                     tool_id="",
                     type="function",
                 )
@@ -564,10 +558,7 @@ def openai_get_input_messages_from_response_input(
         elif "call_id" in item and ("arguments" in item or "input" in item):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
             arguments_str = item.get("arguments", "{}") or item.get("input", "{}")
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {"value": str(arguments_str)}
+            arguments = safe_load_json(arguments_str)
 
             tool_call_info = ToolCall(
                 tool_id=item["call_id"],
@@ -649,10 +640,7 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
             )
         elif message_type == "function_call" or message_type == "custom_tool_call":
             arguments = _get_attr(item, "input", "") or _get_attr(item, "arguments", "{}")
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                arguments = {"value": str(arguments)}
+            arguments = safe_load_json(arguments)
             tool_call_info = ToolCall(
                 tool_id=_get_attr(item, "call_id", ""),
                 arguments=arguments,

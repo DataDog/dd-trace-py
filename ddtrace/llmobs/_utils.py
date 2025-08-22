@@ -217,6 +217,14 @@ def safe_json(obj, ensure_ascii=True):
         log.error("Failed to serialize object to JSON.", exc_info=True)
 
 
+def safe_load_json(value: str):
+    try:
+        value = json.loads(value)
+    except (json.JSONDecodeError, TypeError):
+        value = {"value": str(value)}
+    return value
+
+
 def load_data_value(value):
     if isinstance(value, (list, tuple, set)):
         return [load_data_value(item) for item in value]

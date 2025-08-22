@@ -226,9 +226,12 @@ class CrewAIIntegration(BaseLLMIntegration):
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
 
-        if isinstance(tool_input, str):
-            tool_input = json.loads(tool_input)
-        tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
+        try:
+            if isinstance(tool_input, str):
+                tool_input = json.loads(tool_input)
+            tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
+        except (json.JSONDecodeError, TypeError):
+            log.warning("Failed to filter out security context from tool input.", exc_info=True)
 
         core.dispatch(
             DISPATCH_ON_TOOL_CALL,
