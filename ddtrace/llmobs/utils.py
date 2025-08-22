@@ -17,6 +17,63 @@ log = get_logger(__name__)
 
 DocumentType = Dict[str, Union[str, int, float]]
 
+
+def _extract_tool_call(tool_call: Dict[str, Any]) -> "ToolCall":
+    """Extract and validate a tool call dictionary."""
+    if not isinstance(tool_call, dict):
+        raise TypeError("Each tool_call must be a dictionary.")
+
+    # name and arguments are required
+    name = tool_call.get("name")
+    arguments = tool_call.get("arguments")
+
+    if not name or not isinstance(name, str):
+        raise TypeError("ToolCall name must be a non-empty string.")
+    if arguments is None or not isinstance(arguments, dict):
+        raise TypeError("ToolCall arguments must be a dictionary.")
+
+    formatted_tool_call = ToolCall(name=name, arguments=arguments)
+
+    # Add optional fields if present
+    tool_id = tool_call.get("tool_id")
+    if tool_id and isinstance(tool_id, str):
+        formatted_tool_call["tool_id"] = tool_id
+
+    tool_type = tool_call.get("type")
+    if tool_type and isinstance(tool_type, str):
+        formatted_tool_call["type"] = tool_type
+
+    return formatted_tool_call
+
+
+def _extract_tool_result(tool_result: Dict[str, Any]) -> "ToolResult":
+    """Extract and validate a tool result dictionary."""
+    if not isinstance(tool_result, dict):
+        raise TypeError("Each tool_result must be a dictionary.")
+
+    # result is required
+    result = tool_result.get("result")
+    if result is None or not isinstance(result, str):
+        raise TypeError("ToolResult result must be a string.")
+
+    formatted_tool_result = ToolResult(result=result)
+
+    # Add optional fields if present
+    name = tool_result.get("name")
+    if name and isinstance(name, str):
+        formatted_tool_result["name"] = name
+
+    tool_id = tool_result.get("tool_id")
+    if tool_id and isinstance(tool_id, str):
+        formatted_tool_result["tool_id"] = tool_id
+
+    tool_type = tool_result.get("type")
+    if tool_type and isinstance(tool_type, str):
+        formatted_tool_result["type"] = tool_type
+
+    return formatted_tool_result
+
+
 ExportedLLMObsSpan = TypedDict("ExportedLLMObsSpan", {"span_id": str, "trace_id": str})
 Document = TypedDict("Document", {"name": str, "id": str, "text": str, "score": float}, total=False)
 Message = TypedDict(
@@ -96,66 +153,14 @@ class Messages:
             if tool_calls is not None:
                 if not isinstance(tool_calls, list):
                     raise TypeError("tool_calls must be a list.")
-                formatted_tool_calls = []
-                for tool_call in tool_calls:
-                    if not isinstance(tool_call, dict):
-                        raise TypeError("Each tool_call must be a dictionary.")
-
-                    # name and arguments are required
-                    name = tool_call.get("name")
-                    arguments = tool_call.get("arguments")
-
-                    if not name or not isinstance(name, str):
-                        raise TypeError("ToolCall name must be a non-empty string.")
-                    if arguments is None or not isinstance(arguments, dict):
-                        raise TypeError("ToolCall arguments must be a dictionary.")
-
-                    formatted_tool_call = ToolCall(name=name, arguments=arguments)
-
-                    # Add optional fields if present
-                    tool_id = tool_call.get("tool_id")
-                    if tool_id and isinstance(tool_id, str):
-                        formatted_tool_call["tool_id"] = tool_id
-
-                    tool_type = tool_call.get("type")
-                    if tool_type and isinstance(tool_type, str):
-                        formatted_tool_call["type"] = tool_type
-
-                    formatted_tool_calls.append(formatted_tool_call)
-
+                formatted_tool_calls = [_extract_tool_call(tool_call) for tool_call in tool_calls]
                 msg_dict["tool_calls"] = formatted_tool_calls
 
             tool_results = message.get("tool_results")
             if tool_results is not None:
                 if not isinstance(tool_results, list):
                     raise TypeError("tool_results must be a list.")
-                formatted_tool_results = []
-                for tool_result in tool_results:
-                    if not isinstance(tool_result, dict):
-                        raise TypeError("Each tool_result must be a dictionary.")
-
-                    # result is required
-                    result = tool_result.get("result")
-                    if result is None or not isinstance(result, str):
-                        raise TypeError("ToolResult result must be a string.")
-
-                    formatted_tool_result = ToolResult(result=result)
-
-                    # Add optional fields if present
-                    name = tool_result.get("name")
-                    if name and isinstance(name, str):
-                        formatted_tool_result["name"] = name
-
-                    tool_id = tool_result.get("tool_id")
-                    if tool_id and isinstance(tool_id, str):
-                        formatted_tool_result["tool_id"] = tool_id
-
-                    tool_type = tool_result.get("type")
-                    if tool_type and isinstance(tool_type, str):
-                        formatted_tool_result["type"] = tool_type
-
-                    formatted_tool_results.append(formatted_tool_result)
-
+                formatted_tool_results = [_extract_tool_result(tool_result) for tool_result in tool_results]
                 msg_dict["tool_results"] = formatted_tool_results
 
             self.messages.append(msg_dict)
