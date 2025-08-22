@@ -480,7 +480,7 @@ class SpanAggregator(SpanProcessor):
         """
         if not reset_buffer:
             # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
-            # are not dropped when the writer is recreated. This operation should not be handled after a fork. 
+            # are not dropped when the writer is recreated. This operation should not be handled after a fork.
             self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
