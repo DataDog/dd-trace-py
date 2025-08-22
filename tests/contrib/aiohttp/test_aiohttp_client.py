@@ -3,10 +3,10 @@ import os
 import aiohttp
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.aiohttp.patch import extract_netloc_and_query_info_from_url
 from ddtrace.contrib.internal.aiohttp.patch import patch
 from ddtrace.contrib.internal.aiohttp.patch import unpatch
-from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 
