@@ -48,6 +48,7 @@ from ddtrace.internal.constants import MESSAGING_MESSAGE_ID
 from ddtrace.internal.constants import MESSAGING_OPERATION
 from ddtrace.internal.constants import MESSAGING_SYSTEM
 from ddtrace.internal.constants import NETWORK_DESTINATION_NAME
+from ddtrace.internal.constants import SPAN_LINK_KIND
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import _inherit_sampling_tags
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
@@ -934,7 +935,7 @@ def _on_asgi_websocket_receive_message(ctx, scope, message, integration_config):
         span.set_link(
             trace_id=ctx.parent.span.trace_id,
             span_id=ctx.parent.span.span_id,
-            attributes={SpanLinkKind.EXECUTED: SpanLinkKind.EXECUTED},
+            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
         )
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):
@@ -965,7 +966,7 @@ def _on_asgi_websocket_send_message(ctx, scope, message, integration_config):
         span.set_link(
             trace_id=ctx.parent.span.trace_id,
             span_id=ctx.parent.span.span_id,
-            attributes={SpanLinkKind.RESUMING: SpanLinkKind.RESUMING},
+            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
         )
 
 
@@ -992,7 +993,7 @@ def _on_asgi_websocket_close_message(ctx, scope, message, integration_config):
         span.set_link(
             trace_id=ctx.parent.span.trace_id,
             span_id=ctx.parent.span.span_id,
-            attributes={SpanLinkKind.RESUMING: SpanLinkKind.RESUMING},
+            attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
         )
 
         _copy_trace_level_tags(span, ctx.parent.span)  # TODO: check if this should be here
@@ -1017,7 +1018,7 @@ def _on_asgi_websocket_disconnect_message(ctx, scope, message, integration_confi
         span.set_link(
             trace_id=ctx.parent_span.trace_id,
             span_id=ctx.parent_span.span_id,
-            attributes={SpanLinkKind.EXECUTED: SpanLinkKind.EXECUTED},
+            attributes={SPAN_LINK_KIND: SpanLinkKind.EXECUTED},
         )
 
         if getattr(integration_config, "asgi_websocket_messages_inherit_sampling", True):

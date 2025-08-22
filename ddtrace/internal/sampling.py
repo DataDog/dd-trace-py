@@ -261,10 +261,11 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
     span.context.sampling_priority = priorities[priority_index]
 
 
-def _inherit_sampling_tags(span: Span, source: Span):
-    span.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
-    span.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
-    span.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
+def _inherit_sampling_tags(target: Span, source: Span):
+    """Set sampling tags from source span on target span."""
+    target.set_metric(SAMPLING_DECISION_MAKER_INHERITED, 1)
+    target.set_tag_str(SAMPLING_DECISION_MAKER_SERVICE, source.service)  # type: ignore[arg-type]
+    target.set_tag_str(SAMPLING_DECISION_MAKER_RESOURCE, source.resource)
 
 
 def _get_highest_precedence_rule_matching(span: Span, rules: List[SamplingRule]) -> Optional[SamplingRule]:
