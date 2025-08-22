@@ -34,13 +34,12 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import validate_prompt
-from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.llmobs.utils import ToolCall
 from ddtrace.llmobs.utils import ToolResult
-from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.trace import Span
 
 
