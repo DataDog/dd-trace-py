@@ -3,6 +3,7 @@ from aiopg.utils import _ContextManager
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
@@ -14,7 +15,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.version import parse_version
-from ddtrace.trace import Pin
 
 
 AIOPG_VERSION = parse_version(__version__)

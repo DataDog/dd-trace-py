@@ -16,6 +16,7 @@ from typing import TextIO
 import ddtrace
 from ddtrace import config
 import ddtrace.internal.native as native
+from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
@@ -233,7 +234,9 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = (
+                1.0 - self._drop_sma.get()
+            )  # PERF: avoid setting via Span.set_metric
 
     def _reset_connection(self) -> None:
         with self._conn_lck:
@@ -441,6 +444,7 @@ class HTTPWriter(periodic.PeriodicService, TraceWriter):
                     n_traces,
                     self._intake_endpoint(client),
                     self.RETRY_ATTEMPTS,
+                    exc_info=True,
                 )
         finally:
             self._metrics_dist("http.sent.bytes", len(encoded))
@@ -807,6 +811,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             bucket_size_ns: int = int(stats_interval * 1e9)
             builder.enable_stats(bucket_size_ns)
 
+        # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
+        if config._telemetry_enabled and sys.platform.startswith("linux"):
+            heartbeat_ms = int(
+                config._telemetry_heartbeat_interval * 1000
+            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
+
         return builder.build()
 
     def set_test_session_token(self, token: Optional[str]) -> None:
@@ -902,7 +913,8 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
 
     def _set_keep_rate(self, trace):
         if trace:
-            trace[0].set_metric(_KEEP_SPANS_RATE_KEY, 1.0 - self._drop_sma.get())
+            # PERF: avoid setting via Span.set_metric
+            trace[0]._metrics[_KEEP_SPANS_RATE_KEY] = 1.0 - self._drop_sma.get()
 
     def _send_payload(self, payload: bytes, count: int, client: WriterClientBase):
         try:

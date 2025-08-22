@@ -14,6 +14,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -26,7 +27,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import Config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config

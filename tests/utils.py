@@ -3,6 +3,7 @@ import contextlib
 from contextlib import contextmanager
 import http.client as httplib
 from http.client import RemoteDisconnected
+import importlib.metadata as importlib_metadata
 import inspect
 import json
 import os
@@ -54,11 +55,6 @@ from ddtrace.trace import Span
 from ddtrace.trace import Tracer
 from tests.subprocesstest import SubprocessTestCase
 
-
-try:
-    import importlib.metadata as importlib_metadata
-except ImportError:
-    import importlib_metadata
 
 NO_CHILDREN = object()
 DDTRACE_PATH = Path(__file__).resolve().parents[1]
@@ -193,8 +189,29 @@ def override_global_config(values):
             setattr(asm_config, key, value)
     # If ddtrace.settings.asm.config has changed, check _asm_can_be_enabled again
     asm_config._eval_asm_can_be_enabled()
+    from ddtrace.appsec._processor import AppSecSpanProcessor
+
+    AppSecSpanProcessor.disable()
+    if asm_config._asm_enabled:
+        from ddtrace.appsec._listeners import load_appsec
+
+        load_appsec()
+    else:
+        if asm_config._api_security_active:
+            from ddtrace.appsec._api_security.api_manager import APIManager
+
+            APIManager.disable()
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        AppSecIastSpanProcessor.enable()
+    elif "_iast_enabled" in values:
+        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
+
+        AppSecIastSpanProcessor.disable()
     try:
         core.dispatch("test.config.override")
+        core.dispatch("asm.switch_state")
         yield
     finally:
         # Reset all to their original values

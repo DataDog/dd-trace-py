@@ -22,6 +22,7 @@ from ddtrace.ext import websocket
 from ddtrace.ext.net import TARGET_HOST
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal._exceptions import find_exception
 from ddtrace.internal.compat import is_valid_ip
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.constants import SAMPLING_DECISION_MAKER_INHERITED
@@ -80,7 +81,7 @@ def bytes_to_str(str_or_bytes: Union[str, bytes]) -> str:
     return str_or_bytes.decode(errors="ignore") if isinstance(str_or_bytes, bytes) else str_or_bytes
 
 
-def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, Any]:
+def _extract_versions_from_scope(scope: Mapping[str, Any], integration_config: Mapping[str, Any]) -> Mapping[str, str]:
     """
     Extract HTTP and ASGI version information from scope.
     """
@@ -117,7 +118,7 @@ def _extract_headers(scope: Mapping[str, Any]) -> Mapping[str, Any]:
 
 def _default_handle_exception_span(exc, span):
     """Default handler for exception for span"""
-    span.set_tag(http.STATUS_CODE, 500)
+    span.set_tag_str(http.STATUS_CODE, "500")
 
 
 def span_from_scope(scope: Mapping[str, Any]) -> Optional[Span]:
@@ -172,9 +173,9 @@ def _set_websocket_close_tags(span: Span, message: Mapping[str, Any]):
     code = message.get("code")
     reason = message.get("reason")
     if code is not None:
-        span.set_metric(websocket.CLOSE_CODE, code)
+        span._metrics[websocket.CLOSE_CODE] = int(code)
     if reason:
-        span.set_tag(websocket.CLOSE_REASON, reason)
+        span.set_tag_str(websocket.CLOSE_REASON, reason)
 
 
 def _cleanup_previous_receive(scope: Mapping[str, Any]):
@@ -339,7 +340,8 @@ class TraceMiddleware:
                 headers_are_case_sensitive=True,
             )
             tags = _extract_versions_from_scope(scope, self.integration_config)
-            span.set_tags(tags)
+            for name, value in tags.items():
+                span.set_tag_str(name, value)
 
             @wraps(receive)
             async def wrapped_receive():
@@ -358,11 +360,13 @@ class TraceMiddleware:
 
                 Note:
                     - Spans are linked to the handshake span
-                    - Receive spans remain open until the next receive operation or connection close
+                    - Receive spans are finished exactly when the next receive operation starts
                 """
 
                 if not self.integration_config.trace_asgi_websocket_messages:
                     return await receive()
+
+                current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
                 with core.context_with_data(
                     "asgi.websocket.receive_message",
@@ -376,6 +380,10 @@ class TraceMiddleware:
                     call_trace=False,
                     activate=True,
                 ) as ctx:
+                    if current_receive_span:
+                        current_receive_span.finish()
+                        scope["datadog"].pop("current_receive_span", None)
+
                     recv_span = ctx.span
                     try:
                         message = await receive()
@@ -420,6 +428,16 @@ class TraceMiddleware:
                 """
                 try:
                     if (
+                        scope["type"] == "websocket"
+                        and self.integration_config.trace_asgi_websocket_messages
+                        and message.get("type") == "websocket.accept"
+                    ):
+                        # Close handshake span once connection is upgraded
+                        if span and span.error == 0:
+                            span.finish()
+                        return await send(message)
+
+                    elif (
                         scope["type"] == "websocket"
                         and self.integration_config.trace_asgi_websocket_messages
                         and message.get("type") == "websocket.send"
@@ -498,11 +516,9 @@ class TraceMiddleware:
                 raise
             except BaseException as exception:
                 # managing python 3.11+ BaseExceptionGroup with compatible code for 3.10 and below
-                if exception.__class__.__name__ == "BaseExceptionGroup":
-                    for exc in exception.exceptions:
-                        if isinstance(exc, BlockingException):
-                            set_blocked(exc.args[0])
-                            return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
+                if exc := find_exception(exception, BlockingException):
+                    set_blocked(exc.args[0])
+                    return await _blocked_asgi_app(scope, receive, wrapped_blocked_send)
                 raise
             finally:
                 core.dispatch("web.request.final_tags", (span,))
@@ -543,14 +559,14 @@ class TraceMiddleware:
                 span_id=request_span.span_id,
                 attributes={SPAN_LINK_KIND: SpanLinkKind.RESUMING},
             )
-            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)
+            send_span.set_metric(websocket.MESSAGE_FRAMES, 1)  # PERF: avoid setting via Span.set_metric
             _set_message_tags_on_span(send_span, message)
 
     def _handle_websocket_close_message(self, scope: Mapping[str, Any], message: Mapping[str, Any], request_span: Span):
         current_receive_span = scope.get("datadog", {}).get("current_receive_span")
 
         # Use receive span as parent if it exists, otherwise use main span
-        if current_receive_span:
+        if self.integration_config.websocket_messages_separate_traces and current_receive_span:
             parent_span = current_receive_span
         else:
             parent_span = request_span
@@ -608,8 +624,6 @@ class TraceMiddleware:
     def _handle_websocket_receive_message(
         self, scope: Mapping[str, Any], message: Mapping[str, Any], recv_span: Span, request_span: Span
     ):
-        _cleanup_previous_receive(scope)
-
         recv_span.set_tag_str(COMPONENT, self.integration_config.integration_name)
         recv_span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         recv_span.set_tag_str(websocket.RECEIVE_DURATION_TYPE, "blocking")
@@ -661,8 +675,3 @@ class TraceMiddleware:
 
             _copy_trace_level_tags(disconnect_span, request_span)
             _set_websocket_close_tags(disconnect_span, message)
-
-        # The context system automatically finishes the disconnect_span
-        # Only finish the main span if needed
-        if request_span and request_span.error == 0:
-            request_span.finish()

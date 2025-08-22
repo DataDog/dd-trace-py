@@ -5,6 +5,7 @@ from celery import signals
 
 from ddtrace import config
 from ddtrace._trace.pin import _DD_PIN_NAME
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -18,7 +19,6 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

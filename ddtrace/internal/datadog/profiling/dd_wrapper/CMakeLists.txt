@@ -81,7 +81,10 @@ string(TOLOWER ${PLATFORM_SUFFIX} PLATFORM_SUFFIX)
 # but as long as it encodes the major moving parts, it's fine
 
 if(DEFINED EXTENSION_SUFFIX)
-    set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX}")
+    # EXTENSION_SUFFIX already contains .so (both Linux and macOS Python extensions use .so) but CMake will add its own
+    # extension (.so on Linux, .dylib on macOS) So we need to strip the .so extension to avoid double extensions
+    string(REGEX REPLACE "\\.so$" "" EXTENSION_SUFFIX_NO_EXT "${EXTENSION_SUFFIX}")
+    set(DD_WRAPPER_TARGET_NAME "dd_wrapper${EXTENSION_SUFFIX_NO_EXT}")
 else()
     set(DD_WRAPPER_TARGET_NAME "dd_wrapper-${PLATFORM_SUFFIX}")
 endif()
@@ -99,7 +102,7 @@ if(APPLE)
         COMMENT "Fixing library dependency to use @rpath")
 else()
     # To make sure that dd_wrapper finds _native.so for real
-    set_target_properties(dd_wrapper PROPERTIES INSTALL_RPATH "$ORIGIN/../../../internal/native")
+    set_target_properties(dd_wrapper PROPERTIES BUILD_RPATH "$ORIGIN/../../native" INSTALL_RPATH "$ORIGIN/../../native")
 endif()
 
 # For a regular build, the LIB_INSTALL_DIR represents the final location of the library, so nothing special is needed.

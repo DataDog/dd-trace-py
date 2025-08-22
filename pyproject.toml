@@ -36,7 +36,6 @@ dependencies = [
     "bytecode>=0.14.0; python_version~='3.11.0'",
     "bytecode>=0.13.0; python_version<'3.11'",
     "envier~=0.6.1",
-    "importlib_metadata<=6.5.0; python_version<'3.8'",
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
     "protobuf>=3",
@@ -95,7 +94,8 @@ write_to = "ddtrace/_version.py"
 max-line-length = 120
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
   | \.riot
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
@@ -108,7 +108,8 @@ target_version = ['py37', 'py38', 'py39', 'py310', 'py311', 'py312']
 include = '''\.py[ix]?$'''
 exclude = '''
 (
-  .venv*
+  \.worktrees/
+  | .venv*
   | \.riot/
   | ddtrace/appsec/_ddwaf.pyx$
   | ddtrace/internal/_encoding.pyx$
@@ -150,6 +151,7 @@ exclude = [
   ".riot",
   ".tox",
   ".venv",
+  ".worktrees",
 ]
 
 [tool.slotscheck]
@@ -217,6 +219,7 @@ exclude = [
     ".ddriot",
     ".venv*",
     ".git",
+    ".worktrees",
     "__pycache__",
     ".eggs",
     "*.egg",

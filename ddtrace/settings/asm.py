@@ -19,7 +19,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import AI_GUARD_ENABLED
 from ddtrace.internal.constants import AI_GUARD_ENDPOINT
 from ddtrace.internal.constants import DD_APPLICATION_KEY
-from ddtrace.internal.endpoints import HttpEndPointsCollection
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -61,9 +60,6 @@ def build_libddwaf_filename() -> str:
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
-
-
-endpoint_collection = HttpEndPointsCollection()
 
 
 class ASMConfig(DDConfig):
@@ -156,6 +152,7 @@ class ASMConfig(DDConfig):
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
     _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
+    _iast_use_root_span = DDConfig.var(bool, "_DD_IAST_USE_ROOT_SPAN", default=False)
 
     _iast_is_testing = False
 
@@ -205,6 +202,7 @@ class ASMConfig(DDConfig):
         "_iast_telemetry_report_lvl",
         "_iast_security_controls",
         "_iast_is_testing",
+        "_iast_use_root_span",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_use_metastruct_for_iast",
