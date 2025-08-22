@@ -1162,6 +1162,7 @@ venv = Venv(
                         ],
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
+                        "pydantic": "==2.12.0a1",
                     },
                 ),
                 Venv(
@@ -1178,6 +1179,8 @@ venv = Venv(
                         ],
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
+                        "pydantic": "==2.12.0a1",
+                        "git+https://github.com/MatthieuDartiailh/bytecode.git": "@12df29244462c0ae136e0d185b187f3a6329aba9",
                     },
                 ),
             ],
@@ -1229,7 +1232,13 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
+                        Venv(
+                            pys=select_pys(min_version="3.12"),
+                            pkgs={
+                                "redis": latest,
+                                "git+https://github.com/MatthieuDartiailh/bytecode.git": "@12df29244462c0ae136e0d185b187f3a6329aba9",
+                            },
+                        ),
                     ],
                 ),
                 Venv(
