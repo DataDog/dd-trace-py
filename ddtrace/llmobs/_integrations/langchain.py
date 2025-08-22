@@ -504,7 +504,10 @@ class LangChainIntegration(BaseLLMIntegration):
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
-                    message_item = {"content": str(content), "role": str(role)}
+                    message_item: Dict[str, Union[str, List[ToolCall], List[ToolResult]]] = {
+                        "content": str(content),
+                        "role": str(role),
+                    }
                     tool_calls_info = self._extract_tool_calls(message)
                     if tool_calls_info:
                         message_item["tool_calls"] = tool_calls_info
@@ -574,7 +577,7 @@ class LangChainIntegration(BaseLLMIntegration):
             }
             span._set_ctx_item(METRICS, metrics)
 
-    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+    def _extract_tool_calls(self, chat_completion_msg: Any) -> List[ToolCall]:
         """Extracts tool calls from a langchain chat completion."""
         tool_calls = _get_attr(chat_completion_msg, "tool_calls", None)
         tool_calls_info = []
@@ -591,7 +594,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
 
-    def _extract_tool_results(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+    def _extract_tool_results(self, chat_completion_msg: Any) -> List[ToolResult]:
         """Extracts tool results from a langchain chat completion."""
         content = _get_attr(chat_completion_msg, "content", "") or ""
         tool_call_id = _get_attr(chat_completion_msg, "tool_call_id", "") or ""
@@ -601,7 +604,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 type="tool",
                 name=_get_attr(chat_completion_msg, "name", "") or "",
                 result=content,
-                tool_call_id=tool_call_id,
+                tool_id=tool_call_id,
             )
             tool_results.append(tool_result_info)
         return tool_results
