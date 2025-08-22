@@ -335,7 +335,7 @@ def openai_set_meta_tags_from_chat(
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
-            processed_message["content"] = ""
+            processed_message["content"] = ""  # reset content to empty string if tool calls present
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
             processed_message["content"] = ""
