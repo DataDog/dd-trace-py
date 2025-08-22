@@ -1,6 +1,8 @@
 import dataclasses
 from time import monotonic
 from typing import Dict
+from typing import List
+from typing import Optional
 from typing import Set
 
 
@@ -10,6 +12,8 @@ class HttpEndPoint:
     path: str
     resource_name: str = dataclasses.field(default="")
     operation_name: str = dataclasses.field(default="http.request")
+    response_body_type: Optional[str] = dataclasses.field(default=None)
+    response_code: Optional[List[int]] = dataclasses.field(default_factory=list)
     _hash: int = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -21,7 +25,6 @@ class HttpEndPoint:
 
     def __hash__(self) -> int:
         return self._hash
-        
 
 
 class Singleton(type):
@@ -56,7 +59,13 @@ class HttpEndPointsCollection(metaclass=Singleton):
         self.last_modification_time = monotonic()
 
     def add_endpoint(
-        self, method: str, path: str, resource_name: str = "", operation_name: str = "http.request"
+        self,
+        method: str,
+        path: str,
+        resource_name: str = "",
+        operation_name: str = "http.request",
+        response_body_type: Optional[str] = None,
+        response_code: Optional[List[int]] = None,
     ) -> None:
         """
         Add an endpoint to the collection.
@@ -65,12 +74,26 @@ class HttpEndPointsCollection(metaclass=Singleton):
         if current_time - self.last_modification_time > self.drop_time_seconds:
             self.reset()
             self.endpoints.add(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+                HttpEndPoint(
+                    method=method,
+                    path=path,
+                    resource_name=resource_name,
+                    operation_name=operation_name,
+                    response_body_type=response_body_type,
+                    response_code=response_code,
+                )
             )
         elif len(self.endpoints) < self.max_size_length:
             self.last_modification_time = current_time
             self.endpoints.add(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+                HttpEndPoint(
+                    method=method,
+                    path=path,
+                    resource_name=resource_name,
+                    operation_name=operation_name,
+                    response_body_type=response_body_type,
+                    response_code=response_code,
+                )
             )
 
     def flush(self, max_length: int) -> dict:
