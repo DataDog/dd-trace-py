@@ -29,7 +29,7 @@ class HttpEndPoint:
 
 
 def _dict_factory(lst: List[tuple[str, Any]]) -> Dict[str, Any]:
-    return {k: v for k, v in lst if v == () or v == [] or v is None}
+    return {k: v for k, v in lst if v not in ((), [], None)}
 
 
 class Singleton(type):
