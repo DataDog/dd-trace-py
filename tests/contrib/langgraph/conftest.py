@@ -11,6 +11,7 @@ from langgraph.graph import START
 from langgraph.graph import StateGraph
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.patch import patch as patch_langchain
 from ddtrace.contrib.internal.langchain.patch import unpatch as unpatch_langchain
 from ddtrace.contrib.internal.langgraph.patch import patch
@@ -18,7 +19,6 @@ from ddtrace.contrib.internal.langgraph.patch import unpatch
 from ddtrace.contrib.internal.openai.patch import patch as patch_openai
 from ddtrace.contrib.internal.openai.patch import unpatch as unpatch_openai
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config

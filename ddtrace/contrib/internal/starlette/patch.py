@@ -13,6 +13,7 @@ from wrapt import ObjectProxy
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib import trace_utils
 from ddtrace.contrib.asgi import TraceMiddleware
 from ddtrace.contrib.internal.trace_utils import with_traced_module
@@ -28,7 +29,6 @@ from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 from ddtrace.trace import Span  # noqa:F401
 from ddtrace.vendor.packaging.version import parse as parse_version
 
@@ -62,6 +62,7 @@ def get_version():
 
 
 _STARLETTE_VERSION = parse_version(get_version())
+_STARLETTE_VERSION_LTE_0_33_0 = _STARLETTE_VERSION <= parse_version("0.33.0")
 
 
 def _supported_versions() -> Dict[str, str]:
@@ -202,7 +203,7 @@ def traced_handler(wrapped, instance, args, kwargs):
         raise BlockingException(blocked)
 
     # https://github.com/encode/starlette/issues/1336
-    if _STARLETTE_VERSION <= parse_version("0.33.0") and len(request_spans) > 1:
+    if _STARLETTE_VERSION_LTE_0_33_0 and len(request_spans) > 1:
         request_spans[-1].set_tag(http.URL, request_spans[0].get_tag(http.URL))
 
     return wrapped(*args, **kwargs)

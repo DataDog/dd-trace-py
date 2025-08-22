@@ -5,6 +5,7 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import AGENT_MANIFEST
@@ -23,7 +24,6 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

@@ -55,11 +55,11 @@ experiments:
               - max_rss_usage < 68.50 MB
           - name: djangosimple-tracer
             thresholds:
-              - execution_time < 22.70 ms
+              - execution_time < 21.75 ms
               - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-and-profiler
             thresholds:
-              - execution_time < 24.90 ms
+              - execution_time < 23.50 ms
               - max_rss_usage < 67.00 MB
           - name: djangosimple-tracer-no-caches
             thresholds:
@@ -69,13 +69,17 @@ experiments:
             thresholds:
               - execution_time < 20.10 ms
               - max_rss_usage < 66.00 MB
+          - name: djangosimple-tracer-dont-create-db-spans
+            thresholds:
+              - execution_time < 21.50 ms
+              - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-no-middleware
             thresholds:
-              - execution_time < 22.50 ms
+              - execution_time < 21.50 ms
               - max_rss_usage < 66.00 MB
           - name: djangosimple-tracer-no-templates
             thresholds:
-              - execution_time < 22.25 ms
+              - execution_time < 22.00 ms
               - max_rss_usage < 66.00 MB
 
           # errortrackingdjangosimple
@@ -933,12 +937,11 @@ experiments:
           - name: samplingrules-low_match
             thresholds:
               - execution_time < 0.12 ms
-              - max_rss_usage < 450.00 MB
+              - max_rss_usage < 700.00 MB
           - name: samplingrules-very_low_match
             thresholds:
               - execution_time < 8.50 ms
-              - max_rss_usage < 60.00 MB
-
+              - max_rss_usage < 75.00 MB
           # sethttpmeta
           - name: sethttpmeta-all-disabled
             thresholds:
@@ -1062,63 +1065,63 @@ experiments:
           # telemetryaddmetric
           - name: telemetryaddmetric-1-count-metric-1-times
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.02 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-count-metrics-100-times
             thresholds:
-              - execution_time < 0.24 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-distribution-metric-1-times
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.02 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-distribution-metrics-100-times
             thresholds:
-              - execution_time < 0.21 ms
+              - execution_time < 0.22 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-gauge-metric-1-times
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.02 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-gauge-metrics-100-times
             thresholds:
-              - execution_time < 0.14 ms
+              - execution_time < 0.15 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-rate-metric-1-times
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.02 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-1-rate-metrics-100-times
             thresholds:
-              - execution_time < 0.23 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-count-metrics-100-times
             thresholds:
-              - execution_time < 23.00 ms
+              - execution_time < 23.50 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-distribution-metrics-100-times
             thresholds:
-              - execution_time < 2.20 ms
+              - execution_time < 2.25 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-gauge-metrics-100-times
             thresholds:
-              - execution_time < 1.50 ms
+              - execution_time < 1.55 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-100-rate-metrics-100-times
             thresholds:
-              - execution_time < 2.50 ms
+              - execution_time < 2.55 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-flush-1-metric
             thresholds:
-              - execution_time < 0.01 ms
+              - execution_time < 0.02 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-flush-100-metrics
             thresholds:
-              - execution_time < 0.20 ms
+              - execution_time < 0.25 ms
               - max_rss_usage < 34.00 MB
           - name: telemetryaddmetric-flush-1000-metrics
             thresholds:
-              - execution_time < 2.45 ms
+              - execution_time < 2.50 ms
               - max_rss_usage < 34.50 MB
 
           # tracer

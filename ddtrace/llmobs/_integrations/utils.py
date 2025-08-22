@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import inspect
 import json
 import re
 from typing import Any
@@ -26,6 +27,8 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolResult
 
 
 try:
@@ -233,23 +236,25 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
     """
     if not content or not isinstance(content, list) or not isinstance(content[0], dict):
         return []
-    messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    messages: List[Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]] = []
     content_blocks = []
     tool_calls_info = []
     tool_messages: List[Dict[str, Any]] = []
-    unsupported_content_messages: List[Dict[str, Union[str, List[Dict[str, Any]]]]] = []
+    unsupported_content_messages: List[
+        Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]]
+    ] = []
     for content_block in content:
         if content_block.get("text") and isinstance(content_block.get("text"), str):
             content_blocks.append(content_block.get("text", ""))
         elif content_block.get("toolUse") and isinstance(content_block.get("toolUse"), dict):
             toolUse = content_block.get("toolUse", {})
-            tool_calls_info.append(
-                {
-                    "name": str(toolUse.get("name", "")),
-                    "arguments": toolUse.get("input", {}),
-                    "tool_id": str(toolUse.get("toolUseId", "")),
-                }
+            tool_call_info = ToolCall(
+                name=str(toolUse.get("name", "")),
+                arguments=toolUse.get("input", {}),
+                tool_id=str(toolUse.get("toolUseId", "")),
+                type="toolUse",
             )
+            tool_calls_info.append(tool_call_info)
         elif content_block.get("toolResult") and isinstance(content_block.get("toolResult"), dict):
             tool_message: Dict[str, Any] = content_block.get("toolResult", {})
             tool_message_contents: List[Dict[str, Any]] = tool_message.get("content", [])
@@ -259,13 +264,17 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
                 tool_message_content_text: Optional[str] = tool_message_content.get("text")
                 tool_message_content_json: Optional[Dict[str, Any]] = tool_message_content.get("json")
 
+                tool_result_info = ToolResult(
+                    result=tool_message_content_text
+                    or (tool_message_content_json and safe_json(tool_message_content_json))
+                    or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
+                    tool_id=tool_message_id,
+                    type="toolResult",
+                )
                 tool_messages.append(
                     {
-                        "content": tool_message_content_text
-                        or (tool_message_content_json and safe_json(tool_message_content_json))
-                        or f"[Unsupported content type(s): {','.join(tool_message_content.keys())}]",
-                        "role": "tool",
-                        "tool_id": tool_message_id,
+                        "tool_results": [tool_result_info],
+                        "role": "user",
                     }
                 )
         else:
@@ -273,7 +282,7 @@ def get_messages_from_converse_content(role: str, content: List[Dict[str, Any]])
             unsupported_content_messages.append(
                 {"content": "[Unsupported content type: {}]".format(content_type), "role": role}
             )
-    message = {}  # type: dict[str, Union[str, list[dict[str, dict]]]]
+    message: Dict[str, Union[str, List[Dict[str, Any]], List[ToolCall], List[ToolResult]]] = {}
     if tool_calls_info:
         message.update({"tool_calls": tool_calls_info})
     if content_blocks:
@@ -1077,9 +1086,9 @@ class OaiSpanAdapter:
                         "tool_calls": [
                             {
                                 "tool_id": item.call_id,
-                                "arguments": json.loads(item.arguments)
-                                if isinstance(item.arguments, str)
-                                else item.arguments,
+                                "arguments": (
+                                    json.loads(item.arguments) if isinstance(item.arguments, str) else item.arguments
+                                ),
                                 "name": getattr(item, "name", ""),
                                 "type": getattr(item, "type", "function"),
                             }
@@ -1191,19 +1200,20 @@ def get_final_message_converse_stream_message(
         tool_block = tool_blocks.get(idx)
         if not tool_block:
             continue
-        tool_call = {
-            "name": tool_block.get("name", ""),
-            "tool_id": tool_block.get("toolUseId", ""),
-        }
         tool_input = tool_block.get("input")
+        tool_args = {}
         if tool_input is not None:
-            tool_args = {}
             try:
                 tool_args = json.loads(tool_input)
             except (json.JSONDecodeError, ValueError):
                 tool_args = {"input": tool_input}
-            tool_call.update({"arguments": tool_args} if tool_args else {})
-        tool_calls.append(tool_call)
+        tool_call_info = ToolCall(
+            name=tool_block.get("name", ""),
+            tool_id=tool_block.get("toolUseId", ""),
+            arguments=tool_args if tool_args else {},
+            type="toolUse",
+        )
+        tool_calls.append(tool_call_info)
 
     if tool_calls:
         message_output["tool_calls"] = tool_calls
@@ -1294,3 +1304,70 @@ def _est_tokens(prompt):
     elif isinstance(prompt, list) and isinstance(prompt[0], int):
         return len(prompt)
     return est_tokens
+
+
+def extract_instance_metadata_from_stack(
+    instance: Any,
+    internal_variable_names: Optional[List[str]] = None,
+    default_variable_name: Optional[str] = None,
+    default_module_name: Optional[str] = None,
+    frame_start_offset: int = 2,
+    frame_search_depth: int = 6,
+) -> Tuple[Optional[str], Optional[str]]:
+    """
+    Attempts to find the variable name and module name for an instance by inspecting the call stack.
+
+    Args:
+        instance: The instance to find the variable name for
+        internal_variable_names: List of variable names to skip (e.g., ["instance", "self", "step"])
+        default_variable_name: Default name to use if variable name cannot be found
+        default_module_name: Default module name to use if module cannot be determined
+        frame_start_offset: How many frames to skip from the current frame
+        frame_search_depth: Maximum number of frames to search through
+
+    Returns:
+        Tuple of (variable_name, module_name)
+    """
+    try:
+        if internal_variable_names is None:
+            internal_variable_names = []
+        variable_name = default_variable_name
+        module_name = default_module_name
+
+        # Start from the current frame and walk up the stack
+        current_frame = inspect.currentframe()
+        if current_frame is None:
+            return variable_name, module_name
+
+        # Skip the specified number of frames
+        for _ in range(frame_start_offset):
+            current_frame = current_frame.f_back
+            if current_frame is None:
+                return variable_name, module_name
+
+        # Search through the specified depth
+        for _ in range(frame_search_depth):
+            if current_frame is None:
+                break
+
+            try:
+                frame_info = inspect.getframeinfo(current_frame)
+
+                for var_name, var_value in current_frame.f_locals.items():
+                    if var_name.startswith("__") or inspect.ismodule(var_value) or var_name in internal_variable_names:
+                        continue
+                    if var_value is instance:
+                        variable_name = var_name
+                        module_name = inspect.getmodulename(frame_info.filename)
+                        return variable_name, module_name
+
+            except (ValueError, AttributeError, OSError, TypeError):
+                current_frame = current_frame.f_back
+                continue
+
+            current_frame = current_frame.f_back
+
+        return variable_name, module_name
+    except Exception:
+        logger.warning("Failed to extract prompt variable name")
+        return default_variable_name, default_module_name

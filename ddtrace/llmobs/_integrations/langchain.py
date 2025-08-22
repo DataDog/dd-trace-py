@@ -19,6 +19,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -34,11 +35,13 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -369,6 +372,27 @@ class LangChainIntegration(BaseLLMIntegration):
 
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
+
+    def _get_prompt_variable_name(self, instance: Any) -> str:
+        """
+        Attempts to find the variable name used for the prompt template instance by inspecting
+        the caller's frame locals and globals, and returns it in the format:
+        {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
+        """
+        try:
+            variable_name, module_name = extract_instance_metadata_from_stack(
+                instance=instance,
+                internal_variable_names=["instance", "self", "step"],
+                default_variable_name="unknown_prompt_template",
+                default_module_name="unknown_module",
+                frame_start_offset=2,
+                frame_search_depth=10,
+            )
+        except Exception:
+            log.warning("Failed to extract prompt variable name")
+            return "unknown_prompt_template"
+
+        return f"{module_name}.{variable_name}"
 
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
         identifying_params = kwargs.pop("_dd.identifying_params", None)
@@ -816,3 +840,52 @@ class LangChainIntegration(BaseLLMIntegration):
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
+
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
+        template, variables = None, None
+        if hasattr(instance, "template") and isinstance(instance.template, str):
+            template = instance.template
+        variables = get_argument_value(args, kwargs, 0, "input", optional=True)
+
+        if not template or not variables:
+            return
+
+        prompt_id = self._get_prompt_variable_name(instance)
+
+        prompt = {
+            "variables": variables,
+            "template": template,
+            "id": prompt_id if prompt_id is not None else "unknown",
+            "version": "0.0.0",
+            "rag_context_variables": [],
+            "rag_query_variables": [],
+        }
+
+        try:
+            object.__setattr__(result, "_dd.prompt_template", prompt)
+        except (AttributeError, TypeError):
+            log.warning("Could not attach prompt metadata to resulting prompt")
+
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
+        """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
+        template = None
+        prompt_input = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if prompt_input:
+            template = getattr(prompt_input, "_dd.prompt_template", None)
+        if template:
+            object.__setattr__(instance, "_dd.prompt_template", template)
+
+    def llmobs_set_prompt_tag(self, instance, span: Span):
+        """
+        On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span.
+        Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
+        """
+        prompt_value_meta = getattr(instance, "_dd.prompt_template", None)
+        if prompt_value_meta is not None:
+            prompt = prompt_value_meta
+            try:
+                prompt = validate_prompt(prompt)
+                span._set_ctx_item(INPUT_PROMPT, prompt)
+            except Exception as e:
+                log.warning("Failed to validate langchain prompt", e)

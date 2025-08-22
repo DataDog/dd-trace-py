@@ -6,6 +6,7 @@ from typing import Optional
 from typing import Union
 import weakref
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
@@ -34,7 +35,6 @@ from ddtrace.llmobs._integrations.utils import OaiTraceAdapter
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import load_data_value
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

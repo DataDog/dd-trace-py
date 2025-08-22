@@ -107,6 +107,7 @@ def test_uds_wrong_socket_path():
                 1,
                 "unix:///tmp/ddagent/nosockethere/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
+                exc_info=True,
             )
         ]
     log.error.assert_has_calls(calls)
@@ -379,6 +380,7 @@ def test_trace_generates_error_logs_when_trace_agent_url_invalid():
                 1,
                 "http://localhost:8125/{}/traces".format(encoding if encoding else "v0.5"),
                 3,
+                exc_info=True,
             )
         ]
     log.error.assert_has_calls(calls)
