@@ -16,6 +16,7 @@ from ._native import SerializationError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
 from ._native import store_metadata  # noqa: F401
+from ._native import logger  # noqa: F401
 
 
 def get_configuration_from_disk() -> Tuple[Dict[str, str], Dict[str, str], Dict[str, Optional[str]]]:
