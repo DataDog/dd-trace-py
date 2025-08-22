@@ -360,9 +360,12 @@ def openai_set_meta_tags_from_chat(
             role = streamed_message.get("role", "") or role
             message = {"content": streamed_message.get("content", ""), "role": role}
 
-            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(streamed_message)
+            extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(streamed_message)
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
+            if extracted_tool_results:
+                message["tool_results"] = extracted_tool_results
+                message["content"] = ""  # set content empty to avoid duplication
 
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
@@ -374,14 +377,16 @@ def openai_set_meta_tags_from_chat(
         role = _get_attr(choice_message, "role", "")
         content = _get_attr(choice_message, "content", "") or ""
 
-        extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+        extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
             choice_message, llm_span=span, dispatch_llm_choice=True
         )
 
         message = {"content": content, "role": role}
         if extracted_tool_calls:
             message["tool_calls"] = extracted_tool_calls
-
+        if extracted_tool_results:
+            message["tool_results"] = extracted_tool_results
+            message["content"] = ""  # set content empty to avoid duplication
         output_messages.append(message)
     span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
 
