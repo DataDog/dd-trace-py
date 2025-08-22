@@ -21,6 +21,7 @@ from typing_extensions import NotRequired
 from ddtrace import config
 from ddtrace import tracer as ddtracer
 from ddtrace._trace.tracer import Tracer
+from ddtrace.appsec._constants import AI_GUARD
 from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
@@ -142,7 +143,7 @@ class AIGuardClient:
 
     @staticmethod
     def _add_request_to_telemetry(tags: MetricTagType) -> None:
-        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, "instrumented.requests", 1, tags)
+        telemetry.telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.REQUESTS_METRIC, 1, tags)
 
     def evaluate_tool(
         self,
@@ -168,13 +169,18 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
+        if history is None:
+            history = []
+
         if tags is None:
             tags = {}
-        tags["ai_guard.target"] = "tool"
-        tags["ai_guard.tool_name"] = tool_name
+        tags[AI_GUARD.TARGET_TAG] = "tool"
+        tags[AI_GUARD.TOOL_NAME_TAG] = tool_name
+
         tool_call = ToolCall(tool_name=tool_name, tool_args=tool_args)
         if output is not None:
             tool_call["output"] = output
+
         return self._evaluate(tool_call, history, tags)
 
     def evaluate_prompt(
@@ -201,20 +207,72 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
+        if history is None:
+            history = []
+
         if tags is None:
             tags = {}
-        tags["ai_guard.target"] = "prompt"
+        tags[AI_GUARD.TARGET_TAG] = "prompt"
+
         prompt = Prompt(role=role, content=content)
         if output is not None:
             prompt["output"] = output
+
         return self._evaluate(prompt, history, tags)
 
-    def _evaluate(
-        self, current: Evaluation, history: Optional[List[Evaluation]], tags: Dict[Union[Text, bytes], Any]
-    ) -> bool:
+    def _set_ai_guard_tags(
+        self, span, action: str, reason: Optional[str], current: Evaluation, history: List[Evaluation]
+    ):
+        span.set_tag(AI_GUARD.ACTION_TAG, action)
+        if reason:
+            span.set_tag(AI_GUARD.REASON_TAG, reason)
+
+        if history:
+            max_history_length = ai_guard_config._ai_guard_max_history_length
+            if len(history) > max_history_length:
+                history = history[-max_history_length:]
+                telemetry.telemetry_writer.add_count_metric(
+                    TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "history"),)
+                )
+
+        output_truncated = False
+        max_output_size = ai_guard_config._ai_guard_max_output_size
+
+        def truncate_output(evaluation: Evaluation) -> Evaluation:
+            nonlocal output_truncated
+
+            if "content" in evaluation and len(str(evaluation["content"])) > max_output_size:  # type: ignore[typeddict-item]
+                cropped = evaluation.copy()
+                cropped["content"] = str(cropped["content"])[:max_output_size]  # type: ignore[typeddict-item, typeddict-unknown-key]
+                output_truncated = True
+                return cropped
+
+            if "output" in evaluation and len(str(evaluation["output"])) > max_output_size:
+                cropped = evaluation.copy()
+                cropped["output"] = str(cropped["output"])[:max_output_size]
+                output_truncated = True
+                return cropped
+
+            return evaluation
+
+        span.set_struct_tag(
+            AI_GUARD.TAG,
+            {
+                "history": [truncate_output(e) for e in history],
+                "current": truncate_output(current),
+            },
+        )
+
+        if output_truncated:
+            telemetry.telemetry_writer.add_count_metric(
+                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "output"),)
+            )
+
+    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
         """Send evaluation request to AI Guard service."""
-        with self._tracer.trace("ai_guard") as span:
-            span.set_tags(tags)
+        with self._tracer.trace(AI_GUARD.SPAN_TYPE) as span:
+            if tags is not None:
+                span.set_tags(tags)
             try:
                 if history is None:
                     history = []
@@ -242,9 +300,7 @@ class AIGuardClient:
                         f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}"
                     )
 
-                span.set_tag("ai_guard.action", action)
-                if reason:
-                    span.set_tag("ai_guard.reason", reason)
+                self._set_ai_guard_tags(span, action, reason, current, history)
 
                 self._add_request_to_telemetry(
                     (
@@ -279,16 +335,21 @@ class AIGuardClient:
 
 
 def new_ai_guard_client(
-    endpoint: str = ai_guard_config.endpoint,
-    timeout: float = 30,
-    api_key: str = config._dd_api_key,
-    app_key: str = ai_guard_config._dd_app_key,
+    endpoint: Optional[str] = None,
+    timeout: Optional[float] = None,
+    api_key: Optional[str] = None,
+    app_key: Optional[str] = None,
     tracer: Tracer = ddtracer,
 ) -> AIGuardClient:
+    endpoint = endpoint if endpoint is not None else ai_guard_config._ai_guard_endpoint
     if not endpoint:
         raise ValueError("AI Guard endpoint URL is required: provide DD_AI_GUARD_ENDPOINT")
 
+    api_key = api_key if api_key is not None else config._dd_api_key
+    app_key = app_key if app_key is not None else ai_guard_config._dd_app_key
     if not api_key or not app_key:
         raise ValueError("Authentication credentials required: provide DD_API_KEY and DD_APP_KEY")
+
+    timeout = timeout if timeout is not None else 30
 
     return AIGuardClient(endpoint, timeout, api_key, app_key, tracer)
