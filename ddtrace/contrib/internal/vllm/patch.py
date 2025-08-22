@@ -119,14 +119,16 @@ def traced_process_model_outputs(vllm, pin, func, instance, args, kwargs):
             
             log.debug("[VLLM DEBUG] Found request_id for span: %s", request_id)
             for seq in seq_group.seqs:
-                log.debug("[VLLM DEBUG] Found sequence: %s", seq)
+                log.debug("[VLLM DEBUG] Found sequence: %s", seq.inputs)
             # Set LLMObs tags
+            log.debug("[VLLM DEBUG] Content of _request_id_to_prompt: %s", integration._request_id_to_prompt)
             integration._llmobs_set_tags(
                 span=span,
                 args=[],
                 kwargs={"model_name": model_name, "engine_instance": instance, "request_id": request_id},
                 response=seq_group,
-                operation="completion"
+                operation="completion",
+                request_id=request_id
             )
             
             span.finish()
@@ -179,13 +181,16 @@ async def traced_preprocess_completion(vllm, pin, func, instance, args, kwargs):
 @with_traced_module
 def traced_add_request(vllm, pin, func, instance, args, kwargs):
     log.debug("[VLLM DEBUG] Adding request: %s", args[1] if len(args) > 1 else kwargs.get("prompt"))
+    request_id = args[0] if len(args) > 0 else kwargs.get("request_id")
     prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
-    if "prompt_token_ids" not in prompt and "prompt" not in prompt:
-        log.debug("[VLLM DEBUG] Prompt does not contain prompt_token_ids or prompt, skipping")
+    if not request_id or not prompt or not prompt.get("prompt"):
+        log.debug("[VLLM DEBUG] No request id or prompt, skipping")
         return func(*args, **kwargs)
-    
+
+    log.debug("[VLLM DEBUG] Storing request id to prompt mapping: %s -> %s", request_id, prompt)
     integration: VLLMIntegration = vllm._datadog_integration
-    integration.store_prompt_token_ids_to_prompt(prompt["prompt_token_ids"], prompt["prompt"])
+    integration.store_request_id_to_prompt(request_id, prompt["prompt"])
+    log.debug("[VLLM DEBUG] Content of _request_id_to_prompt: %s", integration._request_id_to_prompt)
     return func(*args, **kwargs)
 
 def patch():
@@ -199,11 +204,12 @@ def patch():
     integration = VLLMIntegration(integration_config=config.vllm)
     vllm._datadog_integration = integration
     # TODO: Check for integration.llmobs_enabled?
+    # TODO: Patch beam_search?
 
     # Patch all generate methods to inject trace context
     log.debug("[VLLM DEBUG] Patching vLLM")
     #wrap("vllm.entrypoints.llm", "LLM.generate", traced_generate(vllm))
-    wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
+    #wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
     #wrap("vllm.engine.protocol", "EngineClient.generate", traced_generate(vllm))
     wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate", traced_generate(vllm))
     wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_generate(vllm))
@@ -227,7 +233,7 @@ def unpatch():
     vllm._datadog_patch = False
 
     #unwrap("vllm.entrypoints.llm", "LLM.generate")
-    unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
+    #unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
     #unwrap("vllm.engine.protocol", "EngineClient.generate")
     unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate")
     unwrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate")
