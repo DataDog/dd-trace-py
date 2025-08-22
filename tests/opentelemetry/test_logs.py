@@ -5,6 +5,7 @@ from opentelemetry.version import __version__ as api_version_string
 import pytest
 
 from ddtrace.internal.opentelemetry.logs import API_VERSION
+from ddtrace.internal.opentelemetry.logs import HTTP_LOGS_ENDPOINT
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
 
@@ -185,7 +186,6 @@ def test_otel_logs_exporter_auto_configured_http():
 
     from opentelemetry._logs import get_logger_provider
 
-    from ddtrace.settings._agent import get_agent_hostname
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 
@@ -202,7 +202,7 @@ def test_otel_logs_exporter_auto_configured_http():
         request_body = None
         for call in mock_request.call_args_list:
             method, url = call[0][:2]
-            if method == "POST" and url == f"http://{get_agent_hostname()}:4318/v1/logs":
+            if method == "POST" and HTTP_LOGS_ENDPOINT in url:
                 request_body = call[1].get("data", None)
                 break
         assert request_body is not None, (
