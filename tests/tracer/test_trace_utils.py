@@ -632,7 +632,7 @@ ALL_IP_HEADERS = (
     ("x-real-ip", "2.2.2.2"),
     ("true-client-ip", "3.3.3.3"),
     ("x-client-ip", "4.4.4.4"),
-    ("x-forwarded", "5.5.5.5"),
+    ("forwarded", "5.5.5.5"),
     ("forwarded-for", "6.6.6.6"),
     ("x-cluster-client-ip", "7.7.7.7"),
     ("fastly-client-ip", "8.8.8.8"),
