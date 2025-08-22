@@ -644,8 +644,8 @@ ALL_IP_HEADERS = (
 ALL_TESTS = [
     ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
 ]
-# x-forwarded is now ignored so we fall back to forwarded-for
-ALL_TESTS[5][2] = "6.6.6.6"
+# x-forwarded is now ignored so we fall back to forwarded
+ALL_TESTS[5][2] = "5.5.5.5"
 
 
 @pytest.mark.parametrize(
