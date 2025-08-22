@@ -4,6 +4,7 @@ import sqlite3
 import subprocess
 from typing import Optional
 
+from flask import Blueprint
 from flask import Flask
 from flask import request
 
@@ -25,9 +26,12 @@ def index():
     return "ok ASM"
 
 
-@app.route("/asm/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/asm/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
-@app.route("/asm/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])
+asm = Blueprint("asm", __name__, url_prefix="/asm")
+
+
+@asm.route("/", methods=["GET", "POST", "OPTIONS"])
+@asm.route("/<int:param_int>/<string:param_str>/", methods=["GET", "POST", "OPTIONS"])
+@asm.route("/<int:param_int>/<string:param_str>", methods=["GET", "POST", "OPTIONS"])
 def multi_view(param_int=0, param_str=""):
     query_params = request.args.to_dict()
     body = {
@@ -41,9 +45,9 @@ def multi_view(param_int=0, param_str=""):
     headers_query = query_params.get("headers", "").split(",")
     priority = query_params.get("priority", None)
     if priority in ("keep", "drop"):
-        tracer.current_span().set_tag(
-            ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY
-        )
+        span = tracer.current_span()
+        if span is not None:
+            span.set_tag(ddtrace.constants.MANUAL_KEEP_KEY if priority == "keep" else ddtrace.constants.MANUAL_DROP_KEY)
     response_headers = {}
     for header in headers_query:
         vk = header.split("=")
@@ -261,3 +265,6 @@ def service_renaming():
         if root_span is not None:
             root_span.service = service_name
             root_span.set_tag("scope", service_name)
+
+
+app.register_blueprint(asm)
