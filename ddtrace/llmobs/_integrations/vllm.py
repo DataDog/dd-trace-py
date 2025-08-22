@@ -32,18 +32,18 @@ log = get_logger(__name__)
 class VLLMIntegration(BaseLLMIntegration):
     _integration_name = "vllm"
     
-    _prompt_token_ids_to_prompt: Dict[Tuple[int, ...], str] = {}
+    _request_id_to_prompt: Dict[str, str] = {}
 
-    def store_prompt_token_ids_to_prompt(self, prompt_token_ids: List[int], prompt: "str") -> None:
-        log.debug("[VLLM OPENAI DEBUG] Storing prompt token ids to prompt mapping: %s -> %s", prompt_token_ids, prompt)
-        self._prompt_token_ids_to_prompt[tuple(prompt_token_ids)] = prompt
+    def store_request_id_to_prompt(self, request_id: str, prompt: "str") -> None:
+        log.debug("[VLLM OPENAI DEBUG] Storing request id to prompt mapping: %s -> %s", request_id, prompt)
+        self._request_id_to_prompt[request_id] = prompt
     
-    def get_prompt_from_prompt_token_ids(self, prompt_token_ids: List[int]) -> Optional["str"]:
-        return self._prompt_token_ids_to_prompt.get(tuple(prompt_token_ids), None)
+    def get_prompt_from_request_id(self, request_id: str) -> Optional["str"]:
+        return self._request_id_to_prompt.get(request_id, None)
     
-    def clear_prompt_token_ids_to_prompt(self, prompt_token_ids: List[int]) -> None:
-        self._prompt_token_ids_to_prompt.pop(tuple(prompt_token_ids), None)
-        log.debug("[VLLM OPENAI DEBUG] Cleared prompt token ids to prompt mapping")
+    def clear_request_id_to_prompt(self, request_id: str) -> None:
+        self._request_id_to_prompt.pop(request_id, None)
+        log.debug("[VLLM OPENAI DEBUG] Cleared request id to prompt mapping")
     
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
         """Set base level tags that should be present on all vLLM spans."""
@@ -59,6 +59,7 @@ class VLLMIntegration(BaseLLMIntegration):
         kwargs: Dict[str, Any],
         response: Optional[Any] = None,
         operation: str = "",
+        request_id: Optional[str] = None,
     ) -> None:
         """Extract comprehensive LLMObs tags from vLLM SequenceGroup and set them on the span.
         
@@ -87,7 +88,7 @@ class VLLMIntegration(BaseLLMIntegration):
         
         # Extract input information
         log.debug("[VLLM INTEGRATION DEBUG] Extracting input data")
-        input_data = self._extract_input_data(seq_group)
+        input_data = self._extract_input_data(seq_group, request_id)
         log.debug("[VLLM INTEGRATION DEBUG] Extracted input_data: %s", input_data)
         
         # Extract output information
@@ -139,17 +140,18 @@ class VLLMIntegration(BaseLLMIntegration):
                 
         return metadata
 
-    def _extract_input_data(self, seq_group: "SequenceGroup") -> Dict[str, Any]:
+    def _extract_input_data(self, seq_group: "SequenceGroup", request_id: Optional[str] = None) -> Dict[str, Any]:
         input_data = defaultdict(list)
         for seq in seq_group.seqs:
-            log.debug("[VLLM INTEGRATION DEBUG] Extracting input data for seq: %s", seq.inputs)
+            log.debug("[VLLM INTEGRATION DEBUG] Processing seq: %s", seq.inputs)
+            log.debug("[VLLM INTEGRATION DEBUG] Extracting input data for request_id: %s", request_id)
             # check if seq.inputs["prompt"] is set
-            if hasattr(seq.inputs, "prompt"):
+            if seq.inputs.prompt:
                 input_data[INPUT_MESSAGES].append({"content": seq.inputs.prompt})
-            else:
-                prompt = self.get_prompt_from_prompt_token_ids(seq.inputs.prompt_token_ids)
+            elif request_id:
+                prompt = self.get_prompt_from_request_id(request_id)
                 if prompt is None:
-                    log.debug("[VLLM INTEGRATION DEBUG] Prompt not found for prompt token ids: %s", seq.inputs.prompt_token_ids)
+                    log.debug("[VLLM INTEGRATION DEBUG] Prompt not found for request id: %s", request_id)
                 else:
                     input_data[INPUT_MESSAGES].append({"content": prompt})
         return input_data
