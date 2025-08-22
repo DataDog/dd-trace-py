@@ -44,13 +44,6 @@ register_post_preload(manager.post_preload_products)
 
 # TODO: Migrate the following product logic to the new product plugin interface
 
-if config._otel_logs_enabled:
-    # Enable OpenTelemetry logs collection as early as possible. This will allow users
-    # to collect ddtrace startup logs.
-    from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
-
-    set_otel_logs_provider()
-
 # DEV: We want to start the crashtracker as early as possible
 if crashtracker_config.enabled:
     try:
@@ -89,6 +82,16 @@ if config._otel_metrics_enabled:
         from ddtrace.internal.opentelemetry.metrics import set_otel_meter_provider
 
         set_otel_meter_provider()
+
+
+if config._otel_logs_enabled:
+
+    @register_post_preload
+    def _otel_logs():
+        # Post load to ensure that the logger provider is not overridden by module unloading
+        from ddtrace.internal.opentelemetry.logs import set_otel_logs_provider
+
+        set_otel_logs_provider()
 
 
 if config._llmobs_enabled:

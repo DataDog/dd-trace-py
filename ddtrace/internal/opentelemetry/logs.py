@@ -22,11 +22,9 @@ API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")
 
 DEFAULT_PROTOCOL = "grpc"
 DD_LOGS_PROVIDER_CONFIGURED = False
-PROTOCOL_TO_PORT = {
-    "grpc": 4317,
-    "http/protobuf": 4318,
-    "http/json": 4318,
-}
+GRPC_PORT = 4317
+HTTP_PORT = 4318
+HTTP_LOGS_ENDPOINT = "/v1/logs"
 
 
 def set_otel_logs_provider() -> None:
@@ -181,9 +179,11 @@ def _initialize_logging(exporter_class, protocol, resource):
         from opentelemetry.sdk._configuration import _init_logging
 
         if not exporter_config.OTLP_ENDPOINT and not exporter_config.OTLP_LOGS_ENDPOINT:
-            os.environ[
-                "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
-            ] = f"http://{get_agent_hostname()}:{PROTOCOL_TO_PORT[protocol]}"
+            if protocol in ("http/json", "http/protobuf"):
+                endpoint = f"http://{get_agent_hostname()}:{HTTP_PORT}{HTTP_LOGS_ENDPOINT}"
+            else:
+                endpoint = f"http://{get_agent_hostname()}:{GRPC_PORT}"
+            os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = endpoint
 
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
