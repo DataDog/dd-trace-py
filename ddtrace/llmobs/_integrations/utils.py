@@ -401,21 +401,6 @@ def _openai_extract_tool_calls_and_results_chat(
         tool_id = _get_attr(raw, "id", "")
         tool_type = _get_attr(raw, "type", "function")
 
-        parsed_arguments = raw_args
-        try:
-            if isinstance(parsed_arguments, str):
-                parsed_arguments = json.loads(parsed_arguments)
-        except (json.JSONDecodeError, TypeError):
-            parsed_arguments = {"value": str(parsed_arguments)}
-
-        tool_call_info = ToolCall(
-            name=tool_name,
-            arguments=parsed_arguments,
-            tool_id=tool_id,
-            type=tool_type,
-        )
-        tool_calls.append(tool_call_info)
-
         if dispatch_llm_choice and llm_span is not None and tool_id:
             tool_args_str = raw_args if isinstance(raw_args, str) else safe_json(raw_args)
             core.dispatch(
@@ -430,6 +415,20 @@ def _openai_extract_tool_calls_and_results_chat(
                     },
                 ),
             )
+        try:
+            if isinstance(raw_args, str):
+                raw_args = json.loads(raw_args)
+        except (json.JSONDecodeError, TypeError):
+            raw_args = {"value": str(raw_args)}
+
+        tool_call_info = ToolCall(
+            name=tool_name,
+            arguments=raw_args,
+            tool_id=tool_id,
+            type=tool_type,
+        )
+        tool_calls.append(tool_call_info)
+
     # handle tool results
     if _get_attr(message, "role", "") == "tool":
         result = _get_attr(message, "content", "")
