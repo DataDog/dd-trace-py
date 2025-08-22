@@ -19,7 +19,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import AI_GUARD_ENABLED
 from ddtrace.internal.constants import AI_GUARD_ENDPOINT
 from ddtrace.internal.constants import DD_APPLICATION_KEY
-from ddtrace.internal.endpoints import HttpEndPointsCollection
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -61,9 +60,6 @@ def build_libddwaf_filename() -> str:
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
-
-
-endpoint_collection = HttpEndPointsCollection()
 
 
 class ASMConfig(DDConfig):
