@@ -368,7 +368,7 @@ class SpanAggregator(SpanProcessor):
             [self.sampling_processor, self.tags_processor, self.service_name_processor],
         ):
             try:
-                spans = tp.process_trace(spans)
+                spans = tp.process_trace(spans) or []
                 if not spans:
                     return
             except Exception:
@@ -381,7 +381,7 @@ class SpanAggregator(SpanProcessor):
                 num_buffered,
                 num_finished - len(spans),
                 num_buffered - num_finished,
-                span.trace_id,
+                spans[0].trace_id,
                 spans[0].name,
                 should_partial_flush,
             )
