@@ -56,10 +56,6 @@ set(ENV{PY_MICRO_VERSION} ${Python3_VERSION_PATCH})
 
 # Cythonize the .pyx file
 set(DDUP_CPP_SRC ${CMAKE_CURRENT_BINARY_DIR}/_ddup.cpp)
-message("================================================")
-message(STATUS "Python3_EXECUTABLE: ${Python3_EXECUTABLE}")
-message(STATUS "PYTHON_EXECUTABLE: ${PYTHON_EXECUTABLE}")
-message("================================================")
 add_custom_command(
     OUTPUT ${DDUP_CPP_SRC}
     COMMAND ${Python3_EXECUTABLE} -m cython ${CMAKE_CURRENT_LIST_DIR}/_ddup.pyx -o ${DDUP_CPP_SRC}
