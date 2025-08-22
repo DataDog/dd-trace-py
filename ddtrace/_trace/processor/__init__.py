@@ -25,7 +25,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.sampling import get_span_sampling_rules
 from ddtrace.internal.service import ServiceStatusError
-from ddtrace.internal.telemetry.constants import TELEMETRY_LOG_LEVEL
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentResponse
 from ddtrace.internal.writer import create_trace_writer
@@ -206,6 +205,16 @@ class TopLevelSpanProcessor(SpanProcessor):
             span._metrics["_dd.top_level"] = 1  # PERF: avoid setting via Span.set_metric
 
 
+class ServiceNameProcessor(TraceProcessor):
+    """Processor that adds the service name to the globalconfig."""
+
+    def process_trace(self, trace: List[Span]) -> Optional[List[Span]]:
+        for span in trace:
+            if span.service:
+                config._add_extra_service(span.service)
+        return trace
+
+
 class TraceTagsProcessor(TraceProcessor):
     """Processor that applies trace-level tags to the trace."""
 
@@ -278,6 +287,7 @@ class SpanAggregator(SpanProcessor):
         self.tags_processor = TraceTagsProcessor()
         self.dd_processors = dd_processors or []
         self.user_processors = user_processors or []
+        self.service_name_processor = ServiceNameProcessor()
         self.writer = create_trace_writer(response_callback=self._agent_response_callback)
         # Initialize the trace buffer and lock
         self._traces: DefaultDict[int, _Trace] = defaultdict(lambda: _Trace())
@@ -295,6 +305,7 @@ class SpanAggregator(SpanProcessor):
             f"{self.__class__.__name__}("
             f"{self.partial_flush_enabled}, "
             f"{self.partial_flush_min_spans}, "
+            f"{self.service_name_processor},"
             f"{self.sampling_processor},"
             f"{self.tags_processor},"
             f"{self.dd_processors}, "
@@ -314,89 +325,67 @@ class SpanAggregator(SpanProcessor):
         log.debug(self.SPAN_START_DEBUG_MESSAGE, span, len(trace.spans))
 
     def on_span_finish(self, span: Span) -> None:
+        # Aqcuire lock to get finished and update trace.spans
         with self._lock:
             integration_name = span._meta.get(COMPONENT, span._span_api)
             self._span_metrics["spans_finished"][integration_name] += 1
 
-            # Calling finish on a span that we did not see the start for
-            # DEV: This can occur if the SpanAggregator is recreated while there is a span in progress
-            #      e.g. `tracer.configure()` is called after starting a span
             if span.trace_id not in self._traces:
-                log_msg = "finished span not connected to a trace"
-                telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                log.debug("%s: %s", log_msg, span)
                 return
 
             trace = self._traces[span.trace_id]
             num_buffered = len(trace.spans)
             trace.num_finished += 1
             should_partial_flush = self.partial_flush_enabled and trace.num_finished >= self.partial_flush_min_spans
-            if trace.num_finished == num_buffered or should_partial_flush:
-                trace_spans = trace.spans
-                trace.spans = []
-                if trace.num_finished < num_buffered:
-                    finished = []
-                    for s in trace_spans:
-                        if s.finished:
-                            finished.append(s)
-                        else:
-                            trace.spans.append(s)
-                else:
-                    finished = trace_spans
+            is_trace_complete = trace.num_finished >= len(trace.spans)
+            if not is_trace_complete and not should_partial_flush:
+                return
 
-                num_finished = len(finished)
-                trace.num_finished -= num_finished
-                if trace.num_finished != 0:
-                    log_msg = "unexpected finished span count"
-                    telemetry.telemetry_writer.add_log(TELEMETRY_LOG_LEVEL.ERROR, log_msg)
-                    log.debug("%s (%s) for span %s", log_msg, num_finished, span)
-                    trace.num_finished = 0
-
-                # If we have removed all spans from this trace, then delete the trace from the traces dict
-                if len(trace.spans) == 0:
-                    del self._traces[span.trace_id]
-
-                # No spans to process, return early
+            if not is_trace_complete:
+                finished = [s for s in trace.spans if s.finished]
                 if not finished:
                     return
-
-                # Set partial flush tag on the first span
-                if should_partial_flush:
-                    finished[0]._metrics[
-                        "_dd.py.partial_flush"
-                    ] = num_finished  # PERF: avoid setting via Span.set_metric
-
-                spans: Optional[List[Span]] = finished
-                for tp in chain(
-                    self.dd_processors, self.user_processors, [self.sampling_processor, self.tags_processor]
-                ):
-                    try:
-                        if spans is None:
-                            return
-                        spans = tp.process_trace(spans)
-                    except Exception:
-                        log.error("error applying processor %r", tp, exc_info=True)
-
+                trace.spans[:] = [s for s in trace.spans if not s.finished]  # In-place update
+                trace.num_finished = 0
+            else:
+                finished = trace.spans
+                del self._traces[span.trace_id]
+                # perf: Flush span finish metrics to the telemetry writer after the trace is complete
                 self._queue_span_count_metrics("spans_finished", "integration_name")
-                if spans:
-                    for span in spans:
-                        if span.service:
-                            # report extra service name as it may have been set after the span creation by the customer
-                            config._add_extra_service(span.service)
 
-                    log.debug(
-                        self.SPAN_FINISH_DEBUG_MESSAGE,
-                        len(spans),
-                        num_buffered,
-                        num_finished - len(spans),
-                        num_buffered - num_finished,
-                        span.trace_id,
-                        spans[0].name,
-                        should_partial_flush,
-                    )
-                    self.writer.write(spans)
-                return
-            return None
+        num_finished = len(finished)
+        if should_partial_flush:
+            # FIXME(munir): should_partial_flush should return false if all the spans in the trace are finished.
+            # For example if partial flushing min spans is 10 and the trace has 10 spans, the trace should
+            # not have a partial flush metric. This trace was processed in its entirety.
+            finished[0].set_metric("_dd.py.partial_flush", num_finished)
+
+        # perf: Process spans outside of the span aggregator lock
+        spans = finished
+        for tp in chain(
+            self.dd_processors,
+            self.user_processors,
+            [self.sampling_processor, self.tags_processor, self.service_name_processor],
+        ):
+            try:
+                spans = tp.process_trace(spans) or []
+                if not spans:
+                    return
+            except Exception:
+                log.error("error applying processor %r to trace %d", tp, span.trace_id, exc_info=True)
+
+        if spans:
+            log.debug(
+                self.SPAN_FINISH_DEBUG_MESSAGE,
+                len(spans),
+                num_buffered,
+                num_finished - len(spans),
+                num_buffered - num_finished,
+                spans[0].trace_id,
+                spans[0].name,
+                should_partial_flush,
+            )
+            self.writer.write(spans)
 
     def _agent_response_callback(self, resp: AgentResponse) -> None:
         """Handle the response from the agent.
@@ -474,6 +463,10 @@ class SpanAggregator(SpanProcessor):
         This method is typically used after a process fork or during runtime reconfiguration.
         Arguments that are None will not override existing values.
         """
+        if not reset_buffer:
+            # Flush any encoded spans in the writer's buffer. This operation ensures encoded spans
+            # are not dropped when the writer is recreated. This operation should not be handled after a fork.
+            self.writer.flush_queue()
         # Re-create the writer to ensure it is consistent with updated configurations (ex: api_version)
         self.writer = self.writer.recreate(appsec_enabled=appsec_enabled)
 
