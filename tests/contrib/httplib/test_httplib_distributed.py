@@ -71,14 +71,23 @@ class TestHTTPLibDistributed(HTTPLibBaseMixin, TracerTestCase):
 
     def test_propagation_connection_true(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = Pin._get_config(conn)
+
+        cfg = {}
+        pin = Pin.get_from(conn)
+        if pin:
+            cfg = pin._config
         cfg["distributed_tracing"] = True
         self.request(conn=conn)
         self.check_enabled()
 
     def test_propagation_connection_false(self):
         conn = self.get_http_connection(SOCKET)
-        cfg = Pin._get_config(conn)
+
+        cfg = {}
+        pin = Pin.get_from(conn)
+        if pin:
+            cfg = pin._config
+
         cfg["distributed_tracing"] = False
         self.request(conn=conn)
         self.check_disabled()

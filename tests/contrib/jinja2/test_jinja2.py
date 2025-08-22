@@ -135,7 +135,10 @@ class Jinja2Test(TracerTestCase):
         loader = jinja2.loaders.FileSystemLoader(TMPL_DIR)
         env = jinja2.Environment(loader=loader)
 
-        cfg = Pin._get_config(env)
+        cfg = {}
+        pin = Pin.get_from(env)
+        if pin:
+            cfg = pin._config
         cfg["service_name"] = "renderer"
 
         t = env.get_template("template.html")
