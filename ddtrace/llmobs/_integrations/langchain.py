@@ -583,7 +583,7 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls = [tool_calls]
             for tool_call in tool_calls:
                 tool_call_info = ToolCall(
-                    type=tool_call.get("type", ""),
+                    type=tool_call.get("type", "tool_call"),
                     name=tool_call.get("name", ""),
                     arguments=tool_call.get("args", {}),  # this is already a dict
                     tool_id=tool_call.get("id", ""),

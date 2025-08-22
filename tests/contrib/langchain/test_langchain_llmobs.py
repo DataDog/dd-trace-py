@@ -487,6 +487,7 @@ def test_llmobs_chat_model_tool_calls(langchain_openai, llmobs_events, tracer, o
                         "name": "add",
                         "arguments": {"a": 1, "b": 2},
                         "tool_id": mock.ANY,
+                        "type": "tool_call",
                     }
                 ],
             }
