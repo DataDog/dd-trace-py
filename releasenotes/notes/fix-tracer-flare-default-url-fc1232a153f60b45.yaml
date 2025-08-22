@@ -1,4 +1,4 @@
 fixes:
   - |
-    This fix resolves an issue where the tracer flare was not sent when DD_TRACE_AGENT_URL was not set,
+    internal: This fix resolves an issue where the tracer flare was not sent when ``DD_TRACE_AGENT_URL`` was not set,
     as the default URL was not used.
