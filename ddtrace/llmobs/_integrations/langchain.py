@@ -36,7 +36,11 @@ from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import validate_prompt
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
+from ddtrace.llmobs.utils import ToolCall
+from ddtrace.llmobs.utils import ToolResult
+from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.trace import Span
 
 
@@ -501,7 +505,15 @@ class LangChainIntegration(BaseLLMIntegration):
                         message.get("content", "") if isinstance(message, dict) else getattr(message, "content", "")
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
-                    input_messages.append({"content": str(content), "role": str(role)})
+                    message_item = {"content": str(content), "role": str(role)}
+                    tool_calls_info = self._extract_tool_calls(message)
+                    if tool_calls_info:
+                        message_item["tool_calls"] = tool_calls_info
+                    tool_results_info = self._extract_tool_results(message)
+                    if tool_results_info:
+                        message_item["content"] = ""  # set content empty to avoid duplication
+                        message_item["tool_results"] = tool_results_info
+                    input_messages.append(message_item)
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
@@ -531,6 +543,9 @@ class LangChainIntegration(BaseLLMIntegration):
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
                 if tool_calls_info:
                     output_message["tool_calls"] = tool_calls_info
+                tool_results_info = self._extract_tool_results(chat_completion_msg)
+                if tool_results_info:
+                    output_message["tool_results"] = tool_results_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
@@ -562,19 +577,35 @@ class LangChainIntegration(BaseLLMIntegration):
 
     def _extract_tool_calls(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
         """Extracts tool calls from a langchain chat completion."""
-        tool_calls = getattr(chat_completion_msg, "tool_calls", None)
+        tool_calls = _get_attr(chat_completion_msg, "tool_calls", None)
         tool_calls_info = []
         if tool_calls:
             if not isinstance(tool_calls, list):
                 tool_calls = [tool_calls]
             for tool_call in tool_calls:
-                tool_call_info = {
-                    "name": tool_call.get("name", ""),
-                    "arguments": tool_call.get("args", {}),  # this is already a dict
-                    "tool_id": tool_call.get("id", ""),
-                }
+                tool_call_info = ToolCall(
+                    type=tool_call.get("type", ""),
+                    name=tool_call.get("name", ""),
+                    arguments=tool_call.get("args", {}),  # this is already a dict
+                    tool_id=tool_call.get("id", ""),
+                )
                 tool_calls_info.append(tool_call_info)
         return tool_calls_info
+
+    def _extract_tool_results(self, chat_completion_msg: Any) -> List[Dict[str, Any]]:
+        """Extracts tool results from a langchain chat completion."""
+        content = _get_attr(chat_completion_msg, "content", "") or ""
+        tool_call_id = _get_attr(chat_completion_msg, "tool_call_id", "") or ""
+        tool_results = []
+        if content and tool_call_id:
+            tool_result_info = ToolResult(
+                type="tool",
+                name=_get_attr(chat_completion_msg, "name", "") or "",
+                result=content,
+                tool_call_id=tool_call_id,
+            )
+            tool_results.append(tool_result_info)
+        return tool_results
 
     def _handle_stream_input_messages(self, inputs):
         input_messages = []
