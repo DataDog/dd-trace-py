@@ -119,7 +119,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         ctx.get_local_item("tracer")
         or (ctx.get_local_item("middleware") or ctx.get_local_item("pin") or ddtrace).tracer
     )
-    integration_config = ctx.get_item("integration_config")
+    integration_config = ctx.get_local_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
@@ -188,7 +188,7 @@ def _set_web_frameworks_tags(ctx, span, int_config):
 
 
 def _on_web_framework_start_request(ctx, int_config):
-    request_span = ctx.get_item("req_span")
+    request_span = ctx.get_local_item("req_span")
     _set_web_frameworks_tags(ctx, request_span, int_config)
 
 
@@ -231,12 +231,12 @@ def _set_inferred_proxy_tags(span, status_code):
 
 def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_config):
     # Skip creating another inferred span if one has already been created for this request
-    if ctx.get_item("inferred_proxy_span"):
+    if ctx.get_local_item("inferred_proxy_span"):
         return
 
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
-    headers = ctx.get_item("headers", ctx.get_item("distributed_headers", None))
+    headers = ctx.get_local_item("headers", ctx.get_item("distributed_headers", None))
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
@@ -246,7 +246,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_c
             child_of=tracer.current_trace_context(),
             tracer=tracer,
         )
-        inferred_proxy_span = ctx.get_item("inferred_proxy_span")
+        inferred_proxy_span = ctx.get_local_item("inferred_proxy_span")
 
         # use the inferred proxy span as the new parent span
         if inferred_proxy_span and not call_trace:
@@ -258,8 +258,8 @@ def _on_inferred_proxy_finish(ctx):
     if not config._inferred_proxy_services_enabled:
         return
 
-    inferred_proxy_span = ctx.get_item("inferred_proxy_span")
-    inferred_proxy_finish_callback = ctx.get_item("inferred_proxy_finish_callback")
+    inferred_proxy_span = ctx.get_local_item("inferred_proxy_span")
+    inferred_proxy_finish_callback = ctx.get_local_item("inferred_proxy_finish_callback")
 
     # add callback to finish inferred proxy span when this span finishes
     if (
@@ -280,7 +280,7 @@ def _on_traced_request_context_started_flask(ctx):
     flask_config = ctx["flask_config"]
     _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
     request_span = _start_span(ctx)
-    request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
+    request_span._ignore_exception(ctx.get_local_item("ignored_exception_type"))
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
@@ -290,7 +290,7 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
     trace_utils.set_http_meta(
         request_span, middleware._config, status_code=status_code, response_headers=ctx["environ"]
     )
-    if ctx.get_item("start_span", False):
+    if ctx.get_local_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
@@ -301,8 +301,8 @@ def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
 
 
 def _on_request_prepare(ctx, start_response):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
+    middleware = ctx.get_local_item("middleware")
+    req_span = ctx.get_local_item("req_span")
     req_span.set_tag_str(COMPONENT, middleware._config.integration_name)
     # set span.kind to the type of operation being performed
     req_span.set_tag_str(SPAN_KIND, SpanKind.SERVER)
@@ -311,7 +311,7 @@ def _on_request_prepare(ctx, start_response):
         args = [ctx]
     else:
         modifier = middleware._request_span_modifier
-        args = [req_span, ctx.get_item("environ")]
+        args = [req_span, ctx.get_local_item("environ")]
     modifier(*args)
     app_span = middleware.tracer.trace(
         middleware._application_call_name
@@ -333,20 +333,20 @@ def _on_request_prepare(ctx, start_response):
 
 
 def _on_app_success(ctx, closing_iterable):
-    app_span = ctx.get_item("app_span")
-    middleware = ctx.get_item("middleware")
+    app_span = ctx.get_local_item("app_span")
+    middleware = ctx.get_local_item("middleware")
     modifier = (
         middleware._application_call_modifier
         if hasattr(middleware, "_application_call_modifier")
         else middleware._application_span_modifier
     )
-    modifier(app_span, ctx.get_item("environ"), closing_iterable)
+    modifier(app_span, ctx.get_local_item("environ"), closing_iterable)
     app_span.finish()
 
 
 def _on_app_exception(ctx):
-    req_span = ctx.get_item("req_span")
-    app_span = ctx.get_item("app_span")
+    req_span = ctx.get_local_item("req_span")
+    app_span = ctx.get_local_item("app_span")
     req_span.set_exc_info(*sys.exc_info())
     app_span.set_exc_info(*sys.exc_info())
     app_span.finish()
@@ -354,8 +354,8 @@ def _on_app_exception(ctx):
 
 
 def _on_request_complete(ctx, closing_iterable, app_is_iterator):
-    middleware = ctx.get_item("middleware")
-    req_span = ctx.get_item("req_span")
+    middleware = ctx.get_local_item("middleware")
+    req_span = ctx.get_local_item("req_span")
     # start flask.response span. This span will be finished after iter(result) is closed.
     # start_span(child_of=...) is used to ensure correct parenting.
     resp_span = middleware.tracer.start_span(
@@ -424,7 +424,7 @@ def _set_flask_request_tags(request, span, flask_config):
 
 
 def _on_start_response_pre(request, ctx, flask_config, status_code, headers):
-    span = ctx.get_item("req_span")
+    span = ctx.get_local_item("req_span")
     code, _, _ = status_code.partition(" ")
     # If values are accessible, set the resource as `<method> <path>` and add other request tags
     _set_flask_request_tags(request, span, flask_config)
@@ -476,7 +476,7 @@ def _on_flask_render(template, flask_config):
 def _on_request_span_modifier(
     ctx, flask_config, request, environ, _HAS_JSON_MIXIN, flask_version, flask_version_str, exception_type
 ):
-    span = ctx.get_item("req_span")
+    span = ctx.get_local_item("req_span")
     # Default resource is method and path:
     #   GET /
     #   POST /save
@@ -491,9 +491,9 @@ def _on_request_span_modifier(
 
 
 def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
-    span = ctx.get_item("req_span")
+    span = ctx.get_local_item("req_span")
     try:
-        raw_uri = ctx.get_item("wsgi.construct_url")(ctx.get_item("environ"))
+        raw_uri = ctx.get_local_item("wsgi.construct_url")(ctx.get_local_item("environ"))
     except Exception:
         raw_uri = request.url
     trace_utils.set_http_meta(
@@ -557,7 +557,7 @@ def _on_django_cache(
     exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     try:
-        rowcount = ctx.get_item("rowcount")
+        rowcount = ctx.get_local_item("rowcount")
         if rowcount is not None:
             ctx.span.set_metric(db.ROWCOUNT, rowcount)
     finally:
@@ -612,17 +612,17 @@ def _on_botocore_patched_api_call_started(ctx):
     span = ctx.span
     set_botocore_patched_api_call_span_tags(
         span,
-        ctx.get_item("instance"),
-        ctx.get_item("args"),
-        ctx.get_item("params"),
-        ctx.get_item("endpoint_name"),
-        ctx.get_item("operation"),
+        ctx.get_local_item("instance"),
+        ctx.get_local_item("args"),
+        ctx.get_local_item("params"),
+        ctx.get_local_item("endpoint_name"),
+        ctx.get_local_item("operation"),
     )
 
     # we need this since we may have ran the wrapped operation before starting the span
     # we need to ensure the span start time is correct
-    start_ns = ctx.get_item("start_ns")
-    if start_ns is not None and ctx.get_item("func_run"):
+    start_ns = ctx.get_local_item("start_ns")
+    if start_ns is not None and ctx.get_local_item("func_run"):
         span.start_ns = start_ns
 
 
@@ -652,9 +652,9 @@ def _on_botocore_patched_api_call_success(ctx, response):
 
         for span_pointer_description in extract_span_pointers_from_successful_botocore_response(
             dynamodb_primary_key_names_for_tables=config.botocore.dynamodb_primary_key_names_for_tables,
-            endpoint_name=ctx.get_item("endpoint_name"),
-            operation_name=ctx.get_item("operation"),
-            request_parameters=ctx.get_item("params"),
+            endpoint_name=ctx.get_local_item("endpoint_name"),
+            operation_name=ctx.get_local_item("operation"),
+            request_parameters=ctx.get_local_item("params"),
             response=response,
         ):
             _set_span_pointer(span, span_pointer_description)
@@ -663,7 +663,7 @@ def _on_botocore_patched_api_call_success(ctx, response):
 def _on_botocore_trace_context_injection_prepared(
     ctx, cloud_service, schematization_function, injection_function, trace_operation
 ):
-    endpoint_name = ctx.get_item("endpoint_name")
+    endpoint_name = ctx.get_local_item("endpoint_name")
     if cloud_service is not None:
         span = ctx.span
         inject_kwargs = dict(endpoint_service=endpoint_name) if cloud_service == "sns" else dict()
