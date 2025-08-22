@@ -28,7 +28,7 @@ from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.settings import asm
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span  # noqa:F401
 from ddtrace.vendor.packaging.version import parse as parse_version
@@ -80,13 +80,12 @@ def traced_init(wrapped, instance, args, kwargs):
 
 def traced_route_init(wrapped, _instance, args, kwargs):
     handler = get_argument_value(args, kwargs, 1, "endpoint")
-    print(f">> {args=} {kwargs=}")
     route = args[0] if args else None
     response_body_type = getattr(kwargs.get("response_class"), "media_type", None)
     response_code = kwargs.get("status_code", None)
     if route:
         for m in kwargs.get("methods", None) or []:
-            asm.endpoint_collection.add_endpoint(
+            endpoint_collection.add_endpoint(
                 m,
                 route,
                 operation_name="fastapi.request",
