@@ -5,6 +5,7 @@ from typing import Dict
 from typing import List
 from typing import Sequence
 from typing import Set
+from typing import Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -28,7 +29,7 @@ class HttpEndPoint:
         return self._hash
 
 
-def _dict_factory(lst: List[tuple[str, Any]]) -> Dict[str, Any]:
+def _dict_factory(lst: List[Tuple[str, Any]]) -> Dict[str, Any]:
     return {k: v for k, v in lst if v not in ((), [], None)}
 
 
