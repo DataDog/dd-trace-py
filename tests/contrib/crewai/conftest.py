@@ -15,10 +15,10 @@ from crewai.tools import tool
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.crewai.patch import patch
 from ddtrace.contrib.internal.crewai.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.contrib.crewai.utils import budget_text
 from tests.contrib.crewai.utils import fun_fact_text
 from tests.contrib.crewai.utils import itinerary_text
