@@ -346,6 +346,47 @@ class BuilderError(Exception):
 
     ...
 
+class logger:
+    """
+    Native logging module for configuring and managing log output.
+    """
+
+    @staticmethod
+    def configure(
+        output: str = "stdout",
+        path: Optional[str] = None,
+        max_files: Optional[int] = None,
+        max_size_bytes: Optional[int] = None,
+    ) -> None:
+        """
+        Configure the logger with the specified output destination.
+
+        :param output: Output destination ("stdout", "stderr", or "file")
+        :param path: File path (required if output is "file")
+        :param max_files: Maximum number of log files to keep (for file output)
+        :param max_size_bytes: Maximum size of each log file in bytes (for file output)
+        :raises ValueError: If configuration is invalid
+        """
+        ...
+    @staticmethod
+    def disable(output: str) -> None:
+        """
+        Disable logging output by type.
+
+        :param output: Output type to disable ("file", "stdout", or "stderr")
+        :raises ValueError: If output type is invalid
+        """
+        ...
+    @staticmethod
+    def set_log_level(level: str) -> None:
+        """
+        Set the log level for the logger.
+
+        :param level: Log level ("trace", "debug", "info", "warn", or "error")
+        :raises ValueError: If log level is invalid
+        """
+        ...
+
 class DeserializationError(Exception):
     """
     Raised when there is an error deserializing trace payload.
