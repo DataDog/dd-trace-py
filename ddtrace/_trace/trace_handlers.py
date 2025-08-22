@@ -197,7 +197,7 @@ def _on_web_framework_start_request(ctx, int_config):
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
-    if core.get_item("set_resource", default=False) is True and status_code is not None:
+    if core.get_local_item("set_resource", default=False) is True and status_code is not None:
         try:
             status_code = int(status_code)
         except ValueError:
@@ -216,7 +216,7 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
-    for tk, tv in core.get_item("additional_tags", default=dict()).items():
+    for tk, tv in core.get_local_item("additional_tags", default=dict()).items():
         span.set_tag_str(tk, tv)
 
     if finish:
@@ -246,7 +246,7 @@ def _on_inferred_proxy_start(ctx, tracer, span_kwargs, call_trace, integration_c
 
     # some integrations like Flask / WSGI store headers from environ in 'distributed_headers'
     # and normalized headers in 'headers'
-    headers = ctx.get_local_item("headers", ctx.get_item("distributed_headers", None))
+    headers = ctx.get_local_item("headers", ctx.get_local_item("distributed_headers", None))
 
     # Inferred Proxy Spans
     if integration_config and headers is not None:
@@ -914,7 +914,7 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
 
 
 def _on_router_match(route):
-    req_span = core.get_item("req_span")
+    req_span = core.get_local_item("req_span")
     core.set_item("set_resource", False)
     req_span.resource = "{} {}".format(
         route.method,
