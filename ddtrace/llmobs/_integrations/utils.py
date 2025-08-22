@@ -369,7 +369,9 @@ def openai_set_meta_tags_from_chat(
             content = streamed_message.get("content", "")
             message = {"content": content, "role": role}
 
-            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(streamed_message, llm_span=span, dispatch_llm_choice=True)
+            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+                streamed_message, llm_span=span, dispatch_llm_choice=True
+            )
             capture_plain_text_tool_call(extracted_tool_calls, content, span)
 
             if extracted_tool_calls:
