@@ -15,6 +15,7 @@ from typing import Tuple  # noqa:F401
 from typing import Union  # noqa:F401
 import urllib.parse as parse
 
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings._agent import config as agent_config
@@ -426,13 +427,11 @@ class TelemetryWriter(PeriodicService):
         if not asm_config_module.config._api_security_endpoint_collection or not self._enabled:
             return
 
-        if not asm_config_module.endpoint_collection.endpoints:
+        if not endpoint_collection.endpoints:
             return
 
         with self._service_lock:
-            payload = asm_config_module.endpoint_collection.flush(
-                asm_config_module.config._api_security_endpoint_collection_limit
-            )
+            payload = endpoint_collection.flush(asm_config_module.config._api_security_endpoint_collection_limit)
 
         self.add_event(payload, "app-endpoints")
 

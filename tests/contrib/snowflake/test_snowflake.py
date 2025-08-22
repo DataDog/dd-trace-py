@@ -6,9 +6,9 @@ import pytest
 import responses
 import snowflake.connector
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.snowflake.patch import patch
 from ddtrace.contrib.internal.snowflake.patch import unpatch
-from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.opentracer.utils import init_tracer
 from tests.utils import override_config

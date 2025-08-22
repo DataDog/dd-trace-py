@@ -4,13 +4,13 @@ from typing import Dict
 import crewai
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._integrations.crewai import CrewAIIntegration
-from ddtrace.trace import Pin
 
 
 def get_version() -> str:
