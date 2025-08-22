@@ -1,0 +1,3 @@
+features:
+  - |
+    LLM Observability: Adds support for collecting tool results in the LangChain integration.
