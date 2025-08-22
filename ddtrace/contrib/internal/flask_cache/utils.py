@@ -1,6 +1,6 @@
 # project
-from ddtrace._trace.utils_redis import _extract_conn_tags as extract_redis_tags
 from ddtrace.contrib.internal.pylibmc.addrs import parse_addresses
+from ddtrace.contrib.internal.redis_utils import _extract_conn_tags as extract_redis_tags
 from ddtrace.ext import net
 
 
