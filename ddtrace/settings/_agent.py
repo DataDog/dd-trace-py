@@ -163,17 +163,17 @@ def get_agent_hostname() -> str:
     """
     Returns the hostname of the agent using the resolved trace_agent_url.
     """
-    try:
-        return urlparse(config.trace_agent_url).hostname
-    except ValueError:
-        return DEFAULT_HOSTNAME
+    url = urlparse(config.trace_agent_url)
+    if url.hostname:
+        return url.hostname
+    return DEFAULT_HOSTNAME
 
 
 def get_agent_port() -> int:
     """
     Returns the port of the agent using the resolved trace_agent_url.
     """
-    try:
-        return urlparse(config.trace_agent_url).port
-    except ValueError:
-        return DEFAULT_TRACE_PORT
+    url = urlparse(config.trace_agent_url)
+    if url.port:
+        return url.port
+    return DEFAULT_TRACE_PORT
