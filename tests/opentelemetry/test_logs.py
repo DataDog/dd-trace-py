@@ -1,7 +1,10 @@
 from concurrent import futures
+import os
 
+from opentelemetry.version import __version__ as api_version_string
 import pytest
 
+from ddtrace.internal.opentelemetry.logs import API_VERSION
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
 
@@ -72,19 +75,34 @@ def find_log_correlation_attributes(captured_logs, log_message: str):
     return lc_attributes
 
 
-@pytest.mark.skipif(
-    EXPORTER_VERSION > (0, 0, 0), reason="Only run if OpenTelemetry exporter is not installed in riot venv"
+@pytest.mark.skipif(API_VERSION > (1, 15, 0), reason="OpenTelemetry API greater than 1.15.0 support logs collection")
+@pytest.mark.subprocess(
+    env={"DD_LOGS_OTEL_ENABLED": "true"},
+    err=(
+        "OpenTelemetry API requires version 1.15.0 or higher to enable logs collection. "
+        f"Found version {api_version_string}. Please upgrade the opentelemetry-api package before "
+        "enabling ddtrace OpenTelemetry Logs support.\n"
+    ).encode(),
 )
-@pytest.mark.subprocess(ddtrace_run=True, env={"DD_LOGS_OTEL_ENABLED": "true"})
-def test_otel_sdk_not_installed_by_default():
-    """
-    Test that the OpenTelemetry logs exporter can be set up correctly.
-    """
-    import pytest
+def test_otel_api_version_not_supported():
+    import ddtrace.auto  # noqa: F401
 
-    # If the OpenTelemetry SDK is not installed
-    with pytest.raises(ImportError):
-        from opentelemetry.sdk.resources import Resource  # noqa: F401
+
+@pytest.mark.skipif(API_VERSION < (1, 15, 0), reason="OpenTelemetry API greater than 1.15.0 support logs collection")
+@pytest.mark.skipif(
+    EXPORTER_VERSION != (0, 0, 0), reason="Test requires that the OpenTelemetry SDK and Exporter are not installed"
+)
+def test_otel_sdk_not_installed(ddtrace_run_python_code_in_subprocess):
+    """Test that appropriate error is shown when OpenTelemetry exporter is not installed."""
+    env = os.environ.copy()
+    env["DD_LOGS_OTEL_ENABLED"] = "true"
+    stdout, stderr, status, _ = ddtrace_run_python_code_in_subprocess(code="", env=env)
+    assert status == 0, (stdout, stderr)
+
+    assert (
+        "OpenTelemetry SDK is not installed, opentelemetry logs will not be enabled. "
+        "Please install the OpenTelemetry SDK before enabling ddtrace OpenTelemetry Logs support." in stderr.decode()
+    ), f"Expected error message not found in stderr: {stderr.decode()}"
 
 
 @pytest.mark.skipif(

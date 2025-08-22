@@ -1,4 +1,9 @@
 import os
+from typing import Any
+from typing import Optional
+from typing import Type
+
+import opentelemetry.version
 
 from ddtrace import config
 from ddtrace.internal.hostname import get_hostname
@@ -13,10 +18,10 @@ log = get_logger(__name__)
 
 
 MINIMUM_SUPPORTED_VERSION = (1, 15, 0)
+API_VERSION = tuple(int(x) for x in opentelemetry.version.__version__.split(".")[:3])
 
-
+DEFAULT_PROTOCOL = "grpc"
 DD_LOGS_PROVIDER_CONFIGURED = False
-
 PROTOCOL_TO_PORT = {
     "grpc": 4317,
     "http/protobuf": 4318,
@@ -24,7 +29,7 @@ PROTOCOL_TO_PORT = {
 }
 
 
-def set_otel_logs_provider():
+def set_otel_logs_provider() -> None:
     """Set up the OpenTelemetry Logs exporter if not already configured."""
     if not _should_configure_logs_exporter():
         return
@@ -33,7 +38,7 @@ def set_otel_logs_provider():
     if resource is None:
         return
 
-    protocol = (exporter_config.OTLP_PROTOCOL or exporter_config.OTLP_LOGS_PROTOCOL or "grpc").lower()
+    protocol = (exporter_config.OTLP_PROTOCOL or exporter_config.OTLP_LOGS_PROTOCOL or DEFAULT_PROTOCOL).lower()
     exporter_class = _import_exporter(protocol)
     if exporter_class is None:
         return
@@ -50,6 +55,15 @@ def _should_configure_logs_exporter() -> bool:
     """Check if the OpenTelemetry Logs exporter should be configured."""
     if DD_LOGS_PROVIDER_CONFIGURED:
         log.warning("OpenTelemetry Logs exporter was already configured by ddtrace, skipping setup.")
+        return False
+
+    if API_VERSION < MINIMUM_SUPPORTED_VERSION:
+        log.warning(
+            "OpenTelemetry API requires version %s or higher to enable logs collection. Found version %s. "
+            "Please upgrade the opentelemetry-api package before enabling ddtrace OpenTelemetry Logs support.",
+            ".".join(str(x) for x in MINIMUM_SUPPORTED_VERSION),
+            ".".join(str(x) for x in API_VERSION),
+        )
         return False
 
     try:
@@ -71,7 +85,7 @@ def _should_configure_logs_exporter() -> bool:
     return True
 
 
-def _build_resource():
+def _build_resource() -> Optional[Any]:
     """Build an OpenTelemetry Resource using DD_TAGS and OTEL_RESOURCE_ATTRIBUTES."""
     try:
         from opentelemetry.sdk.resources import Resource
@@ -86,7 +100,6 @@ def _build_resource():
         if config._report_hostname and "host.name" not in resource_attributes:
             resource_attributes["host.name"] = get_hostname()
 
-        # Convert all attributes to strings, use empty string for None
         resource_attributes = {k: str(v) if v is not None else "" for k, v in resource_attributes.items()}
 
         return Resource.create(resource_attributes)
@@ -98,13 +111,13 @@ def _build_resource():
         return None
 
 
-def _dd_logs_exporter(otel_exporter, protocol, encoding):
+def _dd_logs_exporter(otel_exporter: Type[Any], protocol: str, encoding: str) -> Type[Any]:
     """Create a custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
 
     class DDLogsExporter(otel_exporter):
         """A custom OpenTelemetry Logs exporter that adds telemetry metrics and debug logs."""
 
-        def export(self, batch, *args, **kwargs):
+        def export(self, batch: Any, *args: Any, **kwargs: Any) -> Any:
             """Export logs and queues telemetry metrics."""
             telemetry_writer.add_count_metric(
                 TELEMETRY_NAMESPACE.TRACERS,
@@ -168,7 +181,6 @@ def _initialize_logging(exporter_class, protocol, resource):
         from opentelemetry.sdk._configuration import _init_logging
 
         if not exporter_config.OTLP_ENDPOINT and not exporter_config.OTLP_LOGS_ENDPOINT:
-            # Set default endpoint if none configured, this
             os.environ[
                 "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"
             ] = f"http://{get_agent_hostname()}:{PROTOCOL_TO_PORT[protocol]}"
