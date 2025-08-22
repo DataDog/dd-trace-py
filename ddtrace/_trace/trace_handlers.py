@@ -181,12 +181,20 @@ def _set_web_frameworks_tags(ctx, span, int_config):
 
 def _on_web_framework_start_request(ctx, int_config):
     request_span = ctx.get_item("req_span")
+    if ctx.get_item("allow_default_resource") is True:
+        ctx.set_item("set_resource", True)
     _set_web_frameworks_tags(ctx, request_span, int_config)
 
 
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
+    if core.get_item("set_resource", default=False) is True and status_code is not None:
+        try:
+            status_code = int(status_code)
+        except ValueError:
+            pass
+        span.resource = "{} {}".format(method, status_code)
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -200,6 +208,8 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
+    for tk, tv in core.get_item("additional_tags", default=dict()).items():
+        span.set_tag_str(tk, tv)
 
     if finish:
         span.finish()
@@ -544,8 +554,16 @@ def _on_django_start_response(
     )
 
 
-def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx.span.set_metric(db.ROWCOUNT, rowcount)
+def _on_django_cache(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        rowcount = ctx.get_item("rowcount")
+        if rowcount is not None:
+            ctx.span.set_metric(db.ROWCOUNT, rowcount)
+    finally:
+        return _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
@@ -887,6 +905,22 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
+def _on_router_match(route):
+    req_span = core.get_item("req_span")
+    core.set_item("set_resource", False)
+    req_span.resource = "{} {}".format(
+        route.method,
+        route.template,
+    )
+
+    MOLTEN_ROUTE = "molten.route"
+
+    if not req_span.get_tag(MOLTEN_ROUTE):
+        req_span.set_tag_str(MOLTEN_ROUTE, route.name)
+    if not req_span.get_tag(http.ROUTE):
+        req_span.set_tag_str(http.ROUTE, route.template)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -903,7 +937,6 @@ def listen():
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
-    core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
@@ -958,6 +991,7 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
+    core.on("molten.router.match", _on_router_match)
 
     for context_name in (
         # web frameworks
@@ -966,6 +1000,7 @@ def listen():
         "cherrypy.request",
         "falcon.request",
         "molten.request",
+        "molten.trace_func",
         "pyramid.request",
         "sanic.request",
         "tornado.request",
@@ -1022,11 +1057,15 @@ def listen():
         "django.middleware.process_template_response",
         "django.middleware.process_view",
         "django.template.render",
+        "molten.trace_func",
         "redis.execute_pipeline",
         "redis.command",
         "psycopg.patched_connect",
     ):
         core.on(f"context.ended.{name}", _finish_span)
+
+    # Special/extra handling before calling _finish_span
+    core.on("context.ended.django.cache", _on_django_cache)
 
 
 listen()

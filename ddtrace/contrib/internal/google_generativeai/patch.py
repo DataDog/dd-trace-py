@@ -5,6 +5,7 @@ from typing import Dict
 import google.generativeai as genai
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIAsyncStreamHandler
 from ddtrace.contrib.internal.google_generativeai._utils import GoogleGenerativeAIStramHandler
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -13,7 +14,6 @@ from ddtrace.contrib.internal.trace_utils import wrap
 from ddtrace.llmobs._integrations import GeminiIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.google_utils import extract_provider_and_model_name
-from ddtrace.trace import Pin
 
 
 config._add(
