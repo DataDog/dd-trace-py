@@ -272,30 +272,30 @@ def _on_inferred_proxy_finish(ctx):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    current_span = ctx["pin"].tracer.current_span()
-    if not ctx["pin"].enabled or not current_span:
+    current_span = ctx.get_local_item("pin").tracer.current_span()
+    if not ctx.get_local_item("pin").enabled or not current_span:
         return
 
     ctx.span = current_span
-    flask_config = ctx["flask_config"]
-    _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
+    flask_config = ctx.get_local_item("flask_config")
+    _set_flask_request_tags(ctx.get_local_item("flask_request"), current_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_local_item("ignored_exception_type"))
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
-    request_span = ctx["request_span"]
-    middleware = ctx["middleware"]
-    status_code, status_msg = ctx["status"].split(" ", 1)
+    request_span = ctx.get_local_item("request_span")
+    middleware = ctx.get_local_item("middleware")
+    status_code, status_msg = ctx.get_local_item("status").split(" ", 1)
     trace_utils.set_http_meta(
-        request_span, middleware._config, status_code=status_code, response_headers=ctx["environ"]
+        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_local_item("environ")
     )
     if ctx.get_local_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
             call_trace=False,
-            child_of=ctx["parent_call"],
+            child_of=ctx.get_local_item("parent_call"),
             activate=True,
         )
 
@@ -512,7 +512,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx["pin"], ctx.span, request)
+    before_request_tags(ctx.get_local_item("pin"), ctx.span, request)
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
@@ -526,9 +526,9 @@ def _on_web_request_final_tags(span):
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
-    after_request_tags(ctx["pin"], span, request, response)
+    after_request_tags(ctx.get_local_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx.get_local_item("integration_config"), route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
@@ -541,7 +541,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["integration_config"],
+        ctx.get_local_item("integration_config"),
         method=request.method,
         query=query,
         raw_uri=uri,
@@ -600,8 +600,8 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        peer_ip=core.get_item("http.request.remote_ip"),
-        headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
+        peer_ip=core.get_local_item("http.request.remote_ip"),
+        headers_are_case_sensitive=bool(core.get_local_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
     )
 
@@ -697,11 +697,11 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
-    integration = ctx["bedrock_integration"]
+    integration = ctx.get_local_item("bedrock_integration")
     integration._tag_proxy_request(ctx)
 
-    span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
-    span.set_tag_str("bedrock.request.model", ctx["model_name"])
+    span.set_tag_str("bedrock.request.model_provider", ctx.get_local_item("model_provider"))
+    span.set_tag_str("bedrock.request.model", ctx.get_local_item("model_name"))
 
     if "n" in request_params:
         ctx.set_item("num_generations", str(request_params["n"]))
@@ -710,15 +710,15 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx.span
     span.set_exc_info(*exc_info)
-    model_name = ctx["model_name"]
-    integration = ctx["bedrock_integration"]
+    model_name = ctx.get_local_item("model_name")
+    integration = ctx.get_local_item("bedrock_integration")
     if "embed" not in model_name:
         integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
 def _propagate_context(ctx, headers):
-    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
+    distributed_tracing_enabled = ctx.get_local_item("integration_config").distributed_tracing_enabled
     span = ctx.span
     if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
@@ -739,14 +739,14 @@ def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returns
     """
-    ctx["pin"].tracer.flush()
+    ctx.get_local_item("pin").tracer.flush()
 
 
 def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    ctx["bedrock_integration"].llmobs_set_tags(
+    ctx.get_local_item("bedrock_integration").llmobs_set_tags(
         ctx.span,
         args=[ctx],
         kwargs={},
@@ -760,8 +760,8 @@ def _on_botocore_bedrock_process_response(
     formatted_response: Dict[str, Any],
 ) -> None:
     with ctx.span as span:
-        model_name = ctx["model_name"]
-        integration = ctx["bedrock_integration"]
+        model_name = ctx.get_local_item("model_name")
+        integration = ctx.get_local_item("bedrock_integration")
         if "embed" in model_name:
             return
         integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
