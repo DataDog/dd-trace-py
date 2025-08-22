@@ -338,7 +338,7 @@ def openai_set_meta_tags_from_chat(
             processed_message["content"] = ""  # reset content to empty string if tool calls present
         if extracted_tool_results:
             processed_message["tool_results"] = extracted_tool_results
-            processed_message["content"] = ""
+            processed_message["content"] = ""  # reset content to empty string if tool results present
         input_messages.append(processed_message)
     parameters = get_metadata_from_kwargs(kwargs, integration_name, "chat")
     span._set_ctx_items({INPUT_MESSAGES: input_messages, METADATA: parameters})
