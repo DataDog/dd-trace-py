@@ -3416,13 +3416,12 @@ venv = Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
                 "requests": latest,
-                "hypothesis": latest,
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3474,10 +3473,7 @@ venv = Venv(
             name="appsec_integrations_langchain",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
             pkgs={
-                "pytest": latest,
                 "pytest-asyncio": latest,
-                "pytest-cov": latest,
-                "hypothesis": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3523,6 +3519,7 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(
@@ -3575,6 +3572,7 @@ venv = Venv(
                 "DD_TRACE_AGENT_URL": "http://testagent:9126",
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(
@@ -3624,6 +3622,7 @@ venv = Venv(
                 "AGENT_VERSION": "testagent",
                 "DD_REMOTE_CONFIGURATION_ENABLED": "true",
                 "DD_IAST_DEDUPLICATION_ENABLED": "false",
+                "DD_API_SECURITY_SAMPLE_DELAY": "0",
             },
             venvs=[
                 Venv(

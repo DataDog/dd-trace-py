@@ -5,7 +5,6 @@ from opentelemetry.version import __version__ as api_version_string
 import pytest
 
 from ddtrace.internal.opentelemetry.logs import API_VERSION
-from ddtrace.internal.opentelemetry.logs import HTTP_LOGS_ENDPOINT
 from ddtrace.internal.opentelemetry.logs import MINIMUM_SUPPORTED_VERSION
 
 
@@ -186,6 +185,7 @@ def test_otel_logs_exporter_auto_configured_http():
 
     from opentelemetry._logs import get_logger_provider
 
+    from ddtrace.internal.opentelemetry.logs import HTTP_LOGS_ENDPOINT
     from tests.opentelemetry.test_logs import decode_logs_request
     from tests.opentelemetry.test_logs import extract_log_correlation_attributes
 

@@ -6,6 +6,7 @@ from ddtrace.appsec._iast._handlers import _iast_on_wrapped_view
 from ddtrace.appsec._iast._handlers import _on_asgi_finalize_response
 from ddtrace.appsec._iast._handlers import _on_django_finalize_response_pre
 from ddtrace.appsec._iast._handlers import _on_django_func_wrapped
+from ddtrace.appsec._iast._handlers import _on_django_middleware
 from ddtrace.appsec._iast._handlers import _on_django_patch
 from ddtrace.appsec._iast._handlers import _on_django_technical_500_response
 from ddtrace.appsec._iast._handlers import _on_flask_finalize_request_post
@@ -36,6 +37,16 @@ def iast_listen():
     core.on("django.wsgi_environ", _on_wsgi_environ, "wrapped_result")
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.func.wrapped", _on_django_func_wrapped)
+    for event in (
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
+    ):
+        core.on(f"context.started.{event}", _on_django_middleware)
     core.on("django.technical_500_response", _on_django_technical_500_response)
 
     core.on("flask.patch", _on_flask_patch)

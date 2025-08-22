@@ -74,27 +74,6 @@ def _default_span_processors_factory(
     span_processors: List[SpanProcessor] = []
     span_processors += [TopLevelSpanProcessor()]
 
-    if asm_config._asm_libddwaf_available:
-        if asm_config._asm_enabled:
-            if asm_config._api_security_enabled:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.enable()
-
-        else:
-            # api_security_active will keep track of the service status of APIManager
-            # we don't want to import the module if it was not started before due to
-            # one click activation of ASM via Remote Config
-            if asm_config._api_security_active:
-                from ddtrace.appsec._api_security.api_manager import APIManager
-
-                APIManager.disable()
-
-    if asm_config._iast_enabled:
-        from ddtrace.appsec._iast.processor import AppSecIastSpanProcessor
-
-        span_processors.append(AppSecIastSpanProcessor())
-
     # When using the NativeWriter stats are computed by the native code.
     if config._trace_compute_stats and not config._trace_writer_native:
         # Inline the import to avoid pulling in ddsketch or protobuf
@@ -530,6 +509,8 @@ class Tracer(object):
             if parent:
                 span._parent = parent
                 span._local_root = parent._local_root
+                if span._parent.service == service:
+                    span._service_entry_span = parent._service_entry_span
 
             for k, v in _get_metas_to_propagate(context):
                 # We do not want to propagate AppSec propagation headers

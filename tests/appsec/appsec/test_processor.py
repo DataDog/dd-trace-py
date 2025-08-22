@@ -803,3 +803,18 @@ def test_lambda_unsupported_event(tracer, skip_event):
     else:
         # When skip_event is False, the metric should not be set
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
+
+
+def test_lambda_inferred_span(tracer):
+    """
+    Ensure that when the service entry span is not the root span, the service entry span is tagged
+    and not the root span
+    """
+    config = {"_asm_enabled": True, "_asm_processed_span_types": {SpanTypes.SERVERLESS}}
+
+    with asm_context(tracer=tracer, config=config, span_type=SpanTypes.HTTP, span_name="aws-apigateway") as root_span:
+        with tracer.trace("aws.lambda", service="test_function", span_type=SpanTypes.SERVERLESS) as entry_span:
+            pass
+
+    assert root_span.get_metric(APPSEC.ENABLED) is None
+    assert entry_span.get_metric(APPSEC.ENABLED) == 1.0

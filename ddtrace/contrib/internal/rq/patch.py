@@ -1,6 +1,7 @@
 from typing import Dict
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
@@ -9,7 +10,6 @@ from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 from ....ext import SpanKind
 from ....ext import SpanTypes

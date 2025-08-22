@@ -18,7 +18,6 @@ from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
 from tests.appsec.iast.iast_utils import iast_hypothesis_test
 from tests.appsec.iast.iast_utils import non_empty_text
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -70,9 +69,7 @@ def test_taint_object_with_no_context_should_be_noop():
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
     reset_context()
-    with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-        dict(_iast_debug=True)
-    ), caplog.at_level(logging.DEBUG):
+    with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         string_input = taint_pyobject(
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
         )
