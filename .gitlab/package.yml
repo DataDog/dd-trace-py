@@ -1,3 +1,11 @@
+test_ci_default_branch:
+  image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
+  tags: [ "arch:amd64" ]
+  stage: package
+  script:
+    - echo "CI_DEFAULT_BRANCH: $CI_DEFAULT_BRANCH"
+    - echo "CI_COMMIT_REF_NAME: $CI_COMMIT_REF_NAME"
+
 download_ddtrace_artifacts:
   image: registry.ddbuild.io/images/dd-octo-sts-ci-base:2025.06-1
   tags: [ "arch:amd64" ]
