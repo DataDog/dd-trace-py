@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -28,7 +29,6 @@ from ddtrace.internal.utils import get_blocked
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span  # noqa:F401
 from ddtrace.vendor.packaging.version import parse as parse_version
