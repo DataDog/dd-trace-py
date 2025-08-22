@@ -287,8 +287,8 @@ def get_item(data_key: str, default: Optional[Any] = None) -> Any:
     return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
-def get_local_item(data_key: str) -> Any:
-    return _CURRENT_CONTEXT.get().get_local_item(data_key)
+def get_local_item(data_key: str, default: Optional[Any] = None) -> Any:
+    return _CURRENT_CONTEXT.get().get_local_item(data_key, default=default)
 
 
 def get_items(data_keys: List[str]) -> List[Optional[Any]]:
