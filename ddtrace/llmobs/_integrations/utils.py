@@ -339,7 +339,7 @@ def openai_set_meta_tags_from_chat(
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
         if role != "system":
             # ignore system messages as we may unintentionally parse instructions as tool calls
-            capture_plain_text_tool_call(extracted_tool_calls, content, span, is_input=True)
+            capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span, is_input=True)
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
@@ -372,7 +372,7 @@ def openai_set_meta_tags_from_chat(
             extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
                 streamed_message, llm_span=span, dispatch_llm_choice=True
             )
-            capture_plain_text_tool_call(extracted_tool_calls, content, span)
+            capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
@@ -389,7 +389,7 @@ def openai_set_meta_tags_from_chat(
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
             choice_message, llm_span=span, dispatch_llm_choice=True
         )
-        capture_plain_text_tool_call(extracted_tool_calls, content, span)
+        capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
         message = {"content": content, "role": role}
         if extracted_tool_calls:
@@ -465,15 +465,16 @@ def _openai_extract_tool_calls_and_results_chat(
     return tool_calls, tool_results
 
 
-def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span, is_input: bool = False) -> None:
+def capture_plain_text_tool_usage(tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False) -> None:
     """
-    Captures plain text tool calls from a content string.
+    Captures plain text tool calls and tool results from a content string.
 
-    This is useful for extracting tool calls from ReAct agents which format tool calls as plain text.
-    In this framework, the tool call is formatted within the content string as:
+    This is useful for extracting tool usage from ReAct agents which format tool usage as plain text.
+    In this framework, the tool call and result are formatted within the content string as:
     ```
     Action: <tool_name>
     Action Input: <tool_input>
+    Observation: <observation>
     ```
     """
     if not content:
@@ -483,7 +484,11 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
         action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
         if action_match and isinstance(tool_calls_info, list):
             tool_name = action_match.group(1).strip().strip("*").strip()
-            tool_input = action_match.group(2).split("\nObservation")[0].strip("`").strip().strip(' "')
+            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+            tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
+            observation = ""
+            if len(tool_input_with_observation) > 1:
+                observation = tool_input_with_observation[1].strip()
             tool_calls_info.append(
                 ToolCall(
                     name=tool_name,
@@ -492,6 +497,14 @@ def capture_plain_text_tool_call(tool_calls_info: Any, content: str, span: Span,
                     type="function",
                 )
             )
+            if observation:
+                tool_result_info = ToolResult(
+                    name=tool_name,
+                    result=str(observation) if observation else "",
+                    tool_id="",
+                    type="tool_result",
+                )
+                tool_results_info.append(tool_result_info)
             if is_input:
                 core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
             else:
