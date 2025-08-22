@@ -186,7 +186,7 @@ class Contrib_TestClass_For_Threats:
         """
         if interface.name == "fastapi":
             pytest.skip("API endpoint discovery is only supported in Django/Flask")
-        from ddtrace.settings.asm import endpoint_collection
+        from ddtrace.internal.endpoints import endpoint_collection
 
         def parse(path: str) -> str:
             import re
