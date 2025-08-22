@@ -21,6 +21,7 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import Span
 from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
@@ -41,7 +42,6 @@ import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover

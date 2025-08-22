@@ -18,6 +18,7 @@ from sqlalchemy.event import listen
 # project
 import ddtrace
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
@@ -28,7 +29,6 @@ from ddtrace.ext import sql as sqlx
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_database_operation
 from ddtrace.internal.schema import schematize_service_name
-from ddtrace.trace import Pin
 
 
 def trace_engine(engine, tracer=None, service=None):
