@@ -235,7 +235,7 @@ class MagicMethodsException:
     def __rdivmod__(self, other):
         raise Exception("side effect")
 
-    def __rpow__(self, other):
+    def __rpow__(self, other, modulo=None):
         raise Exception("side effect")
 
     def __rlshift__(self, other):
@@ -274,7 +274,7 @@ class MagicMethodsException:
     def __imod__(self, other):
         raise Exception("side effect")
 
-    def __ipow__(self, other):
+    def __ipow__(self, other, modulo=None):
         raise Exception("side effect")
 
     def __ilshift__(self, other):
@@ -301,7 +301,8 @@ class MagicMethodsException:
     def __deepcopy__(self, memo):
         raise Exception("side effect")
 
-    def __subclasshook__(self, subclass):
+    @classmethod
+    def __subclasshook__(cls, subclass):
         raise Exception("side effect")
 
     def __instancecheck__(self, instance):
@@ -310,16 +311,16 @@ class MagicMethodsException:
     def __subclasscheck__(self, subclass):
         raise Exception("side effect")
 
-    def __prepare__(cls, name, bases):
+    @classmethod
+    def __prepare__(cls, name, bases, **kwds):
         raise Exception("side effect")
 
-    def __class_getitem__(self, item):
+    @classmethod
+    def __class_getitem__(cls, item):
         raise Exception("side effect")
 
-    def __subclass_prepare__(self, cls):
-        raise Exception("side effect")
-
-    def __init_subclass__(self, *args, **kwargs):
+    @classmethod
+    def __init_subclass__(cls, **kwargs):
         raise Exception("side effect")
 
     def __length_hint__(self):
