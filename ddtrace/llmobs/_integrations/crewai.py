@@ -356,7 +356,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     {
                         "span_id": str(trigger_span_dict["span_id"]),
                         "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
+                        "attributes": {"from": "output", "to": "input", "link_type": "control_flow", "annotation": f"{listener_name} triggered by {trigger_method}"},
                     }
                 )
                 continue
@@ -372,7 +372,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     {
                         "span_id": str(method_span_dict["span_id"]),
                         "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
+                        "attributes": {"from": "output", "to": "input", "link_type": "control_flow", "annotation": f"{listener_name} triggered by {method}"},
                     }
                 )
                 flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
