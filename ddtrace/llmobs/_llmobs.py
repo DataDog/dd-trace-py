@@ -650,6 +650,13 @@ class LLMObs(Service):
     def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
         if records is None:
             records = []
+
+        if cls._instance._dne_client._dataset_exists(name) is not None:
+            raise ValueError(
+                f"Dataset '{name}' already exists. "
+                "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
+            )
+
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
@@ -672,6 +679,12 @@ class LLMObs(Service):
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
+
+        if cls._instance._dne_client._dataset_exists(dataset_name) is not None:
+            raise ValueError(
+                f"Dataset '{dataset_name}' already exists. "
+                "Use a different name or Use LLMObs.pull_dataset() to retrieve the existing dataset."
+            )
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
@@ -1060,7 +1073,7 @@ class LLMObs(Service):
         if ml_app is None:
             raise ValueError(
                 "ml_app is required for sending LLM Observability data. "
-                "Ensure the name of your LLM application is set via `DD_LLMOBS_ML_APP` or `LLMObs.enable(ml_app='...')`"
+                "Ensure the name of your LLM application is set via `DD_APP_KEY` or `LLMObs.enable(ml_app='...')`"
                 "before running your application."
             )
         span._set_ctx_items({DECORATOR: _decorator, SPAN_KIND: operation_kind, ML_APP: ml_app})
