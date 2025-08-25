@@ -185,18 +185,16 @@ class Contrib_TestClass_For_Threats:
 
         Also ensure the resource name is set correctly.
         """
-        if interface.name == "fastapi":
-            pytest.skip("API endpoint discovery is only supported in Django/Flask")
         from ddtrace.internal.endpoints import endpoint_collection
 
         def parse(path: str) -> str:
             import re
 
-            # django substitutions to make a url path from route
+            # substitutions to make a url path from route
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
-            path = re.sub(r"<int:param_int>", "123", path)
-            path = re.sub(r"<(str|string):[a-z_]+>", "abczx", path)
+            path = re.sub(r"<int:param_int>|\{[a-z_]+:int\}", "123", path)
+            path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
             return path if path.startswith("/") else ("/" + path)

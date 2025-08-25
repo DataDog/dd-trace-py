@@ -100,6 +100,7 @@ exclude = '''
 (
   \.worktrees/
   | .venv*
+  | \.sg
   | \.riot
   | ddtrace/profiling/
   | test_ci_visibility_api_client_skippable_real_world_responses\.py
@@ -114,6 +115,7 @@ exclude = '''
 (
   \.worktrees/
   | .venv*
+  | \.sg
   | \.riot/
   | ddtrace/appsec/_ddwaf.pyx$
   | ddtrace/internal/_encoding.pyx$
@@ -153,6 +155,7 @@ exclude = [
   ".ddriot",
   ".ddtox",
   ".riot",
+  ".sg",
   ".tox",
   ".venv",
   ".worktrees",
@@ -227,6 +230,7 @@ exclude = [
     "__pycache__",
     ".eggs",
     "*.egg",
+    ".sg",
     "build",
     "ddtrace/__init__.py",
     "ddtrace/vendor/*",
