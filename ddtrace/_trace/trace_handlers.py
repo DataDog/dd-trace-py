@@ -104,30 +104,27 @@ class _TracedIterable(wrapt.ObjectProxy):
 def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, Any]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_local_item(parameter_name)
+        parameter_value = ctx.get_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
+    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
-    call_trace = ctx.get_local_item("call_trace", call_trace)
+    call_trace = ctx.get_item("call_trace", call_trace)
     # Look for the tracer in the context, or fallback to the global tracer
-    tracer = (
-        ctx.get_local_item("tracer")
-        or (ctx.get_local_item("middleware") or ctx.get_local_item("pin") or ddtrace).tracer
-    )
-    integration_config = ctx.get_local_item("integration_config")
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
+    integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx.get_local_item("distributed_headers"),
-            override=ctx.get_local_item("distributed_headers_config_override"),
+            request_headers=ctx.get_item("distributed_headers"),
+            override=ctx.get_item("distributed_headers_config_override"),
         )
-    distributed_context = ctx.get_local_item("distributed_context")
+    distributed_context = ctx.get_item("distributed_context")
     if distributed_context and not call_trace:
         span_kwargs["child_of"] = distributed_context
 
@@ -135,19 +132,19 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         # dispatch event for checking headers and possibly making an inferred proxy span
         core.dispatch("inferred_proxy.start", (ctx, tracer, span_kwargs, call_trace, integration_config))
         # re-get span_kwargs in case an inferred span was created and we have a new span_kwargs.child_of field
-        span_kwargs = ctx.get_local_item("span_kwargs", span_kwargs)
+        span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
     span_kwargs.update(kwargs)
-    span_name = ctx.get_local_item("span_name")
+    span_name = ctx.get_item("span_name")
     if not span_name:
         raise ValueError("span_name must be set in the context before starting a span")
     span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    tags: Optional[Dict[str, str]] = ctx.get_local_item("tags")
+    tags: Optional[Dict[str, str]] = ctx.get_item("tags")
     if tags:
         for tk, tv in tags.items():
             span.set_tag(tk, tv)
-    if ctx.get_local_item("measured"):
+    if ctx.get_item("measured"):
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
@@ -175,7 +172,7 @@ def _finish_span(
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
-    elif ctx.get_local_item("should_set_traceback", False):
+    elif ctx.get_item("should_set_traceback", False):
         span.set_traceback()
     span.finish()
 
@@ -197,7 +194,7 @@ def _on_web_framework_start_request(ctx, int_config):
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
-    if core.get_local_item("set_resource", default=False) is True and status_code is not None:
+    if core.get_item("set_resource", default=False) is True and status_code is not None:
         try:
             status_code = int(status_code)
         except ValueError:
@@ -216,7 +213,7 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
-    for tk, tv in core.get_local_item("additional_tags", default=dict()).items():
+    for tk, tv in core.get_item("additional_tags", default=dict()).items():
         span.set_tag_str(tk, tv)
 
     if finish:
@@ -294,18 +291,18 @@ def _on_traced_request_context_started_flask(ctx):
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
-    request_span = ctx.get_local_item("request_span")
-    middleware = ctx.get_local_item("middleware")
-    status_code, status_msg = ctx.get_local_item("status").split(" ", 1)
+    request_span = ctx.get_item("request_span")
+    middleware = ctx.get_item("middleware")
+    status_code, status_msg = ctx.get_item("status").split(" ", 1)
     trace_utils.set_http_meta(
-        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_local_item("environ")
+        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
     )
-    if ctx.get_local_item("start_span", False):
+    if ctx.get_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
             call_trace=False,
-            child_of=ctx.get_local_item("parent_call"),
+            child_of=ctx.get_item("parent_call"),
             activate=True,
         )
 
@@ -522,7 +519,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx.get_local_item("pin"), ctx.span, request)
+    before_request_tags(ctx.get_item("pin"), ctx.span, request)
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
@@ -567,7 +564,7 @@ def _on_django_cache(
     exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
 ) -> None:
     try:
-        rowcount = ctx.get_local_item("rowcount")
+        rowcount = ctx.get_item("rowcount")
         if rowcount is not None:
             ctx.span.set_metric(db.ROWCOUNT, rowcount)
     finally:
@@ -610,8 +607,8 @@ def _on_django_after_request_headers_post(
         response_headers=response_headers,
         request_cookies=request.COOKIES,
         request_path_params=request.resolver_match.kwargs if request.resolver_match is not None else None,
-        peer_ip=core.get_local_item("http.request.remote_ip"),
-        headers_are_case_sensitive=bool(core.get_local_item("http.request.headers_case_sensitive")),
+        peer_ip=core.get_item("http.request.remote_ip"),
+        headers_are_case_sensitive=bool(core.get_item("http.request.headers_case_sensitive")),
         response_cookies=response_cookies,
     )
 
@@ -756,7 +753,7 @@ def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    ctx.get_local_item("bedrock_integration").llmobs_set_tags(
+    ctx.get_item("bedrock_integration").llmobs_set_tags(
         ctx.span,
         args=[ctx],
         kwargs={},
@@ -770,8 +767,8 @@ def _on_botocore_bedrock_process_response(
     formatted_response: Dict[str, Any],
 ) -> None:
     with ctx.span as span:
-        model_name = ctx.get_local_item("model_name")
-        integration = ctx.get_local_item("bedrock_integration")
+        model_name = ctx.get_item("model_name")
+        integration = ctx.get_item("bedrock_integration")
         if "embed" in model_name:
             return
         integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)
@@ -914,7 +911,7 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
 
 
 def _on_router_match(route):
-    req_span = core.get_local_item("req_span")
+    req_span = core.get_item("req_span")
     core.set_item("set_resource", False)
     req_span.resource = "{} {}".format(
         route.method,
