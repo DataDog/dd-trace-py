@@ -661,6 +661,9 @@ class Config(object):
         self._inferred_proxy_services_enabled = _get_config("DD_TRACE_INFERRED_PROXY_SERVICES_ENABLED", False, asbool)
         self._trace_safe_instrumentation_enabled = _get_config("DD_TRACE_SAFE_INSTRUMENTATION_ENABLED", False, asbool)
 
+        # Native extensions logging.
+        self._native_logging = _get_config("_DD_NATIVE_LOGGING_ENABLED", False, asbool)
+
     def __getattr__(self, name) -> Any:
         if name in self._config:
             return self._config[name].value()
