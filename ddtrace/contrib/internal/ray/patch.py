@@ -156,7 +156,9 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     ) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
+
         try:
+            # Injecting context into serialized runtime env
             updated_serialized_runtime_env_info = _inject_dd_tracing_into_runtime_env(
                 kwargs.get("serialized_runtime_env_info", "{}"), span
             )
@@ -193,22 +195,6 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             raise e
 
 
-# def traced_actor_remote_method(wrapped, instance, args, kwargs):
-#     if not tracer:
-#         return wrapped(*args, **kwargs)
-
-#     function_descriptor = instance._actor._ray_actor_creation_function_descriptor
-#     module = function_descriptor.module_name
-#     class_name = function_descriptor.class_name
-#     method_name = instance._method_name
-
-#     with open("trace_log.txt", "a") as log_file:
-#         log_file.write(f"ActorMethod method call, Module: {module}, Class: {class_name}, Method: {method_name}\n")
-
-#     # For all other actor method calls, proceed normally
-#     return wrapped(*args, **kwargs)
-
-
 def flush_worker_spans(wrapped, instance, args, kwargs):
     # Ensure the tracer has the time to send spans before
     # before the worker is killed
@@ -217,186 +203,6 @@ def flush_worker_spans(wrapped, instance, args, kwargs):
 
     time.sleep(0.5)
     return wrapped(*args, **kwargs)
-
-
-def _create_span_wrapper(method: Callable[..., Any]) -> Any:
-    """Create a synchronous span wrapper for actor methods."""
-
-    def _traced_method(
-        self: Any,
-        *_args: Any,
-        **_kwargs: Any,
-    ) -> Any:
-        from ddtrace import tracer as dd_tracer
-        from ddtrace.ext import SpanTypes
-        from ddtrace.propagation.http import _TraceContext
-
-        if not dd_tracer:
-            return method(self, *_args, **_kwargs)
-
-        if os.environ.get("traceparent") is not None:
-            extracted_context = _TraceContext._extract(
-                {
-                    "traceparent": os.environ.get("traceparent"),
-                    "tracestate": os.environ.get("tracestate"),
-                }
-            )
-            dd_tracer.context_provider.activate(extracted_context)
-
-        method_name = f"{self.__class__.__name__}.{method.__name__}"
-        with dd_tracer.trace(
-            "ray.actor.method", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
-        ) as span:
-            span.set_tag_str("component", "ray")
-            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-            span.resource = method_name
-
-            return method(self, *_args, **_kwargs)
-
-    return _traced_method
-
-
-def _create_async_span_wrapper(method: Callable[..., Any]) -> Any:
-    """Create an asynchronous span wrapper for actor methods."""
-
-    async def _traced_async_method(
-        self: Any,
-        *_args: Any,
-        **_kwargs: Any,
-    ) -> Any:
-        from ddtrace import tracer as dd_tracer
-        from ddtrace.ext import SpanTypes
-        from ddtrace.propagation.http import _TraceContext
-
-        if not dd_tracer:
-            return await method(self, *_args, **_kwargs)
-
-        if os.environ.get("traceparent") is not None:
-            extracted_context = _TraceContext._extract(
-                {
-                    "traceparent": os.environ.get("traceparent"),
-                    "tracestate": os.environ.get("tracestate"),
-                }
-            )
-            dd_tracer.context_provider.activate(extracted_context)
-
-        method_name = f"{self.__class__.__name__}.{method.__name__}"
-        with dd_tracer.trace(
-            "ray.actor.method", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
-        ) as span:
-            span.set_tag_str("component", "ray")
-            span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-            span.resource = method_name
-
-            return await method(self, *_args, **_kwargs)
-
-    return _traced_async_method
-
-
-def _handle_job_supervisor_tracing(cls):
-    methods_to_ignore = {"_polling", "ping"}
-
-    def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
-        async def _traced_run_method(self: Any, *_args: Any, **_kwargs: Any) -> Any:
-            from ddtrace import tracer as dd_tracer
-            from ddtrace.ext import SpanTypes
-            from ddtrace.propagation.http import _TraceContext
-
-            if not dd_tracer:
-                return await method(self, *_args, **_kwargs)
-
-            if os.environ.get("traceparent") is not None:
-                extracted_context = _TraceContext._extract(
-                    {
-                        "traceparent": os.environ.get("traceparent"),
-                        "tracestate": os.environ.get("tracestate"),
-                    }
-                )
-                dd_tracer.context_provider.activate(extracted_context)
-
-            method_name = f"{self.__class__.__name__}.{method.__name__}"
-            with dd_tracer.trace(
-                "ray.job.run", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
-            ) as span:
-                span.set_tag_str("component", "ray")
-                span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
-                span.resource = method_name
-
-                headers = {}
-                _TraceContext._inject(span.context, headers)
-                os.environ["traceparent"] = headers.get("traceparent", "")
-                os.environ["tracestate"] = headers.get("tracestate", "")
-
-                return await method(self, *_args, **_kwargs)
-
-        return _traced_run_method
-
-    methods = inspect.getmembers(cls, is_function_or_method)
-    for name, method in methods:
-        # Skip methods we don't want to trace
-        if name in methods_to_ignore:
-            continue
-
-        if (
-            is_static_method(cls, name)
-            or is_class_method(method)
-            or inspect.isgeneratorfunction(method)
-            or inspect.isasyncgenfunction(method)
-            or name == "__del__"
-        ):
-            continue
-
-        # Special handling for the run method
-        if name == "run" and inspect.iscoroutinefunction(method):
-            wrapped_method = wraps(method)(job_supervisor_run_wrapper(method))
-        else:
-            # Regular tracing for all other methods using shared wrappers
-            if inspect.iscoroutinefunction(method):
-                wrapped_method = wraps(method)(_create_async_span_wrapper(method))
-            else:
-                wrapped_method = wraps(method)(_create_span_wrapper(method))
-
-        setattr(cls, name, wrapped_method)
-
-    return cls
-
-
-def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
-    # Import tracer inside the function to avoid global reference issues
-    from ddtrace import tracer as dd_tracer
-
-    if not dd_tracer:
-        return wrapped(*args, **kwargs)
-
-    cls = wrapped(*args, **kwargs)
-    module_name = str(cls.__module__)
-    class_name = str(cls.__name__)
-    if module_name.startswith("ray.dag") or module_name.startswith("ray.experimental"):
-        return cls
-
-    if f"{module_name}.{class_name}" == "ray.dashboard.modules.job.job_supervisor.JobSupervisor":
-        return _handle_job_supervisor_tracing(cls)
-
-    methods = inspect.getmembers(cls, is_function_or_method)
-    for name, method in methods:
-        if (
-            is_static_method(cls, name)
-            or is_class_method(method)
-            or inspect.isgeneratorfunction(method)
-            or inspect.isasyncgenfunction(method)
-            or name == "__del__"
-        ):
-            continue
-
-        if inspect.iscoroutinefunction(method):
-            wrapped_method = wraps(method)(_create_async_span_wrapper(method))
-        else:
-            wrapped_method = wraps(method)(_create_span_wrapper(method))
-
-        setattr(cls, name, wrapped_method)
-
-    return cls
-
 
 def patch():
     if getattr(ray, "_datadog_patch", False):
@@ -409,13 +215,6 @@ def patch():
     _w(ray.remote_function, "RemoteFunction._remote", traced_submit_task)
     _w(ray._private.worker, "disconnect", flush_worker_spans)
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
-    _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
-
-    def empty_inject_tracing_into_class(_cls):
-        return _cls
-
-    ray.util.tracing.tracing_helper._inject_tracing_into_class = empty_inject_tracing_into_class
-
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
