@@ -70,6 +70,7 @@ IP_PATTERNS = (
     "x-real-ip",
     "true-client-ip",
     "x-client-ip",
+    "forwarded",
     "forwarded-for",
     "x-cluster-client-ip",
     "fastly-client-ip",
