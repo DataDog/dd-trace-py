@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    AAP: This introduces endpoint discovery for FastAPI applications. It allows the collection of API endpoints of a FastAPI application at startup.
