@@ -116,7 +116,7 @@ def _loop_handler(span, chunk, streamed_chunks):
     When handling a streamed chat/completion/responses,
     this function is called for each chunk in the streamed response.
     """
-    if span.get_tag("openai.response.model") is None:
+    if span.get_tag("openai.response.model") is None or not span.get_tag("openai.response.model"):
         if hasattr(chunk, "type") and chunk.type.startswith("response."):
             response = getattr(chunk, "response", None)
             model = getattr(response, "model", "")
