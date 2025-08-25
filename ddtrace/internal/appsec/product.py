@@ -1,3 +1,4 @@
+from ddtrace.settings.asm import ai_guard_config
 from ddtrace.settings.asm import config
 
 
@@ -17,6 +18,11 @@ def start():
         from ddtrace.appsec._listeners import load_appsec
 
         load_appsec()
+
+    if ai_guard_config._ai_guard_enabled:
+        from ddtrace.appsec._ai_guard import init_ai_guard
+
+        init_ai_guard()
 
 
 def restart(join=False):
