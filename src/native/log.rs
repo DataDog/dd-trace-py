@@ -22,7 +22,7 @@ pub mod logger {
                 .ok_or_else(|| PyValueError::new_err("Missing output argument"))?
                 .extract()?;
         } else {
-            output = "output".to_string();
+            output = "stdout".to_string();
         }
 
         match output.as_str() {
