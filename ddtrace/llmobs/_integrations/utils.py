@@ -465,7 +465,9 @@ def _openai_extract_tool_calls_and_results_chat(
     return tool_calls, tool_results
 
 
-def capture_plain_text_tool_usage(tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False) -> None:
+def capture_plain_text_tool_usage(
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
 
