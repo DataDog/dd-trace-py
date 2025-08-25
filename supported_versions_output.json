@@ -382,7 +382,7 @@
         "dependency": "langgraph",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.2.23",
-        "max_tracer_supported": "0.6.3",
+        "max_tracer_supported": "0.6.5",
         "auto-instrumented": true
     },
     {
@@ -396,7 +396,7 @@
         "dependency": "langgraph-prebuilt",
         "integration": "langgraph",
         "minimum_tracer_supported": "0.1.8",
-        "max_tracer_supported": "0.6.3",
+        "max_tracer_supported": "0.6.4",
         "auto-instrumented": true
     },
     {

@@ -28,6 +28,7 @@ from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import load_data_value
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs.utils import ToolCall
 from ddtrace.llmobs.utils import ToolDefinition
 from ddtrace.llmobs.utils import ToolResult
@@ -146,6 +147,8 @@ LITELLM_METADATA_COMPLETION_KEYS = (
     "model_list",
     "custom_llm_provider",
 )
+
+REACT_AGENT_TOOL_CALL_REGEX = r"Action\s*\d*\s*:[\s]*(.*?)[\s]*Action\s*\d*\s*Input\s*\d*\s*:[\s]*(.*)"
 
 
 def get_llmobs_metrics_tags(integration_name, span):
@@ -323,15 +326,20 @@ def openai_set_meta_tags_from_chat(
     """Extract prompt/response tags from a chat completion and set them as temporary "_ml_obs.meta.*" tags."""
     input_messages = []
     for m in kwargs.get("messages", []):
+        content = str(_get_attr(m, "content", ""))
+        role = str(_get_attr(m, "role", ""))
         processed_message: Dict[str, Union[str, List[ToolCall], List[ToolResult]]] = {
-            "content": str(_get_attr(m, "content", "")),
-            "role": str(_get_attr(m, "role", "")),
+            "content": content,
+            "role": role,
         }
         tool_call_id = _get_attr(m, "tool_call_id", None)
         if tool_call_id:
             core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(m)
+        if role != "system":
+            # ignore system messages as we may unintentionally parse instructions as tool calls
+            capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span, is_input=True)
 
         if extracted_tool_calls:
             processed_message["tool_calls"] = extracted_tool_calls
@@ -358,15 +366,16 @@ def openai_set_meta_tags_from_chat(
         for streamed_message in messages:
             # litellm roles appear only on the first choice, so store it to be used for all choices
             role = streamed_message.get("role", "") or role
-            message = {"content": streamed_message.get("content", ""), "role": role}
+            content = streamed_message.get("content", "")
+            message = {"content": content, "role": role}
 
-            extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(streamed_message)
+            extracted_tool_calls, _ = _openai_extract_tool_calls_and_results_chat(
+                streamed_message, llm_span=span, dispatch_llm_choice=True
+            )
+            capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
+
             if extracted_tool_calls:
                 message["tool_calls"] = extracted_tool_calls
-            if extracted_tool_results:
-                message["tool_results"] = extracted_tool_results
-                message["content"] = ""  # set content empty to avoid duplication
-
             output_messages.append(message)
         span._set_ctx_item(OUTPUT_MESSAGES, output_messages)
         return
@@ -380,6 +389,7 @@ def openai_set_meta_tags_from_chat(
         extracted_tool_calls, extracted_tool_results = _openai_extract_tool_calls_and_results_chat(
             choice_message, llm_span=span, dispatch_llm_choice=True
         )
+        capture_plain_text_tool_usage(extracted_tool_calls, extracted_tool_results, content, span)
 
         message = {"content": content, "role": role}
         if extracted_tool_calls:
@@ -420,11 +430,7 @@ def _openai_extract_tool_calls_and_results_chat(
                     },
                 ),
             )
-        try:
-            if isinstance(raw_args, str):
-                raw_args = json.loads(raw_args)
-        except (json.JSONDecodeError, TypeError):
-            raw_args = {"value": str(raw_args)}
+        raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
 
         tool_call_info = ToolCall(
             name=tool_name,
@@ -449,10 +455,7 @@ def _openai_extract_tool_calls_and_results_chat(
     function_call = _get_attr(message, "function_call", {})
     if function_call:
         arguments = _get_attr(function_call, "arguments", {})
-        try:
-            arguments = json.loads(arguments)
-        except (json.JSONDecodeError, TypeError):
-            arguments = {"value": str(arguments)}
+        arguments = safe_load_json(arguments)
         tool_call_info = ToolCall(
             name=_get_attr(function_call, "name", ""),
             arguments=arguments,
@@ -460,6 +463,67 @@ def _openai_extract_tool_calls_and_results_chat(
         tool_calls.append(tool_call_info)
 
     return tool_calls, tool_results
+
+
+def capture_plain_text_tool_usage(
+    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
+) -> None:
+    """
+    Captures plain text tool calls and tool results from a content string.
+
+    This is useful for extracting tool usage from ReAct agents which format tool usage as plain text.
+    In this framework, the tool call and result are formatted within the content string as:
+    ```
+    Action: <tool_name>
+    Action Input: <tool_input>
+    Observation: <observation>
+    ```
+    """
+    if not content:
+        return
+
+    try:
+        action_match = re.search(REACT_AGENT_TOOL_CALL_REGEX, content, re.DOTALL)
+        if action_match and isinstance(tool_calls_info, list):
+            tool_name = action_match.group(1).strip().strip("*").strip()
+            tool_input_with_observation = action_match.group(2).split("\nObservation:")
+            tool_input = tool_input_with_observation[0].strip("`").strip().strip(' "')
+            observation = ""
+            if len(tool_input_with_observation) > 1:
+                observation = tool_input_with_observation[1].strip()
+            tool_calls_info.append(
+                ToolCall(
+                    name=tool_name,
+                    arguments=safe_load_json(tool_input),
+                    tool_id="",
+                    type="function",
+                )
+            )
+            if observation:
+                tool_result_info = ToolResult(
+                    name=tool_name,
+                    result=str(observation) if observation else "",
+                    tool_id="",
+                    type="tool_result",
+                )
+                tool_results_info.append(tool_result_info)
+            if is_input:
+                core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_name + tool_input, span))
+            else:
+                core.dispatch(
+                    DISPATCH_ON_LLM_TOOL_CHOICE,
+                    (
+                        tool_name + tool_input,
+                        tool_name,
+                        tool_input,
+                        {
+                            "trace_id": format_trace_id(span.trace_id),
+                            "span_id": str(span.span_id),
+                        },
+                    ),
+                )
+    except Exception:
+        logger.warning("Failed to capture plain text tool call from content: %s", content, exc_info=True)
 
 
 def get_metadata_from_kwargs(
@@ -511,10 +575,7 @@ def openai_get_input_messages_from_response_input(
         elif "call_id" in item and ("arguments" in item or "input" in item):
             # Process `ResponseFunctionToolCallParam` or ResponseCustomToolCallParam type from input messages
             arguments_str = item.get("arguments", "{}") or item.get("input", "{}")
-            try:
-                arguments = json.loads(arguments_str)
-            except json.JSONDecodeError:
-                arguments = {"value": str(arguments_str)}
+            arguments = safe_load_json(arguments_str)
 
             tool_call_info = ToolCall(
                 tool_id=item["call_id"],
@@ -596,10 +657,7 @@ def openai_get_output_messages_from_response(response: Optional[Any]) -> List[Di
             )
         elif message_type == "function_call" or message_type == "custom_tool_call":
             arguments = _get_attr(item, "input", "") or _get_attr(item, "arguments", "{}")
-            try:
-                arguments = json.loads(arguments)
-            except json.JSONDecodeError:
-                arguments = {"value": str(arguments)}
+            arguments = safe_load_json(arguments)
             tool_call_info = ToolCall(
                 tool_id=_get_attr(item, "call_id", ""),
                 arguments=arguments,
