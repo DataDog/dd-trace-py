@@ -16,6 +16,8 @@ class LogSignal(Signal):
     (e.g. conditions) might need to be reported.
     """
 
+    __type__ = "di_snapshot"
+
     @property
     @abc.abstractmethod
     def message(self) -> t.Optional[str]:
@@ -61,6 +63,7 @@ class LogSignal(Signal):
             "evaluationErrors": [{"expr": e.expr, "message": e.message} for e in self.errors],
             "probe": self._probe_details(),
             "language": "python",
+            "type": self.__type__,
         }
         full_data.update(self.data)
 
