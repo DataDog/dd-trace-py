@@ -8,9 +8,10 @@ from langchain_core.messages.human import HumanMessage
 from langchain_core.messages.system import SystemMessage
 from langchain_core.messages.tool import ToolMessage
 
-from ddtrace.appsec.ai_guard import AIGuardAbortError, ToolCall
+from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Prompt
+from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.contrib.internal.langchain.patch import DispatchResult
 

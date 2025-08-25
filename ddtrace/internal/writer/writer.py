@@ -20,6 +20,7 @@ from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.asm import ai_guard_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
@@ -542,6 +543,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 
@@ -734,6 +736,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 

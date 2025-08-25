@@ -256,7 +256,7 @@ class AIGuardClient:
             return evaluation
 
         span.set_struct_tag(
-            AI_GUARD.TAG,
+            AI_GUARD.STRUCT,
             {
                 "history": [truncate_output(e) for e in history],
                 "current": truncate_output(current),
@@ -270,7 +270,7 @@ class AIGuardClient:
 
     def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
         """Send evaluation request to AI Guard service."""
-        with self._tracer.trace(AI_GUARD.SPAN_TYPE) as span:
+        with self._tracer.trace(AI_GUARD.RESOURCE_TYPE) as span:
             if tags is not None:
                 span.set_tags(tags)
             try:
