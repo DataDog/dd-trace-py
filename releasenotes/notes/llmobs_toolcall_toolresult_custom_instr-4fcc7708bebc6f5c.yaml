@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    llmobs: This introduces support for tool calls and tool results in LLMObs message annotations when using custom instrumentation. 
+    The ``LLMObs.annotate()`` method now accept input and output data with optional 
+    ``tool_calls`` and ``tool_results`` fields for function calling scenarios.
