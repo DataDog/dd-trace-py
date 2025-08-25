@@ -17,8 +17,9 @@ from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
 from ddtrace.constants import _SAMPLING_PRIORITY_KEY
 from ddtrace.constants import _SPAN_MEASURED_KEY
-from ddtrace.ext import SpanTypes
+from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanKind
+from ddtrace.ext import SpanTypes
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
@@ -33,7 +34,6 @@ import ray.dashboard.modules.job.common
 import ray.dashboard.modules.job.job_manager
 import ray.dashboard.modules.job.job_supervisor
 import ray.util.tracing.tracing_helper
-from ddtrace.constants import SPAN_KIND
 
 
 class RayTraceProcessor:
@@ -71,12 +71,7 @@ def _inject_tracing_into_function(function):
 
 
 def _inject_dd_tracing_into_runtime_env(serialized_runtime_env_info, current_span):
-    """
-    Inject Datadog tracing information into the serialized runtime environment info.
-    """
-
     def parse_json_string(json_string, default):
-        """Helper function to parse a JSON string or return a default value."""
         if json_string and json_string.strip() != "{}":
             return json.loads(json_string)
         return default
@@ -115,9 +110,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     function_module = getattr(wrapped, "__module__", "unknown_module")
 
     tracer.context_provider.activate(extracted_context)
-    with tracer.trace(
-        "ray.task.execute", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
-    ) as span:
+    with tracer.trace("ray.task.execute", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         span.resource = f"{function_module}.{function_name}"
@@ -151,9 +144,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
             instance._tracing_injected = True
 
     tracer.context_provider.activate(extracted_context)
-    with tracer.trace(
-        "ray.task.submit", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
-    ) as span:
+    with tracer.trace("ray.task.submit", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -204,6 +195,7 @@ def flush_worker_spans(wrapped, instance, args, kwargs):
     time.sleep(0.5)
     return wrapped(*args, **kwargs)
 
+
 def patch():
     if getattr(ray, "_datadog_patch", False):
         return
@@ -215,6 +207,7 @@ def patch():
     _w(ray.remote_function, "RemoteFunction._remote", traced_submit_task)
     _w(ray._private.worker, "disconnect", flush_worker_spans)
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
+
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
