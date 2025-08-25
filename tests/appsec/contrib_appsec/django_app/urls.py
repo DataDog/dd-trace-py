@@ -14,6 +14,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -91,7 +92,7 @@ def rasp(request, endpoint: str):
                     res.append(f"File: {f.read()}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\br>\n".join(res))
     elif endpoint == "ssrf":
         res = ["ssrf endpoint"]
@@ -119,7 +120,7 @@ def rasp(request, endpoint: str):
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "sql_injection":
         res = ["sql_injection endpoint"]
@@ -132,7 +133,7 @@ def rasp(request, endpoint: str):
                     res.append(f"Url: {list(cursor)}")
             except Exception as e:
                 res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "shell_injection":
         res = ["shell_injection endpoint"]
@@ -141,12 +142,12 @@ def rasp(request, endpoint: str):
                 cmd = query_params[param]
                 try:
                     if param.startswith("cmdsys"):
-                        res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                        res.append(f"cmd stdout: {os.system(f'ls {cmd}')}")
                     else:
-                        res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True)}')
+                        res.append(f"cmd stdout: {subprocess.run(f'ls {cmd}', shell=True)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
     elif endpoint == "command_injection":
         res = ["command_injection endpoint"]
@@ -154,18 +155,18 @@ def rasp(request, endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"])}')
+                    res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):
                 cmd = query_params[param]
                 try:
-                    res.append(f"cmd stdout: {subprocess.run(cmd)}")
+                    res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HttpResponse("<\\br>\n".join(res))
-    tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+    tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
     return HttpResponse(f"Unknown endpoint: {endpoint}")
 
 
@@ -244,7 +245,7 @@ def login_user_sdk(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin._override(django, service=service_name, tracer=ddtrace.tracer)
+    Pin._override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 

@@ -52,6 +52,9 @@ class _observator:
         else:
             self.container_depth = max(self.container_depth, depth)
 
+    def __repr__(self) -> str:
+        return f"_observator(length={self.string_length}, size={self.container_size}, depth={self.container_depth})"
+
 
 class DDWaf_result:
     __slots__ = [

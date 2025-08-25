@@ -6,13 +6,13 @@ import azure.servicebus.aio as azure_servicebus_aio
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 from .utils import create_context
 from .utils import handle_service_bus_message_arg

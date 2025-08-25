@@ -253,7 +253,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 0.121.1
+      max: 0.157.0
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -353,7 +353,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.115.12
+      max: 0.116.1
 
 - integration_name: flask
   is_external_package: true

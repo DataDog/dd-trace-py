@@ -7,6 +7,7 @@ import boto.connection
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.utils_botocore.span_tags import _derive_peer_hostname
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
@@ -21,7 +22,6 @@ from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 # Original boto client class
