@@ -69,7 +69,6 @@ RUN python3.12 -m pip install -U pip \
     envier~=0.5 \
     opentelemetry-api>=1 \
     protobuf>=3 \
-    typing_extensions \
     xmltodict>=0.12
 
 
