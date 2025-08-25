@@ -16,8 +16,6 @@ from typing import cast
 from typing import overload
 import uuid
 
-from typing_extensions import NotRequired
-
 import ddtrace
 from ddtrace import config
 from ddtrace.constants import ERROR_MSG
@@ -50,10 +48,13 @@ class DatasetRecordRaw(TypedDict):
     metadata: Dict[str, Any]
 
 
-class UpdatableDatasetRecord(TypedDict):
-    input_data: NotRequired[DatasetRecordInputType]
-    expected_output: NotRequired[JSONType]
-    metadata: NotRequired[Dict[str, Any]]
+class _UpdatableDatasetRecordOptional(TypedDict, total=False):
+    input_data: DatasetRecordInputType
+    expected_output: JSONType
+    metadata: Dict[str, Any]
+
+
+class UpdatableDatasetRecord(_UpdatableDatasetRecordOptional):
     record_id: str
 
 

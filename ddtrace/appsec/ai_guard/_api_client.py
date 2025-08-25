@@ -4,17 +4,8 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Text
+from typing import TypedDict
 from typing import Union
-
-from ddtrace.internal.utils.http import Response
-from ddtrace.internal.utils.http import get_connection
-
-
-try:
-    from typing import TypedDict
-except ImportError:
-    from typing_extensions import TypedDict
-from typing_extensions import NotRequired
 
 from ddtrace import config
 from ddtrace import tracer as ddtracer
@@ -23,6 +14,8 @@ from ddtrace.internal import telemetry
 import ddtrace.internal.logger as ddlogger
 from ddtrace.internal.telemetry import TELEMETRY_NAMESPACE
 from ddtrace.internal.telemetry.metrics_namespaces import MetricTagType
+from ddtrace.internal.utils.http import Response
+from ddtrace.internal.utils.http import get_connection
 from ddtrace.settings.asm import ai_guard_config
 
 
@@ -34,16 +27,22 @@ ABORT = "ABORT"
 ACTIONS = [ALLOW, DENY, ABORT]
 
 
-class Prompt(TypedDict):
+class _PromptOptional(TypedDict, total=False):
+    output: str
+
+
+class Prompt(_PromptOptional):
     role: str
     content: str
-    output: NotRequired[str]
 
 
-class ToolCall(TypedDict):
+class _ToolCallOptional(TypedDict, total=False):
+    output: str
+
+
+class ToolCall(_ToolCallOptional):
     tool_name: str
     tool_args: Dict[Union[Text, bytes], Any]
-    output: NotRequired[str]
 
 
 Evaluation = Union[Prompt, ToolCall]
