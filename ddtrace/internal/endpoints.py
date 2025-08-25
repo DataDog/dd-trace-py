@@ -4,7 +4,6 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Sequence
-from typing import Dict
 from typing import Set
 from typing import Tuple
 
@@ -43,7 +42,6 @@ class Singleton(type):
         if cls not in cls._instances:
             cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
         return cls._instances[cls]
-
 
 
 @dataclasses.dataclass()
