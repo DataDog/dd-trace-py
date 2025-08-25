@@ -403,12 +403,16 @@ class STACK_TRACE(metaclass=Constant_Class):
 
 class AI_GUARD(metaclass=Constant_Class):
     # span related information
-    SPAN_TYPE: Literal["ai_guard"] = "ai_guard"
+    RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
+
     TAG: Literal["ai_guard"] = "ai_guard"
     ACTION_TAG: str = TAG + ".action"
     REASON_TAG: str = TAG + ".reason"
     TARGET_TAG: str = TAG + ".target"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
+
+    # meta struct
+    STRUCT: Literal["ai_guard"] = "ai_guard"
 
     # metrics
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
