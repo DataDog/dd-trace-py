@@ -165,5 +165,5 @@ class SensitiveData:
 
 def sensitive_stuff(pwd):
     token, answer, data = "deadbeef", 42, SensitiveData()  # noqa:F841
-    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin"}  # noqa:F841
+    pii_dict = {"jwt": "deadbeef", "password": "hunter2", "username": "admin", b"authorization": "shh"}  # noqa
     return pwd

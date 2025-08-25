@@ -13,6 +13,10 @@ def start():
         from ddtrace.appsec._remoteconfiguration import enable_appsec_rc
 
         enable_appsec_rc()
+    if config._asm_enabled:
+        from ddtrace.appsec._listeners import load_appsec
+
+        load_appsec()
 
 
 def restart(join=False):

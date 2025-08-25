@@ -5,6 +5,7 @@ import grpc
 from grpc.framework.foundation import logging_pool
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
@@ -14,7 +15,6 @@ from ddtrace.contrib.internal.grpc.patch import _unpatch_server
 from ddtrace.contrib.internal.grpc.patch import patch
 from ddtrace.contrib.internal.grpc.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import snapshot
 

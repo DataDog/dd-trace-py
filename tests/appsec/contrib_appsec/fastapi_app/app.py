@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -38,6 +39,29 @@ class User(BaseModel):
 
 def get_app():
     app = FastAPI()
+
+    @app.middleware("http")
+    async def passthrough_middleware(request: Request, call_next):
+        """Middleware to test BlockingException nesting in ExceptionGroups (or BaseExceptionGroups)
+
+        With middlewares, the BlockingException can become nested multiple levels deep inside
+        an ExceptionGroup (or BaseExceptionGroup). The nesting depends the version of FastAPI
+        and AnyIO used, as well as the version of python.
+        By adding this empty middleware, we ensure that the BlockingException is catched
+        no matter how deep the ExceptionGroup is nested or else the contrib tests fail.
+        """
+        return await call_next(request)
+
+    @app.middleware("http")
+    async def rename_service(request: Request, call_next):
+        if request.headers.get("x-rename-service", "false").lower() == "true":
+            service_name = "sub-service"
+            root_span = tracer.current_root_span()
+            if root_span is not None:
+                root_span.service = service_name
+                root_span.set_tag("scope", service_name)
+
+        return await call_next(request)
 
     @app.get("/")
     @app.post("/")
@@ -105,7 +129,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        ddtrace.trace.Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):
@@ -137,7 +161,7 @@ def get_app():
                         res.append(f"File: {f.read()}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\br>\n".join(res))
         elif endpoint == "ssrf":
             res = ["ssrf endpoint"]
@@ -165,7 +189,7 @@ def get_app():
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "sql_injection":
             res = ["sql_injection endpoint"]
@@ -178,7 +202,7 @@ def get_app():
                         res.append(f"Url: {list(cursor)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "shell_injection":
             res = ["shell_injection endpoint"]
@@ -187,12 +211,12 @@ def get_app():
                     cmd = query_params[param]
                     try:
                         if param.startswith("cmdsys"):
-                            res.append(f'cmd stdout: {os.system(f"ls {cmd}")}')
+                            res.append(f"cmd stdout: {os.system(f'ls {cmd}')}")
                         else:
-                            res.append(f'cmd stdout: {subprocess.run(f"ls {cmd}", shell=True, timeout=1)}')
+                            res.append(f"cmd stdout: {subprocess.run(f'ls {cmd}', shell=True, timeout=1)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         elif endpoint == "command_injection":
             res = ["command_injection endpoint"]
@@ -200,7 +224,7 @@ def get_app():
                 if param.startswith("cmda"):
                     cmd = query_params[param]
                     try:
-                        res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"], timeout=1)}')
+                        res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=1)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
                 elif param.startswith("cmds"):
@@ -209,9 +233,9 @@ def get_app():
                         res.append(f"cmd stdout: {subprocess.run(cmd, timeout=1)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
-            tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+            tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
-        tracer.current_span()._local_root.set_tag("rasp.request.done", endpoint)
+        tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
 
     @app.get("/login/")

@@ -614,6 +614,23 @@ class SpanTestCase(TracerTestCase):
         span_log.warning.assert_has_calls(expected_calls, any_order=True)
         assert span_log.warning.call_count == 4
 
+    def test_service_entry_span(self):
+        parent = self.start_span("parent", service="service1")
+        child1 = self.start_span("child1", service="service1", child_of=parent)
+        child2 = self.start_span("child2", service="service2", child_of=parent)
+
+        assert parent._service_entry_span is parent
+        assert child1._service_entry_span is parent
+        assert child2._service_entry_span is child2
+
+        # Renaming the service does not change the service entry span
+        child1.service = "service3"
+        assert child1._service_entry_span is parent
+
+        # Service entry span only works for the immediate parent
+        grandchild = self.start_span("grandchild", service="service1", child_of=child2)
+        assert grandchild._service_entry_span is grandchild
+
 
 @pytest.mark.parametrize(
     "value,assertion",

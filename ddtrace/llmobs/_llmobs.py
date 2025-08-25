@@ -54,6 +54,8 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import EXPERIMENT_CSV_FIELD_MAX_SIZE
 from ddtrace.llmobs._constants import EXPERIMENT_EXPECTED_OUTPUT
 from ddtrace.llmobs._constants import EXPERIMENT_ID_KEY
+from ddtrace.llmobs._constants import EXPERIMENTS_INPUT
+from ddtrace.llmobs._constants import EXPERIMENTS_OUTPUT
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -91,6 +93,7 @@ from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
@@ -145,7 +148,10 @@ class LLMObsSpan:
     Passed to the `span_processor` function in the `enable` or `register_processor` methods.
 
     Example::
-        def span_processor(span: LLMObsSpan) -> LLMObsSpan:
+        def span_processor(span: LLMObsSpan) -> Optional[LLMObsSpan]:
+            # Modify input/output
+            if span.get_tag("omit_span") == "1":
+                return None
             if span.get_tag("no_input") == "1":
                 span.input = []
             return span
@@ -178,7 +184,7 @@ class LLMObs(Service):
     def __init__(
         self,
         tracer: Optional[Tracer] = None,
-        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
+        span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
     ) -> None:
         super(LLMObs, self).__init__()
         self.tracer = tracer or ddtrace.tracer
@@ -230,6 +236,8 @@ class LLMObs(Service):
         span_event = None
         try:
             span_event = self._llmobs_span_event(span)
+            if span_event is None:
+                return
             self._llmobs_span_writer.enqueue(span_event)
         except (KeyError, TypeError, ValueError):
             log.error(
@@ -241,7 +249,7 @@ class LLMObs(Service):
             if self._evaluator_runner:
                 self._evaluator_runner.enqueue(span_event, span)
 
-    def _llmobs_span_event(self, span: Span) -> LLMObsSpanEvent:
+    def _llmobs_span_event(self, span: Span) -> Optional[LLMObsSpanEvent]:
         """Span event object structure."""
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
@@ -273,9 +281,18 @@ class LLMObs(Service):
 
         if span.context.get_baggage_item(EXPERIMENT_ID_KEY):
             _dd_attrs["scope"] = "experiments"
-            expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
-            if span_kind == "experiment" and expected_output:
-                meta["expected_output"] = expected_output
+            if span_kind == "experiment":
+                expected_output = span._get_ctx_item(EXPERIMENT_EXPECTED_OUTPUT)
+                if expected_output:
+                    meta["expected_output"] = expected_output
+
+                input_data = span._get_ctx_item(EXPERIMENTS_INPUT)
+                if input_data:
+                    meta["input"] = input_data
+
+                output_data = span._get_ctx_item(EXPERIMENTS_OUTPUT)
+                if output_data:
+                    meta["output"] = output_data
 
         input_messages = span._get_ctx_item(INPUT_MESSAGES)
         if span_kind == "llm" and input_messages is not None:
@@ -297,6 +314,7 @@ class LLMObs(Service):
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
+
         if span._get_ctx_item(INPUT_PROMPT) is not None:
             prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
@@ -305,6 +323,13 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
+        elif span_kind == "llm":
+            parent_span = _get_nearest_llmobs_ancestor(span)
+            if parent_span is not None:
+                parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
+                if parent_prompt is not None:
+                    meta["input"]["prompt"] = parent_prompt
+
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
@@ -321,8 +346,12 @@ class LLMObs(Service):
             try:
                 llmobs_span._tags = cast(Dict[str, str], span._get_ctx_item(TAGS))
                 user_llmobs_span = self._user_span_processor(llmobs_span)
+                if user_llmobs_span is None:
+                    return None
                 if not isinstance(user_llmobs_span, LLMObsSpan):
-                    raise TypeError("User span processor must return an LLMObsSpan, got %r" % type(user_llmobs_span))
+                    raise TypeError(
+                        "User span processor must return an LLMObsSpan or None, got %r" % type(user_llmobs_span)
+                    )
                 llmobs_span = user_llmobs_span
             except Exception as e:
                 log.error("Error in LLMObs span processor (%r): %r", self._user_span_processor, e)
@@ -389,7 +418,9 @@ class LLMObs(Service):
 
     @staticmethod
     def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+        dd_tags = config.tags
         tags = {
+            **dd_tags,
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
@@ -488,7 +519,7 @@ class LLMObs(Service):
         project_name: Optional[str] = None,
         env: Optional[str] = None,
         service: Optional[str] = None,
-        span_processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None,
+        span_processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None,
         _tracer: Optional[Tracer] = None,
         _auto: bool = False,
     ) -> None:
@@ -505,8 +536,8 @@ class LLMObs(Service):
         :param str project_name: Your project name used for experiments.
         :param str env: Your environment name.
         :param str service: Your service name.
-        :param Callable[[LLMObsSpan], LLMObsSpan] span_processor: A function that takes an LLMObsSpan and returns an
-            LLMObsSpan.
+        :param Callable[[LLMObsSpan], Optional[LLMObsSpan]] span_processor: A function that takes an LLMObsSpan and
+            returns an LLMObsSpan or None. If None is returned, the span will be omitted and not sent to LLMObs.
         """
         if cls.enabled:
             log.debug("%s already enabled", cls.__name__)
@@ -527,6 +558,11 @@ class LLMObs(Service):
 
         # FIXME: workaround to prevent noisy logs when using the experiments feature
         if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
+            log.debug(
+                "Tracing has been disabled: app key detected and DD_TRACE_ENABLED is not set to 'true' "
+                "(current value: DD_TRACE_ENABLED='%s')",
+                os.environ.get("DD_TRACE_ENABLED", ""),
+            )
             ddtrace.tracer.enabled = False
 
         error = None
@@ -585,6 +621,15 @@ class LLMObs(Service):
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
 
             log.debug("%s enabled; instrumented_proxy_urls: %s", cls.__name__, config._llmobs_instrumented_proxy_urls)
+
+            llmobs_info = {
+                "llmobs_enabled": cls.enabled,
+                "llmobs_ml_app": config._llmobs_ml_app,
+                "integrations_enabled": integrations_enabled,
+                "llmobs_agentless_enabled": config._llmobs_agentless_enabled,
+            }
+            log.debug("LLMObs configurations: %s", llmobs_info)
+
         finally:
             telemetry.record_llmobs_enabled(
                 error,
@@ -602,7 +647,9 @@ class LLMObs(Service):
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str, records: List[DatasetRecord] = []) -> Dataset:
+    def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
+        if records is None:
+            records = []
         ds = cls._instance._dne_client.dataset_create(name, description)
         for r in records:
             ds.append(r)
@@ -616,11 +663,15 @@ class LLMObs(Service):
         csv_path: str,
         dataset_name: str,
         input_data_columns: List[str],
-        expected_output_columns: List[str],
-        metadata_columns: List[str] = [],
+        expected_output_columns: Optional[List[str]] = None,
+        metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
         description="",
     ) -> Dataset:
+        if expected_output_columns is None:
+            expected_output_columns = []
+        if metadata_columns is None:
+            metadata_columns = []
         ds = cls._instance._dne_client.dataset_create(dataset_name, description)
 
         # Store the original field size limit to restore it later
@@ -726,14 +777,16 @@ class LLMObs(Service):
         )
 
     @classmethod
-    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], LLMObsSpan]] = None) -> None:
+    def register_processor(cls, processor: Optional[Callable[[LLMObsSpan], Optional[LLMObsSpan]]] = None) -> None:
         """Register a processor to be called on each LLMObs span.
 
         This can be used to modify the span before it is sent to LLMObs. For example, you can modify the input/output.
+        You can also return None to omit the span entirely from being sent to LLMObs.
 
         To deregister the processor, call `register_processor(None)`.
 
-        :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan.
+        :param processor: A function that takes an LLMObsSpan and returns an LLMObsSpan or None.
+                         If None is returned, the span will be omitted and not sent to LLMObs.
         """
         cls._instance._user_span_processor = processor
 
@@ -906,7 +959,8 @@ class LLMObs(Service):
             {k: asbool(v) for k, v in dd_patch_modules_to_str.items() if k in SUPPORTED_LLMOBS_INTEGRATIONS.values()}
         )
         patch(raise_errors=True, **integrations_to_patch)
-        log.debug("Patched LLM integrations: %s", list(SUPPORTED_LLMOBS_INTEGRATIONS.values()))
+        llm_patched_modules = [k for k, v in integrations_to_patch.items() if v]
+        log.debug("Patched LLM integrations: %s", llm_patched_modules)
 
     @classmethod
     def export_span(cls, span: Optional[Span] = None) -> Optional[ExportedLLMObsSpan]:
@@ -1339,6 +1393,8 @@ class LLMObs(Service):
                     error = cls._tag_embedding_io(span, input_documents=input_data, output_text=output_data)
                 elif span_kind == "retrieval":
                     error = cls._tag_retrieval_io(span, input_text=input_data, output_documents=output_data)
+                elif span_kind == "experiment":
+                    cls._tag_freeform_io(span, input_value=input_data, output_value=output_data)
                 else:
                     cls._tag_text_io(span, input_value=input_data, output_value=output_data)
         finally:
@@ -1419,6 +1475,18 @@ class LLMObs(Service):
             span._set_ctx_item(INPUT_VALUE, safe_json(input_value))
         if output_value is not None:
             span._set_ctx_item(OUTPUT_VALUE, safe_json(output_value))
+
+    @classmethod
+    def _tag_freeform_io(cls, span, input_value=None, output_value=None):
+        """Tags input/output values for experient spans.
+        Will be mapped to span's `meta.{input,output}` fields.
+        this is meant to be non restrictive on user's data, experiments allow
+        arbitrary structured or non structured IO values in its spans
+        """
+        if input_value is not None:
+            span._set_ctx_item(EXPERIMENTS_INPUT, safe_json(input_value))
+        if output_value is not None:
+            span._set_ctx_item(EXPERIMENTS_OUTPUT, safe_json(output_value))
 
     @staticmethod
     def _set_dict_attribute(span: Span, key, value: Dict[str, Any]) -> None:

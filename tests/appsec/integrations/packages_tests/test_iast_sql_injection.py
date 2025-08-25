@@ -102,3 +102,26 @@ def test_sql_injection_deduplication(fixture_path, fixture_module):
     sqli_vulnerabilities = [x for x in data["vulnerabilities"] if x["type"] == VULN_SQL_INJECTION]
     assert len(sqli_vulnerabilities) == 1
     VulnerabilityBase._prepare_report._reset_cache()
+
+
+def test_sqlalchemy_complex_query_error():
+    """Test that complex SQLAlchemy queries with CASE expressions work correctly with IAST.
+
+    This test verifies that the IAST system properly handles complex SQLAlchemy queries
+    that use CASE expressions. The test was added to catch a specific issue where
+    SQLAlchemy's internal objects would raise a SystemError when their __repr__ was called
+    during string formatting operations.
+
+    The error occurred because some SQLAlchemy objects (like those in CASE expressions)
+    have a __repr__ method that can raise exceptions in certain contexts. When IAST tried
+    to format these objects as part of its taint tracking, it would encounter the error:
+
+        SystemError: <slot wrapper '__repr__' of 'object' objects> returned a result with an exception set
+
+    This was fixed by improving the string formatting logic in the IAST modulo aspect to
+    properly handle objects with problematic __repr__ methods.
+    """
+    mod = _iast_patched_module("tests.appsec.integrations.fixtures.sql_injection_sqlalchemy")
+
+    result = mod.sql_complex()
+    assert result == [("1",)]

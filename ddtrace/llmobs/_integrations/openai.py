@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -26,7 +27,6 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_respons
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 
@@ -75,9 +75,9 @@ class OpenAIIntegration(BaseLLMIntegration):
         """Check if the traced operation is from the given provider."""
         base_url = None
         if parse_version(self._openai.version.VERSION) >= (1, 0, 0):
-            base_url = self._client._base_url
+            base_url = getattr(self._client, "_base_url", None)
         else:
-            base_url = self._openai.api_base
+            base_url = getattr(self._openai, "api_base", None)
         base_url = str(base_url) if base_url else None
         if not base_url or not isinstance(base_url, str):
             return False

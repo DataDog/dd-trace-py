@@ -16,6 +16,7 @@ import botocore.exceptions
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -34,7 +35,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.llmobs._integrations import BedrockIntegration
 from ddtrace.settings._config import Config
-from ddtrace.trace import Pin
 
 from .services.bedrock import patched_bedrock_api_call
 from .services.bedrock_agents import patched_bedrock_agents_api_call

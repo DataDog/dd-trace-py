@@ -13,6 +13,8 @@ variables:
   # VPA Template configuration
   DD_VPA_TEMPLATE: "vpa-template-cpu-p70-10percent-2x-oom-min-cap"
   # CI_DEBUG_SERVICES: "true"
+  # Automatically managed, use scripts/update-system-tests-version to update
+  SYSTEM_TESTS_REF: "333b66edb27dfece508f5c6c73730564553f2670"
 
 default:
   interruptible: true
@@ -42,8 +44,16 @@ include:
 tests-gen:
   stage: tests
   extends: .testrunner
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   script:
-    - pip install riot==0.20.1
+    - |
+      if [ -z ${GH_TOKEN} ]
+      then
+        # Use dd-octo-sts to get GitHub token
+        export GH_TOKEN=$(dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read)
+      fi
     - riot -v run --pass-env -s gitlab-gen-config -v
   needs: []
   artifacts:
@@ -63,6 +73,14 @@ run-tests-trigger:
      - artifact: .gitlab/tests-gen.yml
        job: tests-gen
    strategy: depend
+
+# Validate the ast-grep rule's test suite in .sg/tests
+"test ast-grep rules":
+  extends: .testrunner
+  stage: tests
+  needs: []
+  script:
+    - hatch run lint:sg-test
 
 microbenchmarks:
   stage: benchmarks

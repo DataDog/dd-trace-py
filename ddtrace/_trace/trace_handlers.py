@@ -11,6 +11,7 @@ from urllib import parse
 
 import wrapt
 
+import ddtrace
 from ddtrace import config
 from ddtrace._trace._inferred_proxy import create_inferred_proxy_span_if_headers_exist
 from ddtrace._trace._span_pointer import _SpanPointerDescription
@@ -28,6 +29,7 @@ from ddtrace.ext import SpanKind
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.ext import db
 from ddtrace.ext import http
+from ddtrace.ext import redis as redisx
 from ddtrace.internal import core
 from ddtrace.internal.compat import maybe_stringify
 from ddtrace.internal.constants import COMPONENT
@@ -112,7 +114,8 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
-    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx["pin"]).tracer
+    # Look for the tracer in the context, or fallback to the global tracer
+    tracer = ctx.get_item("tracer") or (ctx.get_item("middleware") or ctx.get_item("pin") or ddtrace).tracer
     integration_config = ctx.get_item("integration_config")
     if integration_config and activate_distributed_headers:
         trace_utils.activate_distributed_headers(
@@ -135,7 +138,10 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
     span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
 
     for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag_str(tk, tv)
+        span.set_tag(tk, tv)
+    if ctx.get_item("measured"):
+        # PERF: avoid setting via Span.set_tag
+        span.set_metric(_SPAN_MEASURED_KEY, 1)
 
     ctx.span = span
 
@@ -161,6 +167,8 @@ def _finish_span(
     exc_type, exc_value, exc_traceback = exc_info
     if exc_type and exc_value and exc_traceback:
         span.set_exc_info(exc_type, exc_value, exc_traceback)
+    elif ctx.get_item("should_set_traceback", False):
+        span.set_traceback()
     span.finish()
 
 
@@ -173,12 +181,20 @@ def _set_web_frameworks_tags(ctx, span, int_config):
 
 def _on_web_framework_start_request(ctx, int_config):
     request_span = ctx.get_item("req_span")
+    if ctx.get_item("allow_default_resource") is True:
+        ctx.set_item("set_resource", True)
     _set_web_frameworks_tags(ctx, request_span, int_config)
 
 
 def _on_web_framework_finish_request(
     span, int_config, method, url, status_code, query, req_headers, res_headers, route, finish, **kwargs
 ):
+    if core.get_item("set_resource", default=False) is True and status_code is not None:
+        try:
+            status_code = int(status_code)
+        except ValueError:
+            pass
+        span.resource = "{} {}".format(method, status_code)
     trace_utils.set_http_meta(
         span=span,
         integration_config=int_config,
@@ -192,6 +208,8 @@ def _on_web_framework_finish_request(
         **kwargs,
     )
     _set_inferred_proxy_tags(span, status_code)
+    for tk, tv in core.get_item("additional_tags", default=dict()).items():
+        span.set_tag_str(tk, tv)
 
     if finish:
         span.finish()
@@ -536,19 +554,22 @@ def _on_django_start_response(
     )
 
 
-def _on_django_cache(ctx: core.ExecutionContext, rowcount: int):
-    ctx.span.set_metric(db.ROWCOUNT, rowcount)
+def _on_django_cache(
+    ctx: core.ExecutionContext,
+    exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]],
+) -> None:
+    try:
+        rowcount = ctx.get_item("rowcount")
+        if rowcount is not None:
+            ctx.span.set_metric(db.ROWCOUNT, rowcount)
+    finally:
+        return _finish_span(ctx, exc_info)
 
 
 def _on_django_func_wrapped(_unused1, _unused2, _unused3, ctx, ignored_excs):
     if ignored_excs:
         for exc in ignored_excs:
             ctx.span._ignore_exception(exc)
-
-
-def _on_django_process_exception(ctx: core.ExecutionContext, should_set_traceback: bool):
-    if should_set_traceback:
-        ctx.span.set_traceback()
 
 
 def _on_django_block_request(ctx: core.ExecutionContext, metadata: Dict[str, str], django_config, url: str, query: str):
@@ -778,6 +799,18 @@ def _on_redis_command_post(ctx: core.ExecutionContext, rowcount):
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
 
 
+def _on_redis_execute_pipeline(ctx: core.ExecutionContext, pin, config_integration, args, instance, query):
+    span = ctx.span
+    if args is not None:
+        # PERF: avoid extra overhead from checks in Span.set_metric
+        span._metrics[redisx.ARGS_LEN] = len(args)
+    else:
+        for attr in ("command_stack", "_command_stack"):
+            if hasattr(instance, attr):
+                # PERF: avoid extra overhead from checks in Span.set_metric
+                span._metrics[redisx.PIPELINE_LEN] = len(getattr(instance, attr))
+
+
 def _on_valkey_command_post(ctx: core.ExecutionContext, rowcount):
     if rowcount is not None:
         ctx.span.set_metric(db.ROWCOUNT, rowcount)
@@ -872,6 +905,22 @@ def _on_azure_servicebus_send_message_modifier(ctx, azure_servicebus_config, ent
     span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
 
+def _on_router_match(route):
+    req_span = core.get_item("req_span")
+    core.set_item("set_resource", False)
+    req_span.resource = "{} {}".format(
+        route.method,
+        route.template,
+    )
+
+    MOLTEN_ROUTE = "molten.route"
+
+    if not req_span.get_tag(MOLTEN_ROUTE):
+        req_span.set_tag_str(MOLTEN_ROUTE, route.name)
+    if not req_span.get_tag(http.ROUTE):
+        req_span.set_tag_str(http.ROUTE, route.template)
+
+
 def listen():
     core.on("wsgi.request.prepare", _on_request_prepare)
     core.on("wsgi.request.prepared", _on_request_prepared)
@@ -888,9 +937,7 @@ def listen():
     core.on("django.traced_get_response.pre", _on_traced_get_response_pre)
     core.on("django.finalize_response.pre", _on_django_finalize_response_pre)
     core.on("django.start_response", _on_django_start_response)
-    core.on("django.cache", _on_django_cache)
     core.on("django.func.wrapped", _on_django_func_wrapped)
-    core.on("django.process_exception", _on_django_process_exception)
     core.on("django.block_request_callback", _on_django_block_request)
     core.on("django.after_request_headers.post", _on_django_after_request_headers_post)
     core.on("botocore.patched_api_call.exception", _on_botocore_patched_api_call_exception)
@@ -920,6 +967,7 @@ def listen():
     core.on("botocore.kinesis.GetRecords.post", _on_botocore_kinesis_getrecords_post)
     core.on("redis.async_command.post", _on_redis_command_post)
     core.on("redis.command.post", _on_redis_command_post)
+    core.on("redis.execute_pipeline", _on_redis_execute_pipeline)
     core.on("valkey.async_command.post", _on_valkey_command_post)
     core.on("valkey.command.post", _on_valkey_command_post)
     core.on("azure.functions.request_call_modifier", _on_azure_functions_request_span_modifier)
@@ -943,6 +991,7 @@ def listen():
     core.on("rq.worker.perform_job", _after_job_execution)
     core.on("rq.worker.after.perform.job", _on_end_of_traced_method_in_fork)
     core.on("rq.queue.enqueue_job", _propagate_context)
+    core.on("molten.router.match", _on_router_match)
 
     for context_name in (
         # web frameworks
@@ -951,6 +1000,7 @@ def listen():
         "cherrypy.request",
         "falcon.request",
         "molten.request",
+        "molten.trace_func",
         "pyramid.request",
         "sanic.request",
         "tornado.request",
@@ -958,9 +1008,20 @@ def listen():
         "flask.jsonify",
         "flask.render_template",
         "asgi.__call__",
+        "asgi.websocket.close_message",
+        "asgi.websocket.disconnect_message",
+        "asgi.websocket.receive_message",
+        "asgi.websocket.send_message",
         "wsgi.__call__",
         "django.traced_get_response",
         "django.cache",
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
         "django.template.render",
         "django.process_exception",
         "django.func.wrapped",
@@ -972,6 +1033,7 @@ def listen():
         "botocore.patched_stepfunctions_api_call",
         "botocore.patched_bedrock_api_call",
         "redis.command",
+        "redis.execute_pipeline",
         "valkey.command",
         "rq.queue.enqueue_job",
         "rq.traced_queue_fetch_job",
@@ -982,11 +1044,28 @@ def listen():
         "azure.functions.patched_service_bus",
         "azure.functions.patched_timer",
         "azure.servicebus.patched_producer",
+        "psycopg.patched_connect",
     ):
         core.on(f"context.started.{context_name}", _start_span)
 
-    for name in ("django.template.render",):
+    for name in (
+        "django.middleware.__call__",
+        "django.middleware.func",
+        "django.middleware.process_exception",
+        "django.middleware.process_request",
+        "django.middleware.process_response",
+        "django.middleware.process_template_response",
+        "django.middleware.process_view",
+        "django.template.render",
+        "molten.trace_func",
+        "redis.execute_pipeline",
+        "redis.command",
+        "psycopg.patched_connect",
+    ):
         core.on(f"context.ended.{name}", _finish_span)
+
+    # Special/extra handling before calling _finish_span
+    core.on("context.ended.django.cache", _on_django_cache)
 
 
 listen()

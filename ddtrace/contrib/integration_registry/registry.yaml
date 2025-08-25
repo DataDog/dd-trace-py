@@ -202,8 +202,8 @@ integrations:
   - celery
   tested_versions_by_dependency:
     celery:
-      min: 5.3.6
-      max: 5.4.0
+      min: 5.5.3
+      max: 5.5.3
 
 - integration_name: cherrypy
   is_external_package: true
@@ -243,7 +243,7 @@ integrations:
   tested_versions_by_dependency:
     crewai:
       min: 0.102.0
-      max: 0.121.1
+      max: 0.157.0
 
 - integration_name: ddtrace_api
   is_external_package: false
@@ -343,7 +343,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.115.12
+      max: 0.116.1
 
 - integration_name: flask
   is_external_package: true
@@ -393,16 +393,6 @@ integrations:
       min: 20.12.1
       max: 24.11.1
 
-- integration_name: gunicorn
-  is_external_package: true
-  is_tested: true
-  dependency_names:
-  - gunicorn
-  tested_versions_by_dependency:
-    gunicorn:
-      min: 20.0.4
-      max: 23.0.0
-
 - integration_name: google_genai
   is_external_package: true
   is_tested: true
@@ -442,6 +432,16 @@ integrations:
     grpcio:
       min: 1.34.1
       max: 1.68.1
+
+- integration_name: gunicorn
+  is_external_package: true
+  is_tested: true
+  dependency_names:
+  - gunicorn
+  tested_versions_by_dependency:
+    gunicorn:
+      min: 20.0.4
+      max: 23.0.0
 
 - integration_name: httplib
   is_external_package: false
@@ -503,13 +503,17 @@ integrations:
   dependency_names:
   - langgraph
   - langgraph-checkpoint
+  - langgraph-prebuilt
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.4.3
+      max: 0.6.3
     langgraph-checkpoint:
       min: 1.0.12
-      max: 2.0.25
+      max: 2.1.1
+    langgraph-prebuilt:
+      min: 0.1.8
+      max: 0.6.3
 
 - integration_name: litellm
   is_external_package: true
@@ -572,7 +576,7 @@ integrations:
   - mcp
   tested_versions_by_dependency:
     mcp:
-      min: 1.10.0
+      min: 1.10.1
       max: 1.11.0
 
 - integration_name: molten
@@ -667,7 +671,7 @@ integrations:
   tested_versions_by_dependency:
     pydantic-ai-slim:
       min: 0.3.0
-      max: 0.3.5
+      max: 0.4.4
 
 - integration_name: pylibmc
   is_external_package: true
@@ -764,6 +768,12 @@ integrations:
   is_tested: false
   dependency_names:
   - pytest_benchmark
+
+- integration_name: ray
+  is_external_package: true
+  is_tested: false
+  dependency_names:
+  - ray
 
 - integration_name: redis
   is_external_package: true

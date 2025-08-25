@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import pickle
+from unittest import mock
 
 import pytest
 
@@ -302,7 +303,6 @@ def test_extract(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -312,7 +312,6 @@ def test_extract(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
-                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
         assert context.get_baggage_item("foo") == "bar"
@@ -604,7 +603,6 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
-                    "_dd.p.dm": "-3",
                     "_dd.p.ts": "02",
                 }
                 with tracer.trace("child_span") as child_span:
@@ -614,7 +612,6 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
-                        "_dd.p.dm": "-3",
                         "_dd.p.ts": "02",
                     }
 
@@ -623,7 +620,8 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert next_headers["x-datadog-origin"] == "synthetics"
                 assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
                 assert next_headers["x-datadog-trace-id"] == "1234"
-                assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
+                # With head sampling decision, only _dd.p.ts should be present (no _dd.p.dm)
+                assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
 
             # Ensure span sets user keep regardless of received priority (appsec event upstream)
             assert span._metrics["_sampling_priority_v1"] == USER_KEEP
@@ -903,7 +901,6 @@ def test_extract_unicode(tracer):  # noqa: F811
 
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -913,7 +910,6 @@ def test_extract_unicode(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
-                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -967,7 +963,6 @@ def test_WSGI_extract(tracer):  # noqa: F811
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
-            "_dd.p.dm": "-3",
         }
 
 
@@ -991,7 +986,6 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.propagation_error": "decoding_error",
         }
 
@@ -1016,7 +1010,6 @@ def test_extract_tags_large(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.propagation_error": "extract_max_size",
         }
 
@@ -1593,7 +1586,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1606,7 +1599,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1619,7 +1612,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": None,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {},
         },
     ),
     (
@@ -1639,7 +1632,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1664,7 +1657,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1677,7 +1670,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1697,7 +1690,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "baggage": {"key1": "val1", "key2": "val2"},
         },
     ),
@@ -1946,7 +1939,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1975,7 +1968,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2016,7 +2009,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2052,7 +2045,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -2065,7 +2058,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -2202,7 +2195,6 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {
                 "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                "_dd.p.dm": "-3",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
         },
@@ -2218,7 +2210,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2257,7 +2249,7 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
         },
     ),
     (
@@ -2447,7 +2439,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     # Only works for env since config is modified at startup to set
@@ -2470,7 +2462,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
 ]
@@ -2719,7 +2711,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=13088165645273925489,
             span_id=5678,
-            meta={"_dd.origin": "synthetics", "_dd.p.dm": "-3"},
+            meta={"_dd.origin": "synthetics"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2766,7 +2758,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
             # in the styles configuration
             meta={
-                "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
@@ -3602,3 +3593,209 @@ def test_baggage_span_tags_wildcard():
     assert context._meta.get("baggage.color") == "blue"
     assert context._meta.get("baggage.serverNode") == "DF 28"
     assert "baggage.session.id" not in context._meta
+
+
+def test_inject_non_active_span_parameter_deprecated():
+    """Test that the non_active_span parameter triggers a deprecation warning."""
+    headers = {}
+    with ddtracer.start_span("non_active_span") as span:
+        assert span.context.sampling_priority is None  # No sampling decision yet
+        with pytest.warns() as warnings_list:
+            HTTPPropagator.inject(context=Context(), headers=headers, non_active_span=span)
+        assert span.context.sampling_priority is not None  # Sampling should be triggered
+    assert not headers, f"No headers should be injected, Context is empty: {headers}"
+
+    # Should capture exactly one deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_and_span_same_trace_deprecated():
+    """Test injecting Context + non_active_span from the same trace (parent-child)."""
+    headers = {}
+    with ddtracer.trace("parent") as parent:
+        with ddtracer.start_span("child", child_of=parent) as non_active_child:
+            assert non_active_child.context.sampling_priority is None  # No sampling yet
+            assert ddtracer.current_span() is not non_active_child  # Child is not active
+            with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug, pytest.warns() as warnings_list:
+                HTTPPropagator.inject(
+                    context=non_active_child.context, headers=headers, non_active_span=non_active_child
+                )
+            # Sampling decision should be set on root span even when child is used for propagation
+            assert parent.context.sampling_priority is not None
+            assert non_active_child.context.sampling_priority is not None
+
+    mock_debug.assert_has_calls(
+        [
+            mock.call(
+                "%s sampled before propagating trace: span_context=%s",
+                non_active_child._local_root,
+                non_active_child.context,
+            )
+        ]
+    )
+    assert headers.get("x-datadog-sampling-priority") == str(parent.context.sampling_priority)
+    # Parent span info propagated (context takes precedence over non_active_span)
+    # Non_active_span is only used to make a sampling decision, not to inject headers.
+    assert headers.get("x-datadog-parent-id") == str(non_active_child.span_id)
+
+    # Should capture deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_and_span_different_trace_deprecated():
+    """Test injecting Context + non_active_span from completely different traces."""
+    headers = {}
+    with ddtracer.start_span("span1", child_of=None) as span1:
+        with ddtracer.start_span("span2", child_of=None) as span2:
+            with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug, pytest.warns() as warnings_list:
+                HTTPPropagator.inject(context=span1.context, headers=headers, non_active_span=span2)
+
+    mock_debug.assert_has_calls(
+        [
+            mock.call(
+                "Sampling decision not available. Downstream spans will not inherit a sampling priority"
+                ": args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                span1.context,
+                span2,
+                span1.context,
+            )
+        ]
+    )
+
+    # Span1 span info propagated (context takes precedence over Span2)
+    # non_active_span parameter is only used to make a sampling decision, not to inject headers.
+    assert headers.get("x-datadog-parent-id") == str(span1.span_id)
+
+    # Should capture deprecation warning
+    assert len(warnings_list) == 1
+    assert "non_active_span parameter is deprecated" in str(warnings_list[0].message)
+
+
+def test_inject_context_without_sampling_priority_active_trace():
+    """Test injecting a Context without sampling priority when there's an active trace."""
+    headers = {}
+    with ddtracer.trace("test_span") as span:
+        context = span.context
+        assert context.sampling_priority is None  # No sampling decision yet
+        with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
+            HTTPPropagator.inject(context, headers)
+        assert span.context.sampling_priority is not None  # Sampling should be triggered automatically
+
+    mock_debug.assert_has_calls(
+        [
+            mock.call(
+                "%s sampled before propagating trace: span_context=%s",
+                span,
+                span.context,
+            )
+        ]
+    )
+    assert headers.get("x-datadog-sampling-priority") == str(
+        span.context.sampling_priority
+    )  # Headers include computed priority
+
+
+def test_inject_context_without_sampling_priority_inactive_trace():
+    """Test injecting a Context without sampling priority when the Context is not part of the active trace."""
+    headers = {}
+    with ddtracer.start_span("test_span", activate=False, child_of=None) as span:
+        with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
+            HTTPPropagator.inject(span.context, headers)
+
+    # Should log warning about inability to make sampling decision
+    mock_debug.assert_has_calls(
+        [
+            mock.call(
+                "Sampling decision not available. Downstream spans will not inherit a sampling priority"
+                ": args=(context=%s, ..., non_active_span=%s) detected span context=%s",
+                span.context,
+                None,
+                span.context,
+            )
+        ]
+    )
+    assert "x-datadog-sampling-priority" not in headers  # No sampling priority in headers
+
+
+def test_inject_span_without_sampling_priority():
+    """Test injecting a Span without sampling priority in a nested trace context."""
+    headers = {}
+    with ddtracer.trace("parent") as parent:
+        with ddtracer.trace("child") as child:
+            assert child.context.sampling_priority is None  # No sampling decision yet
+            with mock.patch("ddtrace.propagation.http.log.debug") as mock_debug:
+                HTTPPropagator.inject(child, headers)
+            # Sampling decision should propagate to root span
+            assert parent.context.sampling_priority is not None
+            assert child.context.sampling_priority is not None
+
+    mock_debug.assert_has_calls(
+        [
+            mock.call(
+                "%s sampled before propagating trace: span_context=%s",
+                parent,
+                child.context,
+            )
+        ]
+    )
+    assert headers.get("x-datadog-sampling-priority") == str(
+        parent.context.sampling_priority
+    )  # Root span priority used
+
+
+def test_datadog_extract_sampling_decision_tag_with_head_sampling():
+    """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.propagation.http import HTTPPropagator
+
+    # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag
+    headers_with_priority = {
+        "x-datadog-trace-id": "12345678901",
+        "x-datadog-parent-id": "98765432101",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "rum",
+    }
+
+    context_with_priority = HTTPPropagator.extract(headers_with_priority)
+
+    assert context_with_priority.trace_id == 12345678901
+    assert context_with_priority.span_id == 98765432101
+    assert context_with_priority.sampling_priority == 1
+    assert context_with_priority.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present when sampling priority is propagated
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_with_priority._meta
+
+    # Test case 2: Headers with sampling priority = 0 should also NOT have _dd.p.dm tag
+    headers_with_priority_drop = {
+        "x-datadog-trace-id": "12345678902",
+        "x-datadog-parent-id": "98765432102",
+        "x-datadog-sampling-priority": "0",
+        "x-datadog-origin": "rum",
+    }
+
+    context_with_priority_drop = HTTPPropagator.extract(headers_with_priority_drop)
+
+    assert context_with_priority_drop.trace_id == 12345678902
+    assert context_with_priority_drop.span_id == 98765432102
+    assert context_with_priority_drop.sampling_priority == 0
+    assert context_with_priority_drop.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present when sampling priority is propagated
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_with_priority_drop._meta
+
+    # Test case 3: Headers without sampling priority should have _dd.p.dm tag
+    headers_without_priority = {
+        "x-datadog-trace-id": "12345678903",
+        "x-datadog-parent-id": "98765432103",
+        "x-datadog-origin": "rum",
+    }
+
+    context_without_priority = HTTPPropagator.extract(headers_without_priority)
+
+    assert context_without_priority.trace_id == 12345678903
+    assert context_without_priority.span_id == 98765432103
+    assert context_without_priority.sampling_priority is None
+    assert context_without_priority.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present during extraction
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta

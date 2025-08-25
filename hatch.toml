@@ -22,6 +22,7 @@ dependencies = [
     "clang-format==18.1.5",
     "cmake-format==0.6.13",
     "ruamel.yaml==0.18.6",
+    "ast-grep-cli==0.39.4",
 ]
 
 [envs.lint.scripts]
@@ -55,6 +56,8 @@ checks = [
     "security",
     "test",
     "suitespec-check",
+    "sg",
+    "sg-test",
 ]
 spelling = [
     "codespell -I docs/spelling_wordlist.txt --skip='ddwaf.h,*cassettes*,tests/tracer/fixtures/urls.txt,tests/appsec/iast/fixtures/*' {args:ddtrace/ tests/ releasenotes/ docs/}",
@@ -73,6 +76,12 @@ riot = [
 ]
 suitespec-check = [
     "python scripts/check_suitespec_coverage.py"
+]
+sg = [
+    "ast-grep scan {args:.}",
+]
+sg-test = [
+    "ast-grep test {args}",
 ]
 
 [envs.docs]

@@ -25,6 +25,7 @@ from ddtrace.internal.sampling import SamplingMechanism
 from ddtrace.internal.sampling import SpanSamplingRule
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.writer import AgentWriter
+from ddtrace.internal.writer import NativeWriter
 from ddtrace.trace import Context
 from ddtrace.trace import Span
 from tests.utils import DummyTracer
@@ -138,7 +139,8 @@ def test_aggregator_reset_default_args():
     assert len(aggr._span_metrics["spans_created"]) == 0
 
 
-def test_aggregator_reset_with_args():
+@pytest.mark.parametrize("writer_class", (AgentWriter, NativeWriter))
+def test_aggregator_reset_with_args(writer_class):
     """
     Validates that the span aggregator can reset trace buffers, sampling processor,
     user processors/filters and trace api version (when ASM is enabled)
@@ -153,7 +155,7 @@ def test_aggregator_reset_with_args():
         user_processors=[user_proc],
     )
 
-    aggr.writer = AgentWriter("", api_version="v0.5")
+    aggr.writer = writer_class("http://localhost:8126", api_version="v0.5")
     span = Span("span", on_finish=[aggr.on_span_finish])
     aggr.on_span_start(span)
 
@@ -642,18 +644,17 @@ def test_single_span_sampling_processor_no_rules():
 
 
 def test_single_span_sampling_processor_w_stats_computation():
-    """Test that span processor changes _sampling_priority_v1 to 2 when stats computation is enabled"""
+    """Test that span processor does not modify the sampling priority when stats computation is enabled"""
     rule_1 = SpanSamplingRule(service="test_service", name="test_name", sample_rate=1.0, max_per_second=-1)
     rules = [rule_1]
-    processor = TraceSamplingProcessor(False, rules, False)
+    processor = TraceSamplingProcessor(True, rules, False)
     processor.sampler.rules = [TraceSamplingRule(sample_rate=0.0)]
-    with override_global_config(dict(_trace_compute_stats=True)):
-        tracer = DummyTracer()
-        switch_out_trace_sampling_processor(tracer, processor)
+    tracer = DummyTracer()
+    switch_out_trace_sampling_processor(tracer, processor)
 
-        span = traced_function(tracer)
+    span = traced_function(tracer)
 
-    assert_span_sampling_decision_tags(span, trace_sampling_priority=USER_KEEP)
+    assert_span_sampling_decision_tags(span, trace_sampling_priority=AUTO_REJECT)
 
 
 def traced_function(tracer, name="test_name", service="test_service", trace_sampling_priority=0):

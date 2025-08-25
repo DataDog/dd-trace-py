@@ -153,12 +153,13 @@ components:
   pyramid:
     - ddtrace/contrib/pyramid.py
     - ddtrace/contrib/internal/pyramid/*
+  ray:
+    - ddtrace/contrib/internal/ray/*
   redis:
     - ddtrace/contrib/internal/rediscluster/*
     - ddtrace/contrib/internal/redis/*
     - ddtrace/contrib/internal/aredis/*
     - ddtrace/contrib/internal/yaaredis/*
-    - ddtrace/_trace/utils_redis.py
     - ddtrace/contrib/internal/redis_utils.py
     - ddtrace/ext/redis.py
   requests:
@@ -347,7 +348,7 @@ suites:
     runner: riot
     snapshot: true
   azure_functions:
-    parallelism: 1
+    parallelism: 2
     paths:
       - '@bootstrap'
       - '@core'
@@ -1011,6 +1012,17 @@ suites:
       - tests/snapshots/tests.contrib.pyramid.*
     runner: riot
     snapshot: true
+  ray:
+    parallelism: 1
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@contrib'
+      - '@tracing'
+      - '@ray'
+      - tests/contrib/ray/*
+    runner: riot
+    snapshot: false
   redis:
     parallelism: 5
     paths:
