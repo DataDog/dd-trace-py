@@ -63,8 +63,8 @@ def get_app():
 
         return await call_next(request)
 
-    @app.get("/", response_class=HTMLResponse)
-    @app.post("/", response_class=HTMLResponse)
+    @app.get("/", response_class=HTMLResponse, status_code=200)
+    @app.post("/", response_class=HTMLResponse, status_code=200)
     @app.options("/", response_class=HTMLResponse, status_code=200)
     async def read_homepage():  # noqa: B008
         return "ok ASM"

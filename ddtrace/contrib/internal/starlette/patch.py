@@ -81,7 +81,7 @@ def traced_init(wrapped, instance, args, kwargs):
 def traced_route_init(wrapped, _instance, args, kwargs):
     handler = get_argument_value(args, kwargs, 1, "endpoint")
     route = args[0] if args else None
-    response_body_type = getattr(kwargs.get("response_class"), "media_type", None)
+    response_body_type = getattr(kwargs.get("response_class", None), "media_type", None)
     response_body_type = [response_body_type] if isinstance(response_body_type, str) else []
     response_code = kwargs.get("status_code", None)
     response_code = [response_code] if isinstance(response_code, int) else []
