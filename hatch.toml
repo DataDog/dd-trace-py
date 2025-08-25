@@ -6,7 +6,7 @@ dependencies = [
     "click==8.1.7",
     "cython-lint==0.15.0",
     "codespell==2.4.1",
-    "bandit==1.7.5",
+    "bandit==1.8.2",
     "mypy==1.15.0",
     "coverage==7.3.0",
     "envier==0.6.1",
