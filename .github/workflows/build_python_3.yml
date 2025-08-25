@@ -53,8 +53,8 @@ jobs:
     env:
       CIBW_SKIP: ${{ inputs.cibw_skip }}
       CIBW_PRERELEASE_PYTHONS: ${{ inputs.cibw_prerelease_pythons }}
-      CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_17
-      CIBW_MANYLINUX_AARCH64_IMAGE: manylinux_2_17
+      CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
+      CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
       CIBW_MUSLLINUX_I686_IMAGE: ghcr.io/datadog/dd-trace-py/pypa_musllinux_1_2_i686:latest
       CIBW_BEFORE_ALL_WINDOWS: rustup target add i686-pc-windows-msvc
       CIBW_BEFORE_ALL_MACOS: rustup target add aarch64-apple-darwin
