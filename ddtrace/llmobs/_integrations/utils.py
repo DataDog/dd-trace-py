@@ -430,7 +430,7 @@ def _openai_extract_tool_calls_and_results_chat(
                     },
                 ),
             )
-        raw_args = safe_load_json(raw_args)
+        raw_args = safe_load_json(raw_args) if isinstance(raw_args, str) else raw_args
 
         tool_call_info = ToolCall(
             name=tool_name,
@@ -465,9 +465,7 @@ def _openai_extract_tool_calls_and_results_chat(
     return tool_calls, tool_results
 
 
-def capture_plain_text_tool_usage(
-    tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False
-) -> None:
+def capture_plain_text_tool_usage(tool_calls_info: Any, tool_results_info: Any, content: str, span: Span, is_input: bool = False) -> None:
     """
     Captures plain text tool calls and tool results from a content string.
 

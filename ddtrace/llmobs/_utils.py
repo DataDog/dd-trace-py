@@ -219,10 +219,10 @@ def safe_json(obj, ensure_ascii=True):
 
 def safe_load_json(value: str):
     try:
-        value = json.loads(value)
+        loaded_value = json.loads(value)
     except (json.JSONDecodeError, TypeError):
-        value = {"value": str(value)}
-    return value
+        loaded_value = {"value": str(value)}
+    return loaded_value
 
 
 def load_data_value(value):
