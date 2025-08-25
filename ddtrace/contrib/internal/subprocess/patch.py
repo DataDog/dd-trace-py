@@ -599,15 +599,15 @@ def _traced_subprocess_wait(module, pin, wrapped, instance, args, kwargs):
         the span with execution results and exit code.
     """
     if should_trace_subprocess():
-        binary = core.get_item("subprocess_popen_binary")
+        binary = core.find_item("subprocess_popen_binary")
 
         with pin.tracer.trace(COMMANDS.SPAN_NAME, resource=binary, span_type=SpanTypes.SYSTEM) as span:
-            if core.get_item(COMMANDS.CTX_SUBP_IS_SHELL):
-                span.set_tag_str(COMMANDS.SHELL, core.get_item(COMMANDS.CTX_SUBP_LINE))
+            if core.find_item(COMMANDS.CTX_SUBP_IS_SHELL):
+                span.set_tag_str(COMMANDS.SHELL, core.find_item(COMMANDS.CTX_SUBP_LINE))
             else:
-                span.set_tag(COMMANDS.EXEC, core.get_item(COMMANDS.CTX_SUBP_LINE))
+                span.set_tag(COMMANDS.EXEC, core.find_item(COMMANDS.CTX_SUBP_LINE))
 
-            truncated = core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
+            truncated = core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
             if truncated:
                 span.set_tag_str(COMMANDS.TRUNCATED, "yes")
             span.set_tag_str(COMMANDS.COMPONENT, "subprocess")

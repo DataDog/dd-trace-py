@@ -332,7 +332,7 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
         elif provider == _COHERE:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    num_generations = int(ctx.get_item("num_generations") or 0)
+                    num_generations = int(ctx.find_item("num_generations") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(num_generations)

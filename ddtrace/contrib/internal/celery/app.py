@@ -126,13 +126,13 @@ def _traced_apply_async_function(integration_config, fn_name, resource_fn=None):
             except Exception:
                 # If an internal exception occurs, record the exception in the span,
                 # then raise the Celery error as usual
-                task_span = core.get_item("task_span")
+                task_span = core.find_item("task_span")
                 if task_span:
                     task_span.set_exc_info(*sys.exc_info())
 
                 raise
             finally:
-                task_span = core.get_item("task_span")
+                task_span = core.find_item("task_span")
                 if task_span:
                     log.debug(
                         "The after_task_publish signal was not called, so manually closing span: %r",

@@ -316,7 +316,7 @@ class ASMConfig(DDConfig):
 
     @property
     def is_iast_request_enabled(self) -> bool:
-        env = core.get_item(IAST.REQUEST_CONTEXT_KEY)
+        env = core.find_item(IAST.REQUEST_CONTEXT_KEY)
         if env:
             return env.request_enabled
         return False
