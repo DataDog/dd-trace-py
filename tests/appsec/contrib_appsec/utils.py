@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_security
@@ -1990,8 +1991,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin._override(interface.framework, tracer=interface.tracer)
+    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
+    Pin._override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin._override(interface.framework, tracer=original_tracer)
+        Pin._override(interface.framework, tracer=original_tracer)
