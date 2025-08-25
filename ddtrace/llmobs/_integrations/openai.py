@@ -3,6 +3,7 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
@@ -26,7 +27,6 @@ from ddtrace.llmobs._integrations.utils import openai_set_meta_tags_from_respons
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

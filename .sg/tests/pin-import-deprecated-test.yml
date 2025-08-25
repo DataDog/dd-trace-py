@@ -1,0 +1,32 @@
+id: pin-import-deprecated
+valid:
+  # These should NOT trigger the rule (valid code)
+  - from ddtrace._trace.pin import Pin
+  - from ddtrace._trace.pin import Pin as PinAlias
+  - from ddtrace.trace import Span  # Only Span, no Pin
+  - |
+    import ddtrace.trace
+    tracer = ddtrace.trace.Tracer()
+  - |
+    from ddtrace._trace.pin import Pin
+    Pin.get_from(service)
+
+invalid:
+  # These should trigger the rule (errors)
+  - from ddtrace.trace import Pin
+  - from ddtrace.trace import Pin as PinAlias
+  - from ddtrace.trace import Pin, Span
+  - from ddtrace.trace import Pin, Span, Tracer
+  - from ddtrace.trace import Span, Pin
+  - from ddtrace.trace import Span, Tracer, Pin
+  - from ddtrace.trace import Span, Pin, Tracer
+  - from ddtrace.trace import Pin as PinAlias, Span
+  - from ddtrace.trace import Pin as PinAlias, Span, Tracer
+  - from ddtrace.trace import Span, Pin as PinAlias
+  - from ddtrace.trace import Span, Tracer, Pin as PinAlias
+  - from ddtrace.trace import Span, Tracer, Pin as PinAlias, Context
+  - import ddtrace.trace.Pin
+  - ddtrace.trace.Pin.get_from(service)
+  - |
+    from ddtrace import trace
+    trace.Pin.get_from(service)

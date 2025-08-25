@@ -14,6 +14,7 @@ import mock
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal import trace_utils
 from ddtrace.contrib.internal.trace_utils import _get_request_header_client_ip
 from ddtrace.ext import SpanTypes
@@ -26,7 +27,6 @@ from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import Config
 from ddtrace.settings.integration import IntegrationConfig
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 from tests.appsec.utils import asm_context
 from tests.utils import override_global_config
@@ -632,7 +632,7 @@ ALL_IP_HEADERS = (
     ("x-real-ip", "2.2.2.2"),
     ("true-client-ip", "3.3.3.3"),
     ("x-client-ip", "4.4.4.4"),
-    ("x-forwarded", "5.5.5.5"),
+    ("forwarded", "5.5.5.5"),
     ("forwarded-for", "6.6.6.6"),
     ("x-cluster-client-ip", "7.7.7.7"),
     ("fastly-client-ip", "8.8.8.8"),
@@ -644,8 +644,6 @@ ALL_IP_HEADERS = (
 ALL_TESTS = [
     ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
 ]
-# x-forwarded is now ignored so we fall back to forwarded-for
-ALL_TESTS[5][2] = "6.6.6.6"
 
 
 @pytest.mark.parametrize(
