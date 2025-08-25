@@ -67,19 +67,19 @@ class AIGuardWorkflow:
         self._client = client
         self._history: List[Evaluation] = []
 
-    def add_system_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
+    def add_system_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a system prompt to the history of the workflow"""
         return self.add_prompt("system", content, output)
 
-    def add_user_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
+    def add_user_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a user prompt to the history of the workflow"""
         return self.add_prompt("user", content, output)
 
-    def add_assistant_prompt(self, content: str, output: str = "") -> "AIGuardWorkflow":
+    def add_assistant_prompt(self, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add an assistant prompt to the history of the workflow"""
         return self.add_prompt("assistant", content, output)
 
-    def add_prompt(self, role: str, content: str, output: str = "") -> "AIGuardWorkflow":
+    def add_prompt(self, role: str, content: str, output: Optional[str] = None) -> "AIGuardWorkflow":
         """Add a prompt to the history of the workflow"""
         current = Prompt(role=role, content=content)
         if output is not None:
@@ -87,7 +87,9 @@ class AIGuardWorkflow:
         self._history.append(current)
         return self
 
-    def add_tool(self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: str = "") -> "AIGuardWorkflow":
+    def add_tool(
+        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], output: Optional[str] = None
+    ) -> "AIGuardWorkflow":
         """Add a tool execution to the history of the workflow"""
         current = ToolCall(tool_name=tool_name, tool_args=tool_args)
         if output is not None:
@@ -96,11 +98,15 @@ class AIGuardWorkflow:
         return self
 
     def evaluate_tool(
-        self, tool_name: str, tool_args: Dict[Union[Text, bytes], Any], tags: Dict[Union[Text, bytes], Any] = {}
+        self,
+        tool_name: str,
+        tool_args: Dict[Union[Text, bytes], Any],
+        output: Optional[str] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
-        return self._client.evaluate_tool(tool_name, tool_args, history=self._history, tags=tags)
+        return self._client.evaluate_tool(tool_name, tool_args, output=output, history=self._history, tags=tags)
 
-    def evaluate_prompt(self, role: str, content: str, tags: Dict[Union[Text, bytes], Any] = {}) -> bool:
+    def evaluate_prompt(self, role: str, content: str, tags: Optional[Dict[Union[Text, bytes], Any]] = None) -> bool:
         return self._client.evaluate_prompt(role, content, history=self._history, tags=tags)
 
 
@@ -139,14 +145,16 @@ class AIGuardClient:
         self,
         tool_name: str,
         tool_args: Dict[Union[Text, bytes], Any],
-        history: List[Evaluation] = [],
-        tags: Dict[Union[Text, bytes], Any] = {},
+        output: Optional[str] = None,
+        history: Optional[List[Evaluation]] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
         """Evaluate if a tool call is safe to execute.
 
         Args:
             tool_name: Name of the tool being called
             tool_args: Arguments passed to the tool
+            output: Output of the tool call
             history: History of previous tool calls or prompts
             tags: Tags to set on the created span
 
@@ -157,18 +165,29 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
+        if tags is None:
+            tags = {}
         tags["ai_guard.target"] = "tool"
         tags["ai_guard.tool_name"] = tool_name
-        return self._evaluate(ToolCall(tool_name=tool_name, tool_args=tool_args), history, tags)
+        tool_call = ToolCall(tool_name=tool_name, tool_args=tool_args)
+        if output is not None:
+            tool_call["output"] = output
+        return self._evaluate(tool_call, history, tags)
 
     def evaluate_prompt(
-        self, role: str, content: str, history: List[Evaluation] = [], tags: Dict[Union[Text, bytes], Any] = {}
+        self,
+        role: str,
+        content: str,
+        output: Optional[str] = None,
+        history: Optional[List[Evaluation]] = None,
+        tags: Optional[Dict[Union[Text, bytes], Any]] = None,
     ) -> bool:
         """Evaluate if a prompt is safe to execute.
 
         Args:
             role: Role of the prompt author
             content: The prompt content
+            output: Output of the prompt
             history: History of previous tool calls or prompts
             tags: Tags to set on the created span
 
@@ -179,14 +198,23 @@ class AIGuardClient:
             AIGuardAbortError: If execution should be aborted
             AIGuardClientError: If evaluation request fails
         """
+        if tags is None:
+            tags = {}
         tags["ai_guard.target"] = "prompt"
-        return self._evaluate(Prompt(role=role, content=content), history, tags)
+        prompt = Prompt(role=role, content=content)
+        if output is not None:
+            prompt["output"] = output
+        return self._evaluate(prompt, history, tags)
 
-    def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
+    def _evaluate(
+        self, current: Evaluation, history: Optional[List[Evaluation]], tags: Dict[Union[Text, bytes], Any]
+    ) -> bool:
         """Send evaluation request to AI Guard service."""
         with self._tracer.trace("ai_guard") as span:
             span.set_tags(tags)
             try:
+                if history is None:
+                    history = []
                 payload = {"data": {"attributes": {"history": history, "current": current}}}
                 try:
                     response = self._execute_request(f"{self._endpoint.rstrip('/')}/evaluate", payload)

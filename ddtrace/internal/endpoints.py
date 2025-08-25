@@ -1,5 +1,6 @@
 import dataclasses
 from time import monotonic
+from typing import Dict
 from typing import Set
 
 
@@ -22,8 +23,19 @@ class HttpEndPoint:
         return self._hash
 
 
+class Singleton(type):
+    """Singleton Class."""
+
+    _instances: Dict[type, object] = {}
+
+    def __call__(cls, *args, **kwargs):
+        if cls not in cls._instances:
+            cls._instances[cls] = super(Singleton, cls).__call__(*args, **kwargs)
+        return cls._instances[cls]
+
+
 @dataclasses.dataclass()
-class HttpEndPointsCollection:
+class HttpEndPointsCollection(metaclass=Singleton):
     """A collection of HTTP endpoints that can be modified and flushed to a telemetry payload.
 
     The collection collects HTTP endpoints at startup and can be flushed to a telemetry payload.
@@ -80,3 +92,6 @@ class HttpEndPointsCollection:
             self.is_first = False
             self.last_modification_time = monotonic()
             return res
+
+
+endpoint_collection = HttpEndPointsCollection()

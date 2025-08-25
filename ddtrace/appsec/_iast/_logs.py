@@ -1,6 +1,7 @@
 from ddtrace.appsec._iast._metrics import _set_iast_error_metric
 from ddtrace.appsec._iast._utils import _is_iast_debug_enabled
 from ddtrace.internal.logger import get_logger
+from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
@@ -15,7 +16,8 @@ def iast_ast_debug_log(msg, *args, **kwargs):
 
 
 def iast_compiling_debug_log(msg, *args, **kwargs):
-    iast_instrumentation_ast_patching_debug_log(f"compiling::{msg}", *args, **kwargs)
+    if asm_config._iast_debug:
+        iast_instrumentation_ast_patching_debug_log(f"compiling::{msg}", *args, **kwargs)
 
 
 def iast_instrumentation_wrapt_debug_log(msg, *args, **kwargs):
