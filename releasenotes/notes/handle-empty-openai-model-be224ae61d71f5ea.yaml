@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    openai: This fix resolves an issue where the model name might not be set for some streaming responses.
