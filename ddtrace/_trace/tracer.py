@@ -47,6 +47,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.native import PyTracerMetadata
 from ddtrace.internal.native import store_metadata
+from ddtrace.internal.native._native import logger
 from ddtrace.internal.peer_service.processor import PeerServiceProcessor
 from ddtrace.internal.processor.endpoint_call_counter import EndpointCallCounterProcessor
 from ddtrace.internal.runtime import get_runtime_id
@@ -126,6 +127,10 @@ class Tracer(object):
         # Runtime id used for associating data collected during runtime to
         # traces
         self._pid = getpid()
+
+        # Enable logging on native components
+        if config._native_logging:
+            logger.configure(output="file", path="native.log")
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()
