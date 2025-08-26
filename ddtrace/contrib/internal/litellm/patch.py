@@ -4,6 +4,7 @@ from typing import Dict
 import litellm
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.litellm.utils import LiteLLMAsyncStreamHandler
 from ddtrace.contrib.internal.litellm.utils import LiteLLMStreamHandler
 from ddtrace.contrib.internal.litellm.utils import extract_host_tag
@@ -14,7 +15,6 @@ from ddtrace.internal.utils import get_argument_value
 from ddtrace.llmobs._constants import LITELLM_ROUTER_INSTANCE_KEY
 from ddtrace.llmobs._integrations import LiteLLMIntegration
 from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
-from ddtrace.trace import Pin
 
 
 config._add("litellm", {})

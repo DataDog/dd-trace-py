@@ -4,9 +4,9 @@ import mock
 from mock import patch as mock_patch
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.contrib.botocore.bedrock_utils import _MODELS
 from tests.contrib.botocore.bedrock_utils import _REQUEST_BODIES
 from tests.contrib.botocore.bedrock_utils import BOTO_VERSION
