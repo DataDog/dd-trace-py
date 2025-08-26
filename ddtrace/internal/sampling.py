@@ -146,7 +146,7 @@ class SpanSamplingRule:
         # type: (Span) -> None
         span.set_metric(_SINGLE_SPAN_SAMPLING_MECHANISM, SamplingMechanism.SPAN_SAMPLING_RULE)
         span.set_metric(_SINGLE_SPAN_SAMPLING_RATE, self._sample_rate)
-        span.set_metric(KNUETH_SAMPLE_RATE_KEY, self._sample_rate)
+        span.set_metric(KNUTH_SAMPLE_RATE_KEY, self._sample_rate)
         # Only set this tag if it's not the default -1
         if self._max_per_second != _SINGLE_SPAN_SAMPLING_MAX_PER_SEC_NO_LIMIT:
             span.set_metric(_SINGLE_SPAN_SAMPLING_MAX_PER_SEC, self._max_per_second)
@@ -246,9 +246,10 @@ def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism:
         SamplingMechanism.REMOTE_DYNAMIC_TRACE_SAMPLING_RULE,
     ):
         span.set_metric(_SAMPLING_RULE_DECISION, sample_rate)
+        span.set_metric(KNUTH_SAMPLE_RATE_KEY, sample_rate)
     elif mechanism == SamplingMechanism.AGENT_RATE_BY_SERVICE:
         span.set_metric(_SAMPLING_AGENT_DECISION, sample_rate)
-    span.set_metric(KNUETH_SAMPLE_RATE_KEY, sample_rate)
+        span.set_metric(KNUTH_SAMPLE_RATE_KEY, sample_rate)
     # Set the sampling priority
     priorities = SAMPLING_MECHANISM_TO_PRIORITIES[mechanism]
     priority_index = _KEEP_PRIORITY_INDEX if sampled else _REJECT_PRIORITY_INDEX
