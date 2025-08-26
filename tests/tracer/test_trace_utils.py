@@ -632,7 +632,7 @@ ALL_IP_HEADERS = (
     ("x-real-ip", "2.2.2.2"),
     ("true-client-ip", "3.3.3.3"),
     ("x-client-ip", "4.4.4.4"),
-    ("forwarded", "by=1.2.3.4;for=5.5.5.5:2000;host=test.zouzou.ncom"),
+    ("forwarded", 'by=1.2.3.4;for="5.5.5.5:2000";host=test.zouzou.ncom'),
     ("forwarded-for", "6.6.6.6"),
     ("x-cluster-client-ip", "7.7.7.7"),
     ("fastly-client-ip", "8.8.8.8"),
@@ -699,6 +699,21 @@ ALL_TESTS[5][2] = "5.5.5.5"
             "",
             {"forwarded": 'by=1.2.3.4;for="[9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc]";host=test.zouzou.ncom'},
             "9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="3.3.3.3:1321";host=test.zouzou.ncom'},
+            "3.3.3.3",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="3.3.3.3";host=test.zouzou.ncom'},
+            "3.3.3.3",
+        ),
+        (
+            "",
+            {"forwarded": "by=1.2.3.4;for=3.3.3.3;host=test.zouzou.ncom"},
+            "3.3.3.3",
         ),
     ]
     + ALL_TESTS,
