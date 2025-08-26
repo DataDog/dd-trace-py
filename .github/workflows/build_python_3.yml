@@ -74,7 +74,7 @@ jobs:
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
         unzip -l {wheel} | grep '\.so' &&
-        auditwheel repair --plat manylinux_2_17_${uname -m} -w ./tempwheelhouse {wheel} &&
+        auditwheel repair --plat manylinux_2_17_$(uname -m) -w ./tempwheelhouse {wheel} &&
         mv ./tempwheelhouse/*.whl {dest_dir} &&
         rm -rf ./tempwheelhouse
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
