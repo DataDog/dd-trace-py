@@ -663,6 +663,11 @@ class Config(object):
 
         # Native extensions logging.
         self._native_logging = _get_config("_DD_NATIVE_LOGGING_ENABLED", False, asbool)
+        self._native_logging_log_level = _get_config("_DD_NATIVE_LOGGING_LOG_LEVEL", "info")
+        self._native_logging_backend = _get_config("_DD_NATIVE_LOGGING_BACKEND", "file")
+        self._native_logging_file_size = _get_config("_DD_NATIVE_LOGGING_FILE_SIZE_BYTES", 4096, int)
+        self._native_logging_file_path = _get_config("_DD_NATIVE_LOGGING_FILE_PATH", "native.log")
+        self._native_logging_file_rotation_len = _get_config("_DD_NATIVE_LOGGING_FILE_ROTATION_LEN", 1, int)
 
     def __getattr__(self, name) -> Any:
         if name in self._config:

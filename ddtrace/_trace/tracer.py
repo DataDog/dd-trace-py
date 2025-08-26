@@ -130,7 +130,14 @@ class Tracer(object):
 
         # Enable logging on native components
         if config._native_logging:
-            logger.configure(output="file", path="native.log")
+            kwargs = {"output": config._native_logging_backend}
+            if config._native_logging_backend == "file":
+                kwargs["path"] = config._native_logging_file_path
+                kwargs["max_size_bytes"] = config._native_logging_file_size
+                kwargs["max_files"] = config._native_logging_file_rotation_len
+
+            logger.configure(**kwargs)
+            logger.set_log_level(config._native_logging_log_level)
 
         self.enabled = config._tracing_enabled
         self.context_provider: BaseContextProvider = DefaultContextProvider()

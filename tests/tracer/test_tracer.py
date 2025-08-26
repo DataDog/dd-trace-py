@@ -2053,4 +2053,4 @@ def test_native_logger_enabled():
     ddtrace.trace.Tracer._instance = None
     with mock.patch("ddtrace.internal.native._native.logger.configure") as mock_configure:
         ddtrace.trace.Tracer()
-        mock_configure.assert_called_once_with(output="file", path="native.log")
+        mock_configure.assert_called_once_with(output="file", path="native.log", max_size_bytes=4096, max_files=1)
