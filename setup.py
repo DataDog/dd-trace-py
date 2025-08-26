@@ -46,7 +46,6 @@ from urllib.request import urlretrieve
 
 
 HERE = Path(__file__).resolve().parent
-native_features = []
 
 COMPILE_MODE = "Release"
 if "DD_COMPILE_DEBUG" in os.environ:
@@ -177,6 +176,13 @@ def is_64_bit_python():
     return sys.maxsize > (1 << 32)
 
 
+rust_features = []
+if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
+    rust_features.append("crashtracker")
+    if sys.version_info[:2] < (3, 14):
+        rust_features.append("profiling")
+
+
 class PatchedDistribution(Distribution):
     def __init__(self, attrs=None):
         super().__init__(attrs)
@@ -196,7 +202,7 @@ class PatchedDistribution(Distribution):
                 py_limited_api="auto",
                 binding=Binding.PyO3,
                 debug=COMPILE_MODE.lower() == "debug",
-                features=native_features,
+                features=rust_features,
             )
         ]
 
@@ -931,9 +937,7 @@ if not IS_PYSTON:
         )
 
     if CURRENT_OS in ("Linux", "Darwin") and is_64_bit_python():
-        native_features.append("crashtracker")
         if sys.version_info < (3, 14):
-            native_features.append("profiling")
             ext_modules.append(
                 CMakeExtension(
                     "ddtrace.internal.datadog.profiling.ddup._ddup",
