@@ -1,6 +1,6 @@
 ---
 features:
   - |
-    LLM Observability: This introduces a ``tool_definitions`` parameter to the ``LLMObs.annotate()`` method for function calling scenarios.
+    LLM Observability: This introduces a ``tool_definitions`` parameter to the ``LLMObs.annotate()`` method for tool calling scenarios.
     Users can now pass a list of tool definition dictionaries directly to annotate LLM spans with available tools.
     Each tool definition must include a ``name`` (string) field, with optional ``description`` (string) and ``schema`` (JSON-serializable dictionary) fields.
