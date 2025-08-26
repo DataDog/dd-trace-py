@@ -1340,7 +1340,9 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
-        :param tool_definitions: List of tool definition dictionaries for function calling scenarios.
+        :param tool_definitions: List of tool definition dictionaries for tool calling scenarios.
+                                                  - This argument is only applicable to LLM spans.
+                                                  - Each tool definition is a dictionary containing a required "name" (string), and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
                                 Each tool definition should have a required "name" key and optional "description"
                                 and "schema" keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
