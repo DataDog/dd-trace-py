@@ -1,20 +1,28 @@
 from datetime import timezone
 import json
+import re
 import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
 from typing import Tuple
+from typing import List
 
 from ddtrace._trace.span import Span
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
+from ddtrace.internal import core
 from ddtrace.internal._rand import rand128bits
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import format_tool_call_arguments
+from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import safe_json
 
@@ -356,8 +364,6 @@ def _model_invocation_input_span(
         log.warning("Failed to decode model input text.")
         text = {}
     input_messages = [{"content": text.get("system", ""), "role": "system"}]
-    for message in text.get("messages", []):
-        input_messages.append({"content": message.get("content", ""), "role": message.get("role", "")})
     span_event = _build_span_event(
         "modelInvocation",
         root_span,
@@ -367,6 +373,13 @@ def _model_invocation_input_span(
         metadata={"model_name": model_name, "model_provider": model_provider},
         input_val=input_messages,
     )
+    for message in text.get("messages", []):
+        message_content = message.get("content", "")
+        tool_use_ids = extract_tool_use_ids(message_content)
+        if tool_use_ids:
+            for tool_use_id in tool_use_ids:
+                _handle_tool_usage(tool_use_id, span_event)
+        input_messages.append({"content": message_content, "role": message.get("role", "")})
     return span_event
 
 
@@ -380,12 +393,19 @@ def _model_invocation_output_span(
     bedrock_metadata = model_output.get("metadata", {})
     start_ns, duration_ns = _extract_start_and_duration_from_metadata(bedrock_metadata, root_span)
     output_messages = []
+    output_message_content = ""
     parsed_response = model_output.get("parsedResponse", {})
     if parsed_response:
-        output_messages.append({"content": safe_json(parsed_response), "role": "assistant"})
+        output_message_content = safe_json(parsed_response)
+        output_messages.append({"content": output_message_content, "role": "assistant"})
     else:
         raw_response = model_output.get("rawResponse", {}).get("content", "")
-        output_messages.append({"content": raw_response, "role": "assistant"})
+        output_message_content = raw_response
+        output_messages.append({"content": output_message_content, "role": "assistant"})
+    
+    if output_message_content:
+        _handle_tool_calls(output_message_content, current_active_span)
+
 
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
     if reasoning_text:
@@ -442,6 +462,16 @@ def _invocation_input_span(
         tool_args = {"text": str(bedrock_tool_call.get("text", ""))}
     span_event = _build_span_event(
         span_name, root_span, trace_step_id, "tool", start_ns, metadata=tool_metadata, input_val=safe_json(tool_args)
+    )
+    core.dispatch(
+        DISPATCH_ON_TOOL_CALL,
+        (
+            span_name + f"__{tool_metadata.get('function', '')}",
+            safe_json(tool_args) if not isinstance(tool_args, str) else tool_args,
+            "function",
+            span_event,
+            "",
+        ),
     )
     return span_event
 
@@ -514,3 +544,37 @@ def translate_bedrock_trace(trace, root_span, current_active_span_event, trace_s
     translation_method = BEDROCK_AGENTS_TRACE_CONVERSION_METHODS[trace_type]
     translated_span_event, finished = translation_method(trace, root_span, current_active_span_event, trace_step_id)
     return translated_span_event, finished
+
+def _handle_tool_usage(tool_call_id: str, span: Dict[str, Any]) -> None:
+    """Extracts tool usage from the input message content and tracks them for span linking purposes."""
+    core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
+
+def _handle_tool_calls(output_message_content: str, current_active_span: Dict[str, Any]) -> None:
+    """Extracts tool calls from the output message content and tracks them for span linking purposes."""
+    parsed_output_content = safe_load_json(output_message_content)
+    content = parsed_output_content.get("content", [])
+    for message in content:
+        if message.get("type") == "tool_use":
+            core.dispatch(
+                DISPATCH_ON_LLM_TOOL_CHOICE,
+                (
+                    message.get("id", ""),
+                    message.get("name", ""),
+                    format_tool_call_arguments(safe_json(message.get("input", {}))),
+                    {
+                        "trace_id": current_active_span.get("trace_id", ""),
+                        "span_id": str(current_active_span.get("span_id", "")),
+                    },
+                ),
+            )
+
+def extract_tool_use_ids(message_content: str) -> List[str]:
+    """
+    Extract all tool_use_id values from message content using regex.
+    
+    Looks for patterns like: tool_use_id=ABC123.
+    """
+    if not message_content:
+        return []
+    tool_use_ids = re.findall(r'tool_use_id=([^\s,}]+)', message_content)
+    return tool_use_ids

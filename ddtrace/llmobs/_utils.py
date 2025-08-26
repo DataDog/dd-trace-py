@@ -2,6 +2,7 @@ from dataclasses import asdict
 from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
+from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
@@ -258,8 +259,12 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
-    current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+def add_span_link(span: Union[Span, Dict[str, Any]], span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+    current_span_links = []
+    if isinstance(span, dict):
+        current_span_links = span.setdefault("span_links", [])
+    else:
+        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
         {
             "span_id": span_id,
@@ -330,7 +335,7 @@ class ToolCallTracker:
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
     def on_tool_call(
-        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
+        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span | Dict[str, Any], tool_id: Optional[str] = None
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
@@ -355,8 +360,8 @@ class ToolCallTracker:
             "input",
         )
         self._tool_calls[tool_id].tool_span_context = {
-            "span_id": str(tool_span.span_id),
-            "trace_id": format_trace_id(tool_span.trace_id),
+            "span_id": str(tool_span.span_id if isinstance(tool_span, Span) else tool_span.get("span_id")),
+            "trace_id": format_trace_id(tool_span.trace_id) if isinstance(tool_span, Span) else tool_span.get("trace_id"),
         }
         self._tool_calls[tool_id].tool_kind = tool_kind
         self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)
