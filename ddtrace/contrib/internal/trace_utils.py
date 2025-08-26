@@ -140,9 +140,9 @@ def _parse_ip_header(ip_header_value: str) -> str:
     """
     IP_EXTRACTIONS = [
         r"^\s*(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$",  # ipv4 simple format
-        r'(?:^|;)for="?(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)',  # ipv4 forwarded format
+        r'(?:^|;)\s*for="?(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)',  # ipv4 forwarded format
         r"^\s*(?P<ip>[0-9a-fA-F:]+)$",  # ipv6 simple format
-        r'(?:^|;)for="\[(?P<ip>[0-9a-fA-F:]+)\]',  # ipv6 forwarded format
+        r'(?:^|;)\s*for="\[(?P<ip>[0-9a-fA-F:]+)\]',  # ipv6 forwarded format
     ]
     for pattern in IP_EXTRACTIONS:
         if m := re.search(pattern, ip_header_value, re.IGNORECASE):
@@ -208,7 +208,6 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
             ip = _parse_ip_header(ip)
             if not ip:
                 continue
-
             try:
                 if ip_is_global(ip):
                     return ip
