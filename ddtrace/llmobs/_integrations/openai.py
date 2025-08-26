@@ -5,6 +5,7 @@ from typing import Optional
 
 from ddtrace._trace.pin import Pin
 from ddtrace.internal.constants import COMPONENT
+from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
@@ -28,6 +29,9 @@ from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_outpu
 from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
+
+
+log = get_logger(__name__)
 
 
 class OpenAIIntegration(BaseLLMIntegration):
@@ -59,6 +63,7 @@ class OpenAIIntegration(BaseLLMIntegration):
         traced_operations = ("createCompletion", "createChatCompletion", "createEmbedding", "createResponse")
         if operation_id in traced_operations:
             submit_to_llmobs = True
+        log.debug("Creating LLM span for openai operation: %s", operation_id)
         return super().trace(pin, operation_id, submit_to_llmobs, **kwargs)
 
     def _set_base_span_tags(self, span: Span, **kwargs) -> None:
