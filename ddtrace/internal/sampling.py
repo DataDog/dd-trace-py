@@ -15,7 +15,7 @@ from ddtrace.constants import _SINGLE_SPAN_SAMPLING_MECHANISM
 from ddtrace.constants import _SINGLE_SPAN_SAMPLING_RATE
 from ddtrace.internal.constants import _KEEP_PRIORITY_INDEX
 from ddtrace.internal.constants import _REJECT_PRIORITY_INDEX
-from ddtrace.internal.constants import KNUETH_SAMPLE_RATE_KEY
+from ddtrace.internal.constants import KNUTH_SAMPLE_RATE_KEY
 from ddtrace.internal.constants import MAX_UINT_64BITS
 from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.constants import SAMPLING_HASH_MODULO
