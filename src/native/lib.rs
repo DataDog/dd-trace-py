@@ -4,8 +4,8 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
-mod library_config;
 mod json;
+mod library_config;
 
 use pyo3::prelude::*;
 use pyo3::wrap_pyfunction;

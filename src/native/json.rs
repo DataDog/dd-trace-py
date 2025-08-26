@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
 use serde_json;
 use std::collections::HashMap;
@@ -13,7 +13,10 @@ pub fn dumps(py: Python, data: &Bound<'_, PyAny>) -> PyResult<PyObject> {
     // Serialize to JSON using serde_json (very fast)
     match serde_json::to_string(&json_value) {
         Ok(json_string) => Ok(json_string.into_pyobject(py)?.into_any().unbind()),
-        Err(e) => Err(PyValueError::new_err(format!("JSON serialization failed: {}", e))),
+        Err(e) => Err(PyValueError::new_err(format!(
+            "JSON serialization failed: {}",
+            e
+        ))),
     }
 }
 
