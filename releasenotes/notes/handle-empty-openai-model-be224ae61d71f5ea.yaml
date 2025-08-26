@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    openai: This fix resolves an issue where the model name might not be set for some streaming responses.
+    openai: This fix resolves an issue where the model name was not captured in streamed responses that specified the model name in non-initial chunks.
