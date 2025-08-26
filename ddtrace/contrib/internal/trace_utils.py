@@ -141,8 +141,8 @@ def _parse_ip_header(ip_header_value: str) -> str:
     IP_EXTRACTIONS = [
         r"(?:^|;)for=(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",  # ipv4 forwarded format
         r'(?:^|;)for="\[(?P<ip>[0-9a-fA-F:]+)\]',  # ipv6 forwarded format
-        r"^(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",  # ipv4 simple format
-        r"^(?P<ip>[0-9a-fA-F:]+)",  # ipv6 simple format
+        r"^\s*(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",  # ipv4 simple format
+        r"^\s*(?P<ip>[0-9a-fA-F:]+)",  # ipv6 simple format
     ]
     for pattern in IP_EXTRACTIONS:
         if m := re.search(pattern, ip_header_value):
