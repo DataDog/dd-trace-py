@@ -1,7 +1,6 @@
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PyTuple};
-use serde_json;
 use std::collections::HashMap;
 
 /// Fast JSON encoder for structured data
