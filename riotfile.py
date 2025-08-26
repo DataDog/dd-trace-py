@@ -1170,8 +1170,15 @@ venv = Venv(
                         ],
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
-                        "pydantic": "==2.12.0a1",
                     },
+                    venvs=[
+                        Venv(
+                            pys="3.14",
+                            pkgs={
+                                "pydantic": "==2.12.0a1",
+                            },
+                        )
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
@@ -1187,8 +1194,15 @@ venv = Venv(
                         ],
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
-                        "pydantic": "==2.12.0a1",
                     },
+                    venvs=[
+                        Venv(
+                            pys="3.14",
+                            pkgs={
+                                "pydantic": "==2.12.0a1",
+                            },
+                        )
+                    ],
                 ),
             ],
         ),
