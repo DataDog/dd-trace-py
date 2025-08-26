@@ -4,13 +4,13 @@ import django
 from django.conf import settings
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec._iast import enable_iast_propagation
 from ddtrace.appsec._iast import load_iast
 from ddtrace.appsec._iast.main import patch_iast
 from ddtrace.contrib.internal.django.patch import patch as django_patch
 from ddtrace.contrib.internal.requests.patch import patch as requests_patch
 from ddtrace.internal import core
-from ddtrace.trace import Pin
 from tests.appsec.iast.iast_utils import _end_iast_context_and_oce
 from tests.appsec.iast.iast_utils import _start_iast_context_and_oce
 from tests.utils import DummyTracer
