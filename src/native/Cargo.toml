@@ -25,6 +25,8 @@ datadog-profiling-ffi = { git = "https://github.com/DataDog/libdatadog", rev = "
 ] }
 ddcommon = { git = "https://github.com/DataDog/libdatadog", rev = "v20.0.0" }
 pyo3 = { version = "0.25", features = ["extension-module", "anyhow"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
 
 [build-dependencies]
 pyo3-build-config = "0.25"
