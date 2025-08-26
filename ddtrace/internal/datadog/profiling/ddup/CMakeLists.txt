@@ -22,21 +22,6 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/../cmake")
 get_filename_component(DD_WRAPPER_BUILD_DIR ${CMAKE_CURRENT_BINARY_DIR}/../dd_wrapper_build ABSOLUTE)
 add_subdirectory(../dd_wrapper ${DD_WRAPPER_BUILD_DIR})
 
-# If PYTHON_EXECUTABLE is set, use it to hint find_package(Python3)
-if(PYTHON_EXECUTABLE)
-    # Get the directory containing the Python executable
-    get_filename_component(PYTHON_EXECUTABLE_DIR ${PYTHON_EXECUTABLE} DIRECTORY)
-    # Get the parent directory (where Python is typically installed)
-    get_filename_component(PYTHON_ROOT_DIR ${PYTHON_EXECUTABLE_DIR} DIRECTORY)
-
-    # Set hints for find_package(Python3)
-    set(Python3_ROOT_DIR ${PYTHON_ROOT_DIR})
-    set(Python3_EXECUTABLE ${PYTHON_EXECUTABLE})
-
-    message(STATUS "Using PYTHON_EXECUTABLE hint: ${PYTHON_EXECUTABLE}")
-    message(STATUS "Python3_ROOT_DIR set to: ${Python3_ROOT_DIR}")
-endif()
-
 find_package(Python3 COMPONENTS Interpreter Development)
 
 # Make sure we have necessary Python variables
