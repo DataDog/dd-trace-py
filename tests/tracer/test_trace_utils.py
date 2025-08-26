@@ -707,12 +707,12 @@ ALL_TESTS[5][2] = "5.5.5.5"
         ),
         (
             "",
-            {"forwarded": 'by=1.2.3.4;for="3.3.3.3";host=test.zouzou.ncom'},
+            {"forwarded": 'by=1.2.3.4;For="3.3.3.3";host=test.zouzou.ncom'},
             "3.3.3.3",
         ),
         (
             "",
-            {"forwarded": "by=1.2.3.4;for=3.3.3.3;host=test.zouzou.ncom"},
+            {"forwarded": "by=1.2.3.4;FOR=3.3.3.3;host=test.zouzou.ncom"},
             "3.3.3.3",
         ),
     ]
