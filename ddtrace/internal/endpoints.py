@@ -1,7 +1,11 @@
 import dataclasses
 from time import monotonic
+from typing import Any
 from typing import Dict
+from typing import List
+from typing import Sequence
 from typing import Set
+from typing import Tuple
 
 
 @dataclasses.dataclass(frozen=True)
@@ -10,6 +14,8 @@ class HttpEndPoint:
     path: str
     resource_name: str = dataclasses.field(default="")
     operation_name: str = dataclasses.field(default="http.request")
+    response_body_type: Sequence[str] = dataclasses.field(default_factory=tuple)
+    response_code: Sequence[int] = dataclasses.field(default_factory=tuple)
     _hash: int = dataclasses.field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -21,6 +27,10 @@ class HttpEndPoint:
 
     def __hash__(self) -> int:
         return self._hash
+
+
+def _dict_factory(lst: List[Tuple[str, Any]]) -> Dict[str, Any]:
+    return {k: v for k, v in lst if v not in ((), [], None)}
 
 
 class Singleton(type):
@@ -55,7 +65,13 @@ class HttpEndPointsCollection(metaclass=Singleton):
         self.last_modification_time = monotonic()
 
     def add_endpoint(
-        self, method: str, path: str, resource_name: str = "", operation_name: str = "http.request"
+        self,
+        method: str,
+        path: str,
+        resource_name: str = "",
+        operation_name: str = "http.request",
+        response_body_type: Sequence[str] = (),
+        response_code: Sequence[int] = (),
     ) -> None:
         """
         Add an endpoint to the collection.
@@ -64,12 +80,26 @@ class HttpEndPointsCollection(metaclass=Singleton):
         if current_time - self.last_modification_time > self.drop_time_seconds:
             self.reset()
             self.endpoints.add(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+                HttpEndPoint(
+                    method=method,
+                    path=path,
+                    resource_name=resource_name,
+                    operation_name=operation_name,
+                    response_body_type=response_body_type,
+                    response_code=response_code,
+                )
             )
         elif len(self.endpoints) < self.max_size_length:
             self.last_modification_time = current_time
             self.endpoints.add(
-                HttpEndPoint(method=method, path=path, resource_name=resource_name, operation_name=operation_name)
+                HttpEndPoint(
+                    method=method,
+                    path=path,
+                    resource_name=resource_name,
+                    operation_name=operation_name,
+                    response_body_type=response_body_type,
+                    response_code=response_code,
+                )
             )
 
     def flush(self, max_length: int) -> dict:
@@ -79,7 +109,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
         if max_length >= len(self.endpoints):
             res = {
                 "is_first": self.is_first,
-                "endpoints": list(map(dataclasses.asdict, self.endpoints)),
+                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in self.endpoints],
             }
             self.reset()
             return res
@@ -87,7 +117,7 @@ class HttpEndPointsCollection(metaclass=Singleton):
             batch = [self.endpoints.pop() for _ in range(max_length)]
             res = {
                 "is_first": self.is_first,
-                "endpoints": [dataclasses.asdict(ep) for ep in batch],
+                "endpoints": [dataclasses.asdict(ep, dict_factory=_dict_factory) for ep in batch],
             }
             self.is_first = False
             self.last_modification_time = monotonic()
