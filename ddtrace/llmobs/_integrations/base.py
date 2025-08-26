@@ -5,6 +5,7 @@ from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace._trace.sampler import RateSampler
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.contrib.internal.trace_utils import int_service
@@ -14,7 +15,6 @@ from ddtrace.llmobs._constants import INTEGRATION
 from ddtrace.llmobs._constants import PROXY_REQUEST
 from ddtrace.llmobs._llmobs import LLMObs
 from ddtrace.settings.integration import IntegrationConfig
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

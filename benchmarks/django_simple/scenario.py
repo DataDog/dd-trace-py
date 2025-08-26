@@ -63,22 +63,37 @@ class DjangoSimple(bm.Scenario):
         # DEV: Some of these methods/caches only exist in some versions of the library
         if self.django_instrument_databases:
             try:
-                from ddtrace.contrib.internal.django.database import get_conn_config
+                from ddtrace.contrib.internal.django import database
 
-                get_conn_config.invalidate()
+                try:
+                    database.get_conn_config.invalidate()
+                except Exception:
+                    pass
+
+                try:
+                    database.get_service_name.invalidate()
+                except Exception:
+                    pass
+
+                try:
+                    database.get_conn_service_name.invalidate()
+                except Exception:
+                    pass
             except Exception:
                 pass
 
+        if self.django_instrument_caches:
             try:
-                from ddtrace.contrib.internal.django.database import get_conn_service_name
+                from ddtrace.contrib.internal.django import cache
 
-                get_conn_service_name.invalidate()
-            except Exception:
-                pass
+                try:
+                    cache.get_service_name.invalidate()
+                except Exception:
+                    pass
 
-            try:
-                from ddtrace.contrib.internal.django.database import get_traced_cursor_cls
-
-                get_traced_cursor_cls.invalidate()
+                try:
+                    cache.func_cache_operation.invalidate()
+                except Exception:
+                    pass
             except Exception:
                 pass

@@ -5,8 +5,8 @@ from google.protobuf.internal import builder
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 from .schema_iterator import SchemaExtractor
 
