@@ -27,18 +27,6 @@ Global Configuration
 
    Default: ``"foo"``
 
-
-Instance Configuration
-~~~~~~~~~~~~~~~~~~~~~~
-
-To configure the foo integration on an per-instance basis use the
-``Pin`` API::
-
-    import foo
-    from ddtrace.trace import Pin
-
-    myfoo = foo.Foo()
-    Pin.override(myfoo, service="myfoo")
 """
 
 from .patch import get_version

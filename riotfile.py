@@ -2583,6 +2583,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
+                "mock": latest,
                 "flask": latest,
                 "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
@@ -2608,6 +2609,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
+                    # v1.12.0 introduced support for metrics
+                    # v1.15.0 introduced support for logs
                     pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
@@ -2902,6 +2905,7 @@ venv = Venv(
                 "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
                 "langchain_openai": latest,
                 "langchain_core": latest,
+                "langchain": latest,
             },
         ),
         Venv(
@@ -3413,13 +3417,12 @@ venv = Venv(
             name="appsec_integrations_flask",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/flask_tests/",
             pkgs={
-                "pytest": latest,
-                "pytest-cov": latest,
                 "requests": latest,
-                "hypothesis": latest,
                 "gunicorn": latest,
                 "gevent": latest,
                 "psycopg2-binary": "~=2.9.9",
+                "flask-babel": latest,
+                "sqlalchemy": latest,
                 "pytest-randomly": latest,
             },
             env={
@@ -3471,10 +3474,7 @@ venv = Venv(
             name="appsec_integrations_langchain",
             command="pytest -vvv {cmdargs} tests/appsec/integrations/langchain_tests/",
             pkgs={
-                "pytest": latest,
                 "pytest-asyncio": latest,
-                "pytest-cov": latest,
-                "hypothesis": latest,
                 "pytest-randomly": latest,
             },
             env={
