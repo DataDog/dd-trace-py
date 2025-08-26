@@ -109,6 +109,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -1342,7 +1343,10 @@ class LLMObs(Service):
                      regarding the span's context.
         :param tool_definitions: List of tool definition dictionaries for tool calling scenarios.
                                                   - This argument is only applicable to LLM spans.
-                                                  - Each tool definition is a dictionary containing a required "name" (string), and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
+                                                  - Each tool definition is a dictionary containing a required
+                                                    "name" (string),
+                                                    and optional "description" (string) and "schema"
+                                                    (JSON serializable dictionary) keys.
                                 Each tool definition should have a required "name" key and optional "description"
                                 and "schema" keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
@@ -1386,24 +1390,9 @@ class LLMObs(Service):
                         span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
             if tool_definitions is not None:
-                if not isinstance(tool_definitions, list):
-                    error = "invalid_tool_definitions"
-                    log.warning("tool_definitions must be a list of dictionaries.")
-                else:
-                    valid_tool_definitions = []
-                    for tool_def in tool_definitions:
-                        if not isinstance(tool_def, dict):
-                            error = "invalid_tool_definitions"
-                            log.warning("Each tool_definition must be a dictionary.")
-                            break
-                        if not tool_def.get("name") or not isinstance(tool_def.get("name"), str):
-                            error = "invalid_tool_definitions"
-                            log.warning("Each tool_definition must have a non-empty 'name' field.")
-                            break
-                        valid_tool_definitions.append(tool_def)
-                    else:
-                        # Only set if all tool definitions are valid
-                        span._set_ctx_item(TOOL_DEFINITIONS, valid_tool_definitions)
+                validated_tool_definitions = extract_tool_definitions(tool_definitions)
+                if validated_tool_definitions:
+                    span._set_ctx_item(TOOL_DEFINITIONS, validated_tool_definitions)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
                 span.name = _name
