@@ -1,7 +1,4 @@
-from types import ModuleType
 from typing import Dict, List, Optional
-
-json: ModuleType
 
 class DDSketch:
     def __init__(self): ...

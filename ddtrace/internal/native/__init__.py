@@ -15,7 +15,6 @@ from ._native import RequestError  # noqa: F401
 from ._native import SerializationError  # noqa: F401
 from ._native import TraceExporter  # noqa: F401
 from ._native import TraceExporterBuilder  # noqa: F401
-from ._native import json  # noqa: F401
 from ._native import store_metadata  # noqa: F401
 
 

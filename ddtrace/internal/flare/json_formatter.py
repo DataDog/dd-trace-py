@@ -1,8 +1,7 @@
+import json
 import logging
 import time
 from typing import Optional
-
-from ddtrace.internal.native import json as native_json
 
 
 class StructuredJSONFormatter(logging.Formatter):
@@ -74,17 +73,19 @@ class StructuredJSONFormatter(logging.Formatter):
 
         for key, value in record.__dict__.items():
             if key not in skip_fields and not key.startswith("_"):
-                # Convert non-serializable values to strings
-                try:
-                    # Test if value is JSON serializable by attempting to serialize it
-                    native_json.dumps(value)
+                if value is not None and not isinstance(value, (str, int, bool)):
+                    try:
+                        log_data[key] = str(value)
+                    except Exception:
+                        try:
+                            log_data[key] = repr(value)
+                        except Exception:
+                            log_data[key] = "unserializable_value"
+                else:
                     log_data[key] = value
-                except (TypeError, ValueError):
-                    log_data[key] = str(value)
 
-        # Use native JSON encoder for fast JSON serialization
         try:
-            return native_json.dumps(log_data)
+            return json.dumps(log_data)
         except Exception as e:
             # Fallback to a basic JSON structure if native JSON fails
             fallback_data = {
@@ -94,7 +95,7 @@ class StructuredJSONFormatter(logging.Formatter):
                 "message": f"JSON formatting failed: {e}. Original message: {record.getMessage()}",
                 "error": "json_formatting_failed",
             }
-            return native_json.dumps(fallback_data)
+            return json.dumps(fallback_data)
 
     def formatTime(self, record: logging.LogRecord, datefmt: Optional[str] = None) -> str:
         """

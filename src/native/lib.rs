@@ -4,7 +4,6 @@ mod crashtracker;
 pub use datadog_profiling_ffi::*;
 mod data_pipeline;
 mod ddsketch;
-mod json;
 mod library_config;
 
 use pyo3::prelude::*;
@@ -35,11 +34,5 @@ fn _native(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<library_config::PyAnonymousFileHandle>()?;
     m.add_wrapped(wrap_pyfunction!(library_config::store_metadata))?;
     data_pipeline::register_data_pipeline(m)?;
-
-    // Create json submodule
-    let json_module = PyModule::new(m.py(), "json")?;
-    json::register_json_module(&json_module)?;
-    m.add_submodule(&json_module)?;
-
     Ok(())
 }
