@@ -43,6 +43,8 @@ download_dependency_wheels:
         PYTHON_VERSION: "3.12"
       - PYTHON_IMAGE_TAG: "3.13.0"
         PYTHON_VERSION: "3.13"
+      - PYTHON_IMAGE_TAG: "3.14.0rc1"
+        PYTHON_VERSION: "3.14"
   script:
     - .gitlab/download-dependency-wheels.sh
   cache:
