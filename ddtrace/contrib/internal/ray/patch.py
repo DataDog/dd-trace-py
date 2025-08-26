@@ -7,6 +7,7 @@ from typing import Any
 from typing import Callable
 from typing import List
 from typing import Optional
+from inspect import Parameter
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -55,6 +56,27 @@ class RayTraceProcessor:
 
 
 config._add("ray", dict(_default_service=schematize_service_name("ray")))
+
+def _sort_params_list(params_list: List[Parameter]):
+    """Given a list of Parameters, if a kwargs Parameter exists,
+    move it to the end of the list."""
+    for i, param in enumerate(params_list):
+        if param.kind == Parameter.VAR_KEYWORD:
+            params_list.append(params_list.pop(i))
+            break
+    return params_list
+
+
+def _add_param_to_signature(function: Callable, new_param: Parameter):
+    """Add additional Parameter to function signature."""
+    old_sig = inspect.signature(function)
+    old_sig_list_repr = list(old_sig.parameters.values())
+    # If new_param is already in signature, do not add it again.
+    if any(param.name == new_param.name for param in old_sig_list_repr):
+        return old_sig
+    new_params = _sort_params_list(old_sig_list_repr + [new_param])
+    new_sig = old_sig.replace(parameters=new_params)
+    return new_sig
 
 
 def get_version() -> str:
@@ -183,22 +205,39 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             span.set_tag_str("ray.job.submit_status", "error")
             raise e
 
+def traced_actor_method_call(wrapped, instance, args, kwargs):
+    if not tracer:
+        return wrapped(*args, **kwargs)
 
-# def traced_actor_remote_method(wrapped, instance, args, kwargs):
-#     if not tracer:
-#         return wrapped(*args, **kwargs)
 
-#     function_descriptor = instance._actor._ray_actor_creation_function_descriptor
-#     module = function_descriptor.module_name
-#     class_name = function_descriptor.class_name
-#     method_name = instance._method_name
+    method_name = args[0]
+    # if _dd_trace_ctx was not injected, we do not want to trace this function
+    if not any(p.name == "_dd_trace_ctx" for p in instance._ray_method_signatures[method_name]):
+        return wrapped(*args, **kwargs)
 
-#     with open("trace_log.txt", "a") as log_file:
-#         log_file.write(f"ActorMethod method call, Module: {module}, Class: {class_name}, Method: {method_name}\n")
+    if os.environ.get("traceparent") is not None:
+        extracted_context = _TraceContext._extract(
+            {
+                "traceparent": os.environ.get("traceparent"),
+                "tracestate": os.environ.get("tracestate"),
+            }
+        )
+        tracer.context_provider.activate(extracted_context)
 
-#     # For all other actor method calls, proceed normally
-#     return wrapped(*args, **kwargs)
+    with tracer.trace("ray.actor.method.call", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML) as span:
+        span.set_tag_str("component", "ray")
+        span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
+        try:
+            headers = {}
+            _TraceContext._inject(span.context, headers)
+            if "kwargs" not in kwargs or kwargs["kwargs"] is None:
+                kwargs["kwargs"] = {}
+            kwargs["kwargs"]["_dd_trace_ctx"] = headers
+
+            return wrapped(*args, **kwargs)
+        except Exception as e:
+            raise e
 
 def flush_worker_spans(wrapped, instance, args, kwargs):
     # Ensure the tracer has the time to send spans before
@@ -216,6 +255,7 @@ def _create_span_wrapper(method: Callable[..., Any]) -> Any:
     def _traced_method(
         self: Any,
         *_args: Any,
+        _dd_trace_ctx = None,
         **_kwargs: Any,
     ) -> Any:
         from ddtrace import tracer as dd_tracer
@@ -225,7 +265,10 @@ def _create_span_wrapper(method: Callable[..., Any]) -> Any:
         if not dd_tracer:
             return method(self, *_args, **_kwargs)
 
-        if os.environ.get("traceparent") is not None:
+        if _dd_trace_ctx is not None:
+            extracted_context = _TraceContext._extract(_dd_trace_ctx)
+            dd_tracer.context_provider.activate(extracted_context)
+        elif os.environ.get("traceparent") is not None:
             extracted_context = _TraceContext._extract(
                 {
                     "traceparent": os.environ.get("traceparent"),
@@ -253,6 +296,7 @@ def _create_async_span_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_async_method(
         self: Any,
         *_args: Any,
+        _dd_trace_ctx = None,
         **_kwargs: Any,
     ) -> Any:
         from ddtrace import tracer as dd_tracer
@@ -262,7 +306,10 @@ def _create_async_span_wrapper(method: Callable[..., Any]) -> Any:
         if not dd_tracer:
             return await method(self, *_args, **_kwargs)
 
-        if os.environ.get("traceparent") is not None:
+        if _dd_trace_ctx is not None:
+            extracted_context = _TraceContext._extract(_dd_trace_ctx)
+            dd_tracer.context_provider.activate(extracted_context)
+        elif os.environ.get("traceparent") is not None:
             extracted_context = _TraceContext._extract(
                 {
                     "traceparent": os.environ.get("traceparent"),
@@ -285,10 +332,10 @@ def _create_async_span_wrapper(method: Callable[..., Any]) -> Any:
 
 
 def _handle_job_supervisor_tracing(cls):
-    methods_to_ignore = {"_polling", "ping"}
+    methods_to_ignore = {"ping", "_polling"}
 
     def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
-        async def _traced_run_method(self: Any, *_args: Any, **_kwargs: Any) -> Any:
+        async def _traced_run_method(self: Any, *_args: Any, _dd_trace_ctx = None, **_kwargs: Any) -> Any:
             from ddtrace import tracer as dd_tracer
             from ddtrace.ext import SpanTypes
             from ddtrace.propagation.http import _TraceContext
@@ -324,7 +371,6 @@ def _handle_job_supervisor_tracing(cls):
 
     methods = inspect.getmembers(cls, is_function_or_method)
     for name, method in methods:
-        # Skip methods we don't want to trace
         if name in methods_to_ignore:
             continue
 
@@ -336,6 +382,13 @@ def _handle_job_supervisor_tracing(cls):
             or name == "__del__"
         ):
             continue
+
+        method.__signature__ = _add_param_to_signature(
+            method,
+            inspect.Parameter(
+                "_dd_trace_ctx", inspect.Parameter.KEYWORD_ONLY, default=None
+            ),
+        )
 
         # Special handling for the run method
         if name == "run" and inspect.iscoroutinefunction(method):
@@ -379,6 +432,13 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
         ):
             continue
 
+        method.__signature__ = _add_param_to_signature(
+            method,
+            inspect.Parameter(
+                "_dd_trace_ctx", inspect.Parameter.KEYWORD_ONLY, default=None
+            ),
+        )
+
         if inspect.iscoroutinefunction(method):
             wrapped_method = wraps(method)(_create_async_span_wrapper(method))
         else:
@@ -387,7 +447,6 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
         setattr(cls, name, wrapped_method)
 
     return cls
-
 
 def patch():
     if getattr(ray, "_datadog_patch", False):
@@ -401,12 +460,7 @@ def patch():
     _w(ray._private.worker, "disconnect", flush_worker_spans)
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
-
-    def empty_inject_tracing_into_class(_cls):
-        return _cls
-
-    ray.util.tracing.tracing_helper._inject_tracing_into_class = empty_inject_tracing_into_class
-
+    _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
 
 
 def unpatch():
@@ -422,3 +476,5 @@ def unpatch():
     _u(ray.remote_function, "RemoteFunction._remote", traced_submit_task)
     _u(ray._private.worker, "disconnect", flush_worker_spans)
     _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
+    _u(ray.actor, "_modify_class", inject_tracing_into_actor_class)
+    _u(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
