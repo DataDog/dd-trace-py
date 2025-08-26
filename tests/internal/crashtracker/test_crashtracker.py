@@ -94,6 +94,7 @@ def test_crashtracker_started():
 @pytest.mark.subprocess()
 def test_crashtracker_receiver_not_in_path():
     import os
+    import shutil
 
     import pytest
 
@@ -106,6 +107,8 @@ def test_crashtracker_receiver_not_in_path():
         # in an injected environment. And we should just load the script
         # directly.
         os.environ["PATH"] = ""
+        dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+        assert dd_crashtracker_receiver is None
 
         ct = CrashtrackerWrapper(1234, "started")
         assert ct.start()
