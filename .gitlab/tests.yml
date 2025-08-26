@@ -101,5 +101,4 @@ include:
     - export DD_TRACE_AGENT_URL="http://testagent:9126"
     - ln -s "${CI_PROJECT_DIR}" "/home/bits/project"
 
-
 # Required jobs will appear here
