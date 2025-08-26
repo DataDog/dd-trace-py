@@ -133,6 +133,23 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     return ""
 
 
+def _parse_ip_header(ip_header_value:str) -> str:
+    """Parse the ip header, either in Forwarded-For format or Forwarded format.
+    
+    references: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Forwarded
+    """
+    IP_EXTRACTIONS = [
+        r"(?:^|;)for=(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", #ipv4 forwarded format
+        r'(?:^|;)for="\[(?P<ip>[0-9a-fA-F:]+)\]"', #ipv6 forwarded format
+        r'^(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', #ipv4 simple format
+        r'^(?P<ip>[0-9a-fA-F:]+)', #ipv6 simple format
+        ]
+    for pattern in IP_EXTRACTIONS:
+        if m := re.search(pattern, ip_header_value):
+            return m.group("ip")
+    return ""
+
+
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
 
@@ -185,9 +202,10 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if ip_header_value:
         # At this point, we have one IP header, check its value and retrieve the first public IP
+
         ip_list = ip_header_value.split(",")
         for ip in ip_list:
-            ip = ip.strip()
+            ip = _parse_ip_header(ip)
             if not ip:
                 continue
 

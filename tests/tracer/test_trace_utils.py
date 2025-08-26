@@ -632,7 +632,7 @@ ALL_IP_HEADERS = (
     ("x-real-ip", "2.2.2.2"),
     ("true-client-ip", "3.3.3.3"),
     ("x-client-ip", "4.4.4.4"),
-    ("forwarded", "5.5.5.5"),
+    ("forwarded", "by=1.2.3.4;for=5.5.5.5:2000;host=test.zouzou.ncom"),
     ("forwarded-for", "6.6.6.6"),
     ("x-cluster-client-ip", "7.7.7.7"),
     ("fastly-client-ip", "8.8.8.8"),
@@ -645,6 +645,8 @@ ALL_TESTS = [
     ["", dict(ALL_IP_HEADERS[-1 : -i - 2 : -1]), ALL_IP_HEADERS[-1 - i][1]] for i in range(len(ALL_IP_HEADERS))
 ]
 
+# expected value for forwarded is extracted from for
+ALL_TESTS[5][2] = "5.5.5.5"
 
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
