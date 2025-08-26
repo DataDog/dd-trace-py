@@ -1390,7 +1390,6 @@ class LLMObs(Service):
                     error = "invalid_tool_definitions"
                     log.warning("tool_definitions must be a list of dictionaries.")
                 else:
-                    # Validate each tool definition has a name
                     valid_tool_definitions = []
                     for tool_def in tool_definitions:
                         if not isinstance(tool_def, dict):
