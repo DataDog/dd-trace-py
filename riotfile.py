@@ -393,6 +393,14 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.13")),
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
                 Venv(
                     name="tracer-legacy-attrs",
