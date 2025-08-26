@@ -46,8 +46,6 @@ def set_otel_logs_provider() -> None:
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "logging_provider_configured", 1, (("type", "dd"),))
     global DD_LOGS_PROVIDER_CONFIGURED
     DD_LOGS_PROVIDER_CONFIGURED = True
-    # Disable log injection to prevent duplicate log attributes from being sent.
-    config._logs_injection = False
 
 
 def _should_configure_logs_exporter() -> bool:
@@ -179,7 +177,7 @@ def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        # Ensure logging exporter is configured to send payloads to a Datadog Agent
+        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
         # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
         os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)

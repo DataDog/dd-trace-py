@@ -270,6 +270,7 @@ import ddtrace.settings.exception_replay
     env["DD_TRACE_WRITER_REUSE_CONNECTIONS"] = "True"
     env["DD_TAGS"] = "team:apm,component:web"
     env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
+    env["DD_LOGS_OTEL_ENABLED"] = "True"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -424,7 +425,7 @@ import ddtrace.settings.exception_replay
         {"name": "DD_LLMOBS_ML_APP", "origin": "default", "value": None},
         {"name": "DD_LLMOBS_SAMPLE_RATE", "origin": "default", "value": 1.0},
         {"name": "DD_LOGS_INJECTION", "origin": "env_var", "value": True},
-        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "default", "value": False},
+        {"name": "DD_LOGS_OTEL_ENABLED", "origin": "env_var", "value": True},
         {"name": "DD_METRICS_OTEL_ENABLED", "origin": "default", "value": False},
         {"name": "DD_PROFILING_AGENTLESS", "origin": "default", "value": False},
         {"name": "DD_PROFILING_API_TIMEOUT", "origin": "default", "value": 10.0},
@@ -532,6 +533,41 @@ import ddtrace.settings.exception_replay
         {"name": "DD_USER_MODEL_LOGIN_FIELD", "origin": "default", "value": ""},
         {"name": "DD_USER_MODEL_NAME_FIELD", "origin": "default", "value": ""},
         {"name": "DD_VERSION", "origin": "default", "value": None},
+        {
+            "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
+            "origin": "default",
+            "value": "http://localhost:4318",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",
+            "origin": "default",
+            "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
+            "origin": "default",
+            "value": 5000,
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
+            "origin": "default",
+            "value": "grpc",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
+            "origin": "default",
+            "value": 5000,
+        },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},
         {"name": "_DD_IAST_USE_ROOT_SPAN", "origin": "default", "value": False},

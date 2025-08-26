@@ -43,10 +43,6 @@ def _derive_logs_timeout(config: "ExporterConfig"):
 class OpenTelemetryConfig(DDConfig):
     __prefix__ = "otel"
 
-    LOGS_ENABLED = DDConfig.v(bool, "logs.enabled", default=False)
-    TRACES_ENABLED = DDConfig.v(bool, "traces.enabled", default=False)
-    METRICS_ENABLED = DDConfig.v(bool, "metrics.enabled", default=False)
-
 
 class ExporterConfig(DDConfig):
     __prefix__ = "exporter"
