@@ -14,6 +14,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 1,
       "_dd.rule_psr": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -50,6 +51,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 1,
       "_dd.rule_psr": 1,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -86,6 +88,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 0,
       "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -123,6 +126,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 1.0,
       "_dd.rule_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -159,6 +163,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 1e-06,
       "_dd.rule_psr": 1e-06,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
@@ -196,6 +201,7 @@
       "runtime-id": "6f2eeb0b30c54268b96f6eca8a2d66ba"
     },
     "metrics": {
+      "_dd.p.ksr": 1.0,
       "_dd.rule_psr": 1.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

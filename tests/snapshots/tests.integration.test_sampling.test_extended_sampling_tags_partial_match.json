@@ -45,6 +45,7 @@
       "tag2": "banana"
     },
     "metrics": {
+      "_dd.p.ksr": 0.0,
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
