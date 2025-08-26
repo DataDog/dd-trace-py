@@ -20,6 +20,7 @@ from ddtrace.contrib.internal.trace_utils import with_traced_module
 from ddtrace.ext import http
 from ddtrace.internal import core
 from ddtrace.internal._exceptions import BlockingException
+from ddtrace.internal.endpoints import endpoint_collection
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.telemetry import get_config as _get_config
@@ -78,10 +79,22 @@ def traced_init(wrapped, instance, args, kwargs):
 
 
 def traced_route_init(wrapped, _instance, args, kwargs):
+    route = args[0] if args else None
+    if route is not None:
+        response_body_type = getattr(kwargs.get("response_class", None), "media_type", None)
+        response_body_type = [response_body_type] if isinstance(response_body_type, str) else []
+        response_code = kwargs.get("status_code", None)
+        response_code = [response_code] if isinstance(response_code, int) else []
+        for m in kwargs.get("methods", None) or []:
+            endpoint_collection.add_endpoint(
+                m,
+                route,
+                operation_name="fastapi.request",
+                response_body_type=response_body_type,
+                response_code=response_code,
+            )
     handler = get_argument_value(args, kwargs, 1, "endpoint")
-
     core.dispatch("service_entrypoint.patch", (inspect.unwrap(handler),))
-
     return wrapped(*args, **kwargs)
 
 
