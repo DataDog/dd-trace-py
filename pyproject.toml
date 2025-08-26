@@ -33,12 +33,12 @@ classifiers = [
 ]
 dependencies = [
     # XXX for testing only, don't merge
-    "bytecode@git+https://github.com/MatthieuDartiailh/bytecode.git@12df29244462c0ae136e0d185b187f3a6329aba9",
+    "bytecode @ git+https://github.com/MatthieuDartiailh/bytecode.git@12df29244462c0ae136e0d185b187f3a6329aba9 ; python_version>='3.14.0'",
     #"bytecode>=0.17.0; python_version>='3.14.0'",
-    #"bytecode>=0.16.0; python_version>='3.13.0'",
-    #"bytecode>=0.15.1; python_version~='3.12.0'",
-    #"bytecode>=0.14.0; python_version~='3.11.0'",
-    #"bytecode>=0.13.0; python_version<'3.11'",
+    "bytecode>=0.16.0; python_version>='3.13.0'",
+    "bytecode>=0.15.1; python_version~='3.12.0'",
+    "bytecode>=0.14.0; python_version~='3.11.0'",
+    "bytecode>=0.13.0; python_version<'3.11'",
     "envier~=0.6.1",
     "legacy-cgi>=2.0.0; python_version>='3.13.0'",
     "opentelemetry-api>=1",
