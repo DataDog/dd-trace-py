@@ -648,6 +648,7 @@ ALL_TESTS = [
 # expected value for forwarded is extracted from for
 ALL_TESTS[5][2] = "5.5.5.5"
 
+
 @pytest.mark.parametrize(
     "header_env_var,headers_dict,expected",
     [
@@ -688,6 +689,16 @@ ALL_TESTS[5][2] = "5.5.5.5"
             "x-real-ip",
             {"x-forwarded-for": "4.4.4.4", "x-real-ip": "8.8.4.4"},
             "8.8.4.4",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="[9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc]:2000";host=test.zouzou.ncom'},
+            "9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc",
+        ),
+        (
+            "",
+            {"forwarded": 'by=1.2.3.4;for="[9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc]";host=test.zouzou.ncom'},
+            "9f7b:5e67:5472:4464:90b0:6b0a:9aa6:f9dc",
         ),
     ]
     + ALL_TESTS,

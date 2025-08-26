@@ -133,17 +133,17 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     return ""
 
 
-def _parse_ip_header(ip_header_value:str) -> str:
+def _parse_ip_header(ip_header_value: str) -> str:
     """Parse the ip header, either in Forwarded-For format or Forwarded format.
-    
+
     references: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Forwarded
     """
     IP_EXTRACTIONS = [
-        r"(?:^|;)for=(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)", #ipv4 forwarded format
-        r'(?:^|;)for="\[(?P<ip>[0-9a-fA-F:]+)\]"', #ipv6 forwarded format
-        r'^(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)', #ipv4 simple format
-        r'^(?P<ip>[0-9a-fA-F:]+)', #ipv6 simple format
-        ]
+        r"(?:^|;)for=(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",  # ipv4 forwarded format
+        r'(?:^|;)for="\[(?P<ip>[0-9a-fA-F:]+)\]',  # ipv6 forwarded format
+        r"^(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)",  # ipv4 simple format
+        r"^(?P<ip>[0-9a-fA-F:]+)",  # ipv6 simple format
+    ]
     for pattern in IP_EXTRACTIONS:
         if m := re.search(pattern, ip_header_value):
             return m.group("ip")
