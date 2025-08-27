@@ -88,18 +88,12 @@ class _TracedConnection(wrapt.ObjectProxy):
         return Pin.get_from(self._protocol)
 
 
-
-
-@with_traced_module  
+@with_traced_module
 async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
     """Traced asyncpg.connect().
 
     connect() is instrumented and patched to return a connection proxy.
     """
-    # Simple detection: check if 'connection_class' is in kwargs
-    # This is a pool-specific argument that regular connect() calls don't have
-    is_pool_context = 'connection_class' in kwargs
-    
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
@@ -109,21 +103,10 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        raw_conn = await func(*args, **kwargs)
-        
-        if is_pool_context:
-            # For pool connections, return unwrapped connection with pin on protocol
-            pin_tags = _get_connection_tags(raw_conn)
-            pin_tags[db.SYSTEM] = DBMS_NAME
-            conn_pin = pin.clone(tags=pin_tags)
-            conn_pin.onto(raw_conn._protocol)
-            span.set_tags(pin_tags)
-            return raw_conn
-        else:
-            # For direct connections, use the traced wrapper
-            conn = _TracedConnection(raw_conn, pin)
-            span.set_tags(_get_connection_tags(conn))
-            return conn
+        # Need an ObjectProxy since Connection uses slots
+        conn = _TracedConnection(await func(*args, **kwargs), pin)
+        span.set_tags(_get_connection_tags(conn))
+        return conn
 
 
 async def _traced_query(pin, method, query, args, kwargs):
