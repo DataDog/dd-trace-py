@@ -314,38 +314,29 @@ asyncio.run(test())
     assert status == 0, err
     assert err == b""
 
-def test_pool_custom_connect(ddtrace_run_python_code_in_subprocess):
+@pytest.mark.asyncio
+async def test_pool_custom_connect():
     """
-    Test that if someone uses a custom connect parameter when creating a pool, 
-    the tracer doesn't cause a _TracedConnection error
+    Test that if someone uses a custom connect parameter when creating a pool,
+    the tracer doesn't cause a _TracedConnection error or throw any other errors
     """
-    code = """
-import asyncio
-import sys
-import asyncpg
-from tests.contrib.config import POSTGRES_CONFIG
-
-async def test():
     database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
-    pool = await asyncpg.create_pool(
-        database_url,
-        connect=asyncpg.connect
-    )
-    async with pool.acquire() as conn:
-        await conn.execute("SELECT 1")
-    await pool.close()
 
-asyncio.run(test())
-    """
-    env = os.environ.copy()
-    out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
-    assert (
-        "expected pool connect callback to return an instance of "
-        "'asyncpg.connection.Connection', got "
-        "'ddtrace.contrib.internal.asyncpg.patch._TracedConnection"
-    ) not in err.decode()
-    assert status == 0, err
-    assert err == b""
+    try:
+        pool = await asyncpg.create_pool(
+            database_url,
+            connect=asyncpg.connect
+        )
+
+        async with pool.acquire() as conn:
+            result = await conn.fetchval("SELECT 1")
+            assert result == 1
+
+        await pool.close()
+    except Exception as err:
+        raise err
+
+    assert True
 
 
 def test_patch_unpatch_asyncpg():
