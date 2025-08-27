@@ -8,11 +8,15 @@ from typing import Tuple
 from typing import Union
 from weakref import WeakKeyDictionary
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
 from ddtrace.llmobs._constants import INPUT_PROMPT
@@ -34,7 +38,9 @@ from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
@@ -502,6 +508,15 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
+                    tool_call_id = _get_attr(message, "tool_call_id", "")
+                    if not is_workflow and tool_call_id:
+                        core.dispatch(
+                            DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+                            (
+                                tool_call_id,
+                                span,
+                            ),
+                        )
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
@@ -529,8 +544,22 @@ class LangChainIntegration(BaseLLMIntegration):
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                if tool_calls_info:
-                    output_message["tool_calls"] = tool_calls_info
+                if not is_workflow:
+                    for tool_call in tool_calls_info:
+                        core.dispatch(
+                            DISPATCH_ON_LLM_TOOL_CHOICE,
+                            (
+                                tool_call.get("tool_id", ""),
+                                tool_call.get("name", ""),
+                                safe_json(tool_call.get("arguments", {})),
+                                {
+                                    "trace_id": format_trace_id(span.trace_id),
+                                    "span_id": str(span.span_id),
+                                },
+                            ),
+                        )
+                    if tool_calls_info:
+                        output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
@@ -711,12 +740,16 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
-            tool_input = tool_inputs.get("input")
+            tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                (tool_name, tool_args, "function", span, tool_id),
+            )
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
-            formatted_input = format_langchain_io(tool_input)
+            formatted_input = format_langchain_io(tool_inputs.get("input", {}))
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = format_langchain_io(tool_output)
@@ -743,6 +776,25 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
+
+    def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
+        """
+        Extract tool name, tool id, and tool args from a tool call input.
+
+        If the tool input is a string, then the entire string is assumed to be the tool call args.
+        """
+        tool_input = tool_inputs.get("input", {})
+        tool_name, tool_id, tool_args = "", "", ""
+        if isinstance(tool_input, str):
+            tool_args = tool_input
+            tool_info = tool_inputs.get("info", {})
+            if isinstance(tool_info, dict):
+                tool_name = tool_info.get("name", "") or ""
+        else:
+            tool_name = _get_attr(tool_input, "name", "") or ""
+            tool_id = _get_attr(tool_input, "id", "") or ""
+            tool_args = safe_json(_get_attr(tool_input, "args", {}) or {})
+        return tool_name, tool_id, tool_args
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
