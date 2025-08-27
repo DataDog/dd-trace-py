@@ -444,7 +444,7 @@ class LibDDWafDownload(LibraryDownload):
     version = LIBDDWAF_VERSION
     url_root = "https://github.com/DataDog/libddwaf/releases/download"
     available_releases = {
-        "Windows": ["win32", "x64"],
+        "Windows": ["arm64", "win32", "x64"],
         "Darwin": ["arm64", "x86_64"],
         "Linux": ["aarch64", "x86_64"],
     }
@@ -677,9 +677,16 @@ class CustomBuildExt(build_ext):
 
         # platform/version-specific arguments--may go into cmake, build, or install as needed
         if CURRENT_OS == "Windows":
-            cmake_args += [
-                "-A{}".format("x64" if platform.architecture()[0] == "64bit" else "Win32"),
-            ]
+            arch = platform.machine().lower()
+            if arch in ("amd64", "x86_64"):
+                cmake_arch = "x64"
+            elif arch in ("x86", "i386", "i686"):
+                cmake_arch = "Win32"
+            elif arch == "arm64":
+                cmake_arch = "ARM64"
+            else:
+                raise RuntimeError(f"Unsupported architecture: {arch}")
+            cmake_args += [f"-A{cmake_arch}"]
         if CURRENT_OS == "Darwin":
             # Cross-compile support for macOS - respect ARCHFLAGS if set
             # Darwin Universal2 should bundle both architectures
