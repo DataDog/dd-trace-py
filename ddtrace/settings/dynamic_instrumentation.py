@@ -52,7 +52,7 @@ class DynamicInstrumentationConfig(DDConfig):
     max_probes = DDConfig.d(int, lambda _: DEFAULT_MAX_PROBES)
     global_rate_limit = DDConfig.d(float, lambda _: DEFAULT_GLOBAL_RATE_LIMIT)
     _tags_in_qs = DDConfig.d(bool, lambda _: True)
-    _intake_endpoint = DDConfig.d(str, lambda _: "/debugger/v1/diagnostics")
+    _intake_endpoint = DDConfig.d(str, lambda _: "@reroute")
     tags = DDConfig.d(str, _derive_tags)
 
     enabled = DDConfig.v(

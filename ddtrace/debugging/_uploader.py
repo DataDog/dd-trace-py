@@ -9,6 +9,7 @@ from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.internal import agent
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
@@ -53,6 +54,15 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
+
+        if self.ENDPOINT == "@reroute":
+            agent_endpoints = (
+                set(agent_info.get("endpoints", [])) if (agent_info := agent.info()) is not None else set()
+            )
+
+            self.ENDPOINT = (
+                "/debugger/v2/input" if "/debugger/v2/input" in agent_endpoints else "/debugger/v1/diagnostics"
+            )
 
         if di_config._tags_in_qs and di_config.tags:
             self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
