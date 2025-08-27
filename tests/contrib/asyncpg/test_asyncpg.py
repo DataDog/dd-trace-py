@@ -314,6 +314,7 @@ asyncio.run(test())
     assert status == 0, err
     assert err == b""
 
+
 @pytest.mark.asyncio
 async def test_pool_custom_connect():
     """
@@ -323,10 +324,7 @@ async def test_pool_custom_connect():
     database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
 
     try:
-        pool = await asyncpg.create_pool(
-            database_url,
-            connect=asyncpg.connect
-        )
+        pool = await asyncpg.create_pool(database_url, connect=asyncpg.connect)
 
         async with pool.acquire() as conn:
             result = await conn.fetchval("SELECT 1")
