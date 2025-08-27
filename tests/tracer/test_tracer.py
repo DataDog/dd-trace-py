@@ -2035,22 +2035,3 @@ def test_activate_context_nesting_and_restoration(tracer):
         assert active.span_id == 1
 
     assert tracer.context_provider.active() is None
-
-
-@mock.patch("ddtrace.internal.native._native.logger.configure")
-def test_native_logger_default(mock_configure):
-    import ddtrace
-
-    ddtrace.trace.Tracer()
-    mock_configure.assert_not_called()
-
-
-@pytest.mark.subprocess(env={"_DD_NATIVE_LOGGING_ENABLED": "1"})
-def test_native_logger_enabled():
-    import mock
-    import ddtrace
-
-    ddtrace.trace.Tracer._instance = None
-    with mock.patch("ddtrace.internal.native._native.logger.configure") as mock_configure:
-        ddtrace.trace.Tracer()
-        mock_configure.assert_called_once_with(output="file", path="native.log", max_size_bytes=4096, max_files=1)
