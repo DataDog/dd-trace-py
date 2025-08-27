@@ -295,11 +295,12 @@ PeriodicThread_start(PeriodicThread* self)
                 AllowThreads _;
 
                 if (self->_request->wait(self->_next_call_time)) {
+                    self->_request->clear();
+
                     if (self->_stopping)
                         break;
 
                     // Awake signal
-                    self->_request->clear();
                     self->_served->set();
                 }
             }

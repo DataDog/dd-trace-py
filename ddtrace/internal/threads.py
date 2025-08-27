@@ -127,8 +127,14 @@ class ThreadRestartTimer(PeriodicThread):
 
 
 @forksafe.register
+def _after_fork_child():
+    # Restart the threads immediately. It is unlikely that there will be another
+    # call to fork here.
+    ThreadRestartTimer()._restart_threads()
+
+
 @forksafe.register_after_parent
-def _after_fork() -> None:
+def _after_fork_parent() -> None:
     global _forking
 
     _forking = False
