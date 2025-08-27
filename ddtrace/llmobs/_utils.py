@@ -55,7 +55,6 @@ def _validate_prompt(
         raise TypeError(f"Prompt must be a dictionary, got {type(prompt).__name__}.")
 
     # Stage 1: Extract values
-    prompt_name = prompt.get("prompt_name")
     prompt_id = prompt.get("id")
     version = prompt.get("version")
     tags = prompt.get("tags")
@@ -75,17 +74,13 @@ def _validate_prompt(
 
     # Stage 3: Set defaults
     final_ml_app = ml_app or DEFAULT_PROMPT_ML_APP
-    final_name = prompt_name or prompt_id or DEFAULT_PROMPT_NAME
-    final_prompt_id = prompt_id or f"{final_ml_app}_{final_name}"
+    final_prompt_id = prompt_id or f"{final_ml_app}_{DEFAULT_PROMPT_NAME}"
     final_ctx_variable_keys = ctx_variable_keys or ["context"]
     final_query_variable_keys = query_variable_keys or ["question"]
 
     # Stage 4: Type checks
     if not isinstance(final_prompt_id, str):
         raise TypeError(f"'id' must be str, got {type(final_prompt_id).__name__}.")
-
-    if not isinstance(final_name, str):
-        raise TypeError(f"'prompt_name' must be str, got {type(final_name).__name__}.")
 
     if not (isinstance(final_ctx_variable_keys, list) and all(isinstance(i, str) for i in final_ctx_variable_keys)):
         raise TypeError("'rag_context_variables' must be a List[str].")
@@ -133,8 +128,6 @@ def _validate_prompt(
     validated_prompt: ValidatedPromptDict = {}
     if final_prompt_id:
         validated_prompt["id"] = final_prompt_id
-    if final_name:
-        validated_prompt["prompt_name"] = final_name
     if version:
         validated_prompt["version"] = version
     if variables:

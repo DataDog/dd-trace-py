@@ -56,7 +56,6 @@ class Prompt(TypedDict, total=False):
     """
     A Prompt object that contains the information needed to render a prompt.
         id: str - the id of the prompt set by the user. Should be unique per ml_app.
-        prompt_name: str - the name of the prompt template.
         version: str - user tag for the version of the prompt.
         variables: Dict[str, str] - a dictionary of variables that will be used to render the prompt
         chat_template: Optional[Union[List[Dict[str, str]], List[Message]]]
@@ -70,7 +69,6 @@ class Prompt(TypedDict, total=False):
         rag_query_variables: List[str] - a list of variable key names that contains query information
     """
 
-    prompt_name: Optional[str]
     version: Optional[str]
     id: Optional[str]
     template: Optional[str]
