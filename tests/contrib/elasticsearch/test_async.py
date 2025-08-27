@@ -59,7 +59,6 @@ def do_test(tmpdir, es_module, async_class):
         env=env,
     )
     p.wait()
-    stderr = p.stderr.read()
     stdout = p.stdout.read()
     assert stdout == b"", stdout
     assert p.returncode == 0
