@@ -1623,10 +1623,24 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
                     pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -3118,7 +3132,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
