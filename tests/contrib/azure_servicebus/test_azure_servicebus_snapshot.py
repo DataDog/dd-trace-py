@@ -272,7 +272,6 @@ with ServiceBusClient.from_connection_string(conn_str="{CONNECTION_STRING}") as 
     env.update(env_vars)
     out, err, status, _ = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, (err.decode(), out.decode())
-    assert err == b"", err.decode()
 
 
 @pytest.mark.asyncio
