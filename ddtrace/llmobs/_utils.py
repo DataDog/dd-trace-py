@@ -272,7 +272,8 @@ def add_span_link(span: Union[Span, Dict[str, Any]], span_id: str, trace_id: str
             "attributes": {"from": from_io, "to": to_io},
         }
     )
-    span._set_ctx_item(SPAN_LINKS, current_span_links)
+    if isinstance(span, Span):
+        span._set_ctx_item(SPAN_LINKS, current_span_links)
 
 
 def enforce_message_role(messages: List[Dict[str, str]]) -> List[Dict[str, str]]:
