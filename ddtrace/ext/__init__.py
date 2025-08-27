@@ -18,6 +18,7 @@ class SpanTypes(object):
     LLM = "llm"
     VALKEY = "valkey"
     WEBSOCKET = "websocket"
+    ML = "ml"
 
 
 class SpanKind(object):
