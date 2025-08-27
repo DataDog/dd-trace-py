@@ -79,6 +79,11 @@ class RayTraceProcessor:
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+                # Set the span type to either producer or consumer to match Ray's own OpenTelemetry implementation
+                if span.span_type == SpanTypes.ML or span.span_type == SpanTypes.WORKER:
+                    span.span_type = "consumer"
+                else:
+                    span.span_type = "producer"
                 processed_trace.append(span)
             elif not ray_spans_only:
                 with open("span_log.txt", "a") as log_file:
