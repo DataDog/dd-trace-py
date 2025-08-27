@@ -104,6 +104,7 @@ def track_user(
         scope=usr_scope if isinstance(usr_scope, str) else None,
         role=usr_role if isinstance(usr_role, str) else None,
         session_id=session_id,
+        span=span,
         may_block=_auto,
         mode=_constants.LOGIN_EVENTS_MODE.AUTO if _auto else _constants.LOGIN_EVENTS_MODE.SDK,
     )

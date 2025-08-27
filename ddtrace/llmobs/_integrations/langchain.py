@@ -8,13 +8,18 @@ from typing import Tuple
 from typing import Union
 from weakref import WeakKeyDictionary
 
+from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import ArgumentError
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_DOCUMENTS
 from ddtrace.llmobs._constants import INPUT_MESSAGES
+from ddtrace.llmobs._constants import INPUT_PROMPT
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -30,9 +35,13 @@ from ddtrace.llmobs._constants import SPAN_KIND
 from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
+from ddtrace.llmobs._integrations.utils import extract_instance_metadata_from_stack
 from ddtrace.llmobs._integrations.utils import format_langchain_io
 from ddtrace.llmobs._integrations.utils import update_proxy_workflow_input_output_value
+from ddtrace.llmobs._utils import _get_attr
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
+from ddtrace.llmobs._utils import safe_json
+from ddtrace.llmobs._utils import validate_prompt
 from ddtrace.llmobs.utils import Document
 from ddtrace.trace import Span
 
@@ -364,6 +373,27 @@ class LangChainIntegration(BaseLLMIntegration):
         if hasattr(instance, "_datadog_spans"):
             delattr(instance, "_datadog_spans")
 
+    def _get_prompt_variable_name(self, instance: Any) -> str:
+        """
+        Attempts to find the variable name used for the prompt template instance by inspecting
+        the caller's frame locals and globals, and returns it in the format:
+        {integration_name}.{reflected_module/file_name}.{reflected_variable_name}
+        """
+        try:
+            variable_name, module_name = extract_instance_metadata_from_stack(
+                instance=instance,
+                internal_variable_names=["instance", "self", "step"],
+                default_variable_name="unknown_prompt_template",
+                default_module_name="unknown_module",
+                frame_start_offset=2,
+                frame_search_depth=10,
+            )
+        except Exception:
+            log.warning("Failed to extract prompt variable name")
+            return "unknown_prompt_template"
+
+        return f"{module_name}.{variable_name}"
+
     def _llmobs_set_metadata(self, span: Span, kwargs: Dict[str, Any]) -> None:
         identifying_params = kwargs.pop("_dd.identifying_params", None)
         if not identifying_params:
@@ -478,6 +508,15 @@ class LangChainIntegration(BaseLLMIntegration):
                     )
                     role = getattr(message, "role", ROLE_MAPPING.get(getattr(message, "type", ""), ""))
                     input_messages.append({"content": str(content), "role": str(role)})
+                    tool_call_id = _get_attr(message, "tool_call_id", "")
+                    if not is_workflow and tool_call_id:
+                        core.dispatch(
+                            DISPATCH_ON_TOOL_CALL_OUTPUT_USED,
+                            (
+                                tool_call_id,
+                                span,
+                            ),
+                        )
         span._set_ctx_item(input_tag_key, input_messages)
 
         if span.error:
@@ -505,8 +544,22 @@ class LangChainIntegration(BaseLLMIntegration):
                 role = getattr(chat_completion_msg, "role", ROLE_MAPPING.get(chat_completion_msg.type, ""))
                 output_message = {"content": str(chat_completion.text), "role": role}
                 tool_calls_info = self._extract_tool_calls(chat_completion_msg)
-                if tool_calls_info:
-                    output_message["tool_calls"] = tool_calls_info
+                if not is_workflow:
+                    for tool_call in tool_calls_info:
+                        core.dispatch(
+                            DISPATCH_ON_LLM_TOOL_CHOICE,
+                            (
+                                tool_call.get("tool_id", ""),
+                                tool_call.get("name", ""),
+                                safe_json(tool_call.get("arguments", {})),
+                                {
+                                    "trace_id": format_trace_id(span.trace_id),
+                                    "span_id": str(span.span_id),
+                                },
+                            ),
+                        )
+                    if tool_calls_info:
+                        output_message["tool_calls"] = tool_calls_info
                 output_messages.append(output_message)
 
                 # if it wasn't set above, check for token usage on the AI message object level
@@ -687,12 +740,16 @@ class LangChainIntegration(BaseLLMIntegration):
         metadata = json.loads(str(span.get_tag(METADATA))) if span.get_tag(METADATA) else {}
         formatted_input = ""
         if tool_inputs is not None:
-            tool_input = tool_inputs.get("input")
+            tool_name, tool_id, tool_args = self._extract_tool_call_args_from_inputs(tool_inputs)
+            core.dispatch(
+                DISPATCH_ON_TOOL_CALL,
+                (tool_name, tool_args, "function", span, tool_id),
+            )
             if tool_inputs.get("config"):
                 metadata["tool_config"] = tool_inputs.get("config")
             if tool_inputs.get("info"):
                 metadata["tool_info"] = tool_inputs.get("info")
-            formatted_input = format_langchain_io(tool_input)
+            formatted_input = format_langchain_io(tool_inputs.get("input", {}))
         formatted_outputs = ""
         if not span.error and tool_output is not None:
             formatted_outputs = format_langchain_io(tool_output)
@@ -719,6 +776,25 @@ class LangChainIntegration(BaseLLMIntegration):
             span.set_tag_str(PROVIDER, provider)
         if model is not None:
             span.set_tag_str(MODEL, model)
+
+    def _extract_tool_call_args_from_inputs(self, tool_inputs: Dict[str, Any]) -> Tuple[str, str, str]:
+        """
+        Extract tool name, tool id, and tool args from a tool call input.
+
+        If the tool input is a string, then the entire string is assumed to be the tool call args.
+        """
+        tool_input = tool_inputs.get("input", {})
+        tool_name, tool_id, tool_args = "", "", ""
+        if isinstance(tool_input, str):
+            tool_args = tool_input
+            tool_info = tool_inputs.get("info", {})
+            if isinstance(tool_info, dict):
+                tool_name = tool_info.get("name", "") or ""
+        else:
+            tool_name = _get_attr(tool_input, "name", "") or ""
+            tool_id = _get_attr(tool_input, "id", "") or ""
+            tool_args = safe_json(_get_attr(tool_input, "args", {}) or {})
+        return tool_name, tool_id, tool_args
 
     def check_token_usage_chat_or_llm_result(self, result):
         """Checks for token usage on the top-level ChatResult or LLMResult object"""
@@ -764,3 +840,52 @@ class LangChainIntegration(BaseLLMIntegration):
         for field in LANGCHAIN_BASE_URL_FIELDS:
             base_url = getattr(instance, field, None) or base_url
         return str(base_url) if base_url else None
+
+    def handle_prompt_template_invoke(self, instance, result, args: List[Any], kwargs: Dict[str, Any]):
+        """On prompt template invoke, store the template on the result so its available to consuming .invoke()."""
+        template, variables = None, None
+        if hasattr(instance, "template") and isinstance(instance.template, str):
+            template = instance.template
+        variables = get_argument_value(args, kwargs, 0, "input", optional=True)
+
+        if not template or not variables:
+            return
+
+        prompt_id = self._get_prompt_variable_name(instance)
+
+        prompt = {
+            "variables": variables,
+            "template": template,
+            "id": prompt_id if prompt_id is not None else "unknown",
+            "version": "0.0.0",
+            "rag_context_variables": [],
+            "rag_query_variables": [],
+        }
+
+        try:
+            object.__setattr__(result, "_dd.prompt_template", prompt)
+        except (AttributeError, TypeError):
+            log.warning("Could not attach prompt metadata to resulting prompt")
+
+    def handle_llm_invoke(self, instance, args: List[Any], kwargs: Dict[str, Any]):
+        """On llm invoke, take any template from the input prompt value and make it available to llm.generate()."""
+        template = None
+        prompt_input = get_argument_value(args, kwargs, 0, "input", optional=True)
+        if prompt_input:
+            template = getattr(prompt_input, "_dd.prompt_template", None)
+        if template:
+            object.__setattr__(instance, "_dd.prompt_template", template)
+
+    def llmobs_set_prompt_tag(self, instance, span: Span):
+        """
+        On llm.generate(), BEFORE you call .generate(), take any template we have and write it to the span.
+        Since child spans may need to read the tagged data, we must tag before calling the wrapped function.
+        """
+        prompt_value_meta = getattr(instance, "_dd.prompt_template", None)
+        if prompt_value_meta is not None:
+            prompt = prompt_value_meta
+            try:
+                prompt = validate_prompt(prompt)
+                span._set_ctx_item(INPUT_PROMPT, prompt)
+            except Exception as e:
+                log.warning("Failed to validate langchain prompt", e)

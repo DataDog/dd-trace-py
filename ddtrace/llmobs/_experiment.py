@@ -408,9 +408,14 @@ class Experiment:
                     continue
                 task_results.append(result)
                 err_dict = result.get("error") or {}
-                err_msg = err_dict.get("message") if isinstance(err_dict, dict) else None
+                if isinstance(err_dict, dict):
+                    err_msg = err_dict.get("message")
+                    err_stack = err_dict.get("stack")
+                    err_type = err_dict.get("type")
                 if raise_errors and err_msg:
-                    raise RuntimeError("Error on record {}: {}".format(result["idx"], err_msg))
+                    raise RuntimeError(
+                        "Error on record {}: {}\n{}\n{}".format(result["idx"], err_msg, err_type, err_stack)
+                    )
         self._llmobs_instance.flush()  # Ensure spans get submitted in serverless environments
         return task_results
 
