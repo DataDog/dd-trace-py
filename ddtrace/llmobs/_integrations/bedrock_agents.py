@@ -375,10 +375,7 @@ def _model_invocation_input_span(
     )
     for message in text.get("messages", []):
         message_content = message.get("content", "")
-        tool_use_ids = _extract_tool_use_ids(message_content)
-        if tool_use_ids:
-            for tool_use_id in tool_use_ids:
-                _handle_tool_usage(tool_use_id, span_event)
+        _handle_tool_usage(message_content, span_event)
         input_messages.append({"content": message_content, "role": message.get("role", "")})
     return span_event
 
@@ -397,11 +394,10 @@ def _model_invocation_output_span(
     parsed_response = model_output.get("parsedResponse", {})
     if parsed_response:
         output_message_content = safe_json(parsed_response)
-        output_messages.append({"content": output_message_content, "role": "assistant"})
     else:
         raw_response = model_output.get("rawResponse", {}).get("content", "")
         output_message_content = raw_response
-        output_messages.append({"content": output_message_content, "role": "assistant"})
+    output_messages.append({"content": output_message_content, "role": "assistant"})
 
     if output_message_content:
         _handle_tool_calls(output_message_content, current_active_span)
@@ -469,7 +465,6 @@ def _invocation_input_span(
             safe_json(tool_args) if not isinstance(tool_args, str) else tool_args,
             "function",
             span_event,
-            "",
         ),
     )
     return span_event
@@ -544,12 +539,6 @@ def translate_bedrock_trace(trace, root_span, current_active_span_event, trace_s
     translated_span_event, finished = translation_method(trace, root_span, current_active_span_event, trace_step_id)
     return translated_span_event, finished
 
-
-def _handle_tool_usage(tool_call_id: str, span: Dict[str, Any]) -> None:
-    """Extracts tool usage from the input message content and tracks them for span linking purposes."""
-    core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
-
-
 def _handle_tool_calls(output_message_content: str, current_active_span: Dict[str, Any]) -> None:
     """Extracts tool calls from the output message content and tracks them for span linking purposes."""
     parsed_output_content = safe_load_json(output_message_content)
@@ -571,6 +560,12 @@ def _handle_tool_calls(output_message_content: str, current_active_span: Dict[st
                 ),
             )
 
+def _handle_tool_usage(message_content: str, span: Dict[str, Any]) -> None:
+    """Extracts tool usage from the input message content and tracks them for span linking purposes."""
+    tool_use_ids = _extract_tool_use_ids(message_content)
+    if tool_use_ids:
+        for tool_use_id in tool_use_ids:
+            core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_use_id, span))
 
 def _extract_tool_use_ids(message_content: str) -> List[str]:
     """
