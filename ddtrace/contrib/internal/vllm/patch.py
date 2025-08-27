@@ -1,8 +1,19 @@
-from re import I
 from typing import Any, Mapping, Optional
 
 from ddtrace.ext import SpanTypes
-from ddtrace.llmobs._constants import INTEGRATION
+from ddtrace.llmobs._constants import (
+    INTEGRATION,
+    SPAN_KIND,
+    MODEL_NAME,
+    MODEL_PROVIDER,
+    METADATA,
+    METRICS,
+    INPUT_MESSAGES,
+    OUTPUT_MESSAGES,
+    INPUT_TOKENS_METRIC_KEY,
+    OUTPUT_TOKENS_METRIC_KEY,
+    TOTAL_TOKENS_METRIC_KEY,
+)
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.settings import integration
 import vllm
@@ -26,21 +37,23 @@ config._add("vllm", {})
 def traced_generate(vllm, pin, func, instance, args, kwargs):
     # Get class name for logging
     class_name = instance.__class__.__name__
+    module_name = getattr(instance.__class__, "__module__", "")
     log.debug("[VLLM DEBUG] Starting generate from %s", class_name)
     
-    # Inject trace context for span linking (no prompt data needed)
-    current_span = tracer.current_span()
-    if current_span:
-        trace_headers = kwargs.get("trace_headers", {})
-        if not isinstance(trace_headers, dict):
-            trace_headers = {}
-            
-        # Inject current span context for proper trace linking
-        HTTPPropagator.inject(current_span.context, trace_headers)
-        kwargs["trace_headers"] = trace_headers
-        log.debug("[VLLM DEBUG] Injected trace context for span linking")
-    else:
-        log.debug("[VLLM DEBUG] No current span found, skipping trace injection")
+    # For V1, do NOT inject trace_headers (Processor rejects it with ValueError).
+    if not module_name.startswith("vllm.v1."):
+        # Inject trace context for span linking (no prompt data needed)
+        current_span = tracer.current_span()
+        if current_span:
+            trace_headers = kwargs.get("trace_headers", {})
+            if not isinstance(trace_headers, dict):
+                trace_headers = {}
+            # Inject current span context for proper trace linking
+            HTTPPropagator.inject(current_span.context, trace_headers)
+            kwargs["trace_headers"] = trace_headers
+            log.debug("[VLLM DEBUG] Injected trace context for span linking")
+        else:
+            log.debug("[VLLM DEBUG] No current span found, skipping trace injection")
 
     prompt = args[0] if len(args) > 0 else kwargs.get("prompt")
     log.debug("[VLLM DEBUG] %s.generate Prompt: %s", class_name, prompt)
@@ -193,6 +206,267 @@ def traced_add_request(vllm, pin, func, instance, args, kwargs):
     log.debug("[VLLM DEBUG] Content of _request_id_to_prompt: %s", integration._request_id_to_prompt)
     return func(*args, **kwargs)
 
+
+# --- V1 support ---
+
+@with_traced_module_async
+async def traced_asyncllm__add_request(vllm, pin, func, instance, args, kwargs):
+    """Capture parent context and prompt for V1 requests at add time.
+
+    Signature: AsyncLLM._add_request(self, request, prompt, parent_req, index, queue)
+    """
+    try:
+        request = args[0] if args else kwargs.get("request")
+        prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
+        req_id = getattr(request, "request_id", None)
+        integration: VLLMIntegration = vllm._datadog_integration
+    except Exception:
+        request = None
+        prompt = None
+        req_id = None
+        integration = None
+
+    # Store prompt and parent context to link the finishing span later
+    if integration is not None and req_id:
+        try:
+            if prompt:
+                integration.store_request_id_to_prompt(req_id, prompt)
+        except Exception:
+            # Fallback to a plain dict if the helper isn't available
+            try:
+                integration._request_id_to_prompt[req_id] = prompt or ""
+            except Exception:
+                pass
+
+        current_span = pin.tracer.current_span()
+        if current_span:
+            if not hasattr(integration, "_parent_ctx_by_req"):
+                integration._parent_ctx_by_req = {}
+            integration._parent_ctx_by_req[req_id] = current_span.context
+
+        # Store model name by request for tagging
+        if not hasattr(integration, "_model_name_by_req"):
+            integration._model_name_by_req = {}
+        model_name = getattr(getattr(instance, "model_config", None), "model", None)
+        if model_name:
+            integration._model_name_by_req[req_id] = model_name
+
+        # Store sampling params for LLMObs metadata later
+        try:
+            if not hasattr(integration, "_sampling_params_by_req"):
+                integration._sampling_params_by_req = {}
+            sampling_params = getattr(request, "sampling_params", None)
+            integration._sampling_params_by_req[req_id] = sampling_params
+        except Exception:
+            pass
+
+    return await func(*args, **kwargs)
+
+
+@with_traced_module
+def traced_requeststate_make_request_output(vllm, pin, func, instance, args, kwargs):
+    """Create vllm.request span when a V1 RequestState finishes and set LLMObs context.
+
+    Also accumulates output text/tokens across streaming outputs so final span has full content.
+    """
+    out = func(*args, **kwargs)
+
+    # Accumulate output text and token counts for this request
+    try:
+        req_id = getattr(instance, "request_id", None)
+        integration: VLLMIntegration = vllm._datadog_integration
+        if req_id and integration is not None:
+            # Init accumulators
+            if not hasattr(integration, "_accum_text_by_req"):
+                integration._accum_text_by_req = {}
+            if not hasattr(integration, "_accum_output_tokens_by_req"):
+                integration._accum_output_tokens_by_req = {}
+            if not hasattr(integration, "_input_tokens_by_req"):
+                integration._input_tokens_by_req = {}
+
+            # Input tokens (fixed per request)
+            try:
+                if req_id not in integration._input_tokens_by_req:
+                    prompt_token_ids = getattr(out, "prompt_token_ids", None)
+                    if prompt_token_ids is not None:
+                        integration._input_tokens_by_req[req_id] = len(prompt_token_ids)
+            except Exception:
+                pass
+
+            # Accumulate output text and tokens from this chunk
+            try:
+                for completion in getattr(out, "outputs", []) or []:
+                    text = getattr(completion, "text", None)
+                    if text:
+                        integration._accum_text_by_req[req_id] = (
+                            integration._accum_text_by_req.get(req_id, "") + text
+                        )
+                    token_ids = getattr(completion, "token_ids", None)
+                    if token_ids is not None:
+                        integration._accum_output_tokens_by_req[req_id] = (
+                            integration._accum_output_tokens_by_req.get(req_id, 0)
+                            + len(token_ids)
+                        )
+            except Exception:
+                pass
+    except Exception:
+        req_id = None
+        integration = None
+
+    # Finalize span on finished output
+    try:
+        finished = getattr(out, "finished", False)
+    except Exception:
+        finished = False
+
+    if finished and req_id and integration is not None:
+        try:
+            parent_ctx = None
+            model_name = None
+            if hasattr(integration, "_parent_ctx_by_req"):
+                parent_ctx = integration._parent_ctx_by_req.pop(req_id, None)
+            if hasattr(integration, "_model_name_by_req"):
+                model_name = integration._model_name_by_req.pop(req_id, None)
+
+            span = pin.tracer.start_span(
+                "vllm.request",
+                child_of=parent_ctx,
+                resource="vllm.request",
+                span_type=SpanTypes.LLM if integration.llmobs_enabled else None,
+                activate=False,
+            )
+            if integration.llmobs_enabled:
+                span._set_ctx_item(INTEGRATION, integration._integration_name)
+            span.set_metric(_SPAN_MEASURED_KEY, 1)
+
+            # Tag model name if known
+            if model_name:
+                try:
+                    integration._set_base_span_tags(span, model_name=model_name)
+                except Exception:
+                    pass
+
+            # Backdate start time to arrival if stats available
+            try:
+                stats = getattr(instance, "stats", None)
+                arrival = getattr(stats, "arrival_time", None) if stats else None
+                if arrival:
+                    span.start_ns = int(arrival * 1e9)
+            except Exception:
+                pass
+
+            # Build LLMObs context
+            try:
+                # Input prompt
+                prompt = getattr(out, "prompt", None)
+                if not prompt and hasattr(integration, "_request_id_to_prompt"):
+                    prompt = integration._request_id_to_prompt.get(req_id)
+
+                # Output text accumulated
+                output_text = ""
+                if hasattr(integration, "_accum_text_by_req"):
+                    output_text = integration._accum_text_by_req.pop(req_id, "")
+                if not output_text:
+                    # fallback to current out outputs
+                    for completion in getattr(out, "outputs", []) or []:
+                        if getattr(completion, "text", None):
+                            output_text += completion.text
+
+                # Token metrics
+                input_tokens = 0
+                if hasattr(integration, "_input_tokens_by_req"):
+                    input_tokens = integration._input_tokens_by_req.pop(req_id, 0)
+                output_tokens = 0
+                if hasattr(integration, "_accum_output_tokens_by_req"):
+                    output_tokens = integration._accum_output_tokens_by_req.pop(req_id, 0)
+
+                metrics_ctx = {}
+                if input_tokens:
+                    metrics_ctx[INPUT_TOKENS_METRIC_KEY] = input_tokens
+                if output_tokens:
+                    metrics_ctx[OUTPUT_TOKENS_METRIC_KEY] = output_tokens
+                if input_tokens or output_tokens:
+                    metrics_ctx[TOTAL_TOKENS_METRIC_KEY] = input_tokens + output_tokens
+
+                # Sampling metadata
+                metadata_ctx = {}
+                try:
+                    sp = None
+                    if hasattr(integration, "_sampling_params_by_req"):
+                        sp = integration._sampling_params_by_req.pop(req_id, None)
+                    for key in (
+                        "temperature",
+                        "max_tokens",
+                        "top_p",
+                        "top_k",
+                        "n",
+                        "presence_penalty",
+                        "frequency_penalty",
+                        "repetition_penalty",
+                        "seed",
+                    ):
+                        val = getattr(sp, key, None) if sp is not None else None
+                        if val is not None:
+                            metadata_ctx[key] = val
+                except Exception:
+                    pass
+
+                # Model fields
+                provider = "vllm"
+                model_short = model_name or ""
+                if model_short and "/" in model_short:
+                    provider, model_short = model_short.split("/", 1)
+
+                ctx_items = {
+                    SPAN_KIND: "llm",
+                    MODEL_NAME: model_short or (model_name or ""),
+                    MODEL_PROVIDER: provider,
+                    METADATA: metadata_ctx,
+                    METRICS: metrics_ctx,
+                }
+                if prompt:
+                    ctx_items[INPUT_MESSAGES] = [{"content": prompt}]
+                if output_text:
+                    ctx_items[OUTPUT_MESSAGES] = [{"content": output_text}]
+
+                span._set_ctx_items(ctx_items)
+            except Exception as e:
+                log.debug("[VLLM DEBUG] Failed to set LLMObs ctx: %s", e)
+
+            # Best-effort cleanup for prompt map
+            try:
+                if hasattr(integration, "_request_id_to_prompt"):
+                    integration._request_id_to_prompt.pop(req_id, None)
+            except Exception:
+                pass
+
+            span.finish()
+            log.debug("[VLLM DEBUG] Created vllm.request span for %s", req_id)
+        except Exception as e:
+            log.debug("[VLLM DEBUG] Failed to create vllm.request span: %s", e)
+
+    return out
+
+
+@with_traced_module
+def traced_outputprocessor_abort_requests(vllm, pin, func, instance, args, kwargs):
+    req_ids = args[0] if args else kwargs.get("request_ids") or []
+    res = func(*args, **kwargs)
+    try:
+        integration: VLLMIntegration = vllm._datadog_integration
+        if hasattr(integration, "_parent_ctx_by_req"):
+            for rid in req_ids:
+                integration._parent_ctx_by_req.pop(rid, None)
+        if hasattr(integration, "_model_name_by_req"):
+            for rid in req_ids:
+                integration._model_name_by_req.pop(rid, None)
+        if hasattr(integration, "_request_id_to_prompt"):
+            for rid in req_ids:
+                integration._request_id_to_prompt.pop(rid, None)
+    except Exception:
+        pass
+    return res
+
 def patch():
     log.debug("[VLLM DEBUG] Loading vLLM integration")
     if getattr(vllm, "_datadog_patch", False):
@@ -206,22 +480,34 @@ def patch():
     # TODO: Check for integration.llmobs_enabled?
     # TODO: Patch beam_search?
 
-    # Patch all generate methods to inject trace context
-    log.debug("[VLLM DEBUG] Patching vLLM")
-    #wrap("vllm.entrypoints.llm", "LLM.generate", traced_generate(vllm))
-    #wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
-    #wrap("vllm.engine.protocol", "EngineClient.generate", traced_generate(vllm))
-    wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate", traced_generate(vllm))
-    wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_generate(vllm))
-    
-    # Patch _process_model_outputs to create comprehensive spans
-    wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_process_model_outputs(vllm))
-    
-    # Patch OpenAI-compatible serving endpoints
-    wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_completion", traced_preprocess_completion(vllm))
-    wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_chat", traced_preprocess_chat(vllm))
+    def safe_wrap(mod, name, wrapper):
+        try:
+            wrap(mod, name, wrapper)
+        except Exception as e:
+            log.debug("[VLLM DEBUG] Skipping wrap %s.%s: %s", mod, name, e)
 
-    wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_add_request(vllm))
+    # Patch all generate methods to inject trace context where supported
+    log.debug("[VLLM DEBUG] Patching vLLM")
+    # V1 AsyncLLM.generate (trace_headers injection disabled internally)
+    safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.generate", traced_generate(vllm))
+    # V0 client/engine generate (if present)
+    safe_wrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate", traced_generate(vllm))
+    safe_wrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate", traced_generate(vllm))
+
+    # V0: process_model_outputs (if present)
+    safe_wrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs", traced_process_model_outputs(vllm))
+
+    # V1: create spans at finish and capture parent context at add
+    safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM._add_request", traced_asyncllm__add_request(vllm))
+    safe_wrap("vllm.v1.engine.output_processor", "RequestState.make_request_output", traced_requeststate_make_request_output(vllm))
+    safe_wrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests", traced_outputprocessor_abort_requests(vllm))
+
+    # Patch OpenAI-compatible serving endpoints (if server in use)
+    safe_wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_completion", traced_preprocess_completion(vllm))
+    safe_wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_chat", traced_preprocess_chat(vllm))
+
+    # V0: capture prompt on add_request (if present)
+    safe_wrap("vllm.engine.llm_engine", "LLMEngine.add_request", traced_add_request(vllm))
     log.debug("[VLLM DEBUG] Patched vLLM")
 
 
@@ -232,15 +518,44 @@ def unpatch():
     
     vllm._datadog_patch = False
 
-    #unwrap("vllm.entrypoints.llm", "LLM.generate")
-    #unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
-    #unwrap("vllm.engine.protocol", "EngineClient.generate")
-    unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate")
-    unwrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate")
-    unwrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs")
+    try:
+        unwrap("vllm.v1.engine.async_llm", "AsyncLLM.generate")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.engine.multiprocessing.client", "MQLLMEngineClient.generate")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.engine.async_llm_engine", "AsyncLLMEngine.generate")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.engine.llm_engine", "LLMEngine._process_model_outputs")
+    except Exception:
+        pass
+    # V1 unpatch
+    try:
+        unwrap("vllm.v1.engine.async_llm", "AsyncLLM._add_request")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.v1.engine.output_processor", "RequestState.make_request_output")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests")
+    except Exception:
+        pass
     
     # Remove OpenAI-compatible serving endpoint patches
-    unwrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_completion")
-    unwrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_chat")
+    try:
+        unwrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_completion")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_chat")
+    except Exception:
+        pass
 
     delattr(vllm, "_datadog_integration")
