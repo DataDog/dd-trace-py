@@ -100,6 +100,23 @@ if config._llmobs_enabled:
     LLMObs.enable(_auto=True)
 
 
+# Enable logging on native components
+if config._native_logging:
+    try:
+        from ddtrace.internal.native._native import logger
+
+        kwargs = {"output": config._native_logging_backend}
+        if config._native_logging_backend == "file":
+            kwargs["path"] = config._native_logging_file_path
+            kwargs["max_size_bytes"] = config._native_logging_file_size
+            kwargs["max_files"] = config._native_logging_file_rotation_len
+
+        logger.configure(**kwargs)
+        logger.set_log_level(config._native_logging_log_level)
+    except Exception:
+        log.error("failed to enable native logging", exc_info=True)
+
+
 @register_post_preload
 def _():
     tracer._generate_diagnostic_logs()
