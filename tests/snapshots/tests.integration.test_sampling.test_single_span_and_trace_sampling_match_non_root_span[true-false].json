@@ -5,12 +5,12 @@
     "resource": "non_root_span",
     "trace_id": 0,
     "span_id": 1,
-    "parent_id": 14921496610428809691,
+    "parent_id": 13131436349791433598,
     "type": "",
     "error": 0,
     "meta": {
       "_dd.p.dm": "-3",
-      "_dd.p.tid": "68a5d4f600000000",
+      "_dd.p.tid": "68addfd200000000",
       "language": "python"
     },
     "metrics": {
@@ -19,6 +19,6 @@
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": -1
     },
-    "duration": 36000,
-    "start": 1755698422510088000
+    "duration": 32458,
+    "start": 1756225490302836678
   }]]

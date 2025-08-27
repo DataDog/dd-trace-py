@@ -1,0 +1,17 @@
+[[
+  {
+    "name": "monkey",
+    "service": "animals",
+    "resource": "non_root_span",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 3190708003993779247,
+    "type": "",
+    "error": 0,
+    "metrics": {
+      "_dd.span_sampling.mechanism": 8.0,
+      "_dd.span_sampling.rule_rate": 1.0
+    },
+    "duration": 229709,
+    "start": 1756285689870946458
+  }]]
