@@ -336,7 +336,12 @@ class ToolCallTracker:
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
     def on_tool_call(
-        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span | Dict[str, Any], tool_id: Optional[str] = None
+        self,
+        tool_name: str,
+        tool_arg: str,
+        tool_kind: str,
+        tool_span: Span | Dict[str, Any],
+        tool_id: Optional[str] = None,
     ) -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
@@ -362,7 +367,9 @@ class ToolCallTracker:
         )
         self._tool_calls[tool_id].tool_span_context = {
             "span_id": str(tool_span.span_id if isinstance(tool_span, Span) else tool_span.get("span_id")),
-            "trace_id": format_trace_id(tool_span.trace_id) if isinstance(tool_span, Span) else tool_span.get("trace_id"),
+            "trace_id": format_trace_id(tool_span.trace_id)
+            if isinstance(tool_span, Span)
+            else tool_span.get("trace_id"),
         }
         self._tool_calls[tool_id].tool_kind = tool_kind
         self._lookup_tool_id.pop((tool_name, formatted_tool_arg), None)

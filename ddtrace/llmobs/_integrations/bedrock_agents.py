@@ -20,7 +20,7 @@ from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import LLMOBS_TRACE_ID
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
-from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_attr, _get_ml_app
 from ddtrace.llmobs._utils import format_tool_call_arguments
 from ddtrace.llmobs._utils import safe_load_json
 from ddtrace.llmobs._utils import _get_session_id
@@ -375,7 +375,7 @@ def _model_invocation_input_span(
     )
     for message in text.get("messages", []):
         message_content = message.get("content", "")
-        tool_use_ids = extract_tool_use_ids(message_content)
+        tool_use_ids = _extract_tool_use_ids(message_content)
         if tool_use_ids:
             for tool_use_id in tool_use_ids:
                 _handle_tool_usage(tool_use_id, span_event)
@@ -402,10 +402,9 @@ def _model_invocation_output_span(
         raw_response = model_output.get("rawResponse", {}).get("content", "")
         output_message_content = raw_response
         output_messages.append({"content": output_message_content, "role": "assistant"})
-    
+
     if output_message_content:
         _handle_tool_calls(output_message_content, current_active_span)
-
 
     reasoning_text = model_output.get("reasoningContent", {}).get("reasoningText", {})
     if reasoning_text:
@@ -545,14 +544,18 @@ def translate_bedrock_trace(trace, root_span, current_active_span_event, trace_s
     translated_span_event, finished = translation_method(trace, root_span, current_active_span_event, trace_step_id)
     return translated_span_event, finished
 
+
 def _handle_tool_usage(tool_call_id: str, span: Dict[str, Any]) -> None:
     """Extracts tool usage from the input message content and tracks them for span linking purposes."""
     core.dispatch(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, (tool_call_id, span))
 
+
 def _handle_tool_calls(output_message_content: str, current_active_span: Dict[str, Any]) -> None:
     """Extracts tool calls from the output message content and tracks them for span linking purposes."""
     parsed_output_content = safe_load_json(output_message_content)
-    content = parsed_output_content.get("content", [])
+    content = _get_attr(parsed_output_content, "content", [])
+    if not isinstance(content, list):
+        return
     for message in content:
         if message.get("type") == "tool_use":
             core.dispatch(
@@ -568,13 +571,16 @@ def _handle_tool_calls(output_message_content: str, current_active_span: Dict[st
                 ),
             )
 
-def extract_tool_use_ids(message_content: str) -> List[str]:
+
+def _extract_tool_use_ids(message_content: str) -> List[str]:
     """
-    Extract all tool_use_id values from message content using regex.
-    
-    Looks for patterns like: tool_use_id=ABC123.
+    Extract all tool_use_id values from the input message content using regex.
+
+    Looks for patterns like: 'tool_use_id=ABC123' within the message_content string.
+    This is a best effort attempt to extract tool usage since parsing the message
+    content is not possible.
     """
     if not message_content:
         return []
-    tool_use_ids = re.findall(r'tool_use_id=([^\s,}]+)', message_content)
+    tool_use_ids = re.findall(r"tool_use_id=([^\s,}]+)", message_content)
     return tool_use_ids
