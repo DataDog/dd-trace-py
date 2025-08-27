@@ -315,6 +315,7 @@ asyncio.run(test())
     assert err == b""
 
 
+@pytest.mark.snapshot()
 @pytest.mark.asyncio
 async def test_pool_custom_connect():
     """
@@ -324,6 +325,7 @@ async def test_pool_custom_connect():
     database_url = f"postgresql://{POSTGRES_CONFIG['user']}:{POSTGRES_CONFIG['password']}@{POSTGRES_CONFIG['host']}:{POSTGRES_CONFIG['port']}/{POSTGRES_CONFIG['dbname']}"
 
     try:
+        # The default is 10 connection pools so the integration will create 10 spans in the snapshot
         pool = await asyncpg.create_pool(database_url, connect=asyncpg.connect)
 
         async with pool.acquire() as conn:
