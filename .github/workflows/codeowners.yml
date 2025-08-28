@@ -23,10 +23,13 @@ jobs:
         run: go install github.com/hmarr/codeowners/cmd/codeowners@latest
       - name: List owners of all changed files
         id: codeowners_resolved
+        env:
+          ALL_CHANGED_FILES: ${{ steps.changed-files.outputs.all_changed_files }}
         run: |
-          codeowners ${{ steps.changed-files.outputs.all_changed_files }}
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$(codeowners ${{ steps.changed-files.outputs.all_changed_files }})" >> "$GITHUB_OUTPUT"
+          for file in ${ALL_CHANGED_FILES}; do
+            echo "$(codeowners $file)" >> "$GITHUB_OUTPUT"
+          done
           echo "EOF" >> "$GITHUB_OUTPUT"
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1
