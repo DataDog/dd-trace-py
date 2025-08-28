@@ -221,11 +221,14 @@ class AIGuardClient:
         return self._evaluate(prompt, history, tags)
 
     def _set_ai_guard_tags(
-        self, span, action: str, reason: Optional[str], current: Evaluation, history: List[Evaluation]
+        self, span, action: str, reason: Optional[str], blocked: bool, current: Evaluation, history: List[Evaluation]
     ):
         span.set_tag(AI_GUARD.ACTION_TAG, action)
         if reason:
             span.set_tag(AI_GUARD.REASON_TAG, reason)
+
+        if blocked:
+            span.set_tag(AI_GUARD.BLOCKED_TAG, "true")
 
         if history:
             max_history_length = ai_guard_config._ai_guard_max_history_length
@@ -291,6 +294,7 @@ class AIGuardClient:
                     attributes = result["data"]["attributes"]
                     action = attributes["action"]
                     reason = attributes.get("reason", None)
+                    blocking_enabled = attributes.get("is_blocking_enabled", False)
                 except Exception as e:
                     value = json.dumps(result, indent=2)[:500]
                     raise AIGuardClientError(f"AI Guard service returned unexpected response format: {value}") from e
@@ -300,7 +304,9 @@ class AIGuardClient:
                         f"AI Guard service returned unrecognized action: '{action}'. Expected {ACTIONS}"
                     )
 
-                self._set_ai_guard_tags(span, action, reason, current, history)
+                should_block = blocking_enabled and action != ALLOW
+
+                self._set_ai_guard_tags(span, action, reason, should_block, current, history)
 
                 self._add_request_to_telemetry(
                     (
@@ -308,7 +314,7 @@ class AIGuardClient:
                         ("error", "false"),
                     )
                 )
-                if action == ALLOW:
+                if not should_block:
                     return True
                 elif action == DENY:
                     return False

@@ -51,14 +51,6 @@ def langchain():
 
 
 @pytest.fixture
-def langchain_core(langchain):
-    import langchain_core
-    import langchain_core.prompts  # noqa: F401
-
-    yield langchain_core
-
-
-@pytest.fixture
 def langchain_openai(langchain):
     try:
         import langchain_openai
