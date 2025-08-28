@@ -178,7 +178,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     if not tracer:
         return wrapped(*args, **kwargs)
 
-    submission_id = kwargs["submission_id"]
+    submission_id = kwargs.get("submission_id", "ray")
     job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.ML)
     job_span.set_tag_str("component", "ray")
     _job_span_manager.add_span(submission_id, job_span)
@@ -193,7 +193,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
             # Inject the context of the job so that ray.job.run is its child
             env_vars = kwargs.setdefault("runtime_env", {}).setdefault("env_vars", {})
             _TraceContext._inject(job_span.context, env_vars)
-            env_vars["_RAY_SUBMISSION_ID"] = kwargs.get("submission_id", "")
+            env_vars["_RAY_SUBMISSION_ID"] = submission_id
 
             try:
                 resp = wrapped(*args, **kwargs)
