@@ -9,6 +9,7 @@ on:
     paths:
     - ddtrace/internal/datadog/profiling/**
     - ddtrace/profiling/**
+    - .github/workflows/profiling-native.yml
   workflow_dispatch: {}
 
 jobs:
