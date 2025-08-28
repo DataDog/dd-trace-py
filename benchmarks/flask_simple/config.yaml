@@ -6,6 +6,7 @@ baseline: &baseline
   iast_enabled: false
   post_request: false
   telemetry_metrics_enabled: false
+  native_writer: false
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
