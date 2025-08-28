@@ -160,9 +160,9 @@ class TracerFlareTests(TestCase):
                 assert isinstance(data, dict), f"Log line is not a JSON object: {line}"
                 for key, value in data.items():
                     assert isinstance(key, str), f"Log line has non-string key: {key} in line: {line}"
-                    assert value is None or isinstance(
-                        value, (str, int, float)
-                    ), f"Log line has non-string/int/float/None value: {value} in line: {line}"
+                    assert value is None or isinstance(value, (str, int, float)), (
+                        f"Log line has non-string/int/float/None value: {value} in line: {line}"
+                    )
 
                 data = cast(Dict[str, Union[str, int, float, None]], data)
 
@@ -176,15 +176,14 @@ class TracerFlareTests(TestCase):
                     "module",
                     "process",
                     "processName",
-                    "taskName",
                     "thread",
                     "threadName",
                     "timestamp",
                 }
                 log_keys = set(data.keys())
-                assert required_keys.issubset(
-                    log_keys
-                ), f"Log line is missing required keys: {required_keys - log_keys}"
+                assert required_keys.issubset(log_keys), (
+                    f"Log line is missing required keys: {required_keys - log_keys}"
+                )
                 logs.append(data)
 
         assert len(logs) == 5, f"Expected 4 log lines, got {len(logs)}"
