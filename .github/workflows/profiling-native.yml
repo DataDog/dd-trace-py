@@ -35,6 +35,7 @@ jobs:
       - uses: KyleMayes/install-llvm-action@a7a1a882e2d06ebe05d5bb97c3e1f8c984ae96fc # v2.0.7
         with:
           version: "19"
+          cached: true
 
       - name: Install Valgrind
         run: |
