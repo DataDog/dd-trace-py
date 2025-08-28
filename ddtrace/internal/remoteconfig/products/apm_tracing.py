@@ -27,7 +27,7 @@ def _rc_callback(payloads: t.Sequence[Payload]) -> None:
             if (
                 service := t.cast(t.Optional[str], service_target.get("service"))
             ) is not None and service != config.service:
-                log.debug("ignoring APM Tracing remote config payload for service: %s != ", service, config.service)
+                log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
                 continue
 
             if (env := t.cast(str, service_target.get("env"))) is not None and env != config.env:
