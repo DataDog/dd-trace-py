@@ -4,6 +4,7 @@ from typing import Dict
 import langgraph
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.trace_utils import unwrap
 from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.contrib.trace_utils import wrap
@@ -12,7 +13,6 @@ from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_ASTREAM_OUTPUT
 from ddtrace.llmobs._integrations.constants import LANGGRAPH_SPAN_TRACES_ASTREAM
 from ddtrace.llmobs._integrations.langgraph import LangGraphIntegration
-from ddtrace.trace import Pin
 
 
 def get_version():

@@ -189,7 +189,8 @@ class ExecutionContext(object):
             else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
         )
 
-    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+    def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        """Traverse up the context tree to find the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
@@ -199,16 +200,23 @@ class ExecutionContext(object):
             current = current._parent
         return default
 
-    def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        """Get an item from the local context only, without traversing up the context tree."""
         return self._data.get(data_key, default)
 
     def __getitem__(self, key: str):
-        value = self.get_item(key)
+        """Get an item from the context, traversing up the context tree. Raises KeyError if not found."""
+        value = self.find_item(key)
         if value is None and key not in self._data:
             raise KeyError
         return value
 
+    def find_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+        """Find multiple items by their keys, traversing up the context tree for each key."""
+        return [self.find_item(key) for key in data_keys]
+
     def get_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+        """Return multiple items by their keys, only in the local context."""
         return [self.get_item(key) for key in data_keys]
 
     def set_item(self, data_key: str, data_value: Optional[Any]) -> None:
@@ -224,6 +232,7 @@ class ExecutionContext(object):
             self.set_item(data_key, data_value)
 
     def discard_item(self, data_key: str) -> None:
+        """Traverse up the context tree to find and delete the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
@@ -233,6 +242,7 @@ class ExecutionContext(object):
             current = current._parent
 
     def discard_local_item(self, data_key: str) -> None:
+        """Delete an item from the local context only, without traversing up the context tree."""
         self._data.pop(data_key, None)
 
     def root(self):
@@ -283,15 +293,23 @@ def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
-def get_item(data_key: str) -> Any:
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+def find_item(data_key: str, default: Optional[Any] = None) -> Any:
+    """Find an item by its key, traversing up the context tree."""
+    return _CURRENT_CONTEXT.get().find_item(data_key, default=default)
 
 
-def get_local_item(data_key: str) -> Any:
-    return _CURRENT_CONTEXT.get().get_local_item(data_key)
+def get_item(data_key: str, default: Optional[Any] = None) -> Any:
+    """Get an item from the local context only, without traversing up the context tree."""
+    return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
+
+
+def find_items(data_keys: List[str]) -> List[Optional[Any]]:
+    """Find multiple items by their keys, traversing up the context tree for each key."""
+    return _CURRENT_CONTEXT.get().find_items(data_keys)
 
 
 def get_items(data_keys: List[str]) -> List[Optional[Any]]:
+    """Return multiple items by their keys, only in the local context."""
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
@@ -309,10 +327,12 @@ def set_items(keys_values: Dict[str, Optional[Any]]) -> None:
 
 
 def discard_item(data_key: str) -> None:
+    """Traverse up the context tree to find and delete the first occurrence of `data_key`."""
     _CURRENT_CONTEXT.get().discard_item(data_key)
 
 
 def discard_local_item(data_key: str) -> None:
+    """Delete an item from the local context only, without traversing up the context tree."""
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
 
 

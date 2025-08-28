@@ -14,6 +14,7 @@ from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -154,7 +155,7 @@ def rasp(request, endpoint: str):
             if param.startswith("cmda"):
                 cmd = query_params[param]
                 try:
-                    res.append(f'cmd stdout: {subprocess.run([cmd, "-c", "3", "localhost"], timeout=0.5)}')
+                    res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=0.5)}")
                 except Exception as e:
                     res.append(f"Error: {e}")
             elif param.startswith("cmds"):
@@ -244,7 +245,7 @@ def login_user_sdk(request):
 def new_service(request, service_name: str):
     import ddtrace
 
-    ddtrace.trace.Pin._override(django, service=service_name, tracer=ddtrace.tracer)
+    Pin._override(django, service=service_name, tracer=ddtrace.tracer)
     return HttpResponse(service_name, status=200)
 
 

@@ -5,13 +5,13 @@ import sys
 
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.subprocess.constants import COMMANDS
 from ddtrace.contrib.internal.subprocess.patch import SubprocessCmdLine
 from ddtrace.contrib.internal.subprocess.patch import patch
 from ddtrace.contrib.internal.subprocess.patch import unpatch
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_global_config
 
@@ -485,9 +485,9 @@ def test_subprocess_wait_shell_false(tracer, config):
             subp = subprocess.Popen(args=args, shell=False)
             subp.wait()
 
-            assert not core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
-            assert not core.get_item(COMMANDS.CTX_SUBP_TRUNCATED)
-            assert core.get_item(COMMANDS.CTX_SUBP_LINE) == args
+            assert not core.find_item(COMMANDS.CTX_SUBP_IS_SHELL)
+            assert not core.find_item(COMMANDS.CTX_SUBP_TRUNCATED)
+            assert core.find_item(COMMANDS.CTX_SUBP_LINE) == args
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)
@@ -499,7 +499,7 @@ def test_subprocess_wait_shell_true(tracer, config):
             subp = subprocess.Popen(args=["dir", "-li", "/"], shell=True)
             subp.wait()
 
-            assert core.get_item(COMMANDS.CTX_SUBP_IS_SHELL)
+            assert core.find_item(COMMANDS.CTX_SUBP_IS_SHELL)
 
 
 @pytest.mark.parametrize("config", PATCH_ENABLED_CONFIGURATIONS)

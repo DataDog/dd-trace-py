@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi_async
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
@@ -10,7 +11,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.trace import Pin
 
 
 class Psycopg3TracedAsyncConnection(dbapi_async.TracedAsyncConnection):
