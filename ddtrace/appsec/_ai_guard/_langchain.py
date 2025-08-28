@@ -10,7 +10,7 @@ from langchain_core.messages.human import HumanMessage
 from langchain_core.messages.system import SystemMessage
 from langchain_core.messages.tool import ToolMessage
 
-from ddtrace.appsec.ai_guard import AIGuardAbortError
+from ddtrace.appsec.ai_guard import AIGuardAbortError, new_ai_guard_client
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Prompt
 from ddtrace.appsec.ai_guard import ToolCall
@@ -22,22 +22,7 @@ import ddtrace.internal.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)
-
-client: AIGuardClient
-
-
-def langchain_listen(core, ai_guard: AIGuardClient):
-    global client
-    client = ai_guard
-
-    core.on("langchain.patch", _langchain_patch)
-    core.on("langchain.unpatch", _langchain_unpatch)
-
-    core.on("langchain.chatmodel.generate.before", _langchain_chatmodel_generate_before)
-    core.on("langchain.chatmodel.agenerate.before", _langchain_chatmodel_generate_before)
-
-    core.on("langchain.llm.generate.before", _langchain_llm_generate_before)
-    core.on("langchain.llm.agenerate.before", _langchain_llm_generate_before)
+client: AIGuardClient = new_ai_guard_client()
 
 
 @singledispatch
