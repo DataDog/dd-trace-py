@@ -170,7 +170,7 @@ def _set_waf_request_metrics(*_args):
                 ("request_blocked", bool_str[result.blocked]),
                 ("waf_timeout", bool_str[bool(result.timeout)]),
                 ("input_truncated", bool_str[input_truncated]),
-                ("waf_error", bool_str[result.error < 0]), # waf_error is a boolean in waf.requests
+                ("waf_error", bool_str[result.error < 0]),  # waf_error is a boolean in waf.requests
                 ("rate_limited", bool_str[result.rate_limited]),
             )
 
