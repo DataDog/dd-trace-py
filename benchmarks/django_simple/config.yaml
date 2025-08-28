@@ -50,4 +50,4 @@ tracer-no-templates:
   django_instrument_templates: false
 tracer-native:
   <<: *tracer
-  native-writer: true
+  native_writer: true
