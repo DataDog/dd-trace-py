@@ -5,7 +5,12 @@ from ddtrace.internal.native._native import logger
 
 
 @pytest.mark.parametrize(
-    "output, expected", [("stdout", nullcontext()), ("stderr", nullcontext()), ("file", nullcontext()),],
+    "output, expected",
+    [
+        ("stdout", nullcontext()),
+        ("stderr", nullcontext()),
+        ("file", nullcontext()),
+    ],
 )
 def test_logger_disable(output, expected):
     logger.configure()
