@@ -409,6 +409,7 @@ class AI_GUARD(metaclass=Constant_Class):
     ACTION_TAG: str = TAG + ".action"
     REASON_TAG: str = TAG + ".reason"
     TARGET_TAG: str = TAG + ".target"
+    BLOCKED_TAG: str = TAG + ".blocked"
     TOOL_NAME_TAG: str = TAG + ".tool_name"
 
     # meta struct

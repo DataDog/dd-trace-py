@@ -474,7 +474,7 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-def traced_base_tool_run(langchain, pin, func, instance, args, kwargs):
+def traced_base_tool_invoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
@@ -503,9 +503,7 @@ def traced_base_tool_run(langchain, pin, func, instance, args, kwargs):
         if tags:
             tool_info["tags"] = tags
 
-        result = _dispatch("langchain.tools.run.before", (tool_input, tool_info))
-        tool_output = func(*args, **kwargs) if result.proceed else result.result
-        core.dispatch("langchain.tools.run.after", (tool_input, config, tool_info, tool_output))
+        tool_output = func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -517,7 +515,7 @@ def traced_base_tool_run(langchain, pin, func, instance, args, kwargs):
 
 
 @with_traced_module
-async def traced_base_tool_arun(langchain, pin, func, instance, args, kwargs):
+async def traced_base_tool_ainvoke(langchain, pin, func, instance, args, kwargs):
     integration = langchain._datadog_integration
     tool_input = get_argument_value(args, kwargs, 0, "input")
     config = get_argument_value(args, kwargs, 1, "config", optional=True)
@@ -546,9 +544,7 @@ async def traced_base_tool_arun(langchain, pin, func, instance, args, kwargs):
         if tags:
             tool_info["tags"] = tags
 
-        result = _dispatch("langchain.tools.arun.before", (tool_input, tool_info))
-        tool_output = await func(*args, **kwargs) if result.proceed else result.result
-        core.dispatch("langchain.tools.arun.after", (tool_input, config, tool_info, tool_output))
+        tool_output = await func(*args, **kwargs)
     except Exception:
         span.set_exc_info(*sys.exc_info())
         raise
@@ -761,8 +757,8 @@ def patch():
     wrap("langchain_core", "language_models.llms.BaseLLM.stream", traced_llm_stream(langchain))
     wrap("langchain_core", "language_models.llms.BaseLLM.astream", traced_llm_stream(langchain))
 
-    wrap("langchain_core", "tools.BaseTool.run", traced_base_tool_run(langchain))
-    wrap("langchain_core", "tools.BaseTool.arun", traced_base_tool_arun(langchain))
+    wrap("langchain_core", "tools.BaseTool.invoke", traced_base_tool_invoke(langchain))
+    wrap("langchain_core", "tools.BaseTool.ainvoke", traced_base_tool_ainvoke(langchain))
     if langchain_openai:
         wrap("langchain_openai", "OpenAIEmbeddings.embed_documents", traced_embedding(langchain))
     if langchain_pinecone:
