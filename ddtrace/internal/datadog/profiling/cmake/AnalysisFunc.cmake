@@ -21,7 +21,7 @@ function(add_ddup_config target)
         target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-g>" "$<$<CONFIG:RelWithDebInfo>:-g>")
     else()
         # Non-macOS (e.g., Linux) options
-        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-ggdb3>" "$<$<CONFIG:RelWithDebInfo>:-ggdb3>"
+        target_compile_options(${target} PRIVATE "$<$<CONFIG:Debug>:-ggdb2>" "$<$<CONFIG:RelWithDebInfo>:-ggdb3>"
                                                  -fno-semantic-interposition)
     endif()
 
