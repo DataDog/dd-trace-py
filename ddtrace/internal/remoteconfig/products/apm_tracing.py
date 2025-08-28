@@ -20,17 +20,26 @@ log = get_logger(__name__)
 def _rc_callback(payloads: t.Sequence[Payload]) -> None:
     for payload in payloads:
         if payload.metadata is None or (content := payload.content) is None:
+            log.debug("ignoring invalid APM Tracing remote config payload")
             continue
 
         if (service_target := t.cast(t.Optional[dict], content.get("service_target"))) is not None:
-            if (service := t.cast(str, service_target.get("service"))) is not None and service != config.service:
+            if (
+                service := t.cast(t.Optional[str], service_target.get("service"))
+            ) is not None and service != config.service:
+                log.debug("ignoring APM Tracing remote config payload for service: %s != ", service, config.service)
                 continue
 
             if (env := t.cast(str, service_target.get("env"))) is not None and env != config.env:
+                log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
+        else:
+            log.debug("APM Tracing remote config payload has no service_target, accepting")
 
         if (lib_config := t.cast(dict, content.get("lib_config"))) is not None:
             dispatch("apm-tracing.rc", (lib_config, config))
+        else:
+            log.debug("ignoring invalid APM Tracing remote config payload with no lib_config")
 
 
 class APMTracingAdapter(PubSub):
