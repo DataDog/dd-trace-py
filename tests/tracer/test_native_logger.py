@@ -1,11 +1,17 @@
 from contextlib import nullcontext
+
 import pytest
-import ddtrace
+
 from ddtrace.internal.native._native import logger
 
 
 @pytest.mark.parametrize(
-    "output, expected", [("stdout", nullcontext()), ("stderr", nullcontext()), ("file", nullcontext()),],
+    "output, expected",
+    [
+        ("stdout", nullcontext()),
+        ("stderr", nullcontext()),
+        ("file", nullcontext()),
+    ],
 )
 def test_logger_disable(output, expected):
     logger.configure()
@@ -35,8 +41,8 @@ def test_logger_set_log_level(log_level, expected):
 @pytest.mark.parametrize("output", [None, "stdout", "stderr", "file"])
 @pytest.mark.parametrize("path", [None, "/tmp/log.txt"])
 @pytest.mark.parametrize("files", [None, 2])
-@pytest.mark.parametrize("bytes", [None, 4096])
-def test_logger_configure(output, path, files, bytes):
+@pytest.mark.parametrize("max_bytes", [None, 4096])
+def test_logger_configure(output, path, files, max_bytes):
     if output is None:
         kwargs = {}
     else:
@@ -45,7 +51,7 @@ def test_logger_configure(output, path, files, bytes):
             kwargs["path"] = path
         if files is not None:
             kwargs["max_files"] = files
-        if bytes is not None:
+        if max_bytes is not None:
             kwargs["max_size_bytes"] = bytes
 
     if output == "file":
