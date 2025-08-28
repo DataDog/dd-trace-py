@@ -5,6 +5,7 @@ import typing as t
 from ddtrace.debugging._probe.model import FunctionLocationMixin
 from ddtrace.debugging._probe.model import LineLocationMixin
 from ddtrace.debugging._signal.model import Signal
+from ddtrace.debugging._signal.model import SignalTrack
 
 
 @dataclass
@@ -17,6 +18,7 @@ class LogSignal(Signal):
     """
 
     __type__ = "di_snapshot"
+    __track__: t.ClassVar[SignalTrack] = SignalTrack.LOGS
 
     @property
     @abc.abstractmethod
