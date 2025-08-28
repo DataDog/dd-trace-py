@@ -50,7 +50,6 @@ from ddtrace.propagation._database_monitoring import unlisten as dbm_config_unli
 from ddtrace.propagation.http import _DatadogMultiHeader
 from ddtrace.settings._agent import config as agent_config
 from ddtrace.settings._database_monitoring import dbm_config
-from ddtrace.settings.asm import ai_guard_config
 from ddtrace.settings.asm import config as asm_config
 from ddtrace.trace import Span
 from ddtrace.trace import Tracer
@@ -222,48 +221,6 @@ def override_global_config(values):
         asm_config.reset()
         for key, value in asm_originals.items():
             setattr(asm_config, key, value)
-
-        ddtrace.config._reset()
-
-
-@contextlib.contextmanager
-def override_ai_guard_config(values):
-    """
-    Temporarily override an ai_guard configuration:
-
-        >>> with self.override_ai_guard_config(dict(name=value,...)):
-            # Your test
-    """
-    # List of global variables we allow overriding
-    global_config_keys = [
-        "_dd_api_key",
-    ]
-
-    ai_guard_config_keys = ai_guard_config._ai_guard_config_keys
-
-    # Grab the current values of all keys
-    originals = dict((key, getattr(ddtrace.config, key)) for key in global_config_keys)
-    ai_guard_originals = dict((key, getattr(ai_guard_config, key)) for key in ai_guard_config_keys)
-
-    # Override from the passed in keys
-    for key, value in values.items():
-        if key in global_config_keys:
-            setattr(ddtrace.config, key, value)
-    # rebuild asm config from env vars and global config
-    for key, value in values.items():
-        if key in ai_guard_config_keys:
-            setattr(ai_guard_config, key, value)
-
-    try:
-        yield
-    finally:
-        # Reset all to their original values
-        for key, value in originals.items():
-            setattr(ddtrace.config, key, value)
-
-        ai_guard_config.reset()
-        for key, value in ai_guard_originals.items():
-            setattr(ai_guard_config, key, value)
 
         ddtrace.config._reset()
 
