@@ -109,6 +109,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -1341,10 +1342,9 @@ class LLMObs(Service):
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
         :param tool_definitions: List of tool definition dictionaries for tool calling scenarios.
-                         - This argument is only applicable to LLM spans.
-                         - Each tool definition is a dictionary containing a required
-                           "name" (string), and optional "description" (string) and "schema"
-                           (JSON serializable dictionary) keys.
+                            - This argument is only applicable to LLM spans.
+                            - Each tool definition is a dictionary containing a required "name" (string),
+                                   and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
@@ -1385,6 +1385,10 @@ class LLMObs(Service):
                     if session_id:
                         span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
+            if tool_definitions is not None:
+                validated_tool_definitions = extract_tool_definitions(tool_definitions)
+                if validated_tool_definitions:
+                    span._set_ctx_item(TOOL_DEFINITIONS, validated_tool_definitions)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
                 span.name = _name
