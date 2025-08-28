@@ -162,19 +162,15 @@ async def traced_preprocess_chat(vllm, pin, func, instance, args, kwargs):
     (conversation, request_prompts, engine_prompts) = await func(*args, **kwargs)
     log.debug("[VLLM DEBUG] request_prompts: %s", request_prompts)
     log.debug("[VLLM DEBUG] engine_prompts: %s", engine_prompts)
-    # engine_prompt is a TokensPrompt
-    for request_prompt, engine_prompt in zip(request_prompts, engine_prompts):
+    # Do not mutate engine_prompts; prompt propagation handled in _process_tokens wrapper
+    for request_prompt in request_prompts:
         log.debug("[VLLM DEBUG] request_prompt: %s", request_prompt)
         if isinstance(request_prompt, str):
             log.debug("[VLLM DEBUG] request_prompt is str")
-            engine_prompt["prompt"] = request_prompt
         elif isinstance(request_prompt, dict) and "prompt" in request_prompt:
-            log.debug("[VLLM DEBUG] request_prompt is dict")
-            engine_prompt["prompt"] = request_prompt["prompt"]
+            log.debug("[VLLM DEBUG] request_prompt is dict with prompt")
         elif isinstance(request_prompt, list) and can_decode:
-            log.debug("[VLLM DEBUG] request_prompt is list")
-            engine_prompt["prompt"] = tokenizer.decode(request_prompt)
-        log.debug("[VLLM DEBUG] engine_prompt: %s", engine_prompt)
+            log.debug("[VLLM DEBUG] request_prompt is list (tokens)")
 
     return conversation, request_prompts, engine_prompts 
     
@@ -183,11 +179,7 @@ async def traced_preprocess_completion(vllm, pin, func, instance, args, kwargs):
     request_prompts, engine_prompts = await func(*args, **kwargs)
     log.debug("[VLLM DEBUG] request_prompts: %s", request_prompts)
     log.debug("[VLLM DEBUG] engine_prompts: %s", engine_prompts)
-    for request_prompt, engine_prompt in zip(request_prompts, engine_prompts):
-        #request_prompt is a TextTokensPrompt
-        engine_prompt["prompt"] = request_prompt["prompt"]
-        log.debug("[VLLM DEBUG] engine_prompt: %s", engine_prompt)
-    
+    # Do not mutate engine_prompts; prompt propagation handled in _process_tokens wrapper
     return request_prompts, engine_prompts
 
 
@@ -262,6 +254,43 @@ async def traced_asyncllm__add_request(vllm, pin, func, instance, args, kwargs):
 
     return await func(*args, **kwargs)
 
+
+@with_traced_module_async
+async def traced_asyncllm_add_request(vllm, pin, func, instance, args, kwargs):
+    """Diagnostic wrapper around AsyncLLM.add_request to surface exceptions."""
+    try:
+        return await func(*args, **kwargs)
+    except Exception as e:
+        try:
+            request_id = args[0] if args else kwargs.get("request_id")
+            prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
+            params = args[2] if len(args) > 2 else kwargs.get("params")
+            log.exception("[VLLM DEBUG] AsyncLLM.add_request failed (request_id=%s, prompt_keys=%s, params=%s)",
+                          request_id,
+                          list(prompt.keys()) if isinstance(prompt, dict) else type(prompt).__name__,
+                          getattr(params, "__class__", type(params)).__name__)
+        except Exception:
+            log.exception("[VLLM DEBUG] AsyncLLM.add_request failed (error logging fallback)")
+        raise
+
+
+@with_traced_module
+def traced_processor_process_inputs(vllm, pin, func, instance, args, kwargs):
+    """Diagnostic wrapper around Processor.process_inputs to log prompt extraction."""
+    try:
+        result = func(*args, **kwargs)
+        try:
+            prompt_str, engine_req = result
+            req_id = getattr(engine_req, "request_id", None)
+            ptids = getattr(engine_req, "prompt_token_ids", None)
+            log.debug("[VLLM DEBUG] Processor.process_inputs -> request_id=%s prompt_str_present=%s prompt_token_ids_len=%s",
+                      req_id, bool(prompt_str), len(ptids) if ptids is not None else None)
+        except Exception:
+            pass
+        return result
+    except Exception:
+        log.exception("[VLLM DEBUG] Processor.process_inputs raised")
+        raise
 
 @with_traced_module
 def traced_requeststate_make_request_output(vllm, pin, func, instance, args, kwargs):
@@ -441,7 +470,7 @@ def traced_requeststate_make_request_output(vllm, pin, func, instance, args, kwa
                 pass
 
             span.finish()
-            log.debug("[VLLM DEBUG] Created vllm.request span for %s", req_id)
+            log.debug("[VLLM DEBUG] Created vllm.request span for %s with trace_id %s", req_id, span.trace_id)
         except Exception as e:
             log.debug("[VLLM DEBUG] Failed to create vllm.request span: %s", e)
 
@@ -499,8 +528,95 @@ def patch():
 
     # V1: create spans at finish and capture parent context at add
     safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM._add_request", traced_asyncllm__add_request(vllm))
+    safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request", traced_asyncllm_add_request(vllm))
+    safe_wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs(vllm))
     safe_wrap("vllm.v1.engine.output_processor", "RequestState.make_request_output", traced_requeststate_make_request_output(vllm))
     safe_wrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests", traced_outputprocessor_abort_requests(vllm))
+
+    # Ensure prompt text is propagated even when OpenAI serving passes token ids
+    def _traced_process_tokens(vllm_module):
+        @with_traced_module
+        def _inner(vllm, pin, func, instance, args, kwargs):
+            try:
+                parsed_content = args[0] if args else kwargs.get("parsed_content")
+                lora_request = None
+                if len(args) >= 3:
+                    lora_request = args[2]
+                else:
+                    lora_request = kwargs.get("lora_request")
+            except Exception:
+                parsed_content = None
+                lora_request = None
+
+            result = func(*args, **kwargs)
+            try:
+                # If prompt already present, nothing to do
+                if isinstance(result, dict) and "prompt" in result:
+                    return result
+
+                prompt_text = None
+                if isinstance(parsed_content, dict):
+                    prompt_text = parsed_content.get("prompt")
+                    if not prompt_text:
+                        # Best-effort decode
+                        token_ids = parsed_content.get("prompt_token_ids")
+                        if token_ids and hasattr(instance, "get_tokenizer_group"):
+                            try:
+                                tok = instance.get_tokenizer_group().get_lora_tokenizer(lora_request)
+                                prompt_text = tok.decode(token_ids)
+                            except Exception:
+                                prompt_text = None
+
+                if isinstance(result, dict) and prompt_text:
+                    result["prompt"] = prompt_text
+            except Exception:
+                pass
+            return result
+
+        # Return the actual wrapper by binding the module now
+        return _inner(vllm_module)
+
+    def _traced_process_tokens_async(vllm_module):
+        @with_traced_module_async
+        async def _inner(vllm, pin, func, instance, args, kwargs):
+            try:
+                parsed_content = args[0] if args else kwargs.get("parsed_content")
+                lora_request = None
+                if len(args) >= 3:
+                    lora_request = args[2]
+                else:
+                    lora_request = kwargs.get("lora_request")
+            except Exception:
+                parsed_content = None
+                lora_request = None
+
+            result = await func(*args, **kwargs)
+            try:
+                if isinstance(result, dict) and "prompt" in result:
+                    return result
+
+                prompt_text = None
+                if isinstance(parsed_content, dict):
+                    prompt_text = parsed_content.get("prompt")
+                    if not prompt_text:
+                        token_ids = parsed_content.get("prompt_token_ids")
+                        if token_ids and hasattr(instance, "get_tokenizer_group"):
+                            try:
+                                tok = instance.get_tokenizer_group().get_lora_tokenizer(lora_request)
+                                prompt_text = tok.decode(token_ids)
+                            except Exception:
+                                prompt_text = None
+
+                if isinstance(result, dict) and prompt_text:
+                    result["prompt"] = prompt_text
+            except Exception:
+                pass
+            return result
+
+        return _inner(vllm_module)
+
+    safe_wrap("vllm.inputs.preprocess", "InputPreprocessor._process_tokens", _traced_process_tokens(vllm))
+    safe_wrap("vllm.inputs.preprocess", "InputPreprocessor._process_tokens_async", _traced_process_tokens_async(vllm))
 
     # Patch OpenAI-compatible serving endpoints (if server in use)
     safe_wrap("vllm.entrypoints.openai.serving_engine", "OpenAIServing._preprocess_completion", traced_preprocess_completion(vllm))
@@ -545,6 +661,22 @@ def unpatch():
         pass
     try:
         unwrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.v1.engine.processor", "Processor.process_inputs")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.inputs.preprocess", "InputPreprocessor._process_tokens")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.inputs.preprocess", "InputPreprocessor._process_tokens_async")
     except Exception:
         pass
     
