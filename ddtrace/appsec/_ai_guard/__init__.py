@@ -16,10 +16,8 @@ def init_ai_guard():
                 return
 
             from ddtrace.appsec._ai_guard._listener import ai_guard_listen
-            from ddtrace.appsec.ai_guard import new_ai_guard_client
 
-            ai_guard = new_ai_guard_client()
-            ai_guard_listen(ai_guard)
+            ai_guard_listen()
 
         except Exception:
             logger.warning("AI Guard initialization failed", exc_info=True)
