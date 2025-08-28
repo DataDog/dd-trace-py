@@ -154,6 +154,7 @@ def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult)
                     break
             except AIGuardAbortError:
                 handler.proceed = False
+                break
             except Exception:
                 logger.debug("Failed to evaluate chat model prompt", exc_info=True)
 
@@ -170,6 +171,7 @@ def _langchain_llm_generate_before(prompts, handler: DispatchResult):
                 break
         except AIGuardAbortError:
             handler.proceed = False
+            break
         except Exception:
             logger.debug("Failed to evaluate llm prompt", exc_info=True)
 
