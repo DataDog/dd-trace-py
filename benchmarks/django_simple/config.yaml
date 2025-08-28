@@ -48,3 +48,6 @@ tracer-dont-create-db-spans:
 tracer-no-templates:
   <<: *tracer
   django_instrument_templates: false
+tracer-native:
+  <<: *tracer
+  native-writer: true

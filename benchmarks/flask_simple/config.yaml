@@ -28,6 +28,9 @@ appsec-post:
 appsec-telemetry:
   <<: *appsec
   telemetry_metrics_enabled: true
+tracer-native:
+  <<: *tracer
+  native-writer: true
 # The scenarios below produce inconsistent results. We plan to 
 # disbable these scenarios until the root cause is identified:
 # tracer-and-profiler:
