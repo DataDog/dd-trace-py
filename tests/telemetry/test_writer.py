@@ -556,7 +556,7 @@ import ddtrace.settings.exception_replay
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_TIMEOUT",
             "origin": "default",
-            "value": 5000,
+            "value": 10000,
         },
         {
             "name": "OTEL_EXPORTER_OTLP_PROTOCOL",
@@ -566,7 +566,7 @@ import ddtrace.settings.exception_replay
         {
             "name": "OTEL_EXPORTER_OTLP_TIMEOUT",
             "origin": "default",
-            "value": 5000,
+            "value": 10000,
         },
         {"name": "_DD_APPSEC_DEDUPLICATION_ENABLED", "origin": "default", "value": True},
         {"name": "_DD_IAST_LAZY_TAINT", "origin": "default", "value": False},

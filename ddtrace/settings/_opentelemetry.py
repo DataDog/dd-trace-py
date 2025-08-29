@@ -52,7 +52,7 @@ class ExporterConfig(DDConfig):
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
     DEFAULT_ENDPOINT: str = "http://localhost:4318"
     DEFAULT_HEADERS: t.Dict[str, str] = {}
-    DEFAULT_TIMEOUT: int = 5000
+    DEFAULT_TIMEOUT: int = 10000
 
     PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="grpc")
     ENDPOINT = DDConfig.d(str, _derive_endpoint)
