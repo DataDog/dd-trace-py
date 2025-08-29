@@ -1,9 +1,12 @@
+import logging
 from typing import Any
 from typing import Callable
 from typing import List
 
 from ddtrace.internal.flare.flare import Flare
 from ddtrace.internal.flare.flare import FlareSendRequest
+from ddtrace.internal.flare.probes import FlareProbe
+from ddtrace.internal.flare.probes import LogProbe
 from ddtrace.internal.logger import get_logger
 
 
@@ -77,7 +80,57 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
         # Convert to uppercase to match Python logging expectations
         flare_log_level = log_level.upper()
 
-        flare.prepare(flare_log_level)
+        flare_probes: List[FlareProbe] = []
+        if "probes" in config_content and isinstance(config_content["probes"], list):
+            for probe in config_content["probes"]:
+                if not isinstance(probe, dict):
+                    log.debug("Probe item is not type dict, received type %s instead. Skipping...", str(type(probe)))
+                    continue
+
+                module = probe.get("module")
+                if not isinstance(module, str):
+                    log.debug("Probe item missing module or module is not type str, received %r. Skipping...", module)
+                    continue
+
+                if not module.startswith("ddtrace"):
+                    log.debug("Probe module does not start with ddtrace, received %r. Skipping...", module)
+                    continue
+
+                line = probe.get("line")
+                if not isinstance(line, int):
+                    log.debug("Probe item line is not type int, received %r. Skipping...", line)
+                    continue
+
+                # Check if we have a log probe
+                if "log" in probe:
+                    log_data = probe.get("log")
+                    if not isinstance(log_data, dict):
+                        log.debug(
+                            "Probe log item is not type dict, received type %s instead. Skipping...",
+                            str(type(log_data)),
+                        )
+                        continue
+
+                    level = getattr(logging, log_data.get("level", "DEBUG").upper(), logging.DEBUG)
+                    message = log_data.get("message")
+                    if not message or not isinstance(message, str):
+                        log.debug(
+                            "Probe log item missing message or message is not type str, received %r. Skipping...",
+                            message,
+                        )
+                        continue
+
+                    locals: List[str] = log_data.get("locals", [])
+                    if not isinstance(locals, list) or not all(isinstance(l, str) for l in locals):
+                        log.debug(
+                            "Probe log item locals is not type List[str], received %r. Skipping...",
+                            locals,
+                        )
+                        continue
+
+                    flare_probes.append(LogProbe(module=module, line=line, level=level, message=message, locals=locals))
+
+        flare.prepare(flare_log_level, probes=flare_probes)
         return True
     return False
 

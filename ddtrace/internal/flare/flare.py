@@ -6,12 +6,17 @@ from logging.handlers import RotatingFileHandler
 import os
 import pathlib
 import shutil
+import sys
 import time
-from typing import Optional
+from types import FunctionType
+from typing import Any, Dict, List, Optional, Tuple, cast
 import zipfile
 
 from ddtrace._logger import _add_file_handler
+from ddtrace.internal.bytecode_injection import eject_hook
+from ddtrace.internal.bytecode_injection import inject_hook
 from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
+from ddtrace.internal.flare.probes import FlareProbe
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
@@ -55,10 +60,11 @@ class Flare:
         self.url: str = trace_agent_url
         self._api_key: Optional[str] = api_key
         self.ddconfig = ddconfig
+        self._probes: List[Tuple[FunctionType, FlareProbe]] = []
         # Use a fixed boundary for consistency
         self._BOUNDARY = "83CAD6AA-8A24-462C-8B3D-FF9CC683B51B"
 
-    def prepare(self, log_level: str) -> bool:
+    def prepare(self, log_level: str, probes: Optional[List[FlareProbe]] = None) -> bool:
         """
         Update configurations to start sending tracer logs to a file
         to be sent in a flare later.
@@ -77,6 +83,10 @@ class Flare:
         # Setup logging and create config file
         pid = self._setup_flare_logging(flare_log_level_int)
         self._generate_config_file(pid)
+
+        if probes:
+            self._setup_flare_probes(probes)
+
         return True
 
     def send(self, flare_send_req: FlareSendRequest):
@@ -94,6 +104,7 @@ class Flare:
                 return
             self._send_flare_request(flare_send_req)
         finally:
+            self._remove_flare_probes()
             self.clean_up_files()
 
     def _generate_config_file(self, pid: int):
@@ -269,6 +280,42 @@ class Flare:
             finally:
                 if client is not None:
                     client.close()
+
+    def _setup_flare_probes(self, probes: List[FlareProbe]):
+        # Defer importing to avoid eager importing of debugging module
+        from ddtrace.debugging._function.discovery import FunctionDiscovery
+
+        for probe in probes:
+            try:
+                module = sys.modules.get(probe.module)
+                if not module:
+                    log.warning("Module %s not found for probe at %s:%d", probe.module, probe.module, probe.line)
+                    continue
+
+                if not module.__name__.startswith("ddtrace"):
+                    log.warning("Module %s is not appart of ddtrace and cannot be instrumented for probe", probe.module)
+                    continue
+
+                funcs = FunctionDiscovery(module).at_line(probe.line)
+                if not funcs:
+                    log.warning("No functions found at line %d in module %s for probe", probe.line, probe.module)
+                    continue
+
+                for func in funcs:
+                    func = inject_hook(cast(FunctionType, cast(object, func)), probe.hook, probe.line, None)
+                    self._probes.append((func, probe))
+                    log.debug("Injected probe at %s:%d", probe.module, probe.line)
+            except Exception as e:
+                log.warning("Failed to set up probe at %s:%d: %s", probe.module, probe.line, e)
+
+    def _remove_flare_probes(self):
+        for func, probe in self._probes:
+            try:
+                eject_hook(func, probe.hook, probe.line, None)
+                log.debug("Ejected probe at %s:%d", probe.module, probe.line)
+            except Exception as e:
+                log.warning("Failed to eject probe at %s:%d: %s", probe.module, probe.line, e)
+        self._probes.clear()
 
     def clean_up_files(self):
         try:
