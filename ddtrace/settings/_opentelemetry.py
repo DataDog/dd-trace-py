@@ -33,7 +33,7 @@ def _derive_logs_protocol(config: "ExporterConfig"):
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
-    return get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", config.HEADERS, parse_tags_str)
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_HEADERS", config.HEADERS)
 
 
 def _derive_logs_timeout(config: "ExporterConfig"):
@@ -51,12 +51,12 @@ class ExporterConfig(DDConfig):
     HTTP_PORT: int = 4318
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
     DEFAULT_ENDPOINT: str = "http://localhost:4318"
-    DEFAULT_HEADERS: t.Dict[str, str] = {}
+    DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
 
     PROTOCOL = DDConfig.v(t.Optional[str], "otlp.protocol", default="grpc")
     ENDPOINT = DDConfig.d(str, _derive_endpoint)
-    HEADERS = DDConfig.v(dict, "otlp.headers", default=DEFAULT_HEADERS, parser=parse_tags_str)
+    HEADERS = DDConfig.v(str, "otlp.headers", default=DEFAULT_HEADERS)
     TIMEOUT = DDConfig.v(int, "otlp.timeout", default=DEFAULT_TIMEOUT)
 
     LOGS_PROTOCOL = DDConfig.d(str, _derive_logs_protocol)
