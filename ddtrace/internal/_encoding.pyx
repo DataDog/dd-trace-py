@@ -5,7 +5,6 @@ from libc.string cimport strlen
 
 from json import dumps as json_dumps
 import threading
-from json import dumps as json_dumps
 
 from ._utils cimport PyBytesLike_Check
 
