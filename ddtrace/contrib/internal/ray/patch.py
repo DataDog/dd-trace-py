@@ -79,11 +79,6 @@ class RayTraceProcessor:
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
-                # Set the span type to either producer or consumer to match Ray's own OpenTelemetry implementation
-                if span.span_type == SpanTypes.ML or span.span_type == SpanTypes.WORKER:
-                    span.span_type = "consumer"
-                else:
-                    span.span_type = "producer"
                 processed_trace.append(span)
             elif not ray_spans_only:
                 with open("span_log.txt", "a") as log_file:
@@ -130,7 +125,9 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     function_module = getattr(wrapped, "__module__", "unknown_module")
 
     tracer.context_provider.activate(extracted_context)
-    with tracer.trace("ray.task.execute", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML) as span:
+    with tracer.trace(
+        "ray.task.execute", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
+    ) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         span.resource = f"{function_module}.{function_name}"
@@ -164,7 +161,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
-    with tracer.trace("ray.task.submit", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML) as span:
+    with tracer.trace("ray.task.submit", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         try:
@@ -184,14 +181,14 @@ def traced_submit_job(wrapped, instance, args, kwargs):
         return wrapped(*args, **kwargs)
 
     submission_id = kwargs["submission_id"]
-    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.ML)
+    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     _job_span_manager.add_span(submission_id, job_span)
 
     # Set global span
     tracer.context_provider.activate(job_span)
     try:
-        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.ML) as submit_span:
+        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.RAY) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -230,7 +227,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        "ray.actor.method.call", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        "ray.actor.method.call", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
@@ -265,7 +262,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
 
         method_name = f"{self.__class__.__name__}.{method.__name__}"
         with dd_tracer.trace(
-            "ray.job.run", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+            "ray.job.run", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
         ) as span:
             span.set_tag_str("component", "ray")
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
@@ -293,7 +290,7 @@ def _trace_scope(self: Any, method: Callable[..., Any], dd_trace_ctx):
     with tracer.trace(
         "ray.actor.method",
         service=os.environ.get("_RAY_SUBMISSION_ID"),
-        span_type=SpanTypes.ML,
+        span_type=SpanTypes.RAY,
     ) as span:
         span.set_tag_str("component", "ray")
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
