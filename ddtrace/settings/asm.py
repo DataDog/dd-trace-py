@@ -328,7 +328,7 @@ config = ASMConfig()
 
 
 class AIGuardConfig(DDConfig):
-    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=True)
+    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=False)
     _ai_guard_endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
     _ai_guard_max_history_length = DDConfig.var(int, AI_GUARD_MAX_HISTORY_LENGTH, default=8)
     _ai_guard_max_output_size = DDConfig.var(int, AI_GUARD_MAX_OUTPUT_SIZE, default=512 * 1024)
