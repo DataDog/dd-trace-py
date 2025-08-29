@@ -3,6 +3,7 @@ import json
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional  # noqa:F401
 from typing import Text
 from typing import TypedDict
 from typing import Union
