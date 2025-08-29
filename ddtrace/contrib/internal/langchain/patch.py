@@ -1,8 +1,11 @@
+from dataclasses import dataclass
 import os
 import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Tuple
+from typing import Union
 
 import langchain
 
@@ -57,6 +60,12 @@ from ddtrace.trace import Span
 log = get_logger(__name__)
 
 
+@dataclass
+class DispatchResult:
+    proceed: bool = True
+    result: Optional[Union[Any, Exception]] = None
+
+
 def get_version():
     # type: () -> str
     return getattr(langchain, "__version__", "")
@@ -82,6 +91,14 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
+def _dispatch(event_id: str, args: Tuple[Any, ...] = ()) -> DispatchResult:
+    result = DispatchResult(proceed=True)
+    core.dispatch(event_id, args + (result,))
+    if not result.proceed and isinstance(result.result, Exception):
+        raise result.result
+    return result
+
+
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
@@ -103,7 +120,8 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        completions = func(*args, **kwargs)
+        result = _dispatch("langchain.llm.generate.before", (prompts,))
+        completions = func(*args, **kwargs) if result.proceed else result.result
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -136,7 +154,8 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
-        completions = await func(*args, **kwargs)
+        result = _dispatch("langchain.llm.agenerate.before", (prompts,))
+        completions = await func(*args, **kwargs) if result.proceed else result.result
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -168,7 +187,8 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        chat_completions = func(*args, **kwargs)
+        result = _dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        chat_completions = func(*args, **kwargs) if result.proceed else result.result
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
@@ -200,7 +220,8 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
-        chat_completions = await func(*args, **kwargs)
+        result = _dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        chat_completions = await func(*args, **kwargs) if result.proceed else result.result
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
         span.set_exc_info(*sys.exc_info())
