@@ -257,6 +257,16 @@ suites:
       - '@core'
       - '@tracing'
       - '@ai_guard'
-      - tests/appsec/ai_guard/*
+      - tests/appsec/ai_guard/test_api_client.py
+    retry: 2
+    runner: riot
+  ai_guard_langchain:
+    parallelism: 3
+    paths:
+      - '@bootstrap'
+      - '@core'
+      - '@tracing'
+      - '@ai_guard'
+      - tests/appsec/ai_guard/langchain/test_langchain.py
     retry: 2
     runner: riot

@@ -1,3 +1,6 @@
+import json
+import time
+from typing import Any
 from unittest.mock import AsyncMock
 from unittest.mock import patch
 
@@ -13,12 +16,33 @@ from langchain_core.messages import ToolCall
 from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
+from openai.types.chat import ChatCompletion
+from openai.types.chat import ChatCompletionMessage
+from openai.types.chat.chat_completion import Choice
+from openai.types.chat.chat_completion_message import FunctionCall
 import pytest
 
 from ddtrace.appsec._ai_guard._langchain import _convert_messages
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
-from tests.appsec.ai_guard.utils import mock_openai_tool_response
+
+
+def _mock_openai_tool_response(tool: str, args: Any) -> ChatCompletion:
+    return ChatCompletion(
+        id="'chatcmpl-C99UmjEgLlpSj8oX6NMnnmwCdsf90'",
+        object="chat.completion",
+        created=int(time.time()),
+        model="gpt-3.5-turbo",
+        choices=[
+            Choice(
+                index=0,
+                message=ChatCompletionMessage(
+                    role="assistant", function_call=FunctionCall(name=tool, arguments=json.dumps(args))
+                ),
+                finish_reason="function_call",
+            )
+        ],
+    )
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -126,7 +150,7 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = mock_openai_tool_response("add", {"a": 1, "b": 1})
+    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
@@ -169,7 +193,7 @@ async def test_agent_action_async_block(
         mock_evaluate_response("ALLOW"),  # Allow the initial prompt
         mock_evaluate_response(decision),  # Deny/abort the tool call
     ]
-    mock_openai_request.return_value = mock_openai_tool_response("add", {"a": 1, "b": 1})
+    mock_openai_request.return_value = _mock_openai_tool_response("add", {"a": 1, "b": 1})
 
     @langchain_core.tools.tool
     def add(a: int, b: int) -> int:
