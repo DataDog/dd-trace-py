@@ -508,7 +508,7 @@ class TestLLMObsOpenaiV1:
         mock_llmobs_writer.enqueue.assert_called_with(
             _expected_llmobs_llm_span_event(
                 span,
-                model_name="gpt-4o-mini",
+                model_name="gpt-4o-mini-2024-07-18",
                 model_provider="azure_openai",
                 input_messages=input_messages,
                 # note: investigate why role is empty; in the streamed chunks there is no role returned.

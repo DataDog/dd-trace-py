@@ -664,14 +664,14 @@ def test_asm_context_registration(tracer):
 
     # For a web type span, a context manager is added, but then removed
     with asm_context(tracer=tracer, config=config_asm) as span:
-        assert core.get_item(_ASM_CONTEXT) is not None
-    assert core.get_item(_ASM_CONTEXT) is None
+        assert core.find_item(_ASM_CONTEXT) is not None
+    assert core.find_item(_ASM_CONTEXT) is None
 
     # Regression test, if the span type changes after being created, we always removed
     with asm_context(tracer=tracer, config=config_asm) as span:
         span.span_type = SpanTypes.HTTP
-        assert core.get_item(_ASM_CONTEXT) is not None
-    assert core.get_item(_ASM_CONTEXT) is None
+        assert core.find_item(_ASM_CONTEXT) is not None
+    assert core.find_item(_ASM_CONTEXT) is None
 
 
 CUSTOM_RULE_METHOD = [
@@ -799,7 +799,7 @@ def test_lambda_unsupported_event(tracer, skip_event):
     if skip_event:
         # When skip_event is True, the metric should be set and context item should be discarded
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) == 1.0
-        assert core.get_item("appsec_skip_next_lambda_event") is None
+        assert core.find_item("appsec_skip_next_lambda_event") is None
     else:
         # When skip_event is False, the metric should not be set
         assert span.get_metric(APPSEC.UNSUPPORTED_EVENT_TYPE) is None
