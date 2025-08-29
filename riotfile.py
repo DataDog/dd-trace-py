@@ -3669,8 +3669,8 @@ venv = Venv(
             },
         ),
         Venv(
-            name="ai_guard",
-            command="pytest {cmdargs} tests/appsec/ai_guard/test_api_client.py",
+            name="ai_guard_api",
+            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
             pkgs={
                 "requests": latest,
             },
@@ -3682,7 +3682,7 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard_langchain",
-            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/test_langchain.py",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
