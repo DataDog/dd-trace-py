@@ -3683,6 +3683,9 @@ venv = Venv(
         Venv(
             name="ai_guard_langchain",
             command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+            },
             venvs=[
                 Venv(
                     pys=select_pys(min_version="3.9", max_version="3.11"),
