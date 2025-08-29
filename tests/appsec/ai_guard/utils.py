@@ -1,17 +1,10 @@
-import json
 import random
 import string
-import time
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Union
 from unittest.mock import Mock
-
-from openai.types.chat import ChatCompletion
-from openai.types.chat import ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_message import FunctionCall
 
 from ddtrace._trace.span import Span
 from ddtrace.appsec._constants import AI_GUARD
@@ -70,22 +63,4 @@ def assert_mock_execute_request_call(
     mock_execute_request.assert_called_once_with(
         f"{ai_guard_client._endpoint}/evaluate",
         expected_payload,
-    )
-
-
-def mock_openai_tool_response(tool: str, args: Any) -> ChatCompletion:
-    return ChatCompletion(
-        id="'chatcmpl-C99UmjEgLlpSj8oX6NMnnmwCdsf90'",
-        object="chat.completion",
-        created=int(time.time()),
-        model="gpt-3.5-turbo",
-        choices=[
-            Choice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant", function_call=FunctionCall(name=tool, arguments=json.dumps(args))
-                ),
-                finish_reason="function_call",
-            )
-        ],
     )

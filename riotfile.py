@@ -3670,13 +3670,43 @@ venv = Venv(
         ),
         Venv(
             name="ai_guard",
-            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            command="pytest {cmdargs} tests/appsec/ai_guard/test_api_client.py",
             pkgs={
                 "requests": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_langchain",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/test_langchain.py",
+            venvs=[
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.1",
+                        "langchain-core": "~=0.1",
+                        "langchain-openai": "~=0.1",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.2",
+                        "langchain-core": "~=0.2",
+                        "langchain-openai": "~=0.2",
+                    },
+                ),
+                Venv(
+                    pys=["3.9", "3.10", "3.11", "3.12", "3.13"],
+                    pkgs={
+                        "langchain": "~=0.3",
+                        "langchain-core": "~=0.3",
+                        "langchain-openai": "~=0.3",
+                    },
                 ),
             ],
         ),
