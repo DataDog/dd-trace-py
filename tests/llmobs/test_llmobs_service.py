@@ -220,10 +220,18 @@ def test_service_enable_does_not_override_global_patch_config(mock_tracer_patch,
         llmobs_service.disable()
 
 
-def test_start_span_with_no_ml_app_throws(llmobs_no_ml_app):
-    with pytest.raises(ValueError):
-        with llmobs_no_ml_app.task():
-            pass
+def test_start_span_with_no_ml_app_defaults_to_service_name(llmobs_no_ml_app):
+    with llmobs_no_ml_app.task() as span:
+        pass
+
+    assert span._get_ctx_item(ML_APP) == "tests.llmobs"
+
+
+def test_start_span_empty_ml_app_defaults_to_service_name(llmobs_empty_ml_app):
+    with llmobs_empty_ml_app.task() as span:
+        pass
+
+    assert span._get_ctx_item(ML_APP) == "tests.llmobs"
 
 
 def test_start_span_without_ml_app_does_noop():
