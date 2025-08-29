@@ -1,15 +1,16 @@
 import os
-import re
 import subprocess
 import time
 
 from celery import Celery
+import pytest
 
 
 # Ensure that when we call Celery chains, the root span has celery specific span tags
 # The test_integration.py setup doesn't perfectly mimic the condition of a worker process running.
 # This test runs the worker as a side so we can check the tracer logs afterwards to ensure expected span results.
 # See https://github.com/DataDog/dd-trace-py/issues/11479
+@pytest.mark.snapshot()
 def test_task_chain_task_call_task():
     app = Celery("tasks")
 
@@ -46,17 +47,6 @@ def test_task_chain_task_call_task():
     )
 
     task_runner_process.wait()
+    time.sleep(5)
     # Kill the process so it starts to send traces to the Trace Agent
     worker_process.kill()
-    worker_logs = worker_process.stderr.read()
-
-    # Check that the root span was created with one of the Celery specific tags, such as celery.correlation_id
-    # Some versions of python seem to require escaping when using `re.search`:
-    old_pattern_match = r"resource=\\'tests.contrib.celery.tasks.fn_a\\' type=\\'worker\\' .* tags=.*correlation_id.*"
-    new_pattern_match = r"resource=\'tests.contrib.celery.tasks.fn_a\' type=\'worker\' .* tags=.*correlation_id.*"
-
-    pattern_exists = (
-        re.search(old_pattern_match, str(worker_logs)) is not None
-        or re.search(new_pattern_match, str(worker_logs)) is not None
-    )
-    assert pattern_exists is not None

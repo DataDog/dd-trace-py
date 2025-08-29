@@ -1,0 +1,72 @@
+[[
+  {
+    "name": "celery.apply",
+    "service": "celery-producer",
+    "resource": "tests.contrib.celery.tasks.fn_a",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.celery",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b1fefb00000000",
+      "celery.action": "apply_async",
+      "celery.hostname": "gen889@docker-desktop",
+      "celery.id": "fd7fce76-4926-4c09-a21b-fdb21b8b9c82",
+      "celery.routing_key": "celery",
+      "component": "celery",
+      "language": "python",
+      "runtime-id": "bbe601a62006451db03c410166d55e8c",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 889
+    },
+    "duration": 3710917,
+    "start": 1756495611947254834
+  }],
+[
+  {
+    "name": "celery.run",
+    "service": "celery-worker",
+    "resource": "tests.contrib.celery.tasks.fn_b",
+    "trace_id": 1,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "worker",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b1fefa00000000",
+      "celery.action": "run",
+      "celery.correlation_id": "f7ba6425-a8a1-4027-900a-1b95ebce4f14",
+      "celery.delivery_info.exchange": "",
+      "celery.delivery_info.redelivered": "True",
+      "celery.delivery_info.routing_key": "celery",
+      "celery.hostname": "celery@uniquename1",
+      "celery.id": "f7ba6425-a8a1-4027-900a-1b95ebce4f14",
+      "celery.reply_to": "9ee3a3f6-4169-366b-babf-8a7c5e96fec4",
+      "celery.state": "SUCCESS",
+      "component": "celery",
+      "language": "python",
+      "runtime-id": "8ca15e6906d5448dba188561a52e802a",
+      "span.kind": "consumer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "celery.delivery_info.priority": 0,
+      "process_id": 882
+    },
+    "duration": 383791,
+    "start": 1756495610029260667
+  }]]
