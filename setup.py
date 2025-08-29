@@ -45,7 +45,7 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "Release"
+COMPILE_MODE = "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
@@ -53,7 +53,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "RelWithDebInfo")
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
@@ -314,17 +314,7 @@ class CleanLibraries(CleanCommand):
 class CMakeBuild(build_ext):
     @staticmethod
     def try_strip_symbols(so_file):
-        if CURRENT_OS == "Linux" and shutil.which("strip") is not None:
-            try:
-                subprocess.run(["strip", "-g", so_file], check=True)
-            except subprocess.CalledProcessError as e:
-                print(
-                    "WARNING: stripping '{}' returned non-zero exit status ({}), ignoring".format(so_file, e.returncode)
-                )
-            except Exception as e:
-                print(
-                    "WARNING: An error occurred while stripping the symbols from '{}', ignoring: {}".format(so_file, e)
-                )
+        pass
 
     def build_extension(self, ext):
         if isinstance(ext, CMakeExtension):
