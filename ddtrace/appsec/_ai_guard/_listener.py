@@ -1,5 +1,7 @@
-from ddtrace.appsec._ai_guard._langchain import _langchain_patch, _langchain_unpatch, \
-    _langchain_chatmodel_generate_before, _langchain_llm_generate_before
+from ddtrace.appsec._ai_guard._langchain import _langchain_chatmodel_generate_before
+from ddtrace.appsec._ai_guard._langchain import _langchain_llm_generate_before
+from ddtrace.appsec._ai_guard._langchain import _langchain_patch
+from ddtrace.appsec._ai_guard._langchain import _langchain_unpatch
 from ddtrace.internal import core
 
 

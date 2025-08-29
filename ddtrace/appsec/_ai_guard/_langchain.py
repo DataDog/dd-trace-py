@@ -1,19 +1,21 @@
-from functools import singledispatch
-from typing import Optional
+import json
+from typing import Any
 
 from langchain_core.agents import AgentAction
 from langchain_core.agents import AgentFinish
+from langchain_core.messages import BaseMessage
+from langchain_core.messages import ChatMessage
+from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage
 from langchain_core.messages.ai import AIMessage
-from langchain_core.messages.base import BaseMessage
 from langchain_core.messages.function import FunctionMessage
-from langchain_core.messages.human import HumanMessage
-from langchain_core.messages.system import SystemMessage
 from langchain_core.messages.tool import ToolMessage
 
-from ddtrace.appsec.ai_guard import AIGuardAbortError, new_ai_guard_client
+from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Prompt
 from ddtrace.appsec.ai_guard import ToolCall
+from ddtrace.appsec.ai_guard import new_ai_guard_client
 from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.contrib.internal.langchain.patch import DispatchResult
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -23,36 +25,6 @@ import ddtrace.internal.logger as ddlogger
 
 logger = ddlogger.get_logger(__name__)
 client: AIGuardClient = new_ai_guard_client()
-
-
-@singledispatch
-def to_evaluation(message: BaseMessage) -> Optional[Evaluation]:
-    return None
-
-
-@to_evaluation.register(HumanMessage)
-def _(human: HumanMessage) -> Optional[Evaluation]:
-    return Prompt(role="user", content=human.text())
-
-
-@to_evaluation.register(SystemMessage)
-def _(system: SystemMessage) -> Optional[Evaluation]:
-    return Prompt(role="system", content=system.text())
-
-
-@to_evaluation.register(AIMessage)
-def _(ai: AIMessage) -> Optional[Evaluation]:
-    return Prompt(role="assistant", content=ai.text())
-
-
-@to_evaluation.register(ToolMessage)
-def _(tool: ToolMessage) -> Optional[Evaluation]:
-    return ToolCall(tool_name=tool.name, tool_args={}, output=tool.text())
-
-
-@to_evaluation.register(FunctionMessage)
-def _(fn: FunctionMessage) -> Optional[Evaluation]:
-    return ToolCall(tool_name=fn.name, tool_args={}, output=fn.text())
 
 
 action_agents_classes = (
@@ -95,23 +67,64 @@ def _langchain_unpatch():
 
 def _langchain_agent_plan(func, instance, args, kwargs):
     action = func(*args, **kwargs)
-    return _handle_agent_action_plan(action, kwargs)
+    return _handle_agent_action_result(action, kwargs)
 
 
 async def _langchain_agent_aplan(func, instance, args, kwargs):
     action = await func(*args, **kwargs)
-    return _handle_agent_action_plan(action, kwargs)
+    return _handle_agent_action_result(action, kwargs)
 
 
-def _handle_agent_action_plan(action, kwargs):
+def _try_parse_json(value: str, default_name: str) -> Any:
+    try:
+        return json.loads(value)
+    except Exception:
+        return {default_name: value}
+
+
+def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
+    result = []
+    tool_calls = dict()
+    function_call = None
+    for message in messages:
+        if isinstance(message, HumanMessage):
+            result.append(Prompt(role="user", content=message.text()))
+        elif isinstance(message, SystemMessage):
+            result.append(Prompt(role="system", content=message.text()))
+        elif isinstance(message, ChatMessage):
+            result.append(Prompt(role=message.role, content=message.text()))
+        elif isinstance(message, AIMessage):
+            for call in message.tool_calls:
+                tool_call = ToolCall(tool_name=call["name"], tool_args=call["args"])
+                result.append(tool_call)
+                if call["id"]:
+                    tool_calls[call["id"]] = tool_call
+            if "function_call" in message.additional_kwargs:
+                call = message.additional_kwargs["function_call"]
+                function_call = ToolCall(
+                    tool_name=call.get("name"), tool_args=_try_parse_json(call.get("arguments"), "arguments")
+                )
+                result.append(function_call)
+            if message.content:
+                result.append(Prompt(role=message.role, content=message.text()))
+        elif isinstance(message, ToolMessage):
+            tool_call = tool_calls.get(message.tool_call_id)
+            if tool_call:
+                tool_call["output"] = message.text()
+        elif isinstance(message, FunctionMessage):
+            if function_call and function_call["tool_name"] == message.name:
+                function_call["output"] = message.text()
+                function_call = None
+
+    return result
+
+
+def _handle_agent_action_result(action, kwargs):
     if isinstance(action, AgentAction) and "input" in kwargs:
         try:
             agent_input = kwargs["input"]
-            if "chat_history" in kwargs:
-                history = [e for e in (to_evaluation(msg) for msg in kwargs["chat_history"]) if e is not None]
-            else:
-                history = []
-            # TODO dot not assume user prompt
+            history = _convert_messages(kwargs["chat_history"]) if "chat_history" in kwargs else []
+            # TODO we are assuming user prompt
             history.append(Prompt(role="user", content=agent_input))
             tool_name = action.tool
             tool_input = action.tool_input
@@ -131,7 +144,7 @@ def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult)
     for messages in message_lists:
         # only call evaluator when the last message is an actual user prompt
         if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
-            history = [e for e in (to_evaluation(msg) for msg in messages) if e is not None]
+            history = _convert_messages(messages)
             prompt = history.pop(-1)
             try:
                 if not client.evaluate_prompt(prompt["role"], prompt["content"], history=history):  # type: ignore[typeddict-item]

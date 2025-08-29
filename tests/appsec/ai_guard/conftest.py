@@ -12,6 +12,7 @@ from ddtrace.contrib.internal.langchain.patch import unpatch
 from ddtrace.settings.asm import ai_guard_config
 from tests.utils import override_env
 
+
 @contextlib.contextmanager
 def override_ai_guard_config(values):
     """
@@ -52,7 +53,6 @@ def override_ai_guard_config(values):
             setattr(ai_guard_config, key, value)
 
         ddtrace.config._reset()
-
 
 
 # `pytest` automatically calls this function once when tests are run.
