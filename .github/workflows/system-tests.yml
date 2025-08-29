@@ -17,7 +17,8 @@ jobs:
       cibw_build: 'cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
 
   system-tests-build-weblog:
-    needs: [build-wheels]
+    needs:
+      - build-wheels
     runs-on: ubuntu-latest
     strategy:
       matrix:
