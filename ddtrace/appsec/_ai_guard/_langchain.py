@@ -1,5 +1,8 @@
 import json
 from typing import Any
+from typing import Dict
+from typing import List
+from typing import Optional
 
 from langchain_core.agents import AgentAction
 from langchain_core.agents import AgentFinish
@@ -83,9 +86,9 @@ def _try_parse_json(value: str, default_name: str) -> Any:
 
 
 def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
-    result = []
-    tool_calls = dict()
-    function_call = None
+    result: List[Evaluation] = []
+    tool_calls: Dict[str, ToolCall] = dict()
+    function_call: Optional[ToolCall] = None
     for message in messages:
         if isinstance(message, HumanMessage):
             result.append(Prompt(role="user", content=message.text()))
@@ -108,9 +111,9 @@ def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
             if message.content:
                 result.append(Prompt(role=message.role, content=message.text()))
         elif isinstance(message, ToolMessage):
-            tool_call = tool_calls.get(message.tool_call_id)
-            if tool_call:
-                tool_call["output"] = message.text()
+            current_call = tool_calls.get(message.tool_call_id)
+            if current_call:
+                current_call["output"] = message.text()
         elif isinstance(message, FunctionMessage):
             if function_call and function_call["tool_name"] == message.name:
                 function_call["output"] = message.text()
