@@ -2,7 +2,6 @@ import typing as t
 
 from ddtrace.internal.telemetry import get_config
 from ddtrace.internal.telemetry import report_configuration
-from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.settings._agent import get_agent_hostname
 from ddtrace.settings._core import DDConfig
 
