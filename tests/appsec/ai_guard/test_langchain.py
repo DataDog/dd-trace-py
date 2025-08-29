@@ -5,10 +5,17 @@ import langchain
 from langchain.agents import AgentExecutor
 from langchain.agents import create_openai_functions_agent
 import langchain_core
+from langchain_core.messages import AIMessage
+from langchain_core.messages import FunctionMessage
+from langchain_core.messages import HumanMessage
+from langchain_core.messages import SystemMessage
+from langchain_core.messages import ToolCall
+from langchain_core.messages import ToolMessage
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
 import pytest
 
+from ddtrace.appsec._ai_guard._langchain import _convert_messages
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import mock_openai_tool_response
@@ -191,3 +198,41 @@ async def test_agent_action_async_block(
 
     assert mock_execute_request.call_count == 2  # One for prompt, one for tool
     assert mock_openai_request.call_count == 1  # Initial prompt that returns a function call result
+
+
+def test_message_conversion():
+    messages = [
+        SystemMessage(content="You are a beautiful assistant"),
+        HumanMessage(content="What day is today?"),
+        AIMessage(
+            content="",
+            additional_kwargs={"function_call": {"name": "calendar_check", "arguments": '{"expression": "today"}'}},
+        ),
+        FunctionMessage(name="calendar_check", content="Today is Monday"),
+        HumanMessage(content="One plus one?"),
+        AIMessage(content="", tool_calls=[ToolCall(id="1", name="add", args={"a": 1, "b": 1})]),
+        ToolMessage(tool_call_id="1", tool_name="add", content="2"),
+        AIMessage(role="assistant", content="One plus one is two"),
+    ]
+    result = _convert_messages(messages)
+    assert len(result) == 6  # collapse tool and function messages
+
+    assert result[0]["role"] == "system"
+    assert result[0]["content"] == "You are a beautiful assistant"
+
+    assert result[1]["role"] == "user"
+    assert result[1]["content"] == "What day is today?"
+
+    assert result[2]["tool_name"] == "calendar_check"
+    assert result[2]["tool_args"] == {"expression": "today"}
+    assert result[2]["output"] == "Today is Monday"
+
+    assert result[3]["role"] == "user"
+    assert result[3]["content"] == "One plus one?"
+
+    assert result[4]["tool_name"] == "add"
+    assert result[4]["tool_args"] == {"a": 1, "b": 1}
+    assert result[4]["output"] == "2"
+
+    assert result[5]["role"] == "assistant"
+    assert result[5]["content"] == "One plus one is two"
