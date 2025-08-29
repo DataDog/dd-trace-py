@@ -1,0 +1,33 @@
+[[
+  {
+    "name": "celery.apply",
+    "service": "celery-producer",
+    "resource": "tests.contrib.celery.tasks_with_error.fn_task",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "tests.contrib.celery",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b218ad00000000",
+      "celery.action": "apply_async",
+      "celery.hostname": "gen8803@docker-desktop",
+      "celery.id": "f05cfff6-d588-4dae-b078-f50ef472addd",
+      "celery.routing_key": "celery",
+      "component": "celery",
+      "language": "python",
+      "runtime-id": "e93613cdfa524abeb397c4eed2f6cb8a",
+      "span.kind": "producer"
+    },
+    "metrics": {
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 8803
+    },
+    "duration": 2831167,
+    "start": 1756502189523064295
+  }]]
