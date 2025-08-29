@@ -5,6 +5,7 @@ import os
 from typing import Callable
 
 from ddtrace.propagation.http import _TraceContext
+from ray.runtime_context import get_runtime_context
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -42,3 +43,27 @@ def _extract_tracing_context_from_env():
             }
         )
     return None
+
+
+def _inject_ray_span_tags(span):
+    runtime_context = get_runtime_context()
+
+    span.set_tag_str("component", "ray")
+    span.set_tag_str("ray.job_id", runtime_context.get_job_id())
+    span.set_tag_str("ray.node_id", runtime_context.get_node_id())
+
+    worker_id = runtime_context.get_worker_id()
+    if worker_id is not None:
+        span.set_tag_str("ray.worker_id", worker_id)
+
+    task_id = runtime_context.get_task_id()
+    if task_id is not None:
+        span.set_tag_str("ray.task_id", task_id)
+
+    actor_id = runtime_context.get_actor_id()
+    if actor_id is not None:
+        span.set_tag_str("ray.actor_id", actor_id)
+
+    submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+    if submission_id is not None:
+        span.set_tag_str("ray.submission_id", submission_id)
