@@ -264,7 +264,8 @@ jobs:
 
 
   parametric:
-    needs: [build-wheels]
+    needs:
+      - build-wheels
     runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
