@@ -8,6 +8,7 @@ import pytest
 from ddtrace.contrib.internal.asyncpg.patch import patch
 from ddtrace.contrib.internal.asyncpg.patch import unpatch
 from ddtrace.contrib.internal.trace_utils import iswrapped
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.contrib.asyncio.utils import AsyncioTestCase
