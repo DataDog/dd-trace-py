@@ -49,6 +49,7 @@ def patch():
 
 
 def _patched_get_functions(wrapped, instance, args, kwargs):
+    print("getting functions")
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
         return wrapped(*args, **kwargs)

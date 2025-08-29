@@ -1,0 +1,87 @@
+[[
+  {
+    "name": "azure.functions.invoke",
+    "service": "test-func",
+    "resource": "POST /api/httppostrooteventhub",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "serverless",
+    "meta": {
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "689cb11600000000",
+      "aas.function.name": "http_post_root_eventhub",
+      "aas.function.trigger": "Http",
+      "component": "azure_functions",
+      "http.method": "POST",
+      "http.route": "/api/httppostrooteventhub",
+      "http.status_code": "200",
+      "http.url": "http://0.0.0.0:7071/api/httppostrooteventhub",
+      "http.useragent": "python-httpx/x.xx.x",
+      "language": "python",
+      "runtime-id": "adde6f7519b84810b5623f78578eff01",
+      "span.kind": "server"
+    },
+    "metrics": {
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 1,
+      "process_id": 16649
+    },
+    "duration": 535896209,
+    "start": 1755099414340273958
+  },
+     {
+       "name": "azure.eventhub.send",
+       "service": "azure_eventhub",
+       "resource": "eh1",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "worker",
+       "meta": {
+         "_dd.base_service": "test-func",
+         "component": "azure_eventhub",
+         "messaging.destination.name": "eh1",
+         "messaging.operation": "send",
+         "messaging.system": "eventhub",
+         "network.destination.name": "localhost",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.top_level": 1
+       },
+       "duration": 532656625,
+       "start": 1755099414340895125
+     },
+        {
+          "name": "azure.functions.invoke",
+          "service": "test-func",
+          "resource": "EventHub eventhub",
+          "trace_id": 0,
+          "span_id": 3,
+          "parent_id": 2,
+          "type": "serverless",
+          "meta": {
+            "_dd.p.dm": "-0",
+            "_dd.p.tid": "689cb11600000000",
+            "aas.function.name": "eventhub",
+            "aas.function.trigger": "EventHub",
+            "component": "azure_functions",
+            "language": "python",
+            "messaging.destination.name": "eh1",
+            "messaging.operation": "receive",
+            "messaging.system": "eventhub",
+            "runtime-id": "adde6f7519b84810b5623f78578eff01",
+            "span.kind": "consumer",
+            "tracestate": "dd=p:7f24da474ea4adec;s:1;t.dm:-0;t.tid:689cb11600000000"
+          },
+          "metrics": {
+            "_dd.top_level": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 1,
+            "process_id": 16649
+          },
+          "duration": 61042,
+          "start": 1755099414978719875
+        }]]

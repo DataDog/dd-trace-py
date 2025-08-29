@@ -1,0 +1,14 @@
+{
+  "version": "2.0",
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[4.24.2, 4.24.2]"
+  },
+  "extensions": {
+    "eventHubs": {
+      "initialOffsetOptions": {
+        "type": "fromEnd"
+      }
+    }
+  }
+}

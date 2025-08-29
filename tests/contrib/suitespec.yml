@@ -378,6 +378,7 @@ suites:
     runner: riot
     snapshot: true
     services:
+      - azureeventhubsemulator
       - azurite
       - azureservicebusemulator
       - azuresqledge
