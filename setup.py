@@ -614,7 +614,7 @@ class CustomBuildExt(build_ext):
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
+            "-DPython3_ROOT_DIR={}".format(sys.prefix),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),

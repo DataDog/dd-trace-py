@@ -47,6 +47,8 @@ def set_otel_logs_provider() -> None:
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "logging_provider_configured", 1, (("type", "dd"),))
     global DD_LOGS_PROVIDER_CONFIGURED
     DD_LOGS_PROVIDER_CONFIGURED = True
+    # Disable log injection to prevent duplicate log attributes from being sent.
+    config._logs_injection = False
 
 
 def _should_configure_logs_exporter() -> bool:
