@@ -68,6 +68,8 @@ class APMTracingAdapter(PubSub):
             if payload.metadata is None:
                 continue
 
+            log.debug("Received APM tracing config payload: %s", payload)
+
             config_id = payload.metadata.id
             seen_config_ids.add(config_id)
 
