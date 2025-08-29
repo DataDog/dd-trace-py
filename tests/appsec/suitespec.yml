@@ -251,22 +251,21 @@ suites:
       - tests/appsec/iast/taint_sinks/test_ssrf.py
     runner: riot
     skip: true  # TODO: No environment available
-  ai_guard:
+  ai_guard_api:
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@ai_guard'
-      - tests/appsec/ai_guard/test_api_client.py
+      - tests/appsec/ai_guard/api/*
     retry: 2
     runner: riot
   ai_guard_langchain:
-    parallelism: 3
     paths:
       - '@bootstrap'
       - '@core'
       - '@tracing'
       - '@ai_guard'
-      - tests/appsec/ai_guard/langchain/test_langchain.py
+      - tests/appsec/ai_guard/langchain/*
     retry: 2
     runner: riot
