@@ -11,7 +11,14 @@ on:
     - cron: '00 04 * * 2-6'
 
 jobs:
+  build-wheels:
+    uses: ./.github/workflows/build_python_3.yml
+    with:
+      cibw_build: 'cp311-manylinux_x86_64 cp312-manylinux_x86_64 cp313-manylinux_x86_64'
+
   system-tests-build-weblog:
+    needs:
+      - build-wheels
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -40,17 +47,14 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'fef0bc7c0ba5f74babbb1ac3419291dbd4b65e5e'
+          ref: 'd23bd68a15bca6d6c748edbeb1ed3fe3eed7ced1'
 
-      - name: Checkout dd-trace-py
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          persist-credentials: false
-          path: 'binaries/dd-trace-py'
-          fetch-depth: 0
-          # NB this ref is necessary to keep the checkout out of detached HEAD state, which setuptools_scm requires for
-          # proper version guessing
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
 
       - name: Build
         run: ./build.sh -i weblog
@@ -90,7 +94,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'fef0bc7c0ba5f74babbb1ac3419291dbd4b65e5e'
+          ref: 'd23bd68a15bca6d6c748edbeb1ed3fe3eed7ced1'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -260,6 +264,8 @@ jobs:
 
 
   parametric:
+    needs:
+      - build-wheels
     runs-on: ubuntu-latest
     env:
       TEST_LIBRARY: python
@@ -273,14 +279,13 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'fef0bc7c0ba5f74babbb1ac3419291dbd4b65e5e'
-      - name: Checkout dd-trace-py
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+          ref: 'd23bd68a15bca6d6c748edbeb1ed3fe3eed7ced1'
+      - name: Download wheels to binaries directory
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
-          persist-credentials: false
-          path: 'binaries/dd-trace-py'
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          pattern: wheels-*
+          path: binaries/
+          merge-multiple: true
 
       - name: Build runner
         id: build_runner
