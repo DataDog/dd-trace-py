@@ -14,6 +14,7 @@
       "language": "python"
     },
     "metrics": {
+      "_dd.p.ksr": 1,
       "_dd.span_sampling.mechanism": 8,
       "_dd.span_sampling.rule_rate": 1,
       "_dd.tracer_kr": 1.0,
