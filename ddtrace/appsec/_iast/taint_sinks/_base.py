@@ -22,6 +22,8 @@ from .._iast_request_context import get_iast_reporter
 from .._iast_request_context import set_iast_reporter
 from .._span_metrics import increment_iast_span_metric
 from .._stacktrace import get_info_frame
+from .._utils import _is_iast_propagation_debug_enabled
+from ..debug_propagation import taint_tracking_debug
 from ..reporter import Evidence
 from ..reporter import IastSpanReporter
 from ..reporter import Location
@@ -177,6 +179,14 @@ class VulnerabilityBase:
                     rollback_quota(cls.vulnerability_type)
                     return result
             # Evidence is a string in weak cipher, weak hash and weak randomness
+            # Debug sink logging
+            if _is_iast_propagation_debug_enabled():
+                taint_tracking_debug(
+                    text_result=evidence_value,
+                    text_candidate=evidence_value,
+                    action="sink_point",
+                    type_propagation=cls.vulnerability_type,
+                )
             result = cls._create_evidence_and_report(
                 cls.vulnerability_type, evidence_value, dialect, file_name, line_number, function_name, class_name
             )
