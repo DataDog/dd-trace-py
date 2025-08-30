@@ -91,7 +91,6 @@ python = "3.10"
 features = ["opentracing"]
 dependencies = [  # copied from library dependencies
     "protobuf>=3",
-    "typing_extensions",
     "xmltodict>=0.12",
     "envier==0.6.1",
     "opentelemetry-api>=1",
