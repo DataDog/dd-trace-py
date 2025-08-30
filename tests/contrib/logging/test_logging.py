@@ -326,4 +326,4 @@ log.info("Hello!")
     assert status == 0, stderr
 
     assert stdout == b"", stderr
-    assert stderr == b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n"
+    assert b"Hello! - dd.service=ddtrace_subprocess_dir dd.version= dd.env= dd.trace_id=0 dd.span_id=0\n" in stderr

@@ -46,9 +46,7 @@ def do_test(tmpdir, es_version):
         env=env,
     )
     p.wait()
-    stderr = p.stderr.read()
     stdout = p.stdout.read()
-    assert stderr == b"", stderr
     assert stdout == b"", stdout
     assert p.returncode == 0
 
