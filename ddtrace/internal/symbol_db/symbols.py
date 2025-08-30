@@ -468,6 +468,7 @@ class ScopeContext:
             "ddsource": "python",
             "service": config.service or DEFAULT_SERVICE_NAME,
             "runtimeId": get_runtime_id(),
+            "type": "symdb",
         }
 
     def add_scope(self, scope: Scope) -> None:

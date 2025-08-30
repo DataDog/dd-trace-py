@@ -6,6 +6,7 @@ from types import FrameType
 from types import FunctionType
 from types import ModuleType
 from typing import Any
+from typing import ClassVar
 from typing import Dict
 from typing import Mapping
 from typing import Optional
@@ -29,6 +30,7 @@ from ddtrace.debugging._safety import get_locals
 from ddtrace.debugging._signal import utils
 from ddtrace.debugging._signal.log import LogSignal
 from ddtrace.debugging._signal.model import EvaluationError
+from ddtrace.debugging._signal.model import SignalTrack
 from ddtrace.debugging._signal.model import probe_to_signal
 from ddtrace.debugging._signal.utils import serialize
 from ddtrace.internal.compat import ExcInfoType
@@ -94,6 +96,8 @@ class Snapshot(LogSignal):
 
     Used to collect the minimum amount of information from a firing probe.
     """
+
+    __track__: ClassVar[SignalTrack] = SignalTrack.SNAPSHOT
 
     entry_capture: Optional[dict] = field(default=None)
     return_capture: Optional[dict] = field(default=None)
