@@ -368,7 +368,7 @@
         "dependency": "kombu",
         "integration": "kombu",
         "minimum_tracer_supported": "4.6.11",
-        "max_tracer_supported": "5.4.2",
+        "max_tracer_supported": "5.5.4",
         "auto-instrumented": false
     },
     {
