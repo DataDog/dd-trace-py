@@ -9,6 +9,7 @@ from typing import Tuple
 from typing import Union
 
 from ddtrace import config
+from ddtrace.constants import SPAN_KIND
 from ddtrace.ext import SpanTypes
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.formats import format_trace_id
@@ -386,3 +387,64 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+
+class SpanLinker:
+    """
+    Handles span linking for LLM Obs spans across integrations.
+    """
+
+    def __init__(self):
+        self._parent_to_children_spans: Dict[str, List[Span]] = {}
+
+    def remove_child_spans(self, parent: Span) -> None:
+        """Removes the children spans of the given parent span."""
+        self._parent_to_children_spans.pop(parent.span_id, None)
+    
+    def _register_span(self, span: Span, span_kind: str, parent_id: str) -> Tuple[Dict[str, any], Dict[str, any]]:
+        """
+        Registers the span in the _parent_to_children_spans dict.
+
+        Currently, this happens when a span is being finished. In the future,
+        we may need to register the span when it is started to support different
+        span linking use cases.
+
+        Returns the children spans and the span entry for the registered span.
+        """
+        children = self._parent_to_children_spans.setdefault(parent_id, {})
+        span_entry = {"span": span, "index": len(children), "kind": span_kind}
+        children[span.span_id] = span_entry
+        return children, span_entry
+    
+    def add_span_links(self, span: Span, span_kind: str, parent_id: str) -> None:
+        """
+        Called when a span finishes. This is used to add span links to the span before it is finished.
+        
+        Currently, this only works for adding span links between adjacent LLM and tool spans.
+        """
+        children, span_entry = self._register_span(span, span_kind, parent_id)
+        span_index = span_entry["index"]
+        if span_index > 0:
+            previous_child = None
+            for child in children.values():
+                if child["index"] == span_index - 1:
+                    previous_child = child
+                    break
+            if (
+                previous_child is not None and (
+                    (
+                        previous_child["kind"] == "llm"
+                        and span_entry["kind"] == "tool"
+                    ) or (
+                        previous_child["kind"] == "tool"
+                        and span_entry["kind"] == "llm"
+                    )
+                )
+            ):
+                add_span_link(
+                    span,
+                    str(previous_child["span"].span_id),
+                    format_trace_id(previous_child["span"].trace_id),
+                    "output",
+                    "input",
+                )
