@@ -3693,6 +3693,7 @@ venv = Venv(
                         "langchain": "==0.1.20",
                         "langchain-core": "==0.1.52",
                         "langchain-openai": "==0.1.6",
+                        "openai": "==1.30.3",
                     },
                 ),
                 Venv(
@@ -3701,6 +3702,7 @@ venv = Venv(
                         "langchain": "==0.2.0",
                         "langchain-core": "==0.2.0",
                         "langchain-openai": latest,
+                        "openai": latest,
                     },
                 ),
                 Venv(
@@ -3709,6 +3711,7 @@ venv = Venv(
                         "langchain": latest,
                         "langchain-core": latest,
                         "langchain-openai": latest,
+                        "openai": latest,
                     },
                 ),
             ],
