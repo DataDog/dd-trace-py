@@ -4,16 +4,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from langchain_core.agents import AgentAction
-from langchain_core.agents import AgentFinish
-from langchain_core.messages import BaseMessage
-from langchain_core.messages import ChatMessage
-from langchain_core.messages import HumanMessage
-from langchain_core.messages import SystemMessage
-from langchain_core.messages.ai import AIMessage
-from langchain_core.messages.function import FunctionMessage
-from langchain_core.messages.tool import ToolMessage
-
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Prompt
@@ -85,7 +75,7 @@ def _try_parse_json(value: str, default_name: str) -> Any:
         return {default_name: value}
 
 
-def _get_message_text(msg: BaseMessage) -> str:
+def _get_message_text(msg: Any) -> str:
     if isinstance(msg.content, str):
         return msg.content
 
@@ -97,7 +87,14 @@ def _get_message_text(msg: BaseMessage) -> str:
     return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
 
 
-def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
+def _convert_messages(messages: list[Any]) -> list[Evaluation]:
+    from langchain_core.messages import ChatMessage
+    from langchain_core.messages import HumanMessage
+    from langchain_core.messages import SystemMessage
+    from langchain_core.messages.ai import AIMessage
+    from langchain_core.messages.function import FunctionMessage
+    from langchain_core.messages.tool import ToolMessage
+
     result: List[Evaluation] = []
     tool_calls: Dict[str, ToolCall] = dict()
     function_call: Optional[ToolCall] = None
@@ -135,6 +132,9 @@ def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
 
 
 def _handle_agent_action_result(action, kwargs):
+    from langchain_core.agents import AgentAction
+    from langchain_core.agents import AgentFinish
+
     if isinstance(action, AgentAction) and "input" in kwargs:
         try:
             agent_input = kwargs["input"]
@@ -155,6 +155,8 @@ def _handle_agent_action_result(action, kwargs):
 
 
 def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult):
+    from langchain_core.messages import HumanMessage
+
     for messages in message_lists:
         # only call evaluator when the last message is an actual user prompt
         if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
