@@ -56,6 +56,145 @@ def test_messages_with_no_role_is_ok():
     assert messages.messages == [{"content": "hello"}, {"content": "world"}]
 
 
+def test_messages_with_tool_calls():
+    """Test that messages can include tool calls."""
+    messages = Messages(
+        [
+            {
+                "content": "I'll help you with that calculation.",
+                "role": "assistant",
+                "tool_calls": [
+                    {
+                        "name": "calculator",
+                        "arguments": {"operation": "add", "a": 5, "b": 3},
+                        "tool_id": "call_123",
+                        "type": "function",
+                    }
+                ],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "I'll help you with that calculation.",
+            "role": "assistant",
+            "tool_calls": [
+                {
+                    "name": "calculator",
+                    "arguments": {"operation": "add", "a": 5, "b": 3},
+                    "tool_id": "call_123",
+                    "type": "function",
+                }
+            ],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_results():
+    """Test that messages can include tool results."""
+    messages = Messages(
+        [
+            {
+                "content": "",
+                "role": "tool",
+                "tool_results": [
+                    {"name": "calculator", "result": "8", "tool_id": "call_123", "type": "function_result"}
+                ],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "",
+            "role": "tool",
+            "tool_results": [{"name": "calculator", "result": "8", "tool_id": "call_123", "type": "function_result"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_calls_minimal():
+    """Test tool calls with only required fields."""
+    messages = Messages(
+        [
+            {
+                "content": "Using calculator",
+                "role": "assistant",
+                "tool_calls": [{"name": "calculator", "arguments": {"x": 10}}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Using calculator",
+            "role": "assistant",
+            "tool_calls": [{"name": "calculator", "arguments": {"x": 10}}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_with_tool_results_minimal():
+    """Test tool results with only required fields."""
+    messages = Messages([{"content": "", "role": "tool", "tool_results": [{"result": "Success"}]}])
+    expected = [{"content": "", "role": "tool", "tool_results": [{"result": "Success"}]}]
+    assert messages.messages == expected
+
+
+def test_messages_with_both_tool_calls_and_results():
+    """Test that a message can have both tool calls and tool results"""
+    messages = Messages(
+        [
+            {
+                "content": "Processing...",
+                "role": "assistant",
+                "tool_calls": [{"name": "calculator", "arguments": {"x": 5}}],
+                "tool_results": [{"result": "10"}],
+            }
+        ]
+    )
+    expected = [
+        {
+            "content": "Processing...",
+            "role": "assistant",
+            "tool_calls": [{"name": "calculator", "arguments": {"x": 5}}],
+            "tool_results": [{"result": "10"}],
+        }
+    ]
+    assert messages.messages == expected
+
+
+def test_messages_tool_calls_missing_required_fields():
+    """Test that tool_calls raise errors when required fields are missing."""
+    # Missing name field
+    with pytest.raises(TypeError, match="ToolCall name must be a non-empty string"):
+        Messages([{"content": "test", "tool_calls": [{"arguments": {"x": 5}}]}])
+
+    # Missing arguments field
+    with pytest.raises(TypeError, match="ToolCall arguments must be a dictionary"):
+        Messages([{"content": "test", "tool_calls": [{"name": "calculator"}]}])
+
+    # Empty name field
+    with pytest.raises(TypeError, match="ToolCall name must be a non-empty string"):
+        Messages([{"content": "test", "tool_calls": [{"name": "", "arguments": {"x": 5}}]}])
+
+    # Invalid arguments type
+    with pytest.raises(TypeError, match="ToolCall arguments must be a dictionary"):
+        Messages([{"content": "test", "tool_calls": [{"name": "calculator", "arguments": "invalid"}]}])
+
+
+def test_messages_tool_results_missing_required_fields():
+    """Test that tool_results raise errors when required fields are missing."""
+    # Missing result field
+    with pytest.raises(TypeError, match="ToolResult result must be a string"):
+        Messages([{"content": "test", "tool_results": [{"name": "calculator"}]}])
+
+    # Invalid result type
+    with pytest.raises(TypeError, match="ToolResult result must be a string"):
+        Messages([{"content": "test", "tool_results": [{"result": 123}]}])
+
+
 def test_documents_with_string():
     documents = Documents("hello")
     assert documents.documents == [{"text": "hello"}]
