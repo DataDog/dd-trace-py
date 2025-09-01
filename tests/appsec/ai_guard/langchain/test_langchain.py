@@ -1,5 +1,4 @@
 import json
-import time
 from typing import Any
 from unittest.mock import AsyncMock
 from unittest.mock import patch
@@ -14,12 +13,10 @@ from langchain_core.messages import HumanMessage
 from langchain_core.messages import SystemMessage
 from langchain_core.messages import ToolCall
 from langchain_core.messages import ToolMessage
+from langchain_core.outputs.chat_result import ChatGeneration
+from langchain_core.outputs.chat_result import ChatResult
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.prompts import MessagesPlaceholder
-from openai.types.chat import ChatCompletion
-from openai.types.chat import ChatCompletionMessage
-from openai.types.chat.chat_completion import Choice
-from openai.types.chat.chat_completion_message import FunctionCall
 import pytest
 
 from ddtrace.appsec._ai_guard._langchain import _convert_messages
@@ -27,21 +24,16 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 
 
-def _mock_openai_tool_response(tool: str, args: Any) -> ChatCompletion:
-    return ChatCompletion(
-        id="'chatcmpl-C99UmjEgLlpSj8oX6NMnnmwCdsf90'",
-        object="chat.completion",
-        created=int(time.time()),
-        model="gpt-3.5-turbo",
-        choices=[
-            Choice(
-                index=0,
-                message=ChatCompletionMessage(
-                    role="assistant", function_call=FunctionCall(name=tool, arguments=json.dumps(args))
+def _mock_openai_tool_response(tool: str, args: Any) -> ChatResult:
+    return ChatResult(
+        generations=[
+            ChatGeneration(
+                message=AIMessage(
+                    content="", additional_kwargs={"function_call": {"name": tool, "arguments": json.dumps(args)}}
                 ),
-                finish_reason="function_call",
+                generation_info={"finish_reason": "function_call"},
             )
-        ],
+        ]
     )
 
 
@@ -143,7 +135,7 @@ async def test_openai_llm_async_block(mock_execute_request, langchain_openai, op
 
 # TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("openai.resources.chat.completions.completions.Completions.create")
+@patch("langchain_openai.chat_models.ChatOpenAI._generate")
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 def test_agent_action_sync_block(mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision):
     mock_execute_request.side_effect = [
@@ -184,7 +176,7 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
 # TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("openai.resources.chat.completions.completions.AsyncCompletions.create", new_callable=AsyncMock)
+@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", new_callable=AsyncMock)
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_async_block(
     mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
