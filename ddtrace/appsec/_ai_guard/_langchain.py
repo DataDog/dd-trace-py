@@ -85,17 +85,29 @@ def _try_parse_json(value: str, default_name: str) -> Any:
         return {default_name: value}
 
 
+def _get_message_text(msg: BaseMessage) -> str:
+    if isinstance(msg.content, str):
+        return msg.content
+
+    blocks = [
+        block
+        for block in msg.content
+        if isinstance(block, str) or (block.get("type") == "text" and isinstance(block.get("text"), str))
+    ]
+    return "".join(block if isinstance(block, str) else block["text"] for block in blocks)
+
+
 def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
     result: List[Evaluation] = []
     tool_calls: Dict[str, ToolCall] = dict()
     function_call: Optional[ToolCall] = None
     for message in messages:
         if isinstance(message, HumanMessage):
-            result.append(Prompt(role="user", content=message.text()))
+            result.append(Prompt(role="user", content=_get_message_text(message)))
         elif isinstance(message, SystemMessage):
-            result.append(Prompt(role="system", content=message.text()))
+            result.append(Prompt(role="system", content=_get_message_text(message)))
         elif isinstance(message, ChatMessage):
-            result.append(Prompt(role=message.role, content=message.text()))
+            result.append(Prompt(role=message.role, content=_get_message_text(message)))
         elif isinstance(message, AIMessage):
             for call in message.tool_calls:
                 tool_call = ToolCall(tool_name=call["name"], tool_args=call["args"])
@@ -109,14 +121,14 @@ def _convert_messages(messages: list[BaseMessage]) -> list[Evaluation]:
                 )
                 result.append(function_call)
             if message.content:
-                result.append(Prompt(role=message.role, content=message.text()))
+                result.append(Prompt(role=message.role, content=_get_message_text(message)))
         elif isinstance(message, ToolMessage):
             current_call = tool_calls.get(message.tool_call_id)
             if current_call:
-                current_call["output"] = message.text()
+                current_call["output"] = _get_message_text(message)
         elif isinstance(message, FunctionMessage):
             if function_call and function_call["tool_name"] == message.name:
-                function_call["output"] = message.text()
+                function_call["output"] = _get_message_text(message)
                 function_call = None
 
     return result
