@@ -269,3 +269,5 @@ suites:
       - tests/appsec/ai_guard/langchain/*
     retry: 2
     runner: riot
+    services:
+      - testagent
