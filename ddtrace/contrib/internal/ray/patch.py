@@ -8,6 +8,7 @@ from typing import Any
 from typing import Callable
 from typing import List
 from typing import Optional
+from typing import Dict
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -26,7 +27,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-from ddtrace.vendor.packaging.version import parse as parse_version
 import ray
 from ray._private.inspect_util import is_class_method
 from ray._private.inspect_util import is_function_or_method
@@ -43,7 +43,23 @@ from .utils import _inject_context_in_env
 from .utils import _inject_context_in_kwargs
 from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
+from .utils import extract_signature
 
+
+config._add(
+    "ray",
+    dict(
+        _default_service=schematize_service_name("ray"),
+        ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
+    ),
+)
+
+def _supported_versions() -> Dict[str, str]:
+    return {"ray": ">=2.46.0"}
+
+
+def get_version() -> str:
+    return str(getattr(ray, "__version__", ""))
 
 class _JobSpanManager:
     def __init__(self):
@@ -85,23 +101,10 @@ class RayTraceProcessor:
 
         return processed_trace
 
-
-config._add(
-    "ray",
-    dict(
-        _default_service=schematize_service_name("ray"),
-        ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
-    ),
-)
-
-
-def get_version() -> str:
-    return parse_version(getattr(ray, "__version__", ""))
-
-
-def _inject_tracing_into_function(function):
+def _inject_tracing_into_remote_function(function):
     """Inject trace context parameter into function signature"""
 
+    @wraps(function)
     def wrapped_function(*args, **kwargs):
         return _wrap_task_execution(function, *args, **kwargs)
 
@@ -138,7 +141,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
             raise e
 
 
-def traced_remote_init(wrapped, instance, args, kwargs):
+def traced_remote_function_init(wrapped, instance, args, kwargs):
     """Inject Tracing/Wrapped the function that will be executed
     when calling func.remote()
     """
@@ -148,9 +151,9 @@ def traced_remote_init(wrapped, instance, args, kwargs):
     result = wrapped(*args, **kwargs)
     with instance._inject_lock:
         if instance._function_signature is None:
-            instance._function = _inject_tracing_into_function(instance._function)
+            instance._function = _inject_tracing_into_remote_function(instance._function)
             instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
-            instance._function_signature = ray._common.signature.extract_signature(instance._function)
+            instance._function_signature = extract_signature(instance._function)
 
     return result
 
@@ -305,7 +308,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
 
 
 @contextmanager
-def _trace_scope(self: Any, method: Callable[..., Any], dd_trace_ctx):
+def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
     if tracer.current_span() is None:
         context = _TraceContext._extract(dd_trace_ctx)
         tracer.context_provider.activate(context)
@@ -321,27 +324,27 @@ def _trace_scope(self: Any, method: Callable[..., Any], dd_trace_ctx):
         yield span
 
 
-def _create_span_wrapper(method: Callable[..., Any]) -> Any:
+def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
     def _traced_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
 
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return method(self, *args, **kwargs)
 
-        with _trace_scope(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
             return method(self, *args, **kwargs)
 
     return _traced_method
 
 
-def _create_async_span_wrapper(method: Callable[..., Any]) -> Any:
+def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
     async def _traced_async_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer
 
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return await method(self, *args, **kwargs)
 
-        with _trace_scope(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
             return await method(self, *args, **kwargs)
 
     return _traced_async_method
@@ -385,9 +388,9 @@ def inject_tracing_into_actor_class(wrapped, instance, args, kwargs):
             wrapped_method = wraps(method)(job_supervisor_run_wrapper(method))
         else:
             if inspect.iscoroutinefunction(method):
-                wrapped_method = wraps(method)(_create_async_span_wrapper(method))
+                wrapped_method = wraps(method)(_inject_tracing_async_actor_method(method))
             else:
-                wrapped_method = wraps(method)(_create_span_wrapper(method))
+                wrapped_method = wraps(method)(_inject_tracing_actor_method(method))
 
         setattr(cls, name, wrapped_method)
     return cls
@@ -426,8 +429,8 @@ def patch():
 
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
 
-    _w(ray.remote_function, "RemoteFunction.__init__", traced_remote_init)
-    _w(ray.remote_function, "RemoteFunction._remote", traced_submit_task)
+    _w(ray.remote_function.RemoteFunction, "__init__", traced_remote_function_init)
+    _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
 
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
     _w(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal", traced_end_job)
@@ -448,11 +451,13 @@ def unpatch():
         p for p in tracer._span_aggregator.user_processors if not isinstance(p, RayTraceProcessor)
     ]
 
-    _u(ray.remote_function, "RemoteFunction.__init__")
-    _u(ray.remote_function, "RemoteFunction._remote")
+    _u(ray.remote_function.RemoteFunction, "__init__")
+    _u(ray.remote_function.RemoteFunction, "_remote")
 
     _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")
     _u(ray.dashboard.modules.job.job_manager.JobManager, "_monitor_job_internal")
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
+
+    _u(ray._private.worker, "disconnect")

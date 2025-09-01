@@ -1097,6 +1097,7 @@ def _use_sync_mode() -> bool:
     - Google Cloud Functions and Azure Functions have a mini-agent spun up by the tracer.
       Similarly to AWS Lambdas, sync mode should be used to avoid data loss.
     """
+    return True
     return (in_aws_lambda() and has_aws_lambda_agent_extension()) or in_gcp_function() or in_azure_function()
 
 

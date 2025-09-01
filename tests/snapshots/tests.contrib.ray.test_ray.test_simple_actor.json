@@ -1,0 +1,368 @@
+[[
+  {
+    "name": "ray.job",
+    "service": "raysubmit_SY5mq7sjKJMawisp",
+    "resource": "ray.job",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "ml",
+    "error": 0,
+    "meta": {
+      "_dd.base_service": "ray.dashboard",
+      "_dd.p.dm": "-0",
+      "_dd.p.tid": "68b5909300000000",
+      "component": "ray",
+      "language": "python",
+      "ray.job.message": "Job finished successfully.",
+      "ray.job.status": "SUCCEEDED",
+      "runtime-id": "e7ff0c81dde4496a9040f3ae32ef1f31"
+    },
+    "metrics": {
+      "_dd.djm.enabled": 1,
+      "_dd.filter.kept": 1,
+      "_dd.measured": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": 2,
+      "process_id": 1081
+    },
+    "duration": 5256629711,
+    "start": 1756729491902125795
+  },
+     {
+       "name": "ray.job.submit",
+       "service": "raysubmit_SY5mq7sjKJMawisp",
+       "resource": "ray.job.submit",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "ml",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ray.dashboard",
+         "component": "ray",
+         "ray.job.submit_status": "success",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.djm.enabled": 1,
+         "_dd.filter.kept": 1,
+         "_dd.measured": 1,
+         "_sampling_priority_v1": 2
+       },
+       "duration": 28375,
+       "start": 1756729491902152045
+     },
+     {
+       "name": "JobSupervisor.run.remote()",
+       "service": "raysubmit_SY5mq7sjKJMawisp",
+       "resource": "JobSupervisor.run.remote()",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "ml",
+       "error": 0,
+       "meta": {
+         "_dd.base_service": "ray.dashboard",
+         "component": "ray",
+         "ray.job_id": "01000000",
+         "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+         "ray.worker_id": "01000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+         "span.kind": "producer"
+       },
+       "metrics": {
+         "_dd.djm.enabled": 1,
+         "_dd.filter.kept": 1,
+         "_dd.measured": 1,
+         "_sampling_priority_v1": 2
+       },
+       "duration": 227250,
+       "start": 1756729491905908420
+     },
+        {
+          "name": "JobSupervisor.run",
+          "service": "raysubmit_SY5mq7sjKJMawisp",
+          "resource": "JobSupervisor.run",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 3,
+          "type": "ml",
+          "error": 0,
+          "meta": {
+            "_dd.base_service": "ray._private.workers",
+            "_dd.p.tid": "68b5909300000000",
+            "_dd.parent_id": "0cd7d604790df29b",
+            "component": "ray",
+            "language": "python",
+            "ray.actor_id": "383cf899677e6a26640ad27b01000000",
+            "ray.job_id": "01000000",
+            "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+            "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+            "ray.task_id": "6efb86ef2d286c40383cf899677e6a26640ad27b01000000",
+            "ray.worker_id": "f8a736515c165068c2eac74b22aa7cbdaad3814ed1cbf9bcaf2ab669",
+            "runtime-id": "14ec455bd7c142a2b9c2b6d03a7914e0",
+            "span.kind": "consumer",
+            "traceparent": "00-68b59093000000006b29c268bce8ba6f-0cd7d604790df29b-00",
+            "tracestate": "dd=p:0cd7d604790df29b"
+          },
+          "metrics": {
+            "_dd.djm.enabled": 1,
+            "_dd.filter.kept": 1,
+            "_dd.measured": 1,
+            "_dd.top_level": 1,
+            "_dd.tracer_kr": 1.0,
+            "_sampling_priority_v1": 2,
+            "process_id": 2784
+          },
+          "duration": 3147145960,
+          "start": 1756729493133549171
+        },
+           {
+             "name": "JobSupervisor._get_driver_env_vars",
+             "service": "raysubmit_SY5mq7sjKJMawisp",
+             "resource": "JobSupervisor._get_driver_env_vars",
+             "trace_id": 0,
+             "span_id": 5,
+             "parent_id": 4,
+             "type": "ml",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "ray._private.workers",
+               "component": "ray",
+               "ray.actor_id": "383cf899677e6a26640ad27b01000000",
+               "ray.job_id": "01000000",
+               "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+               "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+               "ray.task_id": "6efb86ef2d286c40383cf899677e6a26640ad27b01000000",
+               "ray.worker_id": "f8a736515c165068c2eac74b22aa7cbdaad3814ed1cbf9bcaf2ab669",
+               "span.kind": "consumer"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_sampling_priority_v1": 2
+             },
+             "duration": 1449042,
+             "start": 1756729493134871296
+           },
+              {
+                "name": "JobSupervisor._get_driver_runtime_env",
+                "service": "raysubmit_SY5mq7sjKJMawisp",
+                "resource": "JobSupervisor._get_driver_runtime_env",
+                "trace_id": 0,
+                "span_id": 8,
+                "parent_id": 5,
+                "type": "ml",
+                "error": 0,
+                "meta": {
+                  "_dd.base_service": "ray._private.workers",
+                  "component": "ray",
+                  "ray.actor_id": "383cf899677e6a26640ad27b01000000",
+                  "ray.job_id": "01000000",
+                  "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+                  "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+                  "ray.task_id": "6efb86ef2d286c40383cf899677e6a26640ad27b01000000",
+                  "ray.worker_id": "f8a736515c165068c2eac74b22aa7cbdaad3814ed1cbf9bcaf2ab669",
+                  "span.kind": "consumer"
+                },
+                "metrics": {
+                  "_dd.djm.enabled": 1,
+                  "_dd.filter.kept": 1,
+                  "_dd.measured": 1,
+                  "_sampling_priority_v1": 2
+                },
+                "duration": 37208,
+                "start": 1756729493136264838
+              },
+           {
+             "name": "JobSupervisor._exec_entrypoint",
+             "service": "raysubmit_SY5mq7sjKJMawisp",
+             "resource": "JobSupervisor._exec_entrypoint",
+             "trace_id": 0,
+             "span_id": 6,
+             "parent_id": 4,
+             "type": "ml",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "ray._private.workers",
+               "component": "ray",
+               "ray.actor_id": "383cf899677e6a26640ad27b01000000",
+               "ray.job_id": "01000000",
+               "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+               "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+               "ray.task_id": "6efb86ef2d286c40383cf899677e6a26640ad27b01000000",
+               "ray.worker_id": "f8a736515c165068c2eac74b22aa7cbdaad3814ed1cbf9bcaf2ab669",
+               "span.kind": "consumer"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_sampling_priority_v1": 2
+             },
+             "duration": 391125,
+             "start": 1756729493136482046
+           },
+           {
+             "name": "Counter.increment_get_and_double.remote()",
+             "service": "raysubmit_SY5mq7sjKJMawisp",
+             "resource": "Counter.increment_get_and_double.remote()",
+             "trace_id": 0,
+             "span_id": 7,
+             "parent_id": 4,
+             "type": "ml",
+             "error": 0,
+             "meta": {
+               "_dd.base_service": "project",
+               "_dd.p.tid": "68b5909300000000",
+               "_dd.parent_id": "08940cf647b7c2a1",
+               "component": "ray",
+               "language": "python",
+               "ray.job_id": "06000000",
+               "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+               "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+               "ray.worker_id": "06000000ffffffffffffffffffffffffffffffffffffffffffffffff",
+               "runtime-id": "a04c1ab21e6343edacfcfa4c632a6d0e",
+               "span.kind": "producer",
+               "traceparent": "00-68b59093000000006b29c268bce8ba6f-08940cf647b7c2a1-00",
+               "tracestate": "dd=p:08940cf647b7c2a1;s:0"
+             },
+             "metrics": {
+               "_dd.djm.enabled": 1,
+               "_dd.filter.kept": 1,
+               "_dd.measured": 1,
+               "_dd.top_level": 1,
+               "_dd.tracer_kr": 1.0,
+               "_sampling_priority_v1": 2,
+               "process_id": 2836
+             },
+             "duration": 289083,
+             "start": 1756729493753551963
+           },
+              {
+                "name": "Counter.increment_get_and_double",
+                "service": "raysubmit_SY5mq7sjKJMawisp",
+                "resource": "Counter.increment_get_and_double",
+                "trace_id": 0,
+                "span_id": 9,
+                "parent_id": 7,
+                "type": "ml",
+                "error": 0,
+                "meta": {
+                  "_dd.base_service": "ray._private.workers",
+                  "_dd.p.tid": "68b5909300000000",
+                  "_dd.parent_id": "5b3ca016139efd91",
+                  "component": "ray",
+                  "language": "python",
+                  "ray.actor_id": "c6e6959cebc4f9531531a60c06000000",
+                  "ray.job_id": "06000000",
+                  "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+                  "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+                  "ray.task_id": "8a2dc005c3f797b8c6e6959cebc4f9531531a60c06000000",
+                  "ray.worker_id": "fc2d64a367bca5d5240b9b5143e211dd6952ca1980b4571365bda316",
+                  "runtime-id": "983b264c584d4868b6fbc2e9dd025b1c",
+                  "span.kind": "consumer",
+                  "traceparent": "00-68b59093000000006b29c268bce8ba6f-5b3ca016139efd91-00",
+                  "tracestate": "dd=p:5b3ca016139efd91;s:0"
+                },
+                "metrics": {
+                  "_dd.djm.enabled": 1,
+                  "_dd.filter.kept": 1,
+                  "_dd.measured": 1,
+                  "_dd.top_level": 1,
+                  "_dd.tracer_kr": 1.0,
+                  "_sampling_priority_v1": 2,
+                  "process_id": 2882
+                },
+                "duration": 182125,
+                "start": 1756729494974444963
+              },
+                 {
+                   "name": "Counter.increment_and_get",
+                   "service": "raysubmit_SY5mq7sjKJMawisp",
+                   "resource": "Counter.increment_and_get",
+                   "trace_id": 0,
+                   "span_id": 10,
+                   "parent_id": 9,
+                   "type": "ml",
+                   "error": 0,
+                   "meta": {
+                     "_dd.base_service": "ray._private.workers",
+                     "component": "ray",
+                     "ray.actor_id": "c6e6959cebc4f9531531a60c06000000",
+                     "ray.job_id": "06000000",
+                     "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+                     "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+                     "ray.task_id": "8a2dc005c3f797b8c6e6959cebc4f9531531a60c06000000",
+                     "ray.worker_id": "fc2d64a367bca5d5240b9b5143e211dd6952ca1980b4571365bda316",
+                     "span.kind": "consumer"
+                   },
+                   "metrics": {
+                     "_dd.djm.enabled": 1,
+                     "_dd.filter.kept": 1,
+                     "_dd.measured": 1,
+                     "_sampling_priority_v1": 2
+                   },
+                   "duration": 82083,
+                   "start": 1756729494974540630
+                 },
+                    {
+                      "name": "Counter.increment",
+                      "service": "raysubmit_SY5mq7sjKJMawisp",
+                      "resource": "Counter.increment",
+                      "trace_id": 0,
+                      "span_id": 11,
+                      "parent_id": 10,
+                      "type": "ml",
+                      "error": 0,
+                      "meta": {
+                        "_dd.base_service": "ray._private.workers",
+                        "component": "ray",
+                        "ray.actor_id": "c6e6959cebc4f9531531a60c06000000",
+                        "ray.job_id": "06000000",
+                        "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+                        "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+                        "ray.task_id": "8a2dc005c3f797b8c6e6959cebc4f9531531a60c06000000",
+                        "ray.worker_id": "fc2d64a367bca5d5240b9b5143e211dd6952ca1980b4571365bda316",
+                        "span.kind": "consumer"
+                      },
+                      "metrics": {
+                        "_dd.djm.enabled": 1,
+                        "_dd.filter.kept": 1,
+                        "_dd.measured": 1,
+                        "_sampling_priority_v1": 2
+                      },
+                      "duration": 14833,
+                      "start": 1756729494974571380
+                    },
+                    {
+                      "name": "Counter.get_value",
+                      "service": "raysubmit_SY5mq7sjKJMawisp",
+                      "resource": "Counter.get_value",
+                      "trace_id": 0,
+                      "span_id": 12,
+                      "parent_id": 10,
+                      "type": "ml",
+                      "error": 0,
+                      "meta": {
+                        "_dd.base_service": "ray._private.workers",
+                        "component": "ray",
+                        "ray.actor_id": "c6e6959cebc4f9531531a60c06000000",
+                        "ray.job_id": "06000000",
+                        "ray.node_id": "6becb96e735dcf2ba000d3e36bb286965d25d5a089227457ece3adcd",
+                        "ray.submission_id": "raysubmit_SY5mq7sjKJMawisp",
+                        "ray.task_id": "8a2dc005c3f797b8c6e6959cebc4f9531531a60c06000000",
+                        "ray.worker_id": "fc2d64a367bca5d5240b9b5143e211dd6952ca1980b4571365bda316",
+                        "span.kind": "consumer"
+                      },
+                      "metrics": {
+                        "_dd.djm.enabled": 1,
+                        "_dd.filter.kept": 1,
+                        "_dd.measured": 1,
+                        "_sampling_priority_v1": 2
+                      },
+                      "duration": 11708,
+                      "start": 1756729494974604130
+                    }]]
