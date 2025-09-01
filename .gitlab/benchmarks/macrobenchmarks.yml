@@ -47,6 +47,7 @@ variables:
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "false"
     DD_CRASHTRACKING_ENABLED: "false"
     DD_APPSEC_ENABLED: "false"
+    _DD_TRACE_WRITER_NATIVE: "false"
 
     K6_OPTIONS_WARMUP_RATE: 40
     K6_OPTIONS_WARMUP_DURATION: 1m
@@ -143,6 +144,18 @@ tracing-rc-enabled-telemetry-enabled:
     DD_REMOTE_CONFIGURATION_ENABLED: "true"
     DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
     DD_SERVICE: "ddtrace-mb-tracing-rc-enabled-telemetry-enabled"
+
+tracing-native-writer-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_TRACE_ENABLED: "true"
+    DD_PROFILING_ENABLED: "false"
+    _DD_TRACE_WRITER_NATIVE: "true"
+    DD_SERVICE: "ddtrace-mb-tracing-native-writer-enabled"
 
 tracing-profiling-enabled:
   extends: .macrobenchmarks
