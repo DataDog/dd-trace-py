@@ -3,6 +3,7 @@ import string
 from typing import Any
 from typing import Dict
 from typing import List
+from typing import Optional
 from typing import Union
 from unittest.mock import Mock
 
@@ -50,7 +51,11 @@ def mock_evaluate_response(action: str, reason: str = "", block: bool = True) ->
 
 
 def assert_mock_execute_request_call(
-    mock_execute_request, ai_guard_client: AIGuardClient, history: List[Evaluation], current: Evaluation
+    mock_execute_request,
+    ai_guard_client: AIGuardClient,
+    history: List[Evaluation],
+    current: Evaluation,
+    meta: Optional[Dict[str, Any]] = None,
 ):
     expected_payload = {
         "data": {
@@ -60,6 +65,9 @@ def assert_mock_execute_request_call(
             }
         }
     }
+    if meta is not None:
+        expected_payload["meta"] = meta
+
     mock_execute_request.assert_called_once_with(
         f"{ai_guard_client._endpoint}/evaluate",
         expected_payload,

@@ -279,7 +279,11 @@ class AIGuardClient:
             try:
                 if history is None:
                     history = []
+
                 payload = {"data": {"attributes": {"history": history, "current": current}}}
+                if config.service and config.env:
+                    payload["meta"] = {"service": config.service, "env": config.env}
+
                 try:
                     response = self._execute_request(f"{self._endpoint.rstrip('/')}/evaluate", payload)
                     if response.status != 200:

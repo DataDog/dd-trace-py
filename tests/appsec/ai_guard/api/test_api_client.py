@@ -14,6 +14,7 @@ from tests.appsec.ai_guard.utils import assert_mock_execute_request_call
 from tests.appsec.ai_guard.utils import find_ai_guard_span
 from tests.appsec.ai_guard.utils import mock_evaluate_response
 from tests.appsec.ai_guard.utils import random_string
+from tests.utils import override_global_config
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
@@ -283,3 +284,18 @@ def test_non_blocking_mode(mock_execute_request, ai_guard_client, decision):
     workflow = ai_guard_client.new_workflow()
     result = workflow.evaluate_prompt("user", "What is your name?")
     assert result  # should not be blocked
+
+
+@patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
+def test_meta_attribute(mock_execute_request, ai_guard_client):
+    with override_global_config({"service": "test-service", "env": "test-env"}):
+        mock_execute_request.return_value = mock_evaluate_response("ALLOW")
+
+        ai_guard_client.evaluate_prompt("user", "What is your name?")
+        assert_mock_execute_request_call(
+            mock_execute_request,
+            ai_guard_client,
+            [],
+            Prompt(role="user", content="What is your name?"),
+            {"service": "test-service", "env": "test-env"},
+        )
