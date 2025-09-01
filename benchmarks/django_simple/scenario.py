@@ -69,17 +69,17 @@ class DjangoSimple(bm.Scenario):
                 from ddtrace.contrib.internal.django import database
 
                 try:
-                    database.get_conn_config.invalidate()
+                    database.get_conn_config.cache_clear()
                 except Exception:
                     pass
 
                 try:
-                    database.get_service_name.invalidate()
+                    database.get_service_name.cache_clear()
                 except Exception:
                     pass
 
                 try:
-                    database.get_conn_service_name.invalidate()
+                    database.get_conn_service_name.cache_clear()
                 except Exception:
                     pass
             except Exception:
@@ -90,12 +90,12 @@ class DjangoSimple(bm.Scenario):
                 from ddtrace.contrib.internal.django import cache
 
                 try:
-                    cache.get_service_name.invalidate()
+                    cache.get_service_name.cache_clear()
                 except Exception:
                     pass
 
                 try:
-                    cache.func_cache_operation.invalidate()
+                    cache.func_cache_operation.cache_clear()
                 except Exception:
                     pass
             except Exception:
