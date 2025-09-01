@@ -111,21 +111,33 @@ def unregister_post_run_module_hook(hook: ModuleHookType) -> None:
 def origin(module: ModuleType) -> t.Optional[Path]:
     """Get the origin source file of the module."""
     try:
-        # DEV: Use object.__getattribute__ to avoid potential side-effects.
-        orig = Path(object.__getattribute__(module, "__file__")).resolve()
-    except (AttributeError, TypeError):
-        # Module is probably only partially initialised, so we look at its
-        # spec instead
+        return module.__dd_origin__
+    except AttributeError:
         try:
             # DEV: Use object.__getattribute__ to avoid potential side-effects.
-            orig = Path(object.__getattribute__(module, "__spec__").origin).resolve()
-        except (AttributeError, ValueError, TypeError):
-            orig = None
+            orig = Path(object.__getattribute__(module, "__file__"))
+            if not orig.is_absolute() or orig.is_symlink():
+                orig = orig.resolve()
+        except (AttributeError, TypeError):
+            # Module is probably only partially initialised, so we look at its
+            # spec instead
+            try:
+                # DEV: Use object.__getattribute__ to avoid potential side-effects.
+                orig = Path(object.__getattribute__(module, "__spec__").origin)
+                if not orig.is_absolute() or orig.is_symlink():
+                    orig = orig.resolve()
+            except (AttributeError, ValueError, TypeError):
+                orig = None
 
-    if orig is not None and orig.is_file():
-        return orig.with_suffix(".py") if orig.suffix == ".pyc" else orig
+        if orig is not None and orig.suffix == "pyc":
+            orig = orig.with_suffix(".py")
 
-    return None
+        try:
+            module.__dd_origin__ = orig  # type: ignore[attr-defined]
+        except AttributeError:
+            pass
+
+        return orig
 
 
 def _resolve(path: Path) -> t.Optional[Path]:
