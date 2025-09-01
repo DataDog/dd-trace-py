@@ -372,6 +372,11 @@ check-slo-breaches:
   when: always
   tags: ["arch:amd64"]
   image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  before_script:
+    - dd-octo-sts token --scope DataDog/dd-trace-py --policy gitlab.github-access.read > check-slo-breaches.github-token
   artifacts:
     name: "artifacts"
     when: always
@@ -380,7 +385,10 @@ check-slo-breaches:
     expire_in: 3 months
   script:
     - export ARTIFACTS_DIR="$(pwd)/platform/artifacts/"
+    - export GITHUB_TOKEN=$(cat check-slo-breaches.github-token)
     - bp-runner .gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml
+  after_script:
+    - dd-octo-sts revoke -t $(cat check-slo-breaches.github-token)
 
 notify-slo-breaches:
   extends: .notify-slo-breaches
