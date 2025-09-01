@@ -430,7 +430,6 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                         "_DD_TRACE_WRITER_NATIVE": "1",
                     },
-                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
