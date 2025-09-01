@@ -197,6 +197,7 @@ class AppSecSpanProcessor(SpanProcessor):
             return
 
         if span.span_type == SpanTypes.SERVERLESS:
+            span.set_metric(APPSEC.SERVERLESS_TRACER_ENABLED, 1.0)
             skip_event = core.find_item("appsec_skip_next_lambda_event")
             if skip_event:
                 core.discard_item("appsec_skip_next_lambda_event")
