@@ -155,7 +155,6 @@ def _handle_agent_action_result(action, kwargs):
 
 
 def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult):
-    handler.proceed = True
     for messages in message_lists:
         # only call evaluator when the last message is an actual user prompt
         if len(messages) > 0 and isinstance(messages[-1], HumanMessage):
@@ -163,30 +162,23 @@ def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult)
             prompt = history.pop(-1)
             try:
                 if not client.evaluate_prompt(prompt["role"], prompt["content"], history=history):  # type: ignore[typeddict-item]
-                    handler.proceed = False
+                    handler.exception = AIGuardAbortError()
                     break
-            except AIGuardAbortError:
-                handler.proceed = False
+            except AIGuardAbortError as e:
+                handler.exception = e
                 break
             except Exception:
                 logger.debug("Failed to evaluate chat model prompt", exc_info=True)
 
-    if not handler.proceed:
-        handler.result = AIGuardAbortError()
-
 
 def _langchain_llm_generate_before(prompts, handler: DispatchResult):
-    handler.proceed = True
     for prompt in prompts:
         try:
             if not client.evaluate_prompt("user", prompt):
-                handler.proceed = False
+                handler.exception = AIGuardAbortError()
                 break
-        except AIGuardAbortError:
-            handler.proceed = False
+        except AIGuardAbortError as e:
+            handler.exception = e
             break
         except Exception:
             logger.debug("Failed to evaluate llm prompt", exc_info=True)
-
-    if not handler.proceed:
-        handler.result = AIGuardAbortError()
