@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 import os
 import sys
 from typing import Any
@@ -38,7 +37,6 @@ except ImportError:
 import wrapt
 
 from ddtrace import config
-from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
@@ -53,15 +51,11 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
+from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 
 log = get_logger(__name__)
-
-
-@dataclass
-class DispatchResult:
-    exception: Optional[Exception] = None
 
 
 def get_version():
@@ -90,10 +84,10 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
 
 def _dispatch(event_id: str, args: Tuple[Any, ...] = ()):
-    result = DispatchResult()
+    result = {}
     core.dispatch(event_id, args + (result,))
-    if result.exception is not None:
-        raise result.exception
+    if "exception" in result:
+        raise result["exception"]
 
 
 @with_traced_module

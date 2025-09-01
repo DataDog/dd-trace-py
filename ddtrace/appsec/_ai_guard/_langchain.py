@@ -10,14 +10,17 @@ from ddtrace.appsec.ai_guard import Prompt
 from ddtrace.appsec.ai_guard import ToolCall
 from ddtrace.appsec.ai_guard import new_ai_guard_client
 from ddtrace.appsec.ai_guard._api_client import Evaluation
-from ddtrace.contrib.internal.langchain.patch import DispatchResult
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
 import ddtrace.internal.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)
-client: AIGuardClient = new_ai_guard_client()
+try:
+    client: AIGuardClient = new_ai_guard_client()
+except Exception:
+    # This is feature flagged, should not happen at runtime
+    logger.error("Failed to create AI Guard client", exc_info=True)
 
 
 action_agents_classes = (
@@ -154,7 +157,7 @@ def _handle_agent_action_result(action, kwargs):
     return action
 
 
-def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult):
+def _langchain_chatmodel_generate_before(message_lists, args: Dict[str, Any]):
     from langchain_core.messages import HumanMessage
 
     for messages in message_lists:
@@ -164,23 +167,23 @@ def _langchain_chatmodel_generate_before(message_lists, handler: DispatchResult)
             prompt = history.pop(-1)
             try:
                 if not client.evaluate_prompt(prompt["role"], prompt["content"], history=history):  # type: ignore[typeddict-item]
-                    handler.exception = AIGuardAbortError()
+                    args["exception"] = AIGuardAbortError()
                     break
             except AIGuardAbortError as e:
-                handler.exception = e
+                args["exception"] = e
                 break
             except Exception:
                 logger.debug("Failed to evaluate chat model prompt", exc_info=True)
 
 
-def _langchain_llm_generate_before(prompts, handler: DispatchResult):
+def _langchain_llm_generate_before(prompts, args: Dict[str, Any]):
     for prompt in prompts:
         try:
             if not client.evaluate_prompt("user", prompt):
-                handler.exception = AIGuardAbortError()
+                args["exception"] = AIGuardAbortError()
                 break
         except AIGuardAbortError as e:
-            handler.exception = e
+            args["exception"] = e
             break
         except Exception:
             logger.debug("Failed to evaluate llm prompt", exc_info=True)
