@@ -107,9 +107,7 @@ def _root_module(path: Path) -> str:
     for parent_path in (purelib_path, platlib_path):
         try:
             # Resolve the path to use the shortest relative path.
-            if not (rpath := path).is_absolute() or rpath.is_symlink():
-                rpath = rpath.resolve()
-            return _effective_root(rpath.relative_to(parent_path), parent_path)
+            return _effective_root(path.resolve().relative_to(parent_path), parent_path)
         except ValueError:
             # Not relative to this path
             pass
