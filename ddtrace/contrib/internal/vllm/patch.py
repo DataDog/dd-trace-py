@@ -188,13 +188,23 @@ def traced_add_request(vllm, pin, func, instance, args, kwargs):
     log.debug("[VLLM DEBUG] Adding request: %s", args[1] if len(args) > 1 else kwargs.get("prompt"))
     request_id = args[0] if len(args) > 0 else kwargs.get("request_id")
     prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
-    if not request_id or not prompt or not prompt.get("prompt"):
-        log.debug("[VLLM DEBUG] No request id or prompt, skipping")
+    # Extract prompt text safely for different PromptType variants
+    prompt_text = None
+    try:
+        if isinstance(prompt, str):
+            prompt_text = prompt
+        elif isinstance(prompt, Mapping):
+            prompt_text = prompt.get("prompt")
+    except Exception:
+        prompt_text = None
+
+    if not request_id or not prompt_text:
+        log.debug("[VLLM DEBUG] No request id or prompt text, skipping mapping")
         return func(*args, **kwargs)
 
-    log.debug("[VLLM DEBUG] Storing request id to prompt mapping: %s -> %s", request_id, prompt)
+    log.debug("[VLLM DEBUG] Storing request id to prompt mapping: %s -> %s", request_id, prompt_text)
     integration: VLLMIntegration = vllm._datadog_integration
-    integration.store_request_id_to_prompt(request_id, prompt["prompt"])
+    integration.store_request_id_to_prompt(request_id, prompt_text)
     log.debug("[VLLM DEBUG] Content of _request_id_to_prompt: %s", integration._request_id_to_prompt)
     return func(*args, **kwargs)
 
@@ -272,6 +282,119 @@ async def traced_asyncllm_add_request(vllm, pin, func, instance, args, kwargs):
         except Exception:
             log.exception("[VLLM DEBUG] AsyncLLM.add_request failed (error logging fallback)")
         raise
+
+
+@with_traced_module
+def traced_v1_llmengine_add_request(vllm, pin, func, instance, args, kwargs):
+    """Capture parent context, prompt, model, and sampling params for V1 LLMEngine.add_request.
+
+    Signature: LLMEngine.add_request(self, request_id, prompt, params, arrival_time=None,
+                                     lora_request=None, tokenization_kwargs=None,
+                                     trace_headers=None, priority=0)
+    """
+    try:
+        request_id = args[0] if args else kwargs.get("request_id")
+        prompt = args[1] if len(args) > 1 else kwargs.get("prompt")
+        params = args[2] if len(args) > 2 else kwargs.get("params")
+        integration: VLLMIntegration = vllm._datadog_integration
+    except Exception:
+        request_id = None
+        prompt = None
+        params = None
+        integration = None
+
+    # Store prompt (best-effort)
+    if integration is not None and request_id:
+        try:
+            if prompt:
+                integration.store_request_id_to_prompt(request_id, prompt)
+        except Exception:
+            try:
+                integration._request_id_to_prompt[request_id] = prompt or ""
+            except Exception:
+                pass
+
+        # Store parent span context for later linking at finish
+        current_span = pin.tracer.current_span()
+        if current_span:
+            if not hasattr(integration, "_parent_ctx_by_req"):
+                integration._parent_ctx_by_req = {}
+            integration._parent_ctx_by_req[request_id] = current_span.context
+
+        # Store model name from engine instance
+        try:
+            model_name = getattr(getattr(instance, "model_config", None), "model", None)
+            if model_name:
+                if not hasattr(integration, "_model_name_by_req"):
+                    integration._model_name_by_req = {}
+                integration._model_name_by_req[request_id] = model_name
+        except Exception:
+            pass
+
+        # Store sampling params for LLMObs metadata later
+        try:
+            if not hasattr(integration, "_sampling_params_by_req"):
+                integration._sampling_params_by_req = {}
+            integration._sampling_params_by_req[request_id] = params
+        except Exception:
+            pass
+
+    return func(*args, **kwargs)
+
+
+@with_traced_module
+def traced_outputprocessor_add_request(vllm, pin, func, instance, args, kwargs):
+    """Propagate parent context/model/prompt from parent request to child requests (n>1).
+
+    Signature: OutputProcessor.add_request(self, request, prompt, parent_req=None, request_index=0, queue=None)
+    """
+    try:
+        request = args[0] if args else kwargs.get("request")
+        parent_req = args[2] if len(args) > 2 else kwargs.get("parent_req")
+        child_id = getattr(request, "request_id", None)
+        parent_id = getattr(parent_req, "request_id", None) if parent_req is not None else None
+        integration: VLLMIntegration = vllm._datadog_integration
+    except Exception:
+        request = None
+        parent_req = None
+        child_id = None
+        parent_id = None
+        integration = None
+
+    if integration is not None and child_id and parent_id:
+        try:
+            # Propagate parent context if present
+            if hasattr(integration, "_parent_ctx_by_req") and parent_id in integration._parent_ctx_by_req:
+                integration._parent_ctx_by_req[child_id] = integration._parent_ctx_by_req[parent_id]
+        except Exception:
+            pass
+        try:
+            # Propagate model name if present
+            if hasattr(integration, "_model_name_by_req") and parent_id in integration._model_name_by_req:
+                integration._model_name_by_req[child_id] = integration._model_name_by_req[parent_id]
+        except Exception:
+            pass
+        try:
+            # Propagate prompt if present
+            if hasattr(integration, "_request_id_to_prompt") and parent_id in integration._request_id_to_prompt:
+                integration._request_id_to_prompt[child_id] = integration._request_id_to_prompt[parent_id]
+        except Exception:
+            pass
+        try:
+            # Use child's sampling params if any; else propagate from parent mapping
+            if not hasattr(integration, "_sampling_params_by_req"):
+                integration._sampling_params_by_req = {}
+            sp = getattr(request, "sampling_params", None)
+            parent_sp = None
+            try:
+                parent_sp = integration._sampling_params_by_req.get(parent_id)  # type: ignore[attr-defined]
+            except Exception:
+                parent_sp = None
+            integration._sampling_params_by_req[child_id] = sp or parent_sp
+        except Exception:
+            pass
+
+    return func(*args, **kwargs)
 
 
 @with_traced_module
@@ -529,8 +652,11 @@ def patch():
     # V1: create spans at finish and capture parent context at add
     safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM._add_request", traced_asyncllm__add_request(vllm))
     safe_wrap("vllm.v1.engine.async_llm", "AsyncLLM.add_request", traced_asyncllm_add_request(vllm))
+    # V1 offline path: LLMEngine.add_request
+    safe_wrap("vllm.v1.engine.llm_engine", "LLMEngine.add_request", traced_v1_llmengine_add_request(vllm))
     safe_wrap("vllm.v1.engine.processor", "Processor.process_inputs", traced_processor_process_inputs(vllm))
     safe_wrap("vllm.v1.engine.output_processor", "RequestState.make_request_output", traced_requeststate_make_request_output(vllm))
+    safe_wrap("vllm.v1.engine.output_processor", "OutputProcessor.add_request", traced_outputprocessor_add_request(vllm))
     safe_wrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests", traced_outputprocessor_abort_requests(vllm))
 
     # Ensure prompt text is propagated even when OpenAI serving passes token ids
@@ -656,11 +782,19 @@ def unpatch():
     except Exception:
         pass
     try:
+        unwrap("vllm.v1.engine.llm_engine", "LLMEngine.add_request")
+    except Exception:
+        pass
+    try:
         unwrap("vllm.v1.engine.output_processor", "RequestState.make_request_output")
     except Exception:
         pass
     try:
         unwrap("vllm.v1.engine.output_processor", "OutputProcessor.abort_requests")
+    except Exception:
+        pass
+    try:
+        unwrap("vllm.v1.engine.output_processor", "OutputProcessor.add_request")
     except Exception:
         pass
     try:
