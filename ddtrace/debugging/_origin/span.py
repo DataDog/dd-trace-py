@@ -102,7 +102,7 @@ class ExitSpanProbe(LogLineProbe):
             ExitSpanProbe,
             cls.build(
                 name=code.co_qualname if sys.version_info >= (3, 11) else code.co_name,  # type: ignore[attr-defined]
-                filename=str(Path(code.co_filename).resolve()),
+                filename=str(Path(code.co_filename)),
                 line=frame.f_lineno,
             ),
         )
