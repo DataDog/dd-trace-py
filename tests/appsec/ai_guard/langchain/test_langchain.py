@@ -176,7 +176,7 @@ def test_agent_action_sync_block(mock_execute_request, mock_openai_request, lang
 # TODO use testagent cassettes instead of mocking OpenAI
 @pytest.mark.asyncio
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])
-@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", new_callable=AsyncMock)
+@patch("langchain_openai.chat_models.ChatOpenAI._agenerate", autospec=True)
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
 async def test_agent_action_async_block(
     mock_execute_request, mock_openai_request, langchain_openai, openai_url, decision
