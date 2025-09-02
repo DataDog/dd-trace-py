@@ -19,6 +19,7 @@ log = get_logger(__name__)
 
 def taint_pyobject(pyobject: Any, source_name: Any, source_value: Any, source_origin=None) -> Any:
     try:
+        print(f"taint_pyobject:{asm_config.is_iast_request_enabled}!")
         if asm_config.is_iast_request_enabled:
             if source_origin is None:
                 source_origin = OriginType.PARAMETER

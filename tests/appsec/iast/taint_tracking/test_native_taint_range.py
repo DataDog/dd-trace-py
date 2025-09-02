@@ -28,6 +28,7 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Vulnerab
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_notinterned_notfasttainted_unicode
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_fast_tainted_if_notinterned_unicode
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import bytearray_extend_aspect as extend_aspect
 from ddtrace.appsec._iast._taint_tracking.aspects import format_aspect
@@ -513,7 +514,7 @@ def test_reset_objects():
     reset_context()
 
 
-def reset_context_loop():
+def context_loop():
     a_1 = "abc123"
     for i in range(25):
         a_1 = taint_pyobject(
@@ -523,7 +524,7 @@ def reset_context_loop():
             source_origin=OriginType.PARAMETER,
         )
         sleep(0.01)
-
+    assert is_pyobject_tainted(a_1), "Tainting lost"
 
 def reset_contexts_loop():
     create_context()
@@ -540,9 +541,9 @@ def reset_contexts_loop():
     reset_contexts()
 
 
-async def async_reset_context_loop(task_id: int):
+async def async_context_loop(task_id: int):
     await asyncio.sleep(0.03)
-    return reset_context_loop()
+    return context_loop()
 
 
 async def async_reset_contexts_loop(task_id: int):
@@ -555,7 +556,7 @@ def test_race_conditions_threads(caplog, telemetry_writer):
     destroying contexts
     """
     pool = ThreadPool(processes=3)
-    results_async = [pool.apply_async(reset_context_loop) for _ in range(20)]
+    results_async = [pool.apply_async(context_loop) for _ in range(20)]
     _ = [res.get() for res in results_async]
 
     log_messages = [record.message for record in caplog.get_records("call")]
@@ -568,7 +569,7 @@ def test_race_conditions_threads(caplog, telemetry_writer):
 
 
 @pytest.mark.skip_iast_check_logs
-def test_race_conditions_reset_contexts_threads(caplog, telemetry_writer):
+def test_race_conditions_reset_contexts_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
@@ -589,7 +590,7 @@ async def test_race_conditions_reset_contex_async(caplog, telemetry_writer):
     """we want to validate context is working correctly among multiple request and no race condition creating and
     destroying contexts
     """
-    tasks = [async_reset_context_loop(i) for i in range(7)]
+    tasks = [async_context_loop(i) for i in range(7)]
 
     results = await asyncio.gather(*tasks)
     assert results

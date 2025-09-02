@@ -239,4 +239,8 @@ pyexport_initializer(py::module& m)
     m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
     m.def("reset_contexts", [] { initializer->reset_contexts(); });
+
+    // Benchmark helpers (no type exposure required)
+    m.def("create_tainting_map_bench", [] { (void)initializer->create_tainting_map(); });
+    m.def("get_tainting_map_bench", [] { (void)Initializer::get_tainting_map(); });
 }

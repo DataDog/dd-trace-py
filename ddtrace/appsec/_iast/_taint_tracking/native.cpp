@@ -18,6 +18,8 @@
 #include "aspects/aspects_exports.h"
 #include "constants.h"
 #include "initializer/_initializer.h"
+#include "context/_application_context.h"
+#include "context/request_context.h"
 #include "taint_tracking/taint_tracking.h"
 #include "tainted_ops/tainted_ops.h"
 #include "utils/generic_utils.h"
@@ -28,6 +30,10 @@
 
 using namespace pybind11::literals;
 namespace py = pybind11;
+
+extern "C" {
+    PyObject* g_iast_ctxvar = nullptr; // strong ref; created at module init, cleared at exit
+}
 
 static PyMethodDef AspectsMethods[] = {
     { "add_aspect", ((PyCFunction)api_add_aspect), METH_FASTCALL, "aspect add" },
@@ -65,17 +71,29 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
+    application_context = make_unique<ApplicationContext>();
+
+    // Initialize native ContextVar for IAST context id
+    // GIL is held during module init
+    g_iast_ctxvar = PyContextVar_New("IAST_CONTEXT", nullptr);
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
         initializer->reset_contexts();
         initializer.reset();
+        if (application_context) {
+            application_context->clear_tainting_maps();
+            application_context.reset();
+        }
+        Py_XDECREF(g_iast_ctxvar);
+        g_iast_ctxvar = nullptr;
     }));
 
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);
+    py::module m_appctx = pyexport_m_application_context(m);
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);
