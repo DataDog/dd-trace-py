@@ -9,7 +9,10 @@ import shutil
 import sys
 import time
 from types import FunctionType
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import List
+from typing import Optional
+from typing import Tuple
+from typing import cast
 import zipfile
 
 from ddtrace._logger import _add_file_handler

@@ -1,10 +1,10 @@
 import abc
 import dataclasses
 import logging
+import sys
 from typing import Any
 from typing import Dict
 from typing import List
-import sys
 
 from ddtrace.internal.logger import get_logger
 

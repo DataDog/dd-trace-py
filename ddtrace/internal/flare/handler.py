@@ -120,15 +120,17 @@ def _prepare_tracer_flare(flare: Flare, configs: List[Any]) -> bool:
                         )
                         continue
 
-                    locals: List[str] = log_data.get("locals", [])
-                    if not isinstance(locals, list) or not all(isinstance(l, str) for l in locals):
+                    f_locals: List[str] = log_data.get("locals", [])
+                    if not isinstance(f_locals, list) or not all(isinstance(_, str) for _ in f_locals):
                         log.debug(
                             "Probe log item locals is not type List[str], received %r. Skipping...",
                             locals,
                         )
                         continue
 
-                    flare_probes.append(LogProbe(module=module, line=line, level=level, message=message, locals=locals))
+                    flare_probes.append(
+                        LogProbe(module=module, line=line, level=level, message=message, locals=f_locals)
+                    )
 
         flare.prepare(flare_log_level, probes=flare_probes)
         return True
