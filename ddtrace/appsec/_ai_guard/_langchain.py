@@ -8,7 +8,6 @@ from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
 from ddtrace.appsec.ai_guard import Prompt
 from ddtrace.appsec.ai_guard import ToolCall
-from ddtrace.appsec.ai_guard import new_ai_guard_client
 from ddtrace.appsec.ai_guard._api_client import Evaluation
 from ddtrace.contrib.internal.trace_utils import unwrap
 from ddtrace.contrib.internal.trace_utils import wrap
@@ -16,11 +15,6 @@ import ddtrace.internal.logger as ddlogger
 
 
 logger = ddlogger.get_logger(__name__)
-try:
-    client: AIGuardClient = new_ai_guard_client()
-except Exception:
-    # This is feature flagged, should not happen at runtime
-    logger.error("Failed to create AI Guard client", exc_info=True)
 
 
 action_agents_classes = (
@@ -34,16 +28,18 @@ action_agents_classes = (
 )
 
 
-def _langchain_patch():
+def _langchain_patch(client: AIGuardClient):
     try:
         import langchain.agents  # noqa: F401
     except ImportError:
         logger.error("Failed to import langchain.agents, tool calls won't be instrumented")
         return
 
+    from functools import partial
+
     for class_ in action_agents_classes:
-        wrap("langchain", class_ + ".plan", _langchain_agent_plan)
-        wrap("langchain", class_ + ".aplan", _langchain_agent_aplan)
+        wrap("langchain", class_ + ".plan", partial(_langchain_agent_plan, client))
+        wrap("langchain", class_ + ".aplan", partial(_langchain_agent_aplan, client))
 
 
 def _langchain_unpatch():
@@ -61,14 +57,14 @@ def _langchain_unpatch():
         unwrap(agent_class, "aplan")
 
 
-def _langchain_agent_plan(func, instance, args, kwargs):
+def _langchain_agent_plan(client: AIGuardClient, func, instance, args, kwargs):
     action = func(*args, **kwargs)
-    return _handle_agent_action_result(action, kwargs)
+    return _handle_agent_action_result(client, action, kwargs)
 
 
-async def _langchain_agent_aplan(func, instance, args, kwargs):
+async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kwargs):
     action = await func(*args, **kwargs)
-    return _handle_agent_action_result(action, kwargs)
+    return _handle_agent_action_result(client, action, kwargs)
 
 
 def _try_parse_json(value: str, default_name: str) -> Any:
@@ -134,7 +130,7 @@ def _convert_messages(messages: list[Any]) -> list[Evaluation]:
     return result
 
 
-def _handle_agent_action_result(action, kwargs):
+def _handle_agent_action_result(client: AIGuardClient, action, kwargs):
     from langchain_core.agents import AgentAction
     from langchain_core.agents import AgentFinish
 
@@ -157,7 +153,7 @@ def _handle_agent_action_result(action, kwargs):
     return action
 
 
-def _langchain_chatmodel_generate_before(message_lists, args: Dict[str, Any]):
+def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists, args: Dict[str, Any]):
     from langchain_core.messages import HumanMessage
 
     for messages in message_lists:
@@ -176,7 +172,7 @@ def _langchain_chatmodel_generate_before(message_lists, args: Dict[str, Any]):
                 logger.debug("Failed to evaluate chat model prompt", exc_info=True)
 
 
-def _langchain_llm_generate_before(prompts, args: Dict[str, Any]):
+def _langchain_llm_generate_before(client: AIGuardClient, prompts, args: Dict[str, Any]):
     for prompt in prompts:
         try:
             if not client.evaluate_prompt("user", prompt):
