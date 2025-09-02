@@ -258,10 +258,10 @@ def test_span_meta_history_truncation(mock_execute_request, ai_guard_client, tra
 
 
 @patch("ddtrace.appsec.ai_guard._api_client.AIGuardClient._execute_request")
-def test_span_meta_output_truncation(mock_execute_request, ai_guard_client, tracer):
+def test_span_meta_content_truncation(mock_execute_request, ai_guard_client, tracer):
     mock_execute_request.return_value = mock_evaluate_response("ALLOW")
 
-    random_output = random_string(ai_guard_config._ai_guard_max_output_size + 1)
+    random_output = random_string(ai_guard_config._ai_guard_max_content_size + 1)
 
     workflow = ai_guard_client.new_workflow()
     workflow.add_tool("shell", {"cmd": ["sh", "-c", "rm -f /"]}, output=random_output)
@@ -270,10 +270,10 @@ def test_span_meta_output_truncation(mock_execute_request, ai_guard_client, trac
     span = find_ai_guard_span(tracer)
     meta = span.get_struct_tag(AI_GUARD.TAG)
     tool_call = meta["history"][0]
-    assert len(tool_call["output"]) == ai_guard_config._ai_guard_max_output_size
+    assert len(tool_call["output"]) == ai_guard_config._ai_guard_max_content_size
 
     prompt = meta["current"]
-    assert len(prompt["content"]) == ai_guard_config._ai_guard_max_output_size
+    assert len(prompt["content"]) == ai_guard_config._ai_guard_max_content_size
 
 
 @pytest.mark.parametrize("decision", ["DENY", "ABORT"], ids=["deny", "abort"])

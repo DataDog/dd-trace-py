@@ -238,37 +238,37 @@ class AIGuardClient:
                     TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "history"),)
                 )
 
-        output_truncated = False
-        max_output_size = ai_guard_config._ai_guard_max_output_size
+        content_truncated = False
+        max_content_size = ai_guard_config._ai_guard_max_content_size
 
-        def truncate_output(evaluation: Evaluation) -> Evaluation:
-            nonlocal output_truncated
+        def truncate_content(evaluation: Evaluation) -> Evaluation:
+            nonlocal content_truncated
 
-            if "content" in evaluation and len(str(evaluation["content"])) > max_output_size:  # type: ignore[typeddict-item]
-                cropped = evaluation.copy()
-                cropped["content"] = str(cropped["content"])[:max_output_size]  # type: ignore[typeddict-item, typeddict-unknown-key]
-                output_truncated = True
-                return cropped
+            if "content" in evaluation and len(str(evaluation["content"])) > max_content_size:  # type: ignore[typeddict-item]
+                truncated = evaluation.copy()
+                truncated["content"] = str(truncated["content"])[:max_content_size]  # type: ignore[typeddict-item, typeddict-unknown-key]
+                content_truncated = True
+                return truncated
 
-            if "output" in evaluation and len(str(evaluation["output"])) > max_output_size:
-                cropped = evaluation.copy()
-                cropped["output"] = str(cropped["output"])[:max_output_size]
-                output_truncated = True
-                return cropped
+            if "output" in evaluation and len(str(evaluation["output"])) > max_content_size:
+                truncated = evaluation.copy()
+                truncated["output"] = str(truncated["output"])[:max_content_size]
+                content_truncated = True
+                return truncated
 
             return evaluation
 
         span.set_struct_tag(
             AI_GUARD.STRUCT,
             {
-                "history": [truncate_output(e) for e in history],
-                "current": truncate_output(current),
+                "history": [truncate_content(e) for e in history],
+                "current": truncate_content(current),
             },
         )
 
-        if output_truncated:
+        if content_truncated:
             telemetry.telemetry_writer.add_count_metric(
-                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "output"),)
+                TELEMETRY_NAMESPACE.APPSEC, AI_GUARD.TRUNCATED_METRIC, 1, (("type", "content"),)
             )
 
     def _evaluate(self, current: Evaluation, history: List[Evaluation], tags: Dict[Union[Text, bytes], Any]) -> bool:
