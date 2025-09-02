@@ -56,6 +56,5 @@ tracer-minimal:
   <<: *tracer
   django_instrument_middleware: true
   django_instrument_caches: false
-  django_instrument_databases: true
-  always_create_database_spans: false
+  django_instrument_databases: false
   django_instrument_templates: false
