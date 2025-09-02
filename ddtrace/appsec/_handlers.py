@@ -375,13 +375,13 @@ def _asgi_make_block_content(ctx, url):
 
 def _on_flask_blocked_request(span):
     span.set_tag_str(http.STATUS_CODE, "403")
-    request = core.get_item("flask_request")
+    request = core.find_item("flask_request")
     try:
         base_url = getattr(request, "base_url", None)
         query_string = getattr(request, "query_string", None)
         if base_url and query_string:
-            _set_url_tag(core.get_item("flask_config"), span, base_url, query_string)
-        if query_string and core.get_item("flask_config").trace_query_string:
+            _set_url_tag(core.find_item("flask_config"), span, base_url, query_string)
+        if query_string and core.find_item("flask_config").trace_query_string:
             span.set_tag_str(http.QUERY_STRING, query_string)
         if request.method is not None:
             span.set_tag_str(http.METHOD, request.method)
