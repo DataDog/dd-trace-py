@@ -193,7 +193,7 @@ class MagicMethodsException:
     def __divmod__(self, other):
         raise Exception("side effect")
 
-    def __pow__(self, other, modulo=None):
+    def __pow__(self, other):
         raise Exception("side effect")
 
     def __lshift__(self, other):
