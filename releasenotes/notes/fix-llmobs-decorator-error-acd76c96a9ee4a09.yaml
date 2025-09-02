@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    LLM Observability: This fix resolves an issue where decorated functions returning responses with an ambiguous
+    truth value (e.g. pandas dataframes) would raise an error due to the inability to coerce the value into a boolean.
