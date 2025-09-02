@@ -1,6 +1,8 @@
 import atexit
+import csv
 import json
 import os
+import tempfile
 from typing import Any
 from typing import Dict
 from typing import List
@@ -300,6 +302,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     AGENTLESS_BASE_URL = AGENTLESS_EXP_BASE_URL
     ENDPOINT = ""
     TIMEOUT = 5.0
+    BULK_UPLOAD_TIMEOUT = 60.0
+    SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def request(self, method: str, path: str, body: JSONType = None) -> Response:
         headers = {
@@ -316,6 +320,26 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
             conn.request(method, url, encoded_body, headers)
+            resp = conn.getresponse()
+            return Response.from_http_response(resp)
+        finally:
+            conn.close()
+
+    def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
+        headers = {
+            "Content-Type": content_type,
+            # "Content-Type": "multipart/form-data", this one maybe?
+            "DD-API-KEY": self._api_key,
+            "DD-APPLICATION-KEY": self._app_key,
+        }
+        if not self._agentless:
+            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
+
+        conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
+        try:
+            url = self._intake + self._endpoint + path
+            logger.debug("requesting %s, %s", url, content_type)
+            conn.request(method, url, body, headers)
             resp = conn.getresponse()
             return Response.from_http_response(resp)
         finally:
@@ -353,6 +377,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to create dataset {name}: {resp.status} {resp.get_json()}")
         response_data = resp.get_json()
         dataset_id = response_data["data"]["id"]
+        if dataset_id is None or dataset_id == "":
+            raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
         return Dataset(name, dataset_id, [], description, curr_version, _dne_client=self)
 
@@ -445,6 +471,57 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 }
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
+
+    def dataset_bulk_upload(self, dataset_id: str, dataset: Dataset):
+        with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
+            file_name = os.path.basename(tmp.name)
+            file_name_parts = file_name.rsplit(".", 1)
+            if len(file_name_parts) != 2:
+                raise ValueError(f"invalid file {file_name} from {tmp.name}")
+
+            file_ext = file_name_parts[1]
+
+            if file_ext not in self.SUPPORTED_UPLOAD_EXTS:
+                raise ValueError(f"{file_ext} files not supported")
+
+            with open(tmp.name, "w", newline="") as csv_file:
+                field_names = ["input", "expected_output", "metadata"]
+                writer = csv.writer(csv_file)
+                writer.writerow(field_names)
+                for r in dataset._records:
+                    writer.writerow(
+                        [
+                            json.dumps(r.get("input_data", "")),
+                            json.dumps(r.get("expected_output", "")),
+                            json.dumps(r.get("metadata", "")),
+                        ]
+                    )
+
+            with open(tmp.name, mode="rb") as f:
+                file_content = f.read()
+
+        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records/upload"
+        BOUNDARY = b"----------boundary------"
+        CRLF = b"\r\n"
+
+        body = CRLF.join(
+            [
+                b"--" + BOUNDARY,
+                b'Content-Disposition: form-data; name="file"; filename="%s"' % file_name.encode("utf-8"),
+                b"Content-Type: text/%s" % file_ext.encode("utf-8"),
+                b"",
+                file_content,
+                b"--" + BOUNDARY + b"--",
+                b"",
+            ]
+        )
+
+        resp = self.multipart_request(
+            "POST", path, content_type="multipart/form-data; boundary=%s" % BOUNDARY.decode("utf-8"), body=body
+        )
+        if resp.status != 200:
+            raise ValueError(f"Failed to upload dataset from file: {resp.status} {resp.get_json()}")
+        logger.debug("successfully uploaded with code %d", resp.status)
 
     def project_create_or_get(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"
