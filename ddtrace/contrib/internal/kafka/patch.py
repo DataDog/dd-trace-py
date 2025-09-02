@@ -196,7 +196,7 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    log.debug("[KAFKA DEBUG] traced_produce: creating span for topic=%s", topic)
+    log.debug("[KAFKA DEBUG] traced_produce: creating span for topic=%s", str(topic or 'None'))
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
@@ -395,7 +395,7 @@ def _get_cluster_id(instance, topic):
     try:
         cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
         if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
-            log.debug("[KAFKA DEBUG] _get_cluster_id: caching cluster_id=%s", cluster_metadata.cluster_id)
+            log.debug("[KAFKA DEBUG] _get_cluster_id: caching cluster_id=%s", str(cluster_metadata.cluster_id))
             instance._dd_cluster_id = cluster_metadata.cluster_id
             return cluster_metadata.cluster_id
     except Exception:
