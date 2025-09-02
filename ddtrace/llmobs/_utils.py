@@ -258,13 +258,18 @@ def format_tool_call_arguments(tool_args: str) -> str:
     return formatted_tool_args
 
 
-def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str) -> None:
+def add_span_link(span: Span, span_id: str, trace_id: str, from_io: str, to_io: str, link_type: str = "data_flow", annotation: str = "") -> None:
     current_span_links = span._get_ctx_item(SPAN_LINKS) or []
     current_span_links.append(
         {
             "span_id": span_id,
             "trace_id": trace_id,
-            "attributes": {"from": from_io, "to": to_io},
+            "attributes": {
+                "from": from_io,
+                "to": to_io,
+                "link_type": link_type,
+                "annotation": annotation,
+            },
         }
     )
     span._set_ctx_item(SPAN_LINKS, current_span_links)
@@ -329,9 +334,7 @@ class ToolCallTracker:
         self._tool_calls[tool_id] = tool_call
         self._lookup_tool_id[(tool_name, formatted_arguments)] = tool_id
 
-    def on_tool_call(
-        self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None
-    ) -> None:
+    def on_tool_call(self, tool_name: str, tool_arg: str, tool_kind: str, tool_span: Span, tool_id: Optional[str] = None, link_annotation: str = "") -> None:
         """
         Called when a tool span finishes. This is used to link the input of the tool span to the output
         of the LLM span responsible for generating it's input. We also save the span/trace id of the tool call
@@ -353,6 +356,8 @@ class ToolCallTracker:
             tool_call.llm_span_context["trace_id"],
             "output",
             "input",
+            link_type="control_flow",
+            annotation=link_annotation,
         )
         self._tool_calls[tool_id].tool_span_context = {
             "span_id": str(tool_span.span_id),
@@ -385,4 +390,5 @@ class ToolCallTracker:
             tool_call.tool_span_context["trace_id"],
             "output",
             "input",
+            link_type="control_flow",
         )

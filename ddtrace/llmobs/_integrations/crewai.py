@@ -126,7 +126,7 @@ class CrewAIIntegration(BaseLLMIntegration):
             span_link = {
                 "span_id": last_task_span_id,
                 "trace_id": format_trace_id(span.trace_id),
-                "attributes": {"from": "output", "to": "output"},
+                "attributes": {"from": "output", "to": "output", "link_type": "data_flow"},
             }
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
             span._set_ctx_item(SPAN_LINKS, curr_span_links + [span_link])
@@ -163,7 +163,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 span_link = {
                     "span_id": str(parent_span.span_id),
                     "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
+                    "attributes": {"from": "input", "to": "input", "link_type": "control_flow"},
                 }
                 span_links.append(span_link)
             curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
@@ -189,14 +189,14 @@ class CrewAIIntegration(BaseLLMIntegration):
         parent_span_link = {
             "span_id": str(span.span_id),
             "trace_id": format_trace_id(span.trace_id),
-            "attributes": {"from": "output", "to": "output"},
+            "attributes": {"from": "output", "to": "output", "link_type": "data_flow"},
         }
         curr_span_links = parent_span._get_ctx_item(SPAN_LINKS) or []
         parent_span._set_ctx_item(SPAN_LINKS, curr_span_links + [parent_span_link])
         span_link = {
             "span_id": str(parent_span.span_id),
             "trace_id": format_trace_id(span.trace_id),
-            "attributes": {"from": "input", "to": "input"},
+            "attributes": {"from": "input", "to": "input", "link_type": "control_flow"},
         }
         curr_span_links = span._get_ctx_item(SPAN_LINKS) or []
         span._set_ctx_items(
@@ -309,7 +309,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 {
                     "span_id": str(span._parent.span_id),
                     "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
+                    "attributes": {"from": "input", "to": "input", "link_type": "control_flow"},
                 }
             )
 
@@ -371,7 +371,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     {
                         "span_id": str(trigger_span_dict["span_id"]),
                         "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
+                        "attributes": {"from": "output", "to": "input", "link_type": "control_flow", "annotation": f"{listener_name} triggered by {trigger_method}"},
                     }
                 )
                 continue
@@ -387,7 +387,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     {
                         "span_id": str(method_span_dict["span_id"]),
                         "trace_id": format_trace_id(flow_span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
+                        "attributes": {"from": "output", "to": "input", "link_type": "control_flow", "annotation": f"{listener_name} triggered by {method}"},
                     }
                 )
                 flow_span_span_links = flow_span._get_ctx_item(SPAN_LINKS) or []
@@ -403,7 +403,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 {
                     "span_id": str(trigger_span_dict["span_id"]),
                     "trace_id": format_trace_id(flow_span.trace_id),
-                    "attributes": {"from": "output", "to": "output"},
+                    "attributes": {"from": "output", "to": "output", "link_type": "data_flow"},
                 }
             )
             flow_span._set_ctx_item(SPAN_LINKS, flow_span_span_links)
@@ -445,7 +445,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                     {
                         "span_id": finished_task_span_id,
                         "trace_id": format_trace_id(span.trace_id),
-                        "attributes": {"from": "output", "to": "input"},
+                        "attributes": {"from": "output", "to": "input", "link_type": "data_flow"},
                     }
                 )
             queued_task_node["span_links"] = span_links
@@ -455,7 +455,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 {
                     "span_id": str(span.span_id) if span else ROOT_PARENT_ID,
                     "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "input", "to": "input"},
+                    "attributes": {"from": "input", "to": "input", "link_type": "control_flow"},
                 }
             ]
             return
@@ -465,7 +465,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 {
                     "span_id": planning_task_span_id if span else ROOT_PARENT_ID,
                     "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "output", "to": "input"},
+                    "attributes": {"from": "output", "to": "input", "link_type": "data_flow"},
                 }
             ]
             return
@@ -478,7 +478,7 @@ class CrewAIIntegration(BaseLLMIntegration):
                 {
                     "span_id": finished_task_span_id,
                     "trace_id": format_trace_id(span.trace_id),
-                    "attributes": {"from": "output", "to": "input"},
+                    "attributes": {"from": "output", "to": "input", "link_type": "data_flow"},
                 }
             )
         queued_task_node["span_links"] = span_links
