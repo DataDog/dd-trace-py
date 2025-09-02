@@ -16,6 +16,7 @@ class DjangoSimple(bm.Scenario):
     django_instrument_databases: bool
     always_create_database_spans: bool
     django_instrument_templates: bool
+    native_writer: bool
 
     def run(self):
         os.environ["DJANGO_SETTINGS_MODULE"] = "app"
@@ -37,6 +38,8 @@ class DjangoSimple(bm.Scenario):
             os.environ.update({"DD_CODE_ORIGIN_FOR_SPANS_ENABLED": "1"})
         if self.exception_replay_enabled:
             os.environ.update({"DD_EXCEPTION_REPLAY_ENABLED": "1"})
+        if self.native_writer:
+            os.environ.update({"_DD_TRACE_WRITER_NATIVE": "1"})
 
         # This will not work with gevent workers as the gevent hub has not been
         # initialized when this hook is called.

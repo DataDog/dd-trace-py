@@ -190,7 +190,7 @@ def _on_django_middleware(ctx: core.ExecutionContext, call_trace: bool = True, *
     if not asm_config._iast_enabled or not asm_config.is_iast_request_enabled:
         return
 
-    request = ctx.get_item("request")
+    request = ctx.find_item("request")
     if request:
         args = (request,)
         _taint_django_func_call(request, args, {})

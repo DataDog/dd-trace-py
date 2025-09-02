@@ -25,8 +25,8 @@ log = get_logger(__name__)
 def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
 
-    topic = core.get_item("kafka_topic")
-    cluster_id = core.get_item("kafka_cluster_id")
+    topic = core.find_item("kafka_topic")
+    cluster_id = core.find_item("kafka_cluster_id")
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
@@ -81,8 +81,8 @@ def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
     headers = {header[0]: header[1] for header in (message.headers() or [])}
-    topic = core.get_item("kafka_topic")
-    cluster_id = core.get_item("kafka_cluster_id")
+    topic = core.find_item("kafka_topic")
+    cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
 
     payload_size = 0

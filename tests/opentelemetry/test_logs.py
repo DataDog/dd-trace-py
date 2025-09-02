@@ -48,26 +48,41 @@ def decode_logs_request(request_body: bytes):
     return export_request
 
 
-def extract_log_correlation_attributes(captured_logs, log_message: str):
-    """Extract log correlation attributes from captured logs."""
-    attributes = {}
+def find_log_record_by_message(captured_logs, log_message: str):
+    """Find a log record and its resource by matching log message content."""
     for resource_logs in captured_logs.resource_logs:
-        for attr in resource_logs.resource.attributes:
-            if attr.key == "service.name":
-                attributes["service"] = attr.value.string_value
-            elif attr.key == "deployment.environment":
-                attributes["env"] = attr.value.string_value
-            elif attr.key == "service.version":
-                attributes["version"] = attr.value.string_value
-            elif attr.key == "host.name":
-                attributes["host_name"] = attr.value.string_value
         for scope_logs in resource_logs.scope_logs:
             for record in scope_logs.log_records:
                 if log_message in record.body.string_value:
-                    attributes["trace_id"] = record.trace_id.hex()
-                    attributes["span_id"] = record.span_id.hex()
-                    break
+                    return record, resource_logs.resource
+    return None, None
+
+
+def extract_resource_attributes(log_record, resource) -> dict:
+    """Extract resource attributes from log record and resource."""
+    attributes = {}
+
+    for attr in resource.attributes:
+        if attr.key == "service.name":
+            attributes["service"] = attr.value.string_value
+        elif attr.key == "deployment.environment":
+            attributes["env"] = attr.value.string_value
+        elif attr.key == "service.version":
+            attributes["version"] = attr.value.string_value
+        elif attr.key == "host.name":
+            attributes["host_name"] = attr.value.string_value
+
+    if log_record:
+        attributes["trace_id"] = log_record.trace_id.hex()
+        attributes["span_id"] = log_record.span_id.hex()
+
     return attributes
+
+
+def extract_log_correlation_attributes(captured_logs, log_message: str) -> dict:
+    """Extract log correlation attributes and trace/span IDs from captured logs."""
+    log_record, resource = find_log_record_by_message(captured_logs, log_message)
+    return extract_resource_attributes(log_record, resource)
 
 
 @pytest.mark.skipif(API_VERSION >= (1, 15, 0), reason="OpenTelemetry API >= 1.15.0 supports logs collection")
@@ -292,6 +307,65 @@ def test_otel_logs_exporter_auto_configured_grpc():
     assert any(
         b"test_otel_logs_exporter_auto_configured_grpc" in log.body.string_value.encode() for log in all_logs
     ), "Expected log message not found in exported gRPC payload"
+
+
+@pytest.mark.skipif(
+    EXPORTER_VERSION < MINIMUM_SUPPORTED_VERSION,
+    reason=f"OpenTelemetry exporter version {MINIMUM_SUPPORTED_VERSION} is required to export logs",
+)
+@pytest.mark.subprocess(
+    ddtrace_run=True,
+    env={
+        "DD_LOGS_OTEL_ENABLED": "true",
+        "DD_SERVICE": "test_service",
+        "DD_VERSION": "1.0",
+        "DD_ENV": "test_env",
+    },
+    parametrize={"DD_LOGS_INJECTION": [None, "true"]},
+)
+def test_ddtrace_log_injection_otlp_enabled():
+    """Test that ddtrace log injection is disabled when OpenTelemetry logs are enabled."""
+    from logging import getLogger
+
+    from opentelemetry._logs import get_logger_provider
+
+    from ddtrace import tracer
+    from ddtrace.internal.constants import LOG_ATTR_ENV
+    from ddtrace.internal.constants import LOG_ATTR_SERVICE
+    from ddtrace.internal.constants import LOG_ATTR_SPAN_ID
+    from ddtrace.internal.constants import LOG_ATTR_TRACE_ID
+    from ddtrace.internal.constants import LOG_ATTR_VERSION
+    from tests.opentelemetry.test_logs import create_mock_grpc_server
+    from tests.opentelemetry.test_logs import find_log_record_by_message
+
+    log = getLogger()
+    mock_service, server = create_mock_grpc_server()
+
+    try:
+        server.start()
+        with tracer.trace("test_trace"):
+            log.error("test_ddtrace_log_correlation")
+        logger_provider = get_logger_provider()
+        logger_provider.force_flush()
+    finally:
+        server.stop(0)
+
+    log_record = None
+    for request in mock_service.received_requests:
+        log_record, _ = find_log_record_by_message(request, "test_ddtrace_log_correlation")
+        if log_record:
+            break
+    else:
+        assert False, f"No log record with message 'test_ddtrace_log_correlation' found in the request: {request}"
+
+    ddtrace_attributes = {}
+    for attr in log_record.attributes:
+        if attr.key in (LOG_ATTR_ENV, LOG_ATTR_SERVICE, LOG_ATTR_VERSION, LOG_ATTR_TRACE_ID, LOG_ATTR_SPAN_ID):
+            ddtrace_attributes[attr.key] = attr.value
+
+    assert (
+        ddtrace_attributes == {}
+    ), f"Log Injection attributes should not be present in the log record: {ddtrace_attributes}"
 
 
 @pytest.mark.skipif(
