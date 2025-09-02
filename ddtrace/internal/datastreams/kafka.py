@@ -21,12 +21,16 @@ disable_header_injection = False
 
 log = get_logger(__name__)
 
+from ddtrace.contrib.internal.kafka.patch import funcdebug
 
+
+@funcdebug
 def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     from . import data_streams_processor as processor
 
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: topic=%s, cluster_id=%s", topic, cluster_id)
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
@@ -40,8 +44,10 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: setting checkpoint with edge_tags=%s, payload_size=%d", edge_tags, payload_size)
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
     if not disable_header_injection:
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: encoding pathway context into headers")
         DsmPathwayCodec.encode(ctx, headers)
         kwargs["headers"] = headers
 
@@ -60,8 +66,10 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
+            log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: tracking produce success, offset=%d", reported_offset)
             processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
         elif err.code() == -1 and not disable_header_injection:
+            log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: UNKNOWN_SERVER_ERROR, disabling header injection")
             disable_header_injection = True
             log.error(
                 "Kafka Broker responded with UNKNOWN_SERVER_ERROR (-1). Please look at broker logs for more "
@@ -77,6 +85,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         kwargs[on_delivery_kwarg] = wrapped_callback
 
 
+@funcdebug
 def dsm_kafka_message_consume(instance, message, span):
     from . import data_streams_processor as processor
 
@@ -84,6 +93,7 @@ def dsm_kafka_message_consume(instance, message, span):
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: topic=%s, cluster_id=%s, group=%s", topic, cluster_id, group)
 
     payload_size = 0
     if hasattr(message, "len"):
@@ -95,12 +105,14 @@ def dsm_kafka_message_consume(instance, message, span):
     payload_size += _calculate_byte_size(message.key())
     payload_size += _calculate_byte_size(headers)
 
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: decoding pathway context from headers")
     ctx = DsmPathwayCodec.decode(headers, processor())
 
     edge_tags = ["direction:in", "group:" + group, "topic:" + topic, "type:kafka"]
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: setting checkpoint with edge_tags=%s, payload_size=%d", edge_tags, payload_size)
     ctx.set_checkpoint(
         edge_tags,
         payload_size=payload_size,
@@ -111,11 +123,13 @@ def dsm_kafka_message_consume(instance, message, span):
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset() + 1) if isinstance(message.offset(), INT_TYPES) else -1
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: auto_commit enabled, tracking commit offset=%d", reported_offset)
         processor().track_kafka_commit(
             instance._group_id, message.topic(), message.partition(), reported_offset, time.time()
         )
 
 
+@funcdebug
 def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 

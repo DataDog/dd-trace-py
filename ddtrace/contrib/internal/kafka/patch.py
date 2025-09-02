@@ -1,5 +1,6 @@
 import os
 import sys
+from functools import wraps
 from time import time
 from time import time_ns
 from typing import Dict
@@ -39,6 +40,21 @@ _DeserializingConsumer = (
 
 
 log = get_logger(__name__)
+
+
+def funcdebug(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        func_name = f"{func.__module__}.{func.__name__}"
+        log.debug(f"[KAFKA DEBUG] Entering {func_name}")
+        try:
+            result = func(*args, **kwargs)
+            log.debug(f"[KAFKA DEBUG] Exiting {func_name} (success)")
+            return result
+        except Exception as e:
+            log.debug(f"[KAFKA DEBUG] Exiting {func_name} (exception: {type(e).__name__}: {e})")
+            raise
+    return wrapper
 
 
 config._add(
@@ -111,6 +127,7 @@ class TracedSerializingProducer(TracedProducerMixin, confluent_kafka.Serializing
     pass
 
 
+@funcdebug
 def patch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         return
@@ -137,6 +154,7 @@ def patch():
     Pin().onto(confluent_kafka.DeserializingConsumer)
 
 
+@funcdebug
 def unpatch():
     if getattr(confluent_kafka, "_datadog_patch", False):
         confluent_kafka._datadog_patch = False
@@ -162,9 +180,11 @@ def unpatch():
         confluent_kafka.DeserializingConsumer = _DeserializingConsumer
 
 
+@funcdebug
 def traced_produce(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
+        log.debug("[KAFKA DEBUG] traced_produce: pin disabled, calling original func")
         return func(*args, **kwargs)
 
     topic = get_argument_value(args, kwargs, 0, "topic") or ""
@@ -176,16 +196,19 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
+    log.debug("[KAFKA DEBUG] traced_produce: creating span for topic=%s", topic)
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
         span_type=SpanTypes.WORKER,
     ) as span:
+        log.debug("[KAFKA DEBUG] traced_produce: getting cluster_id")
         cluster_id = _get_cluster_id(instance, topic)
         core.set_item("kafka_cluster_id", cluster_id)
         if cluster_id:
             span.set_tag_str(kafkax.CLUSTER_ID, cluster_id)
 
+        log.debug("[KAFKA DEBUG] traced_produce: dispatching kafka.produce.start event")
         core.dispatch("kafka.produce.start", (instance, args, kwargs, isinstance(instance, _SerializingProducer), span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
@@ -212,48 +235,61 @@ def traced_produce(func, instance, args, kwargs):
 
         # inject headers with Datadog tags if trace propagation is enabled
         if config.kafka.distributed_tracing_enabled:
+            log.debug("[KAFKA DEBUG] traced_produce: injecting trace headers")
             # inject headers with Datadog tags:
             headers = get_argument_value(args, kwargs, 6, "headers", True) or {}
             Propagator.inject(span.context, headers)
             args, kwargs = set_argument_value(args, kwargs, 6, "headers", headers, override_unset=True)
+        log.debug("[KAFKA DEBUG] traced_produce: calling original produce function")
         return func(*args, **kwargs)
 
 
+@funcdebug
 def traced_poll_or_consume(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
+        log.debug("[KAFKA DEBUG] traced_poll_or_consume: pin disabled, calling original func")
         return func(*args, **kwargs)
 
     # we must get start time now since execute before starting a span in order to get distributed context
     # if it exists
+    log.debug("[KAFKA DEBUG] traced_poll_or_consume: calling original poll/consume function")
     start_ns = time_ns()
     err = None
     result = None
     try:
         result = func(*args, **kwargs)
     except Exception as e:
+        log.debug("[KAFKA DEBUG] traced_poll_or_consume: exception caught: %s", type(e).__name__)
         err = e
         raise err
     finally:
         if isinstance(result, confluent_kafka.Message):
+            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting single message")
             # poll returns a single message
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
+            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting %d messages", len(result))
             # consume returns a list of messages,
             _instrument_message(result, pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
+            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting empty poll")
             _instrument_message([None], pin, start_ns, instance, err)
 
     return result
 
 
+@funcdebug
 def _instrument_message(messages, pin, start_ns, instance, err):
+    log.debug("[KAFKA DEBUG] _instrument_message: processing %d messages", len(messages))
     ctx = None
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
     first_message = messages[0] if len(messages) else None
     if first_message is not None and config.kafka.distributed_tracing_enabled and first_message.headers():
+        log.debug("[KAFKA DEBUG] _instrument_message: extracting propagation context from headers")
         ctx = Propagator.extract(dict(first_message.headers()))
+    log.debug("[KAFKA DEBUG] _instrument_message: creating consume span")
     with pin.tracer.start_span(
         name=schematize_messaging_operation(kafkax.CONSUME, provider="kafka", direction=SpanDirection.PROCESSING),
         service=trace_utils.ext_service(pin, config.kafka),
@@ -265,11 +301,13 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.start_ns = start_ns
         cluster_id = None
 
+        log.debug("[KAFKA DEBUG] _instrument_message: processing messages for span tags")
         for message in messages:
             if message is not None and first_message is not None:
                 cluster_id = _get_cluster_id(instance, str(first_message.topic()))
                 core.set_item("kafka_cluster_id", cluster_id)
                 core.set_item("kafka_topic", str(first_message.topic()))
+                log.debug("[KAFKA DEBUG] _instrument_message: dispatching kafka.consume.start event")
                 core.dispatch("kafka.consume.start", (instance, first_message, span))
 
         span.set_tag_str(MESSAGING_SYSTEM, kafkax.SERVICE)
@@ -306,9 +344,11 @@ def _instrument_message(messages, pin, start_ns, instance, err):
         span.set_metric(_SPAN_MEASURED_KEY, 1)
 
         if err is not None:
+            log.debug("[KAFKA DEBUG] _instrument_message: setting exception info on span")
             span.set_exc_info(*sys.exc_info())
 
 
+@funcdebug
 def traced_commit(func, instance, args, kwargs):
     pin = Pin.get_from(instance)
     if not pin or not pin.enabled():
@@ -318,6 +358,7 @@ def traced_commit(func, instance, args, kwargs):
     return func(*args, **kwargs)
 
 
+@funcdebug
 def serialize_key(instance, topic, key, headers):
     if _SerializationContext is not None and _MessageField is not None:
         ctx = _SerializationContext(topic, _MessageField.KEY, headers)
@@ -333,26 +374,33 @@ def serialize_key(instance, topic, key, headers):
             return None
 
 
+@funcdebug
 def _get_cluster_id(instance, topic):
     # Check success cache
     if instance and getattr(instance, "_dd_cluster_id", None):
+        log.debug("[KAFKA DEBUG] _get_cluster_id: returning cached cluster_id")
         return instance._dd_cluster_id
 
     # Check failure cache - skip for 5 minutes if we fail
     last_failure = getattr(instance, "_dd_cluster_id_failure_time", 0)
     if time() - last_failure < 300:
+        log.debug("[KAFKA DEBUG] _get_cluster_id: skipping due to recent failure (within 5min)")
         return None
 
     if getattr(instance, "list_topics", None) is None:
+        log.debug("[KAFKA DEBUG] _get_cluster_id: instance has no list_topics method")
         return None
 
+    log.debug("[KAFKA DEBUG] _get_cluster_id: calling list_topics with timeout=1.0")
     try:
         cluster_metadata = instance.list_topics(topic=topic, timeout=1.0)
         if cluster_metadata and getattr(cluster_metadata, "cluster_id", None):
+            log.debug("[KAFKA DEBUG] _get_cluster_id: caching cluster_id=%s", cluster_metadata.cluster_id)
             instance._dd_cluster_id = cluster_metadata.cluster_id
             return cluster_metadata.cluster_id
     except Exception:
         # Cache the failure time to avoid repeated slow calls
+        log.debug("[KAFKA DEBUG] _get_cluster_id: list_topics failed, caching failure")
         instance._dd_cluster_id_failure_time = time()
         log.debug("Failed to get Kafka cluster ID, will retry after 5 minutes")
 
