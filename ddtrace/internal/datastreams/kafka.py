@@ -30,7 +30,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
 
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: topic=%s, cluster_id=%s", topic, cluster_id)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: topic=%s, cluster_id=%s", str(topic or 'None'), str(cluster_id or 'None'))
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
@@ -66,7 +66,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: tracking produce success, offset=%d", reported_offset)
+            log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: tracking produce success, offset=%s", str(reported_offset))
             processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
         elif err.code() == -1 and not disable_header_injection:
             log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: UNKNOWN_SERVER_ERROR, disabling header injection")
@@ -93,7 +93,7 @@ def dsm_kafka_message_consume(instance, message, span):
     topic = core.find_item("kafka_topic")
     cluster_id = core.find_item("kafka_cluster_id")
     group = instance._group_id
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: topic=%s, cluster_id=%s, group=%s", topic, cluster_id, group)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: topic=%s, cluster_id=%s, group=%s", str(topic or 'None'), str(cluster_id or 'None'), str(group or 'None'))
 
     payload_size = 0
     if hasattr(message, "len"):
@@ -123,7 +123,7 @@ def dsm_kafka_message_consume(instance, message, span):
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset() + 1) if isinstance(message.offset(), INT_TYPES) else -1
-        log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: auto_commit enabled, tracking commit offset=%d", reported_offset)
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: auto_commit enabled, tracking commit offset=%s", str(reported_offset))
         processor().track_kafka_commit(
             instance._group_id, message.topic(), message.partition(), reported_offset, time.time()
         )
@@ -134,17 +134,21 @@ def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     message = get_argument_value(args, kwargs, 0, "message", optional=True)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: message=%s", message is not None)
 
     offsets = []
     if message is not None:
         # the commit offset is the next message to read. So last message read + 1
         reported_offset = message.offset() + 1 if isinstance(message.offset(), INT_TYPES) else -1
         offsets = [TopicPartition(message.topic(), message.partition(), reported_offset)]
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing single message offset=%s", str(reported_offset))
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing %d offsets", len(offsets))
 
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: tracking commit for topic=%s, partition=%s, offset=%s", str(offset.topic), str(offset.partition), str(reported_offset))
         processor().track_kafka_commit(instance._group_id, offset.topic, offset.partition, reported_offset, time.time())
 
 
