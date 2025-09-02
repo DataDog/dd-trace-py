@@ -16,8 +16,8 @@ def _derive_endpoint(config: "ExporterConfig"):
 
 
 def _derive_logs_endpoint(config: "ExporterConfig"):
-    endpoint = get_config("OTEL_EXPORTER_OTLP_ENDPOINT", config.DEFAULT_ENDPOINT)
-    if endpoint != config.DEFAULT_ENDPOINT:
+    endpoint = get_config("OTEL_EXPORTER_OTLP_ENDPOINT", config.ENDPOINT)
+    if endpoint != config.ENDPOINT:
         return endpoint
     elif config.LOGS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
         return f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
