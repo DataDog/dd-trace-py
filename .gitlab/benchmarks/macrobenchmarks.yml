@@ -154,8 +154,23 @@ tracing-native-writer-enabled:
     DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
     DD_TRACE_ENABLED: "true"
     DD_PROFILING_ENABLED: "false"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
     _DD_TRACE_WRITER_NATIVE: "true"
     DD_SERVICE: "ddtrace-mb-tracing-native-writer-enabled"
+
+tracing-native-writer-enabled-stats-enabled:
+  extends: .macrobenchmarks
+  variables:
+    DD_BENCHMARKS_CONFIGURATION: only-tracing
+    BP_PYTHON_SCENARIO_DIR: flask-realworld
+    BP_ENDPOINT: http://0.0.0.0:8000/api/articles
+    DDTRACE_INSTALL_VERSION: "git+https://github.com/Datadog/dd-trace-py@${CI_COMMIT_SHA}"
+    DD_TRACE_ENABLED: "true"
+    DD_PROFILING_ENABLED: "false"
+    DD_INSTRUMENTATION_TELEMETRY_ENABLED: "true"
+    DD_TRACE_STATS_COMPUTATION_ENABLED: "true"
+    _DD_TRACE_WRITER_NATIVE: "true"
+    DD_SERVICE: "ddtrace-mb-tracing-native-writer-enabled-stats-enabled"
 
 tracing-profiling-enabled:
   extends: .macrobenchmarks
