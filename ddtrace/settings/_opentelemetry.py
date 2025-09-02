@@ -49,7 +49,7 @@ class ExporterConfig(DDConfig):
     GRPC_PORT: int = 4317
     HTTP_PORT: int = 4318
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
-    DEFAULT_ENDPOINT: str = "http://localhost:4318"
+    DEFAULT_ENDPOINT: str = "http://localhost:4317"
     DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
 
@@ -60,7 +60,7 @@ class ExporterConfig(DDConfig):
 
     LOGS_PROTOCOL = DDConfig.d(str, _derive_logs_protocol)
     LOGS_ENDPOINT = DDConfig.d(str, _derive_logs_endpoint)
-    LOGS_HEADERS = DDConfig.d(dict, _derive_logs_headers)
+    LOGS_HEADERS = DDConfig.d(str, _derive_logs_headers)
     LOGS_TIMEOUT = DDConfig.d(int, _derive_logs_timeout)
 
 
