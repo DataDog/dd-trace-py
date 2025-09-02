@@ -3,66 +3,50 @@
 #include <pybind11/stl.h>
 
 #include <memory>
-#include <queue>
-#include <shared_mutex>
+#include <optional>
 #include <string>
-#include <unordered_map>
+#include <vector>
 
 #include "taint_tracking/taint_range.h"
-#include "context/request_context.h"
 
 namespace py = pybind11;
 
 class ApplicationContext {
   private:
-    static constexpr size_t MAX_SIZE = 4000;
-    std::unordered_map<std::string, TaintRangeMapTypePtr> context_maps;
-    std::queue<std::string> context_order;
-    mutable std::shared_mutex context_mutex; // reader-optimized
-
-    static std::string to_string_or_empty(const py::object &obj) {
-        try {
-            if (obj.is_none()) {
-                return std::string();
-            }
-            py::str s = py::str(obj);
-            return std::string(py::cast<std::string>(s));
-        } catch (...) {
-            return std::string();
-        }
-    }
-
-    void enforce_max_size();
+    // Fixed capacity array of context maps
+    std::vector<TaintRangeMapTypePtr> contexts_array;
+    // Active context index if any
+    std::optional<size_t> context_id;
+    // Parse and clamp capacity from environment
+    static size_t compute_capacity();
 
   public:
-    ApplicationContext() = default;
+    ApplicationContext();
 
-    // Retrieve current Python ContextVar IAST_CONTEXT as a string identifier (minimal allocs)
-    std::string get_context_id() const;
-
-    // Create and register a context map for current context id
+    // Create (or return) a context map for the current request. Returns nullptr if capacity saturated.
     TaintRangeMapTypePtr create_context_map();
 
-    // Get context map for provided context id (preferred fast path)
-    TaintRangeMapTypePtr get_context_map(const std::string &ctx_id);
+    // Get current context map (fast path). Returns nullptr if no active context.
+    TaintRangeMapTypePtr get_contexts_array();
 
-    // Convenience: fetch current id and delegate to parameterized version
-    TaintRangeMapTypePtr get_context_map();
-
-    // Clear a specific map (if it's tracked)
+    // Clear a specific map if present; leaves slot free.
     void clear_tainting_map(const TaintRangeMapTypePtr &tx_map);
 
-    // Clear all maps
+    // Clear all maps and free all slots.
     void clear_tainting_maps();
 
-    // Ensure a context exists; create if missing. Returns the context id.
-    std::string create_context();
-
-    // Reset logic per specification
+    // Reset current context: free the active slot and unset context_id.
     void reset_context();
 
+    // Whether a request context is currently active.
+    bool is_request_enabled() const { return context_id.has_value(); }
+
+
+    std::optional<size_t> get_context_id() const { return context_id; }
+
     // Introspection helpers
-    size_t context_maps_size() const { return context_maps.size(); }
+    size_t capacity() const { return contexts_array.size(); }
+    size_t contexts_in_use() const;
 };
 
 extern std::unique_ptr<ApplicationContext> application_context;

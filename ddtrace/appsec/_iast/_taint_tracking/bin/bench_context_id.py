@@ -8,7 +8,6 @@ from ddtrace.appsec._iast._iast_request_context_base import IAST_CONTEXT
 from ddtrace.internal import core
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
-from ddtrace.appsec._iast._taint_tracking._context import get_context_id
 
 
 

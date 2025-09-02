@@ -19,7 +19,6 @@
 #include "constants.h"
 #include "initializer/_initializer.h"
 #include "context/_application_context.h"
-#include "context/request_context.h"
 #include "taint_tracking/taint_tracking.h"
 #include "tainted_ops/tainted_ops.h"
 #include "utils/generic_utils.h"
@@ -56,6 +55,7 @@ static struct PyModuleDef aspects = { PyModuleDef_HEAD_INIT,
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
     { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
+    { "api_taint_pyobject", ((PyCFunction)api_taint_pyobject), METH_FASTCALL, "api_taint_pyobject" },
     { nullptr, nullptr, 0, nullptr }
 };
 

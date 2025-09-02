@@ -7,6 +7,8 @@ Usage:
 
 Make sure the native module is built first.
 """
+from openai.types.chat import ChatCompletion
+
 import time
 from statistics import mean
 
@@ -49,15 +51,12 @@ def main():
     res["init.reset_context"] = bench(init.reset_context)
 
     # ApplicationContext
-    # Create a context once and reuse the returned context_id for lookups
-    ctx.create_context()
-    for i in range(1000):
-        context_id = get_context_id()
-        ctx.get_context_map_bench(context_id)
-    ctx.reset_context()
-
+    # Create a context once and reuse for lookups
+    print(f"ctx.create_context_map(): {ctx.create_context_map()}")
     res["ctx.create_context_map"] = bench(ctx.create_context_map_bench)
-    res["ctx.get_context_map*x1000"] = bench_loop(lambda: ctx.get_context_map_bench(context_id))
+    print(f"ctx.get_context_id(): {ctx.get_context_id()}")
+    print(f"ctx.get_context_map_bench(): {ctx.get_context_map_bench()}")
+    res["ctx.get_context_map*x1000"] = bench_loop(ctx.get_context_map_bench)
     res["ctx.reset_context"] = bench(ctx.reset_context)
 
     width = max(len(k) for k in res) + 2

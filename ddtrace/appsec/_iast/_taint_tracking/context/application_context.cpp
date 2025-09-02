@@ -1,151 +1,132 @@
 #include "application_context.h"
-
-#include <sstream>
+#include <cstdint>
+#include <cstdlib>
 
 using namespace std;
 
-std::string ApplicationContext::get_context_id() const {
-    const char* ptr = nullptr;
-    Py_ssize_t len = 0;
-    if (get_current_context_id_utf8(&ptr, &len) && ptr && len > 0) {
-        return std::string(ptr, static_cast<size_t>(len));
-    }
-    return std::string();
+namespace {
+static constexpr size_t DEFAULT_CAPACITY = 128;       // safe default per guidance
+static constexpr size_t MIN_CAPACITY = 1;
+static constexpr size_t MAX_CAPACITY = 65536;         // reasonable upper bound
 }
+
+size_t ApplicationContext::compute_capacity() {
+    const char* env = std::getenv("DD_IAST_MAX_CONCURRENT_REQUESTS");
+    if (!env || *env == '\0') {
+        return DEFAULT_CAPACITY;
+    }
+    try {
+        size_t v = static_cast<size_t>(std::stoull(env));
+        if (v < MIN_CAPACITY) return MIN_CAPACITY;
+        if (v > MAX_CAPACITY) return MAX_CAPACITY;
+        return v;
+    } catch (...) {
+        return DEFAULT_CAPACITY;
+    }
+}
+
+ApplicationContext::ApplicationContext()
+    : contexts_array(compute_capacity(), nullptr), context_id(std::nullopt) {}
 
 TaintRangeMapTypePtr ApplicationContext::create_context_map() {
-    const char* ptr = nullptr;
-    Py_ssize_t len = 0;
-    auto map_ptr = make_shared<TaintRangeMapType>();
-    if (!get_current_context_id_utf8(&ptr, &len) || !ptr || len <= 0) {
-        // Not tracked when no valid context id
-        return map_ptr;
+    // If there is already an active context, return it (ensure non-null)
+    if (context_id.has_value()) {
+        auto& slot = contexts_array[*context_id];
+        if (!slot) {
+            slot = make_shared<TaintRangeMapType>();
+        }
+        return slot;
     }
-    const std::string ctx_id(ptr, static_cast<size_t>(len));
-
-    std::unique_lock<std::shared_mutex> lock(context_mutex);
-    if (context_maps.find(ctx_id) == context_maps.end()) {
-        context_order.push(ctx_id);
+    // Find first free slot
+    for (size_t i = 0; i < contexts_array.size(); ++i) {
+        if (contexts_array[i] == nullptr) {
+            auto map_ptr = make_shared<TaintRangeMapType>();
+            contexts_array[i] = map_ptr;
+            context_id = i;
+            return map_ptr;
+        }
     }
-    context_maps[ctx_id] = map_ptr;
-
-    enforce_max_size();
-    return map_ptr;
-}
-
-TaintRangeMapTypePtr ApplicationContext::get_context_map() {
-    const char* ptr = nullptr;
-    Py_ssize_t len = 0;
-    if (!get_current_context_id_utf8(&ptr, &len) || !ptr || len <= 0) {
-        return nullptr;
-    }
-    return get_context_map(std::string(ptr, static_cast<size_t>(len)));
-}
-
-TaintRangeMapTypePtr ApplicationContext::get_context_map(const std::string &ctx_id) {
-    if (ctx_id.empty()) {
-        return nullptr;
-    }
-    std::shared_lock<std::shared_mutex> rlock(context_mutex);
-    auto it = context_maps.find(ctx_id);
-    if (it != context_maps.end()) {
-        return it->second;
-    }
+    // Saturated
     return nullptr;
 }
 
-void ApplicationContext::clear_tainting_map(const TaintRangeMapTypePtr &tx_map) {
-    if (!tx_map) {
-        return;
+TaintRangeMapTypePtr ApplicationContext::get_contexts_array() {
+    if (!context_id.has_value()) {
+        return nullptr;
     }
-    std::unique_lock<std::shared_mutex> lock(context_mutex);
-    for (auto it = context_maps.begin(); it != context_maps.end(); ++it) {
-        if (it->second == tx_map) {
-            if (it->second) {
-                it->second->clear();
+    return contexts_array[*context_id];
+}
+
+void ApplicationContext::clear_tainting_map(const TaintRangeMapTypePtr &tx_map) {
+    if (!tx_map) return;
+    for (size_t i = 0; i < contexts_array.size(); ++i) {
+        if (contexts_array[i] == tx_map) {
+            if (contexts_array[i]) {
+                contexts_array[i]->clear();
             }
-            context_maps.erase(it);
+            contexts_array[i] = nullptr;
+            if (context_id.has_value() && *context_id == i) {
+                context_id.reset();
+            }
             break;
         }
     }
 }
 
 void ApplicationContext::clear_tainting_maps() {
-    std::unique_lock<std::shared_mutex> lock(context_mutex);
-    for (auto &kv : context_maps) {
-        if (kv.second) {
-            kv.second->clear();
+    for (auto &slot : contexts_array) {
+        if (slot) {
+            slot->clear();
+            slot = nullptr;
         }
     }
-    context_maps.clear();
-    while (!context_order.empty()) context_order.pop();
-}
-
-std::string ApplicationContext::create_context() {
-    const char* ptr = nullptr;
-    Py_ssize_t len = 0;
-    if (!get_current_context_id_utf8(&ptr, &len) || !ptr || len <= 0) {
-        return std::string();
-    }
-    const std::string ctx_id(ptr, static_cast<size_t>(len));
-    {
-        std::unique_lock<std::shared_mutex> lock(context_mutex);
-        if (context_maps.find(ctx_id) == context_maps.end()) {
-            context_order.push(ctx_id);
-            context_maps[ctx_id] = make_shared<TaintRangeMapType>();
-            enforce_max_size();
-        }
-    }
-    return ctx_id;
+    context_id.reset();
 }
 
 void ApplicationContext::reset_context() {
-    const char* ptr = nullptr;
-    Py_ssize_t len = 0;
-    if (!get_current_context_id_utf8(&ptr, &len) || !ptr || len <= 0) {
+    if (!context_id.has_value()) {
         return;
     }
-    const std::string ctx_id(ptr, static_cast<size_t>(len));
-
-    std::unique_lock<std::shared_mutex> lock(context_mutex);
-    context_maps.erase(ctx_id);
-    enforce_max_size();
+    auto idx = *context_id;
+    if (idx < contexts_array.size()) {
+        contexts_array[idx] = nullptr;
+    }
+    context_id.reset();
 }
 
-void ApplicationContext::enforce_max_size() {
-    while (context_maps.size() > MAX_SIZE && !context_order.empty()) {
-        const auto &oldest = context_order.front();
-        context_maps.erase(oldest);
-        context_order.pop();
+size_t ApplicationContext::contexts_in_use() const {
+    size_t n = 0;
+    for (const auto &slot : contexts_array) {
+        if (slot) ++n;
     }
+    return n;
 }
 
 void pyexport_application_context(py::module &m) {
-    // Keep get_context_id available (returns current id as string)
-    m.def("get_context_id", [] { return application_context->get_context_id(); });
-    // Allow Python to set the native ContextVar for benchmarking convenience
-    m.def("set_context_id", [](const std::string& s) {
-        py::gil_scoped_acquire gil;
-        ensure_iast_ctxvar_created();
-        if (!g_iast_ctxvar) return;
-        PyObject* py_s = PyUnicode_FromStringAndSize(s.data(), static_cast<Py_ssize_t>(s.size()));
-        if (!py_s) {
-            PyErr_Clear();
-            return;
-        }
-        PyObject* token = PyContextVar_Set(g_iast_ctxvar, py_s);
-        Py_DECREF(py_s);
-        Py_XDECREF(token);
-    });
     m.def("clear_tainting_maps", [] { application_context->clear_tainting_maps(); });
-    // Returns context id
-    m.def("create_context", [] { return application_context->create_context(); });
+    m.def("create_context_map", [] { return application_context->create_context_map() != nullptr; });
+    m.def("get_contexts_array", [] { return application_context->get_contexts_array() != nullptr; });
     m.def("reset_context", [] { application_context->reset_context(); });
-    // Expose only parameterized get_context_map to Python (for benchmarking explicit id)
-    m.def("get_context_map", [](const std::string &ctx_id) { return application_context->get_context_map(ctx_id) != nullptr; });
-    // Benchmark helpers (no type exposure required)
+    m.def("is_request_enabled", [] { return application_context->is_request_enabled(); });
+    m.def("capacity", [] { return application_context->capacity(); });
+    m.def("contexts_in_use", [] { return application_context->contexts_in_use(); });
+    // Return current context id (or None)
+    m.def("get_context_id", []() -> py::object {
+        auto cid = application_context->get_context_id();
+        if (cid.has_value()) {
+            return py::int_(*cid);
+        }
+        return py::none();
+    });
+    // Return the raw pointer value of the current context map slot (0 if none)
+    m.def("get_context_slot_addr", []() -> unsigned long long {
+        auto map_ptr = application_context->get_contexts_array();
+        return map_ptr ? static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(map_ptr.get())) : 0ULL;
+    });
+
+    // Benchmark helpers
     m.def("create_context_map_bench", [] { (void)application_context->create_context_map(); });
-    m.def("get_context_map_bench", [](const std::string &ctx_id) { (void)application_context->get_context_map(ctx_id); });
+    m.def("get_context_map_bench", [] { (void) application_context->get_contexts_array(); });
 }
 
 std::unique_ptr<ApplicationContext> application_context;

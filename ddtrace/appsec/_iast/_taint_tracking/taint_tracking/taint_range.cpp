@@ -1,5 +1,6 @@
 #include "taint_range.h"
 #include "initializer/initializer.h"
+#include "context/application_context.h"
 #include "utils/string_utils.h"
 
 namespace py = pybind11;
@@ -165,6 +166,72 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, const Py_ssize
 
     return pyobject_n;
 }
+
+/**
+ * api_taint_pyobject.
+ *
+ * The equivalent Python script of this function is:
+ *  ```
+ *  api_taint_pyobject
+ *  pyobject_newid = new_pyobject_id(pyobject)
+ *  source = Source(source_name, source_value, source_origin)
+ *  pyobject_range = TaintRange(0, len(pyobject), source)
+ *  set_ranges(pyobject_newid, [pyobject_range])
+ *  ```
+ *
+ * @param self The Python extension module.
+ * @param args An array of Python objects containing the candidate text and text aspect.
+ *   @param args[0] PyObject, string to set the ranges
+ *   @param args[1] long. Length of the string
+ *   @param args[2] string. source name
+ *   @param args[3] string. source value
+ *   @param args[4] int. origin type
+ * @param nargs The number of arguments in the 'args' array.
+ */
+PyObject*
+api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
+{
+    bool result = false;
+    const char* result_error_msg = MSG_ERROR_N_PARAMS;
+    PyObject* pyobject_n = nullptr;
+
+    if (nargs == 5) {
+        PyObject* tainted_object = args[0];
+        const auto tx_map = application_context->get_contexts_array();
+        if (not tx_map) {
+            py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
+            return nullptr;
+        }
+
+        pyobject_n = new_pyobject_id(tainted_object);
+        PyObject* len_pyobject_py = args[1];
+
+        const long len_pyobject = PyLong_AsLong(len_pyobject_py);
+        if (const string source_name = PyObjectToString(args[2]); not source_name.empty()) {
+            if (const string source_value = PyObjectToString(args[3]); not source_value.empty()) {
+                const auto source_origin = static_cast<OriginType>(PyLong_AsLong(args[4]));
+                const auto source = Source(source_name, source_value, source_origin);
+                const auto range = initializer->allocate_taint_range(0, len_pyobject, source, {});
+                const auto ranges = vector{ range };
+                result = set_ranges(pyobject_n, ranges, tx_map);
+                if (not result) {
+                    result_error_msg = MSG_ERROR_SET_RANGES;
+                }
+            } else {
+                result_error_msg = "iast::propagation::native::Invalid or empty source_value";
+            }
+        } else {
+            result_error_msg = "iast::propagation::native::Invalid or empty source_name";
+        }
+    }
+    if (not result) {
+        py::set_error(PyExc_ValueError, result_error_msg);
+        return nullptr;
+    }
+
+    return pyobject_n;
+}
+
 
 std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
