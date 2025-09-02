@@ -271,6 +271,7 @@ import ddtrace.settings.exception_replay
     env["DD_TAGS"] = "team:apm,component:web"
     env["DD_INSTRUMENTATION_CONFIG_ID"] = "abcedf123"
     env["DD_LOGS_OTEL_ENABLED"] = "True"
+    env["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://localhost:4317"
 
     file = tmpdir.join("moon_ears.json")
     file.write('[{"service":"xy?","name":"a*c"}]')
@@ -535,13 +536,18 @@ import ddtrace.settings.exception_replay
         {"name": "DD_VERSION", "origin": "default", "value": None},
         {
             "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
-            "origin": "default",
+            "origin": "env_var",
             "value": "http://localhost:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_HEADERS",
             "origin": "default",
             "value": "",
+        },
+        {
+            "name": "OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+            "origin": "env_var",
+            "value": "http://localhost:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_LOGS_HEADERS",

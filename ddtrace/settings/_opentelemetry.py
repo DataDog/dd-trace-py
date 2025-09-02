@@ -7,28 +7,27 @@ from ddtrace.settings._core import DDConfig
 
 
 def _derive_endpoint(config: "ExporterConfig"):
-    endpoint = get_config("OTEL_EXPORTER_OTLP_ENDPOINT", config.DEFAULT_ENDPOINT)
-    if endpoint != config.DEFAULT_ENDPOINT:
-        return endpoint
-    elif config.PROTOCOL.lower() in ("http/json", "http/protobuf"):
-        return f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
-    return f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
+    if config.PROTOCOL.lower() in ("http/json", "http/protobuf"):
+        default_endpoint = (
+            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
+        )
+    else:
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
+    return get_config("OTEL_EXPORTER_OTLP_ENDPOINT", default_endpoint)
 
 
 def _derive_logs_endpoint(config: "ExporterConfig"):
-    endpoint = get_config("OTEL_EXPORTER_OTLP_ENDPOINT", config.ENDPOINT)
-    if endpoint != config.ENDPOINT:
-        return endpoint
-    elif config.LOGS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
-        return f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
-    return f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
+    if config.LOGS_PROTOCOL.lower() in ("http/json", "http/protobuf"):
+        default_endpoint = (
+            f"http://{get_agent_hostname()}:{ExporterConfig.HTTP_PORT}{ExporterConfig.HTTP_LOGS_ENDPOINT}"
+        )
+    else:
+        default_endpoint = f"http://{get_agent_hostname()}:{ExporterConfig.GRPC_PORT}"
+    return get_config(["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT"], default_endpoint)
 
 
 def _derive_logs_protocol(config: "ExporterConfig"):
-    logs_protocol = get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "grpc")
-    if logs_protocol != "grpc":
-        return logs_protocol
-    return config.PROTOCOL
+    return get_config("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", config.PROTOCOL)
 
 
 def _derive_logs_headers(config: "ExporterConfig"):
@@ -49,7 +48,6 @@ class ExporterConfig(DDConfig):
     GRPC_PORT: int = 4317
     HTTP_PORT: int = 4318
     HTTP_LOGS_ENDPOINT: str = "/v1/logs"
-    DEFAULT_ENDPOINT: str = "http://localhost:4317"
     DEFAULT_HEADERS: str = ""
     DEFAULT_TIMEOUT: int = 10000
 
