@@ -93,6 +93,7 @@ from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
+from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
 from ddtrace.llmobs._utils import _get_span_name
 from ddtrace.llmobs._utils import _is_evaluation_span
@@ -108,6 +109,7 @@ from ddtrace.llmobs._writer import should_use_agentless
 from ddtrace.llmobs.utils import Documents
 from ddtrace.llmobs.utils import ExportedLLMObsSpan
 from ddtrace.llmobs.utils import Messages
+from ddtrace.llmobs.utils import extract_tool_definitions
 from ddtrace.propagation.http import HTTPPropagator
 
 
@@ -313,6 +315,7 @@ class LLMObs(Service):
             meta["input"]["documents"] = span._get_ctx_item(INPUT_DOCUMENTS)
         if span_kind == "retrieval" and span._get_ctx_item(OUTPUT_DOCUMENTS) is not None:
             meta["output"]["documents"] = span._get_ctx_item(OUTPUT_DOCUMENTS)
+
         if span._get_ctx_item(INPUT_PROMPT) is not None:
             prompt_json_str = span._get_ctx_item(INPUT_PROMPT)
             if span_kind != "llm":
@@ -321,6 +324,13 @@ class LLMObs(Service):
                 )
             else:
                 meta["input"]["prompt"] = prompt_json_str
+        elif span_kind == "llm":
+            parent_span = _get_nearest_llmobs_ancestor(span)
+            if parent_span is not None:
+                parent_prompt = parent_span._get_ctx_item(INPUT_PROMPT)
+                if parent_prompt is not None:
+                    meta["input"]["prompt"] = parent_prompt
+
         if span._get_ctx_item(TOOL_DEFINITIONS) is not None:
             meta["tool_definitions"] = span._get_ctx_item(TOOL_DEFINITIONS)
         if span.error:
@@ -409,7 +419,9 @@ class LLMObs(Service):
 
     @staticmethod
     def _llmobs_tags(span: Span, ml_app: str, session_id: Optional[str] = None) -> List[str]:
+        dd_tags = config.tags
         tags = {
+            **dd_tags,
             "version": config.version or "",
             "env": config.env or "",
             "service": span.service or "",
@@ -547,6 +559,11 @@ class LLMObs(Service):
 
         # FIXME: workaround to prevent noisy logs when using the experiments feature
         if config._dd_api_key and cls._app_key and os.environ.get("DD_TRACE_ENABLED", "").lower() not in ["true", "1"]:
+            log.debug(
+                "Tracing has been disabled: app key detected and DD_TRACE_ENABLED is not set to 'true' "
+                "(current value: DD_TRACE_ENABLED='%s')",
+                os.environ.get("DD_TRACE_ENABLED", ""),
+            )
             ddtrace.tracer.enabled = False
 
         error = None
@@ -1283,6 +1300,7 @@ class LLMObs(Service):
         metadata: Optional[Dict[str, Any]] = None,
         metrics: Optional[Dict[str, Any]] = None,
         tags: Optional[Dict[str, Any]] = None,
+        tool_definitions: Optional[List[Dict[str, Any]]] = None,
         _name: Optional[str] = None,
     ) -> None:
         """
@@ -1301,14 +1319,20 @@ class LLMObs(Service):
                             `rag_query_variables` - a list of variable key names that contains query
                                                         information for an LLM call
         :param input_data: A single input string, dictionary, or a list of dictionaries based on the span kind:
-                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
-                                        or a list of dictionaries with the same signature.
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
+                                        "tool_calls": ..., "tool_results": ...}, where "tool_calls" are an optional
+                                        list of tool call dictionaries with required keys: "name", "arguments", and
+                                        optional keys: "tool_id", "type", and "tool_results" are an optional list of
+                                        tool result dictionaries with required key: "result", and optional keys:
+                                        "name", "tool_id", "type" for function calling scenarios.
                            - embedding spans: accepts a string, list of strings, or a dictionary of form
                                               {"text": "...", ...} or a list of dictionaries with the same signature.
                            - other: any JSON serializable type.
         :param output_data: A single output string, dictionary, or a list of dictionaries based on the span kind:
-                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "..."},
-                                        or a list of dictionaries with the same signature.
+                           - llm spans: accepts a string, or a dictionary of form {"content": "...", "role": "...",
+                                        "tool_calls": ...}, where "tool_calls" are an optional list of tool call
+                                        dictionaries with required keys: "name", "arguments", and optional keys:
+                                        "tool_id", "type" for function calling scenarios.
                            - retrieval spans: a dictionary containing any of the key value pairs
                                               {"name": str, "id": str, "text": str, "score": float},
                                               or a list of dictionaries with the same signature.
@@ -1317,6 +1341,10 @@ class LLMObs(Service):
                          described by the LLMObs span.
         :param tags: Dictionary of JSON serializable key-value tag pairs to set or update on the LLMObs span
                      regarding the span's context.
+        :param tool_definitions: List of tool definition dictionaries for tool calling scenarios.
+                            - This argument is only applicable to LLM spans.
+                            - Each tool definition is a dictionary containing a required "name" (string),
+                                   and optional "description" (string) and "schema" (JSON serializable dictionary) keys.
         :param metrics: Dictionary of JSON serializable key-value metric pairs,
                         such as `{prompt,completion,total}_tokens`.
         """
@@ -1357,6 +1385,10 @@ class LLMObs(Service):
                     if session_id:
                         span._set_ctx_item(SESSION_ID, str(session_id))
                     cls._set_dict_attribute(span, TAGS, tags)
+            if tool_definitions is not None:
+                validated_tool_definitions = extract_tool_definitions(tool_definitions)
+                if validated_tool_definitions:
+                    span._set_ctx_item(TOOL_DEFINITIONS, validated_tool_definitions)
             span_kind = span._get_ctx_item(SPAN_KIND)
             if _name is not None:
                 span.name = _name

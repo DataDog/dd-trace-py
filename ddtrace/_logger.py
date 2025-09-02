@@ -80,6 +80,7 @@ def _add_file_handler(
     log_level: int,
     handler_name: Optional[str] = None,
     max_file_bytes: int = DEFAULT_FILE_SIZE_BYTES,
+    formatter: Optional[logging.Formatter] = None,
 ):
     ddtrace_file_handler = None
     if log_path is not None:
@@ -90,8 +91,11 @@ def _add_file_handler(
         ddtrace_file_handler = RotatingFileHandler(
             filename=log_path, mode="a", maxBytes=max_file_bytes, backupCount=num_backup
         )
-        log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
-        log_formatter = logging.Formatter(log_format)
+        if formatter is None:
+            log_format = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
+            log_formatter = logging.Formatter(log_format)
+        else:
+            log_formatter = formatter
         ddtrace_file_handler.setLevel(log_level)
         ddtrace_file_handler.setFormatter(log_formatter)
         if handler_name:

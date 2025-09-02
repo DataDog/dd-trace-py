@@ -343,7 +343,7 @@ integrations:
   tested_versions_by_dependency:
     fastapi:
       min: 0.64.0
-      max: 0.115.12
+      max: 0.116.1
 
 - integration_name: flask
   is_external_package: true
@@ -507,13 +507,13 @@ integrations:
   tested_versions_by_dependency:
     langgraph:
       min: 0.2.23
-      max: 0.6.3
+      max: 0.6.5
     langgraph-checkpoint:
       min: 1.0.12
       max: 2.1.1
     langgraph-prebuilt:
       min: 0.1.8
-      max: 0.6.3
+      max: 0.6.4
 
 - integration_name: litellm
   is_external_package: true

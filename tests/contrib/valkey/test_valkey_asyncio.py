@@ -8,9 +8,9 @@ import valkey.asyncio
 from wrapt import ObjectProxy
 
 from ddtrace import tracer
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.valkey.patch import patch
 from ddtrace.contrib.internal.valkey.patch import unpatch
-from ddtrace.trace import Pin
 from tests.utils import override_config
 
 from ..config import VALKEY_CONFIG

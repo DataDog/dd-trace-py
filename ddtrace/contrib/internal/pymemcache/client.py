@@ -15,6 +15,7 @@ import wrapt
 
 # 3p
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 
 # project
 from ddtrace.constants import _SPAN_MEASURED_KEY
@@ -28,7 +29,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

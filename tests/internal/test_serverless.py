@@ -43,6 +43,7 @@ standard_blocklist = [
     # These modules must not be imported because their source files are
     # specifically removed from the serverless python layer.
     # See https://github.com/DataDog/datadog-lambda-python/blob/main/Dockerfile
+    "ddtrace.appsec._iast._ast.iastpatch",
     "ddtrace.appsec._iast._taint_tracking._native",
     "ddtrace.appsec._iast._stacktrace",
     "ddtrace.internal.datadog.profiling.libdd_wrapper",

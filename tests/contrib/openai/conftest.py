@@ -7,10 +7,10 @@ from typing import Optional  # noqa:F401
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai.patch import patch
 from ddtrace.contrib.internal.openai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from ddtrace.trace import TraceFilter
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter

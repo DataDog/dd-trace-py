@@ -1,5 +1,6 @@
 import atexit
 import json
+import os
 from typing import Any
 from typing import Dict
 from typing import List
@@ -146,10 +147,10 @@ class BaseLLMObsWriter(PeriodicService):
         self._api_key: str = _api_key or config._dd_api_key
         self._site: str = _site or config._dd_site
         self._app_key: str = _app_key
-        self._override_url: str = _override_url
+        self._override_url: str = _override_url or os.environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
 
         self._agentless: bool = is_agentless
-        self._intake: str = _override_url or (
+        self._intake: str = self._override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"

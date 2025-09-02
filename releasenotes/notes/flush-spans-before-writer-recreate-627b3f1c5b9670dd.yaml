@@ -1,0 +1,3 @@
+fixes:
+  - |
+    tracing: Resolves an issue where calling ``ddtrace.trace.tracer.configure(...)`` resets the trace writer buffer, causing spans to be dropped.

@@ -1,11 +1,11 @@
 import asyncio
 from typing import Dict
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils import set_argument_value
 from ddtrace.internal.wrapping import unwrap
 from ddtrace.internal.wrapping import wrap
-from ddtrace.trace import Pin
 
 
 def get_version():

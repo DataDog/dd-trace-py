@@ -102,7 +102,6 @@ The names of these events follow the pattern ``context.[started|ended].<context_
 """
 
 import logging
-import sys
 import types
 import typing
 from typing import Any  # noqa:F401
@@ -110,9 +109,6 @@ from typing import Dict  # noqa:F401
 from typing import List  # noqa:F401
 from typing import Optional  # noqa:F401
 
-from ddtrace.vendor.debtcollector import deprecate
-
-from ..utils.deprecations import DDTraceDeprecationWarning
 from . import event_hub  # noqa:F401
 from .event_hub import EventResultDict  # noqa:F401
 from .event_hub import dispatch
@@ -136,41 +132,14 @@ log = logging.getLogger(__name__)
 
 
 ROOT_CONTEXT_ID = "__root"
-SPAN_DEPRECATION_MESSAGE = (
-    "The 'span' keyword argument on ExecutionContext methods is deprecated and will be removed in a future version."
-)
-SPAN_DEPRECATION_SUGGESTION = (
-    "Please store contextual data on the ExecutionContext object using other kwargs and/or set_item()"
-)
-DEPRECATION_MEMO = set()
-
-
-def _deprecate_span_kwarg(span):
-    if (
-        span is not None
-        and id(_CURRENT_CONTEXT) not in DEPRECATION_MEMO
-        # https://github.com/tiangolo/fastapi/pull/10876
-        and "fastapi" not in sys.modules
-        and "fastapi.applications" not in sys.modules
-    ):
-        DEPRECATION_MEMO.add(id(_CURRENT_CONTEXT))
-        deprecate(
-            SPAN_DEPRECATION_MESSAGE,
-            message=SPAN_DEPRECATION_SUGGESTION,
-            category=DDTraceDeprecationWarning,
-        )
 
 
 class ExecutionContext(object):
-    __slots__ = ("identifier", "_data", "_span", "_suppress_exceptions", "_parent", "_inner_span", "_token")
+    __slots__ = ("identifier", "_data", "_suppress_exceptions", "_parent", "_inner_span", "_token")
 
-    def __init__(
-        self, identifier: str, parent: Optional["ExecutionContext"] = None, span: Optional["Span"] = None, **kwargs
-    ) -> None:
-        _deprecate_span_kwarg(span)
+    def __init__(self, identifier: str, parent: Optional["ExecutionContext"] = None, **kwargs) -> None:
         self.identifier: str = identifier
         self._data: Dict[str, Any] = {}
-        self._span: Optional["Span"] = span
         self._suppress_exceptions: List[type] = []
         self._data.update(kwargs)
         self._parent: Optional["ExecutionContext"] = parent
@@ -178,7 +147,7 @@ class ExecutionContext(object):
         self._token: Optional[contextvars.Token["ExecutionContext"]] = None
 
     def __enter__(self) -> "ExecutionContext":
-        if self._span is None and "_CURRENT_CONTEXT" in globals():
+        if "_CURRENT_CONTEXT" in globals():
             self._token = _CURRENT_CONTEXT.set(self)
         dispatch("context.started.%s" % self.identifier, (self,))
         return self
@@ -203,30 +172,25 @@ class ExecutionContext(object):
         traceback: Optional[types.TracebackType],
     ) -> bool:
         dispatch("context.ended.%s" % self.identifier, (self, (exc_type, exc_value, traceback)))
-        if self._span is None:
-            try:
-                if self._token is not None:
-                    _CURRENT_CONTEXT.reset(self._token)
-            except ValueError:
-                log.debug(
-                    "Encountered ValueError during core contextvar reset() call. "
-                    "This can happen when a span holding an executioncontext is "
-                    "finished in a Context other than the one that started it."
-                )
-            except LookupError:
-                log.debug(
-                    "Encountered LookupError during core contextvar reset() call. I don't know why this is possible."
-                )
-        if id(self) in DEPRECATION_MEMO:
-            DEPRECATION_MEMO.remove(id(self))
-
+        try:
+            if self._token is not None:
+                _CURRENT_CONTEXT.reset(self._token)
+        except ValueError:
+            log.debug(
+                "Encountered ValueError during core contextvar reset() call. "
+                "This can happen when a span holding an executioncontext is "
+                "finished in a Context other than the one that started it."
+            )
+        except LookupError:
+            log.debug("Encountered LookupError during core contextvar reset() call. I don't know why this is possible.")
         return (
             True
             if exc_type is None
             else any(issubclass(exc_type, exc_type_) for exc_type_ in self._suppress_exceptions)
         )
 
-    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+    def find_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        """Traverse up the context tree to find the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
@@ -236,16 +200,23 @@ class ExecutionContext(object):
             current = current._parent
         return default
 
-    def get_local_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+    def get_item(self, data_key: str, default: Optional[Any] = None) -> Any:
+        """Get an item from the local context only, without traversing up the context tree."""
         return self._data.get(data_key, default)
 
     def __getitem__(self, key: str):
-        value = self.get_item(key)
+        """Get an item from the context, traversing up the context tree. Raises KeyError if not found."""
+        value = self.find_item(key)
         if value is None and key not in self._data:
             raise KeyError
         return value
 
+    def find_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+        """Find multiple items by their keys, traversing up the context tree for each key."""
+        return [self.find_item(key) for key in data_keys]
+
     def get_items(self, data_keys: List[str]) -> List[Optional[Any]]:
+        """Return multiple items by their keys, only in the local context."""
         return [self.get_item(key) for key in data_keys]
 
     def set_item(self, data_key: str, data_value: Optional[Any]) -> None:
@@ -261,6 +232,7 @@ class ExecutionContext(object):
             self.set_item(data_key, data_value)
 
     def discard_item(self, data_key: str) -> None:
+        """Traverse up the context tree to find and delete the first occurrence of `data_key`."""
         # NB mimic the behavior of `ddtrace.internal._context` by doing lazy inheritance
         current: Optional[ExecutionContext] = self
         while current is not None:
@@ -270,6 +242,7 @@ class ExecutionContext(object):
             current = current._parent
 
     def discard_local_item(self, data_key: str) -> None:
+        """Delete an item from the local context only, without traversing up the context tree."""
         self._data.pop(data_key, None)
 
     def root(self):
@@ -320,21 +293,23 @@ def add_suppress_exception(exc_type: type) -> None:
     _CURRENT_CONTEXT.get()._suppress_exceptions.append(exc_type)
 
 
-def get_item(data_key: str, span: Optional["Span"] = None) -> Any:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return span._local_root._get_ctx_item(data_key)
-    return _CURRENT_CONTEXT.get().get_item(data_key)
+def find_item(data_key: str, default: Optional[Any] = None) -> Any:
+    """Find an item by its key, traversing up the context tree."""
+    return _CURRENT_CONTEXT.get().find_item(data_key, default=default)
 
 
-def get_local_item(data_key: str, span: Optional["Span"] = None) -> Any:
-    return _CURRENT_CONTEXT.get().get_local_item(data_key)
+def get_item(data_key: str, default: Optional[Any] = None) -> Any:
+    """Get an item from the local context only, without traversing up the context tree."""
+    return _CURRENT_CONTEXT.get().get_item(data_key, default=default)
 
 
-def get_items(data_keys: List[str], span: Optional["Span"] = None) -> List[Optional[Any]]:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        return [span._local_root._get_ctx_item(key) for key in data_keys]
+def find_items(data_keys: List[str]) -> List[Optional[Any]]:
+    """Find multiple items by their keys, traversing up the context tree for each key."""
+    return _CURRENT_CONTEXT.get().find_items(data_keys)
+
+
+def get_items(data_keys: List[str]) -> List[Optional[Any]]:
+    """Return multiple items by their keys, only in the local context."""
     return _CURRENT_CONTEXT.get().get_items(data_keys)
 
 
@@ -343,27 +318,21 @@ def set_safe(data_key: str, data_value: Optional[Any]) -> None:
 
 
 # NB Don't call these set_* functions from `ddtrace.contrib`, only from product code!
-def set_item(data_key: str, data_value: Optional[Any], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_item(data_key, data_value)
-    else:
-        _CURRENT_CONTEXT.get().set_item(data_key, data_value)
+def set_item(data_key: str, data_value: Optional[Any]) -> None:
+    _CURRENT_CONTEXT.get().set_item(data_key, data_value)
 
 
-def set_items(keys_values: Dict[str, Optional[Any]], span: Optional["Span"] = None) -> None:
-    _deprecate_span_kwarg(span)
-    if span is not None and span._local_root is not None:
-        span._local_root._set_ctx_items(keys_values)
-    else:
-        _CURRENT_CONTEXT.get().set_items(keys_values)
+def set_items(keys_values: Dict[str, Optional[Any]]) -> None:
+    _CURRENT_CONTEXT.get().set_items(keys_values)
 
 
 def discard_item(data_key: str) -> None:
+    """Traverse up the context tree to find and delete the first occurrence of `data_key`."""
     _CURRENT_CONTEXT.get().discard_item(data_key)
 
 
 def discard_local_item(data_key: str) -> None:
+    """Delete an item from the local context only, without traversing up the context tree."""
     _CURRENT_CONTEXT.get().discard_local_item(data_key)
 
 

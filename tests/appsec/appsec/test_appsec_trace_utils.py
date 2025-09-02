@@ -40,7 +40,7 @@ class EventsSDKTestCase(TracerTestCase):
         self.tracer = tracer
 
     def test_track_user_login_event_success_without_metadata(self):
-        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as span:
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -52,21 +52,21 @@ class EventsSDKTestCase(TracerTestCase):
                 session_id="test_session_id",
             )
 
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX
 
-            assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
-            assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
-            assert not root_span.get_tag("%s.track" % failure_prefix)
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            assert entry_span.get_tag("appsec.events.users.login.success.track") == "true"
+            assert entry_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
+            assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
+            assert not entry_span.get_tag("%s.track" % failure_prefix)
+            assert entry_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
-            assert root_span.get_tag(user.ID) == "1234"
-            assert root_span.get_tag(user.NAME) == "John"
-            assert root_span.get_tag(user.EMAIL) == "test@test.com"
-            assert root_span.get_tag(user.SCOPE) == "test_scope"
-            assert root_span.get_tag(user.ROLE) == "boss"
-            assert root_span.get_tag(user.SESSION_ID) == "test_session_id"
+            assert entry_span.get_tag(user.ID) == "1234"
+            assert entry_span.get_tag(user.NAME) == "John"
+            assert entry_span.get_tag(user.EMAIL) == "test@test.com"
+            assert entry_span.get_tag(user.SCOPE) == "test_scope"
+            assert entry_span.get_tag(user.ROLE) == "boss"
+            assert entry_span.get_tag(user.SESSION_ID) == "test_session_id"
 
     def test_track_user_login_event_success_in_span_without_metadata(self):
         with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as parent_span:
@@ -104,7 +104,7 @@ class EventsSDKTestCase(TracerTestCase):
             user_span.finish()
 
     def test_track_user_login_event_success_auto_mode_safe(self):
-        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as span:
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -117,14 +117,14 @@ class EventsSDKTestCase(TracerTestCase):
                 login_events_mode=LOGIN_EVENTS_MODE.ANON,
             )
 
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
-            assert root_span.get_tag("%s.track" % success_prefix) == "true"
-            assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.ANON)
+            assert entry_span.get_tag("%s.track" % success_prefix) == "true"
+            assert not entry_span.get_tag("_dd.appsec.events.users.login.success.sdk")
+            assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.ANON)
 
     def test_track_user_login_event_success_auto_mode_extended(self):
-        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm):
+        with asm_context(tracer=self.tracer, span_name="test_success1", config=config_asm) as span:
             track_user_login_success_event(
                 self.tracer,
                 "1234",
@@ -137,30 +137,30 @@ class EventsSDKTestCase(TracerTestCase):
                 login_events_mode=LOGIN_EVENTS_MODE.IDENT,
             )
 
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
-            assert root_span.get_tag("%s.track" % success_prefix) == "true"
-            assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
+            assert entry_span.get_tag("%s.track" % success_prefix) == "true"
+            assert not entry_span.get_tag("_dd.appsec.events.users.login.success.sdk")
+            assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == str(LOGIN_EVENTS_MODE.IDENT)
 
     def test_track_user_login_event_success_with_metadata(self):
         with mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm):
+        ) as telemetry_mock, asm_context(tracer=self.tracer, span_name="test_success2", config=config_asm) as span:
             track_user_login_success_event(self.tracer, "1234", metadata={"foo": "bar"})
-            root_span = self.tracer.current_root_span()
-            assert root_span.get_tag("appsec.events.users.login.success.track") == "true"
-            assert root_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
-            assert root_span.get_tag("%s.success.foo" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC) == "bar"
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            entry_span = span._service_entry_span
+            assert entry_span.get_tag("appsec.events.users.login.success.track") == "true"
+            assert entry_span.get_tag("_dd.appsec.events.users.login.success.sdk") == "true"
+            assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE) == LOGIN_EVENTS_MODE.IDENT
+            assert entry_span.get_tag("%s.success.foo" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC) == "bar"
+            assert entry_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags
-            assert root_span.get_tag(user.ID) == "1234"
-            assert not root_span.get_tag(user.NAME)
-            assert not root_span.get_tag(user.EMAIL)
-            assert not root_span.get_tag(user.SCOPE)
-            assert not root_span.get_tag(user.ROLE)
-            assert not root_span.get_tag(user.SESSION_ID)
+            assert entry_span.get_tag(user.ID) == "1234"
+            assert not entry_span.get_tag(user.NAME)
+            assert not entry_span.get_tag(user.EMAIL)
+            assert not entry_span.get_tag(user.SCOPE)
+            assert not entry_span.get_tag(user.ROLE)
+            assert not entry_span.get_tag(user.SESSION_ID)
             metrics = get_telemetry_metrics(telemetry_mock)
             assert (
                 "count",
@@ -171,7 +171,7 @@ class EventsSDKTestCase(TracerTestCase):
             ) in metrics
 
     def test_track_user_login_event_failure_user_exists(self):
-        with asm_context(tracer=self.tracer, span_name="test_failure", config=config_asm):
+        with asm_context(tracer=self.tracer, span_name="test_failure", config=config_asm) as span:
             track_user_login_failure_event(
                 self.tracer,
                 "1234",
@@ -181,46 +181,46 @@ class EventsSDKTestCase(TracerTestCase):
                 name="John Test",
                 email="john@test.net",
             )
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
 
             success_prefix = "%s.success" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
 
-            assert root_span.get_tag("%s.track" % failure_prefix) == "true"
-            assert root_span.get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
-            assert root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
-            assert not root_span.get_tag("%s.track" % success_prefix)
-            assert not root_span.get_tag("_dd.appsec.events.users.login.success.sdk")
-            assert not root_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
-            assert root_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
-            assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
-            assert root_span.get_tag("%s.foo" % failure_prefix) == "bar"
-            assert root_span.get_tag("%s.%s" % (failure_prefix, "login")) == "johntest"
-            assert root_span.get_tag("%s.%s" % (failure_prefix, "username")) == "John Test"
-            assert root_span.get_tag("%s.%s" % (failure_prefix, "email")) == "john@test.net"
+            assert entry_span.get_tag("%s.track" % failure_prefix) == "true"
+            assert entry_span.get_tag("_dd.appsec.events.users.login.failure.sdk") == "true"
+            assert entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_FAILURE_MODE) == LOGIN_EVENTS_MODE.IDENT
+            assert not entry_span.get_tag("%s.track" % success_prefix)
+            assert not entry_span.get_tag("_dd.appsec.events.users.login.success.sdk")
+            assert not entry_span.get_tag(APPSEC.AUTO_LOGIN_EVENTS_SUCCESS_MODE)
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, user.ID)) == "1234"
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "true"
+            assert entry_span.get_tag("%s.foo" % failure_prefix) == "bar"
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, "login")) == "johntest"
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, "username")) == "John Test"
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, "email")) == "john@test.net"
 
-            assert root_span.context.sampling_priority == constants.USER_KEEP
+            assert entry_span.context.sampling_priority == constants.USER_KEEP
             # set_user tags: shouldn't have been called
-            assert not root_span.get_tag(user.ID)
-            assert not root_span.get_tag(user.NAME)
-            assert not root_span.get_tag(user.EMAIL)
-            assert not root_span.get_tag(user.SCOPE)
-            assert not root_span.get_tag(user.ROLE)
-            assert not root_span.get_tag(user.SESSION_ID)
+            assert not entry_span.get_tag(user.ID)
+            assert not entry_span.get_tag(user.NAME)
+            assert not entry_span.get_tag(user.EMAIL)
+            assert not entry_span.get_tag(user.SCOPE)
+            assert not entry_span.get_tag(user.ROLE)
+            assert not entry_span.get_tag(user.SESSION_ID)
 
     def test_track_user_login_event_failure_user_doesnt_exists(self):
         with mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_failure"):
+        ) as telemetry_mock, self.trace("test_failure") as span:
             track_user_login_failure_event(
                 self.tracer,
                 "john",
                 False,
                 metadata={"foo": "bar"},
             )
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
             failure_prefix = "%s.failure" % APPSEC.USER_LOGIN_EVENT_PREFIX_PUBLIC
-            assert root_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
+            assert entry_span.get_tag("%s.%s" % (failure_prefix, user.EXISTS)) == "false"
             metrics = get_telemetry_metrics(telemetry_mock)
             assert metrics == [
                 ("count", "appsec", "sdk.event", 1, (("event_type", "login_failure"), ("sdk_version", "v1")))
@@ -229,24 +229,24 @@ class EventsSDKTestCase(TracerTestCase):
     def test_track_user_signup_event_exists(self):
         with mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_signup_exists"):
+        ) as telemetry_mock, self.trace("test_signup_exists") as span:
             track_user_signup_event(self.tracer, "john", True)
-            root_span = self.tracer.current_root_span()
-            assert root_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
-            assert root_span.get_tag(user.ID) == "john"
+            entry_span = span._service_entry_span
+            assert entry_span.get_tag(APPSEC.USER_SIGNUP_EVENT) == "true"
+            assert entry_span.get_tag(user.ID) == "john"
             metrics = get_telemetry_metrics(telemetry_mock)
             assert metrics == [("count", "appsec", "sdk.event", 1, (("event_type", "signup"), ("sdk_version", "v1")))]
 
     def test_custom_event(self):
         with mock_patch.object(
             ddtrace.internal.telemetry.telemetry_writer, "_namespace", MagicMock()
-        ) as telemetry_mock, self.trace("test_custom"):
+        ) as telemetry_mock, self.trace("test_custom") as span:
             event = "some_event"
             track_custom_event(self.tracer, event, {"foo": "bar"})
-            root_span = self.tracer.current_root_span()
+            entry_span = span._service_entry_span
 
-            assert root_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
-            assert root_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
+            assert entry_span.get_tag("%s.%s.foo" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "bar"
+            assert entry_span.get_tag("%s.%s.track" % (APPSEC.CUSTOM_EVENT_PREFIX, event)) == "true"
             metrics = get_telemetry_metrics(telemetry_mock)
             assert ("count", "appsec", "sdk.event", 1, (("event_type", "custom"), ("sdk_version", "v1"))) in metrics
 

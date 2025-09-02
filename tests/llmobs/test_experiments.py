@@ -997,6 +997,15 @@ def test_experiment_run_task_error(llmobs, test_dataset_one_record):
     assert task_results[0]["error"]["type"] == "builtins.ValueError"
 
 
+def test_experiment_run_task_error_raises(llmobs, test_dataset_one_record):
+    exp = llmobs.experiment("test_experiment", faulty_task, test_dataset_one_record, [dummy_evaluator])
+    with pytest.raises(
+        RuntimeError,
+        match=re.compile("Error on record 0: This is a test error\n.*ValueError.*in faulty_task.*", flags=re.DOTALL),
+    ):
+        exp._run_task(1, raise_errors=True)
+
+
 def test_experiment_run_evaluators(llmobs, test_dataset_one_record):
     exp = llmobs.experiment("test_experiment", dummy_task, test_dataset_one_record, [dummy_evaluator])
     task_results = exp._run_task(1, raise_errors=False)

@@ -3,10 +3,10 @@ import os
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.anthropic.patch import patch
 from ddtrace.contrib.internal.anthropic.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from tests.contrib.anthropic.utils import get_request_vcr
 from tests.utils import DummyTracer
 from tests.utils import DummyWriter

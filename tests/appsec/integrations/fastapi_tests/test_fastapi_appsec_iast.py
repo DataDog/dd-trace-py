@@ -36,7 +36,6 @@ from tests.appsec.iast.iast_utils import IAST_VALID_LOG
 from tests.appsec.iast.iast_utils import get_line_and_hash
 from tests.appsec.iast.iast_utils import load_iast_report
 from tests.appsec.iast.taint_sinks.test_stacktrace_leak import _load_text_stacktrace
-from tests.utils import override_env
 from tests.utils import override_global_config
 
 
@@ -96,9 +95,7 @@ def check_native_code_exception_in_each_fastapi_test(request, caplog, telemetry_
         yield
     else:
         caplog.set_level(logging.DEBUG)
-        with override_env({"_DD_IAST_USE_ROOT_SPAN": "false"}), override_global_config(
-            dict(_iast_debug=True)
-        ), caplog.at_level(logging.DEBUG):
+        with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
             yield
 
         log_messages = [record.msg for record in caplog.get_records("call")]

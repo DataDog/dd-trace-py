@@ -4,10 +4,11 @@ import django
 from django.conf import settings
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.django.patch import patch
-from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerSpanContainer
+from tests.utils import override_config
 
 
 # We manually designate which settings we will be using in an environment variable
@@ -26,6 +27,19 @@ def pytest_configure():
     django.setup()
 
 
+@pytest.fixture(autouse=True)
+def clear_django_caches():
+    """Automatically clear cached functions to avoid test pollution"""
+    from ddtrace.contrib.internal.django import cache
+    from ddtrace.contrib.internal.django import database
+
+    cache.get_service_name.invalidate()
+    cache.func_cache_operation.invalidate()
+    database.get_conn_config.invalidate()
+    database.get_conn_service_name.invalidate()
+    database.get_traced_cursor_cls.invalidate()
+
+
 @pytest.fixture
 def tracer():
     tracer = DummyTracer()
@@ -35,7 +49,8 @@ def tracer():
     Pin._override(django, tracer=tracer)
 
     # Yield to our test
-    yield tracer
+    with override_config("django", dict(_tracer=tracer)):
+        yield tracer
     tracer.pop()
 
     # Reset the tracer pinned to Django and unpatch

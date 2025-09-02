@@ -14,6 +14,7 @@ from grpc.aio._typing import ResponseType
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin  # noqa:F401
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -26,7 +27,6 @@ from ddtrace.ext import SpanTypes
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
-from ddtrace.trace import Pin  # noqa:F401
 from ddtrace.trace import Span  # noqa:F401
 
 

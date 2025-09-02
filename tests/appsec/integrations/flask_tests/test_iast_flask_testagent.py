@@ -110,6 +110,43 @@ def test_iast_cmdi_secure(server):
 
 
 @pytest.mark.parametrize("server", (gunicorn_server, flask_server))
+def test_iast_sqli_complex(server):
+    """Test complex SQL injection detection with SQLAlchemy in a Flask application.
+
+    This test verifies that IAST can properly detect SQL injection in complex SQLAlchemy
+    queries, including those using CASE expressions, within a Flask application context.
+
+    The test was added to catch a specific issue where SQLAlchemy's internal objects
+    would raise a SystemError when their __repr__ was called during string formatting
+    operations in the IAST taint tracking system.
+
+    The error occurred because some SQLAlchemy objects (like those in CASE expressions)
+    have a __repr__ method that can raise exceptions in certain contexts. The IAST system
+    now handles these cases gracefully to prevent the error:
+
+        SystemError: <slot wrapper '__repr__' of 'object' objects> returned a result with an exception set
+
+    This test ensures that the fix remains effective in a real Flask application context.
+    """
+    token = "test_iast_sqli_complex"
+    _ = start_trace(token)
+    with server(iast_enabled="true", token=token, port=8050) as context:
+        _, flask_client, pid = context
+
+        response = flask_client.get("/iast-sqli-vulnerability-complex")
+
+        assert response.status_code == 200
+
+    response_tracer = _get_span(token)
+    for trace in response_tracer:
+        for span in trace:
+            iast_data = load_iast_report(span)
+            if iast_data:
+                pytest.fail(f"There is iast vulnerabilities: {iast_data}")
+    clear_session(token)
+
+
+@pytest.mark.parametrize("server", (gunicorn_server, flask_server))
 def test_iast_header_injection_secure(server):
     """Test that header injection is prevented in a real Flask application.
 

@@ -1,3 +1,4 @@
+import os
 import platform
 import shutil
 from typing import Dict
@@ -77,6 +78,14 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
     dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+
+    # If not found in PATH, try ddtrace installation directory. This can happen
+    # in an injected environment
+    if dd_crashtracker_receiver is None:
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "commands", "_dd_crashtracker_receiver.py")
+        if os.path.exists(script_path):
+            dd_crashtracker_receiver = script_path
+
     if dd_crashtracker_receiver is None:
         print("Failed to find _dd_crashtracker_receiver")
         return (None, None, None)

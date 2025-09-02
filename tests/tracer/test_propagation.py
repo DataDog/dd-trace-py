@@ -303,7 +303,6 @@ def test_extract(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -313,7 +312,6 @@ def test_extract(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
-                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
         assert context.get_baggage_item("foo") == "bar"
@@ -605,7 +603,6 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert span.context.dd_origin == "synthetics"
                 assert span.context._meta == {
                     "_dd.origin": "synthetics",
-                    "_dd.p.dm": "-3",
                     "_dd.p.ts": "02",
                 }
                 with tracer.trace("child_span") as child_span:
@@ -615,7 +612,6 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                     assert child_span.context.dd_origin == "synthetics"
                     assert child_span.context._meta == {
                         "_dd.origin": "synthetics",
-                        "_dd.p.dm": "-3",
                         "_dd.p.ts": "02",
                     }
 
@@ -624,7 +620,8 @@ def test_asm_standalone_present_appsec_tag_no_appsec_event_propagation_set_to_us
                 assert next_headers["x-datadog-origin"] == "synthetics"
                 assert next_headers["x-datadog-sampling-priority"] == str(USER_KEEP)
                 assert next_headers["x-datadog-trace-id"] == "1234"
-                assert next_headers["x-datadog-tags"].startswith("_dd.p.ts=02,")
+                # With head sampling decision, only _dd.p.ts should be present (no _dd.p.dm)
+                assert next_headers["x-datadog-tags"] == "_dd.p.ts=02"
 
             # Ensure span sets user keep regardless of received priority (appsec event upstream)
             assert span._metrics["_sampling_priority_v1"] == USER_KEEP
@@ -904,7 +901,6 @@ def test_extract_unicode(tracer):  # noqa: F811
 
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.p.test": "value",
         }
         with tracer.trace("child_span") as child_span:
@@ -914,7 +910,6 @@ def test_extract_unicode(tracer):  # noqa: F811
             assert child_span.context.dd_origin == "synthetics"
             assert child_span.context._meta == {
                 "_dd.origin": "synthetics",
-                "_dd.p.dm": "-3",
                 "_dd.p.test": "value",
             }
 
@@ -968,7 +963,6 @@ def test_WSGI_extract(tracer):  # noqa: F811
         assert span.context._meta == {
             "_dd.origin": "synthetics",
             "_dd.p.test": "value",
-            "_dd.p.dm": "-3",
         }
 
 
@@ -992,7 +986,6 @@ def test_extract_invalid_tags(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.propagation_error": "decoding_error",
         }
 
@@ -1017,7 +1010,6 @@ def test_extract_tags_large(tracer):  # noqa: F811
         assert span.context.dd_origin == "synthetics"
         assert span.context._meta == {
             "_dd.origin": "synthetics",
-            "_dd.p.dm": "-3",
             "_dd.propagation_error": "extract_max_size",
         }
 
@@ -1594,7 +1586,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1607,7 +1599,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1620,7 +1612,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": None,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {},
         },
     ),
     (
@@ -1640,7 +1632,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1665,7 +1657,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1678,7 +1670,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -1698,7 +1690,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "baggage": {"key1": "val1", "key2": "val2"},
         },
     ),
@@ -1947,7 +1939,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -1976,7 +1968,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2017,7 +2009,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2053,7 +2045,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -2066,7 +2058,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     (
@@ -2203,7 +2195,6 @@ EXTRACT_FIXTURES = [
             "dd_origin": "synthetics",
             "meta": {
                 "tracestate": TRACECONTEXT_HEADERS_VALID[_HTTP_HEADER_TRACESTATE],
-                "_dd.p.dm": "-3",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
             },
         },
@@ -2219,7 +2210,7 @@ EXTRACT_FIXTURES = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
             "span_links": [
                 SpanLink(
                     trace_id=TRACE_ID,
@@ -2258,7 +2249,7 @@ EXTRACT_FIXTURES = [
             "trace_id": 9291375655657946024,
             "span_id": 10,
             "sampling_priority": None,
-            "meta": {"_dd.p.dm": "-3", LAST_DD_PARENT_ID_KEY: "000000000000000f"},
+            "meta": {LAST_DD_PARENT_ID_KEY: "000000000000000f"},
         },
     ),
     (
@@ -2448,7 +2439,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
     # Only works for env since config is modified at startup to set
@@ -2471,7 +2462,7 @@ EXTRACT_FIXTURES_ENV_ONLY = [
             "span_id": 5678,
             "sampling_priority": 1,
             "dd_origin": "synthetics",
-            "meta": {"_dd.p.dm": "-3"},
+            "meta": {"_dd.origin": "synthetics"},
         },
     ),
 ]
@@ -2720,7 +2711,7 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
         Context(
             trace_id=13088165645273925489,
             span_id=5678,
-            meta={"_dd.origin": "synthetics", "_dd.p.dm": "-3"},
+            meta={"_dd.origin": "synthetics"},
             metrics={"_sampling_priority_v1": 1},
             span_links=[
                 SpanLink(
@@ -2767,7 +2758,6 @@ FULL_CONTEXT_EXTRACT_FIXTURES = [
             # behavior for this chaotic set of headers, specifically when STYLE_DATADOG precedes STYLE_W3C_TRACECONTEXT
             # in the styles configuration
             meta={
-                "_dd.p.dm": "-3",
                 "_dd.origin": "synthetics",
                 "tracestate": "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64,congo=t61rcWkgMzE",
                 LAST_DD_PARENT_ID_KEY: "000000000000162e",
@@ -3753,3 +3743,59 @@ def test_inject_span_without_sampling_priority():
     assert headers.get("x-datadog-sampling-priority") == str(
         parent.context.sampling_priority
     )  # Root span priority used
+
+
+def test_datadog_extract_sampling_decision_tag_with_head_sampling():
+    """Test that _dd.p.dm tag is not set when sampling priority is propagated via headers."""
+    from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
+    from ddtrace.propagation.http import HTTPPropagator
+
+    # Test case 1: Headers with sampling priority should NOT have _dd.p.dm tag
+    headers_with_priority = {
+        "x-datadog-trace-id": "12345678901",
+        "x-datadog-parent-id": "98765432101",
+        "x-datadog-sampling-priority": "1",
+        "x-datadog-origin": "rum",
+    }
+
+    context_with_priority = HTTPPropagator.extract(headers_with_priority)
+
+    assert context_with_priority.trace_id == 12345678901
+    assert context_with_priority.span_id == 98765432101
+    assert context_with_priority.sampling_priority == 1
+    assert context_with_priority.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present when sampling priority is propagated
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_with_priority._meta
+
+    # Test case 2: Headers with sampling priority = 0 should also NOT have _dd.p.dm tag
+    headers_with_priority_drop = {
+        "x-datadog-trace-id": "12345678902",
+        "x-datadog-parent-id": "98765432102",
+        "x-datadog-sampling-priority": "0",
+        "x-datadog-origin": "rum",
+    }
+
+    context_with_priority_drop = HTTPPropagator.extract(headers_with_priority_drop)
+
+    assert context_with_priority_drop.trace_id == 12345678902
+    assert context_with_priority_drop.span_id == 98765432102
+    assert context_with_priority_drop.sampling_priority == 0
+    assert context_with_priority_drop.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present when sampling priority is propagated
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_with_priority_drop._meta
+
+    # Test case 3: Headers without sampling priority should have _dd.p.dm tag
+    headers_without_priority = {
+        "x-datadog-trace-id": "12345678903",
+        "x-datadog-parent-id": "98765432103",
+        "x-datadog-origin": "rum",
+    }
+
+    context_without_priority = HTTPPropagator.extract(headers_without_priority)
+
+    assert context_without_priority.trace_id == 12345678903
+    assert context_without_priority.span_id == 98765432103
+    assert context_without_priority.sampling_priority is None
+    assert context_without_priority.dd_origin == "rum"
+    # The key assertion: _dd.p.dm should NOT be present during extraction
+    assert SAMPLING_DECISION_TRACE_TAG_KEY not in context_without_priority._meta

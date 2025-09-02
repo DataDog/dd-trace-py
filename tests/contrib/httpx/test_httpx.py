@@ -3,11 +3,11 @@ import pytest
 from wrapt import ObjectProxy
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.httpx.patch import HTTPX_VERSION
 from ddtrace.contrib.internal.httpx.patch import patch
 from ddtrace.contrib.internal.httpx.patch import unpatch
 from ddtrace.settings.http import HttpConfig
-from ddtrace.trace import Pin
 from tests.utils import override_config
 from tests.utils import override_http_config
 

@@ -1,152 +1,77 @@
 import json
-import sys
 from typing import Any
 from typing import Dict
 from typing import Tuple
 
 import anthropic
-import wrapt
 
 from ddtrace.internal.logger import get_logger
+from ddtrace.llmobs._integrations.base_stream_handler import AsyncStreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._utils import _get_attr
 
 
 log = get_logger(__name__)
 
 
+def _text_stream_generator(traced_stream):
+    for chunk in traced_stream:
+        if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+            yield chunk.delta.text
+
+
+async def _async_text_stream_generator(traced_stream):
+    async for chunk in traced_stream:
+        if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
+            yield chunk.delta.text
+
+
 def handle_streamed_response(integration, resp, args, kwargs, span):
-    if _is_stream(resp):
-        return TracedAnthropicStream(resp, integration, span, args, kwargs)
-    elif _is_async_stream(resp):
-        return TracedAnthropicAsyncStream(resp, integration, span, args, kwargs)
-    elif _is_stream_manager(resp):
-        return TracedAnthropicStreamManager(resp, integration, span, args, kwargs)
-    elif _is_async_stream_manager(resp):
-        return TracedAnthropicAsyncStreamManager(resp, integration, span, args, kwargs)
+    """
+    Creates a traced stream with a callback that adds a text_stream attribute
+    to the underlying stream object when it is created.
 
+    Overrides the `text_stream` attribute to trace yielded chunks; otherwise,
+    the underlying stream will bypass the wrapper tracing code
+    """
 
-class BaseTracedAnthropicStream(wrapt.ObjectProxy):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped)
-        self._dd_span = span
-        self._streamed_chunks = []
-        self._dd_integration = integration
-        self._kwargs = kwargs
-        self._args = args
+    def add_text_stream(stream):
+        stream.text_stream = _text_stream_generator(stream)
 
+    def add_async_text_stream(stream):
+        stream.text_stream = _async_text_stream_generator(stream)
 
-class TracedAnthropicStream(BaseTracedAnthropicStream):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped, integration, span, args, kwargs)
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        self.text_stream = self.__stream_text__()
-
-    def __enter__(self):
-        self.__wrapped__.__enter__()
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        try:
-            chunk = self.__wrapped__.__next__()
-            self._streamed_chunks.append(chunk)
-            return chunk
-        except StopIteration:
-            _process_finished_stream(
-                self._dd_integration, self._dd_span, self._args, self._kwargs, self._streamed_chunks
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-    def __stream_text__(self):
-        # this is overridden because it is a helper function that collects all stream content chunks
-        for chunk in self:
-            if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-                yield chunk.delta.text
-
-
-class TracedAnthropicAsyncStream(BaseTracedAnthropicStream):
-    def __init__(self, wrapped, integration, span, args, kwargs):
-        super().__init__(wrapped, integration, span, args, kwargs)
-        # we need to set a text_stream attribute so we can trace the yielded chunks
-        self.text_stream = self.__stream_text__()
-
-    async def __aenter__(self):
-        await self.__wrapped__.__aenter__()
-        return self
-
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
-
-    def __aiter__(self):
-        return self
-
-    async def __anext__(self):
-        try:
-            chunk = await self.__wrapped__.__anext__()
-            self._streamed_chunks.append(chunk)
-            return chunk
-        except StopAsyncIteration:
-            _process_finished_stream(
-                self._dd_integration,
-                self._dd_span,
-                self._args,
-                self._kwargs,
-                self._streamed_chunks,
-            )
-            self._dd_span.finish()
-            raise
-        except Exception:
-            self._dd_span.set_exc_info(*sys.exc_info())
-            self._dd_span.finish()
-            raise
-
-    async def __stream_text__(self):
-        # this is overridden because it is a helper function that collects all stream content chunks
-        async for chunk in self:
-            if chunk.type == "content_block_delta" and chunk.delta.type == "text_delta":
-                yield chunk.delta.text
-
-
-class TracedAnthropicStreamManager(BaseTracedAnthropicStream):
-    def __enter__(self):
-        stream = self.__wrapped__.__enter__()
-        traced_stream = TracedAnthropicStream(
-            stream,
-            self._dd_integration,
-            self._dd_span,
-            self._args,
-            self._kwargs,
+    if _is_stream(resp) or _is_stream_manager(resp):
+        traced_stream = make_traced_stream(
+            resp, AnthropicStreamHandler(integration, span, args, kwargs), on_stream_created=add_text_stream
+        )
+        return traced_stream
+    elif _is_async_stream(resp) or _is_async_stream_manager(resp):
+        traced_stream = make_traced_stream(
+            resp,
+            AnthropicAsyncStreamHandler(integration, span, args, kwargs),
+            on_stream_created=add_async_text_stream,
         )
         return traced_stream
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.__wrapped__.__exit__(exc_type, exc_val, exc_tb)
 
-
-class TracedAnthropicAsyncStreamManager(BaseTracedAnthropicStream):
-    async def __aenter__(self):
-        stream = await self.__wrapped__.__aenter__()
-        traced_stream = TracedAnthropicAsyncStream(
-            stream,
-            self._dd_integration,
-            self._dd_span,
-            self._args,
-            self._kwargs,
+class BaseAnthropicStreamHandler:
+    def finalize_stream(self, exception=None):
+        _process_finished_stream(
+            self.integration, self.primary_span, self.request_args, self.request_kwargs, self.chunks
         )
-        return traced_stream
+        self.primary_span.finish()
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        await self.__wrapped__.__aexit__(exc_type, exc_val, exc_tb)
+
+class AnthropicStreamHandler(BaseAnthropicStreamHandler, StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)
+
+
+class AnthropicAsyncStreamHandler(BaseAnthropicStreamHandler, AsyncStreamHandler):
+    async def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(chunk)
 
 
 def _process_finished_stream(integration, span, args, kwargs, streamed_chunks):

@@ -2,9 +2,9 @@
 import pytest
 import redis
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.redis.patch import patch
 from ddtrace.contrib.internal.redis.patch import unpatch
-from ddtrace.trace import Pin
 from tests.contrib.config import REDISCLUSTER_CONFIG
 from tests.utils import DummyTracer
 from tests.utils import assert_is_measured
@@ -164,9 +164,9 @@ def test_default_service_name_v1():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
     from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -211,8 +211,8 @@ def test_user_specified_service_v0():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -260,8 +260,8 @@ def test_user_specified_service_v1():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -304,8 +304,8 @@ def test_env_user_specified_rediscluster_service_v0():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -345,8 +345,8 @@ def test_env_user_specified_rediscluster_service_v1():
 
     import redis
 
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -391,8 +391,8 @@ def test_service_precedence_v0():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer
@@ -436,8 +436,8 @@ def test_service_precedence_v1():
     import redis
 
     from ddtrace import config
+    from ddtrace._trace.pin import Pin
     from ddtrace.contrib.internal.redis.patch import patch
-    from ddtrace.trace import Pin
     from tests.contrib.config import REDISCLUSTER_CONFIG
     from tests.utils import DummyTracer
     from tests.utils import TracerSpanContainer

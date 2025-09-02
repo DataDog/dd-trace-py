@@ -109,6 +109,21 @@ Configuration
 
    Default: ``True``
 
+.. py:data:: ddtrace.config.django['always_create_database_spans']
+
+   Whether or not to enforce that a Django database span is created regardless of other
+   database instrumentation.
+
+   Enabling this will provide database spans when the database engine is not yet supported
+   by ``ddtrace``, however it may result in duplicate database spans when the database
+   engine is supported and enabled.
+
+   Can also be enabled with the ``DD_DJANGO_ALWAYS_CREATE_DATABASE_SPANS`` environment variable.
+
+   Default: ``True``
+
+   *New in version v3.13.0.*
+
 .. py:data:: ddtrace.config.django['instrument_caches']
 
    Whether or not to instrument caches.

@@ -417,8 +417,10 @@ class TestLLMObsGemini:
                         {
                             "name": "set_light_values",
                             "arguments": {
-                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50.0}]
                             },
+                            "tool_id": "",
+                            "type": "function_call",
                         }
                     ],
                 }
@@ -453,8 +455,10 @@ class TestLLMObsGemini:
                         {
                             "name": "set_light_values",
                             "arguments": {
-                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50.0}]
                             },
+                            "tool_id": "",
+                            "type": "function_call",
                         }
                     ],
                 }
@@ -494,8 +498,10 @@ class TestLLMObsGemini:
                         {
                             "name": "set_light_values",
                             "arguments": {
-                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50.0}]
                             },
+                            "tool_id": "",
+                            "type": "function_call",
                         }
                     ],
                 }
@@ -535,8 +541,10 @@ class TestLLMObsGemini:
                         {
                             "name": "set_light_values",
                             "arguments": {
-                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50}]
+                                "fields": [{"key": "color_temp", "value": "warm"}, {"key": "brightness", "value": 50.0}]
                             },
+                            "tool_id": "",
+                            "type": "function_call",
                         }
                     ],
                 }

@@ -8,13 +8,13 @@ from celery.exceptions import Retry
 import mock
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.contrib.internal.celery.patch import patch
 from ddtrace.contrib.internal.celery.patch import unpatch
 import ddtrace.internal.forksafe as forksafe
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Context
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 
 from ...utils import override_global_config

@@ -1,4 +1,5 @@
-import ddtrace.auto  # noqa: F401
+import ddtrace.auto
+from ddtrace.ext import SpanTypes  # noqa: F401
 
 
 # ensure the tracer is loaded and started first for possible iast patching
@@ -42,6 +43,18 @@ def root_span(test_spans):
 
 
 @pytest.fixture
+def entry_span(test_spans):
+    def get_entry_span():
+        for span in test_spans.spans:
+            if span._is_top_level and span.span_type == SpanTypes.WEB:
+                return _build_tree(test_spans.spans, span)
+
+        return None
+
+    yield get_entry_span
+
+
+@pytest.fixture
 def check_waf_timeout(request):
     # change timeout to 50 seconds to avoid flaky timeouts
     previous_timeout = asm_config._waf_timeout
@@ -65,6 +78,24 @@ def get_tag(test_spans, root_span):
 
 
 @pytest.fixture
+def get_entry_span_tag(entry_span):
+    def get(name):
+        return entry_span().get_tag(name)
+
+    yield get
+
+
+@pytest.fixture
+def get_metric(root_span):
+    yield lambda name: root_span().get_metric(name)
+
+
+@pytest.fixture
+def get_entry_span_metric(entry_span):
+    yield lambda name: entry_span().get_metric(name)
+
+
+@pytest.fixture
 def find_resource(test_spans, root_span):
     # checking both root spans and web spans for the tag
     def find(resource_name):
@@ -76,11 +107,6 @@ def find_resource(test_spans, root_span):
         return False
 
     yield find
-
-
-@pytest.fixture
-def get_metric(root_span):
-    yield lambda name: root_span().get_metric(name)
 
 
 def no_op(msg: str) -> None:  # noqa: ARG001
