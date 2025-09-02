@@ -888,3 +888,104 @@ def test_full_encoding_with_parent_session_override():
     # Both should use the parent session ID (0xAAAAAA) instead of worker session ID
     assert test_event[b"content"][b"test_session_id"] == 0xAAAAAA
     assert session_event[b"content"][b"test_session_id"] == 0xAAAAAA
+
+
+def test_coverage_encoder_includes_session_span():
+    """Test that coverage encoder includes session span even if it doesn't have coverage data"""
+    # Create session span without coverage data
+    session_span = Span(name="test.session", span_id=0xAAAAAA, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span.set_tag(SESSION_ID, "12345")
+    session_span.parent_id = 0x999999  # Has parent ID for xdist
+
+    # Create test span with coverage data
+    coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
+    test_span = Span(name="test.case", span_id=0xBBBBBB, service="test", span_type="test")
+    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
+    test_span.set_tag(SESSION_ID, "12345")
+    test_span.set_tag(SUITE_ID, "67890")
+
+    # Create span without coverage data (should be filtered out)
+    regular_span = Span(name="regular.span", span_id=0xCCCCCC, service="test")
+
+    trace = [session_span, test_span, regular_span]
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder.put(trace)
+
+    # Check what got stored in the buffer
+    assert len(encoder.buffer) == 1
+    stored_trace = encoder.buffer[0]
+
+    # Should include session span and coverage span, but not regular span
+    assert len(stored_trace) == 2
+    span_names = {span.name for span in stored_trace}
+    assert "test.session" in span_names
+    assert "test.case" in span_names
+    assert "regular.span" not in span_names
+
+
+def test_coverage_encoder_parent_session_id_propagation():
+    """Test that coverage encoder properly uses parent session ID from session span"""
+    # Create session span with parent_id (simulating xdist worker)
+    session_span = Span(name="worker.session", span_id=0xBBBBBB, service="test")
+    session_span.set_tag(EVENT_TYPE, SESSION_TYPE)
+    session_span.set_tag(SESSION_ID, "123")
+    session_span.parent_id = 0xAAAAAA  # Parent session ID from main process
+
+    # Create test span with coverage data
+    coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
+    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
+    test_span.set_tag(SESSION_ID, "123")
+    test_span.set_tag(SUITE_ID, "67890")
+
+    traces = [[session_span, test_span]]
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder.put(traces[0])
+
+    # Build coverage data
+    coverage_data_bytes = encoder._build_data(traces)
+    assert coverage_data_bytes is not None
+
+    # Decode the coverage data
+    decoded = msgpack.unpackb(coverage_data_bytes, raw=True, strict_map_key=False)
+    coverages = decoded[b"coverages"]
+
+    assert len(coverages) == 1
+    coverage_event = coverages[0]
+
+    # Should use parent session ID (0xAAAAAA) instead of worker session ID
+    assert coverage_event[b"test_session_id"] == 0xAAAAAA
+    assert coverage_event[b"test_suite_id"] == 67890
+
+
+def test_coverage_encoder_no_session_span_fallback():
+    """Test that coverage encoder falls back to span's own session ID when no session span present"""
+    # Create test span with coverage data but no session span in trace
+    coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
+    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
+    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
+    test_span.set_tag(SESSION_ID, "456")
+    test_span.set_tag(SUITE_ID, "67890")
+
+    traces = [[test_span]]  # No session span
+
+    encoder = CIVisibilityCoverageEncoderV02(0, 0)
+    encoder.put(traces[0])
+
+    # Build coverage data
+    coverage_data_bytes = encoder._build_data(traces)
+    assert coverage_data_bytes is not None
+
+    # Decode the coverage data
+    decoded = msgpack.unpackb(coverage_data_bytes, raw=True, strict_map_key=False)
+    coverages = decoded[b"coverages"]
+
+    assert len(coverages) == 1
+    coverage_event = coverages[0]
+
+    # Should fallback to span's own session ID since no session span found
+    assert coverage_event[b"test_session_id"] == 456  # int() conversion
+    assert coverage_event[b"test_suite_id"] == 67890
