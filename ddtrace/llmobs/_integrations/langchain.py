@@ -848,7 +848,7 @@ class LangChainIntegration(BaseLLMIntegration):
             template = instance.template
         variables = get_argument_value(args, kwargs, 0, "input", optional=True)
 
-        if not template or not variables:
+        if not template or not variables or not isinstance(variables, dict):
             return
 
         prompt_id = self._get_prompt_variable_name(instance)
@@ -888,4 +888,4 @@ class LangChainIntegration(BaseLLMIntegration):
                 prompt = validate_prompt(prompt)
                 span._set_ctx_item(INPUT_PROMPT, prompt)
             except Exception as e:
-                log.warning("Failed to validate langchain prompt", e)
+                log.debug("Failed to validate langchain prompt", e)

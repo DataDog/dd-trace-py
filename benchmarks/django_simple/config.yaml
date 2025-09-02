@@ -9,6 +9,7 @@ baseline: &baseline
   django_instrument_databases: true
   always_create_database_spans: true
   django_instrument_templates: true
+  native_writer: false
 tracer: &tracer
   <<: *baseline
   tracer_enabled: true
@@ -48,3 +49,6 @@ tracer-dont-create-db-spans:
 tracer-no-templates:
   <<: *tracer
   django_instrument_templates: false
+tracer-native:
+  <<: *tracer
+  native_writer: true

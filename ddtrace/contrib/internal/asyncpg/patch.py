@@ -94,6 +94,9 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
 
     connect() is instrumented and patched to return a connection proxy.
     """
+    # When using a pool, there's a connection_class args
+    is_pool_context = "connection_class" in kwargs
+
     with pin.tracer.trace(
         "postgres.connect", span_type=SpanTypes.SQL, service=ext_service(pin, config.asyncpg)
     ) as span:
@@ -103,10 +106,23 @@ async def _traced_connect(asyncpg, pin, func, instance, args, kwargs):
         # set span.kind to the type of request being performed
         span.set_tag_str(SPAN_KIND, SpanKind.CLIENT)
 
-        # Need an ObjectProxy since Connection uses slots
-        conn = _TracedConnection(await func(*args, **kwargs), pin)
-        span.set_tags(_get_connection_tags(conn))
-        return conn
+        raw_conn = await func(*args, **kwargs)
+        if is_pool_context:
+            # Return the unwrapped connection to avoid _TracedConnection errors
+            # when using a pool with a custom connect param
+            connection_tags = _get_connection_tags(raw_conn)
+            connection_tags[db.SYSTEM] = DBMS_NAME
+            conn_pin = pin.clone(tags=connection_tags)
+            conn_pin.onto(raw_conn._protocol)
+            span.set_tags(connection_tags)
+            # Returns a asyncpg.connection.Connection object
+            return raw_conn
+        else:
+            # # Need an ObjectProxy when not using pools since Connection uses slots
+            conn = _TracedConnection(raw_conn, pin)
+            span.set_tags(_get_connection_tags(conn))
+            # Returns a _TracedConnection object
+            return conn
 
 
 async def _traced_query(pin, method, query, args, kwargs):
