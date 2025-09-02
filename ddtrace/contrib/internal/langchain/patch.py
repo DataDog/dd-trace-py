@@ -83,7 +83,7 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
-def _dispatch(event_id: str, args: Tuple[Any, ...] = ()):
+def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
     result = {}
     core.dispatch(event_id, args + (result,))
     if "exception" in result:
@@ -111,7 +111,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
-        _dispatch("langchain.llm.generate.before", (prompts,))
+        _raising_dispatch("langchain.llm.generate.before", (prompts,))
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
@@ -145,7 +145,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
-        _dispatch("langchain.llm.agenerate.before", (prompts,))
+        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
@@ -178,7 +178,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
-        _dispatch("langchain.chatmodel.generate.before", (chat_messages,))
+        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
@@ -211,7 +211,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
-        _dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
+        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:
