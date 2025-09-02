@@ -41,7 +41,7 @@ def test_logger_set_log_level(log_level, expected):
 @pytest.mark.parametrize("output", [None, "stdout", "stderr", "file"])
 @pytest.mark.parametrize("path", [None, "/tmp/log.txt"])
 @pytest.mark.parametrize("files", [None, 2])
-@pytest.mark.parametrize("bytes", [None, 4096])
+@pytest.mark.parametrize("max_size", [None, 4096])
 def test_logger_configure(output, path, files, max_size):
     if output is None:
         kwargs = {}
