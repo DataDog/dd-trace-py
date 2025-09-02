@@ -1,5 +1,6 @@
 #pragma once
 #include "initializer/initializer.h"
+#include "context/application_context.h"
 #include "utils/string_utils.h"
 
 using namespace std;
