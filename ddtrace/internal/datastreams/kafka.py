@@ -44,7 +44,7 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: setting checkpoint with edge_tags=%s, payload_size=%d", edge_tags, payload_size)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: setting checkpoint with edge_tags=%s, payload_size=%s", str(edge_tags), str(payload_size))
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
     if not disable_header_injection:
         log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: encoding pathway context into headers")
@@ -112,7 +112,7 @@ def dsm_kafka_message_consume(instance, message, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: setting checkpoint with edge_tags=%s, payload_size=%d", edge_tags, payload_size)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: setting checkpoint with edge_tags=%s, payload_size=%s", str(edge_tags), str(payload_size))
     ctx.set_checkpoint(
         edge_tags,
         payload_size=payload_size,
@@ -134,7 +134,7 @@ def dsm_kafka_message_commit(instance, args, kwargs):
     from . import data_streams_processor as processor
 
     message = get_argument_value(args, kwargs, 0, "message", optional=True)
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: message=%s", message is not None)
+    log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: message=%s", str(message is not None))
 
     offsets = []
     if message is not None:
@@ -144,7 +144,7 @@ def dsm_kafka_message_commit(instance, args, kwargs):
         log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing single message offset=%s", str(reported_offset))
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
-        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing %d offsets", len(offsets))
+        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing %s offsets", str(len(offsets)) if offsets is not None else '0')
 
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1

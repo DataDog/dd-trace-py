@@ -269,7 +269,7 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             # poll returns a single message
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
-            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting %d messages", len(result))
+            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting %s messages", str(len(result)) if hasattr(result, '__len__') else 'unknown')
             # consume returns a list of messages,
             _instrument_message(result, pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
@@ -281,7 +281,7 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 @funcdebug
 def _instrument_message(messages, pin, start_ns, instance, err):
-    log.debug("[KAFKA DEBUG] _instrument_message: processing %d messages", len(messages))
+    log.debug("[KAFKA DEBUG] _instrument_message: processing %s messages", str(len(messages)) if messages is not None else '0')
     ctx = None
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
