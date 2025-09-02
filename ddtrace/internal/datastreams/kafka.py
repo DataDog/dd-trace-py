@@ -30,7 +30,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
 
     topic = core.get_item("kafka_topic")
     cluster_id = core.get_item("kafka_cluster_id")
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: topic=%s, cluster_id=%s", str(topic or 'None'), str(cluster_id or 'None'))
+    log.debug(
+        "[KAFKA DEBUG] dsm_kafka_message_produce: topic=%s, cluster_id=%s",
+        str(topic or "None"),
+        str(cluster_id or "None"),
+    )
     message = get_argument_value(args, kwargs, MESSAGE_ARG_POSITION, "value", optional=True)
     key = get_argument_value(args, kwargs, KEY_ARG_POSITION, KEY_KWARG_NAME, optional=True)
     headers = kwargs.get("headers", {})
@@ -44,7 +48,11 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: setting checkpoint with edge_tags=%s, payload_size=%s", str(edge_tags), str(payload_size))
+    log.debug(
+        "[KAFKA DEBUG] dsm_kafka_message_produce: setting checkpoint with edge_tags=%s, payload_size=%s",
+        str(edge_tags),
+        str(payload_size),
+    )
     ctx = processor().set_checkpoint(edge_tags, payload_size=payload_size, span=span)
     if not disable_header_injection:
         log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: encoding pathway context into headers")
@@ -66,7 +74,9 @@ def dsm_kafka_message_produce(instance, args, kwargs, is_serializing, span):
         global disable_header_injection
         if err is None:
             reported_offset = msg.offset() if isinstance(msg.offset(), INT_TYPES) else -1
-            log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: tracking produce success, offset=%s", str(reported_offset))
+            log.debug(
+                "[KAFKA DEBUG] dsm_kafka_message_produce: tracking produce success, offset=%s", str(reported_offset)
+            )
             processor().track_kafka_produce(msg.topic(), msg.partition(), reported_offset, time.time())
         elif err.code() == -1 and not disable_header_injection:
             log.debug("[KAFKA DEBUG] dsm_kafka_message_produce: UNKNOWN_SERVER_ERROR, disabling header injection")
@@ -93,7 +103,12 @@ def dsm_kafka_message_consume(instance, message, span):
     topic = core.get_item("kafka_topic")
     cluster_id = core.get_item("kafka_cluster_id")
     group = instance._group_id
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: topic=%s, cluster_id=%s, group=%s", str(topic or 'None'), str(cluster_id or 'None'), str(group or 'None'))
+    log.debug(
+        "[KAFKA DEBUG] dsm_kafka_message_consume: topic=%s, cluster_id=%s, group=%s",
+        str(topic or "None"),
+        str(cluster_id or "None"),
+        str(group or "None"),
+    )
 
     payload_size = 0
     if hasattr(message, "len"):
@@ -112,7 +127,11 @@ def dsm_kafka_message_consume(instance, message, span):
     if cluster_id:
         edge_tags.append("kafka_cluster_id:" + str(cluster_id))
 
-    log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: setting checkpoint with edge_tags=%s, payload_size=%s", str(edge_tags), str(payload_size))
+    log.debug(
+        "[KAFKA DEBUG] dsm_kafka_message_consume: setting checkpoint with edge_tags=%s, payload_size=%s",
+        str(edge_tags),
+        str(payload_size),
+    )
     ctx.set_checkpoint(
         edge_tags,
         payload_size=payload_size,
@@ -123,7 +142,10 @@ def dsm_kafka_message_consume(instance, message, span):
         # it's not exactly true, but if auto commit is enabled, we consider that a message is acknowledged
         # when it's read. We add one because the commit offset is the next message to read.
         reported_offset = (message.offset() + 1) if isinstance(message.offset(), INT_TYPES) else -1
-        log.debug("[KAFKA DEBUG] dsm_kafka_message_consume: auto_commit enabled, tracking commit offset=%s", str(reported_offset))
+        log.debug(
+            "[KAFKA DEBUG] dsm_kafka_message_consume: auto_commit enabled, tracking commit offset=%s",
+            str(reported_offset),
+        )
         processor().track_kafka_commit(
             instance._group_id, message.topic(), message.partition(), reported_offset, time.time()
         )
@@ -144,11 +166,19 @@ def dsm_kafka_message_commit(instance, args, kwargs):
         log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing single message offset=%s", str(reported_offset))
     else:
         offsets = get_argument_value(args, kwargs, 1, "offsets", True) or []
-        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: committing %s offsets", str(len(offsets)) if offsets is not None else '0')
+        log.debug(
+            "[KAFKA DEBUG] dsm_kafka_message_commit: committing %s offsets",
+            str(len(offsets)) if offsets is not None else "0",
+        )
 
     for offset in offsets:
         reported_offset = offset.offset if isinstance(offset.offset, INT_TYPES) else -1
-        log.debug("[KAFKA DEBUG] dsm_kafka_message_commit: tracking commit for topic=%s, partition=%s, offset=%s", str(offset.topic), str(offset.partition), str(reported_offset))
+        log.debug(
+            "[KAFKA DEBUG] dsm_kafka_message_commit: tracking commit for topic=%s, partition=%s, offset=%s",
+            str(offset.topic),
+            str(offset.partition),
+            str(reported_offset),
+        )
         processor().track_kafka_commit(instance._group_id, offset.topic, offset.partition, reported_offset, time.time())
 
 

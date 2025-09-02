@@ -54,6 +54,7 @@ def funcdebug(func):
         except Exception as e:
             log.debug(f"[KAFKA DEBUG] Exiting {func_name} (exception: {type(e).__name__}: {e})")
             raise
+
     return wrapper
 
 
@@ -196,7 +197,7 @@ def traced_produce(func, instance, args, kwargs):
     message_key = kwargs.get("key", "") or ""
     partition = kwargs.get("partition", -1)
     headers = get_argument_value(args, kwargs, 6, "headers", optional=True) or {}
-    log.debug("[KAFKA DEBUG] traced_produce: creating span for topic=%s", str(topic or 'None'))
+    log.debug("[KAFKA DEBUG] traced_produce: creating span for topic=%s", str(topic or "None"))
     with pin.tracer.trace(
         schematize_messaging_operation(kafkax.PRODUCE, provider="kafka", direction=SpanDirection.OUTBOUND),
         service=trace_utils.ext_service(pin, config.kafka),
@@ -269,7 +270,10 @@ def traced_poll_or_consume(func, instance, args, kwargs):
             # poll returns a single message
             _instrument_message([result], pin, start_ns, instance, err)
         elif isinstance(result, list):
-            log.debug("[KAFKA DEBUG] traced_poll_or_consume: instrumenting %s messages", str(len(result)) if hasattr(result, '__len__') else 'unknown')
+            log.debug(
+                "[KAFKA DEBUG] traced_poll_or_consume: instrumenting %s messages",
+                str(len(result)) if hasattr(result, "__len__") else "unknown",
+            )
             # consume returns a list of messages,
             _instrument_message(result, pin, start_ns, instance, err)
         elif config.kafka.trace_empty_poll_enabled:
@@ -281,7 +285,9 @@ def traced_poll_or_consume(func, instance, args, kwargs):
 
 @funcdebug
 def _instrument_message(messages, pin, start_ns, instance, err):
-    log.debug("[KAFKA DEBUG] _instrument_message: processing %s messages", str(len(messages)) if messages is not None else '0')
+    log.debug(
+        "[KAFKA DEBUG] _instrument_message: processing %s messages", str(len(messages)) if messages is not None else "0"
+    )
     ctx = None
     # First message is used to extract context and enrich datadog spans
     # This approach aligns with the opentelemetry confluent kafka semantics
