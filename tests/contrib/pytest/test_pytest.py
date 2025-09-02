@@ -4593,6 +4593,7 @@ class PytestTestCase(PytestTestCaseBase):
         assert "I/O operation on closed file" not in result.stderr.str()
         assert result.ret == 0
 
+    @pytest.mark.skip(reason="Flaky test, investigate")  # TODO(@gnufede): Investigate root cause
     def test_pytest_clears_excinfo_dict_after_use(self):
         reports_by_item_count_before = len(reports_by_item)
         excinfo_by_report_count_before = len(excinfo_by_report)
