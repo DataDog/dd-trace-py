@@ -536,7 +536,7 @@ import ddtrace.settings.exception_replay
         {
             "name": "OTEL_EXPORTER_OTLP_ENDPOINT",
             "origin": "default",
-            "value": "http://localhost:4318",
+            "value": "http://localhost:4317",
         },
         {
             "name": "OTEL_EXPORTER_OTLP_HEADERS",
