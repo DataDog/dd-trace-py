@@ -53,7 +53,8 @@ TEST_F(ApplicationContextTest, ClearSpecificMap)
 
     application_context->clear_taint_map(*idx);
     auto after = application_context->get_taint_map_by_ctx_id(*idx);
-    ASSERT_EQ(after, nullptr);}
+    ASSERT_EQ(after, nullptr);
+}
 
 TEST_F(ApplicationContextTest, ReuseFreedSlotOnCreate)
 {
