@@ -137,7 +137,7 @@ class _DDWSGIMiddlewareBase(object):
             if not_blocked:
                 core.dispatch("wsgi.request.prepare", (ctx, start_response))
                 try:
-                    closing_iterable = self.app(environ, ctx.get_item("intercept_start_response"))
+                    closing_iterable = self.app(environ, ctx.find_item("intercept_start_response"))
                 except BlockingException as e:
                     set_blocked(e.args[0])
                     content, status, headers = blocked_view()

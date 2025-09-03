@@ -44,8 +44,8 @@ class IASTEnvironment:
 
 
 def _get_iast_env() -> Optional[IASTEnvironment]:
-    return core.get_item(IAST.REQUEST_CONTEXT_KEY)
+    return core.find_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def in_iast_env() -> bool:
-    return core.get_item(IAST.REQUEST_CONTEXT_KEY) is not None
+    return core.find_item(IAST.REQUEST_CONTEXT_KEY) is not None

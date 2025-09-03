@@ -3,6 +3,7 @@ import socket
 from typing import Optional
 from typing import TypeVar
 from typing import Union
+from urllib.parse import urlparse
 
 from ddtrace.internal.constants import DEFAULT_TIMEOUT
 from ddtrace.settings._core import DDConfig
@@ -156,3 +157,23 @@ class AgentConfig(DDConfig):
 
 
 config = AgentConfig()
+
+
+def get_agent_hostname() -> str:
+    """
+    Returns the hostname of the agent using the resolved trace_agent_url.
+    """
+    url = urlparse(config.trace_agent_url)
+    if url.hostname:
+        return url.hostname
+    return DEFAULT_HOSTNAME
+
+
+def get_agent_port() -> int:
+    """
+    Returns the port of the agent using the resolved trace_agent_url.
+    """
+    url = urlparse(config.trace_agent_url)
+    if url.port:
+        return url.port
+    return DEFAULT_TRACE_PORT
