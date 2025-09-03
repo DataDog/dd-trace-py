@@ -401,7 +401,7 @@ class GuardrailLinkTracker:
         """
         spans_to_remove = set()
         for guardrail_span in self._active_guardrail_spans:
-            if guardrail_span.parent_id == span.parent_id:
+            if _get_nearest_llmobs_ancestor(guardrail_span) == _get_nearest_llmobs_ancestor(span):
                 add_span_link(
                     span,
                     str(guardrail_span.span_id),

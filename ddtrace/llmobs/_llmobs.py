@@ -261,6 +261,9 @@ class LLMObs(Service):
         if span_kind == "llm":
             self._guardrail_link_tracker._last_llm_span = span
             self._guardrail_link_tracker.on_llm_span_finish(span)
+        elif span_kind == "agent":
+            # reset last LLM span per agent
+            self._guardrail_link_tracker._last_llm_span = None
 
         llmobs_span = LLMObsSpan()
         _dd_attrs = {
