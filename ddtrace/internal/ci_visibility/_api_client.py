@@ -62,6 +62,16 @@ DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
 DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
+def _get_faulty_session_threshold() -> int:
+    """Get faulty session threshold with safe parsing and fallback to default."""
+    try:
+        return int(os.getenv("_DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD", "30"))
+    except (ValueError, TypeError):
+        return 30
+
+
+FAULTY_SESSION_THRESHOLD: int = _get_faulty_session_threshold()
+
 _BASE_HEADERS: t.Dict[str, str] = {
     "Content-Type": "application/json",
 }
@@ -90,7 +100,7 @@ class EarlyFlakeDetectionSettings:
     slow_test_retries_10s: int = 5
     slow_test_retries_30s: int = 3
     slow_test_retries_5m: int = 2
-    faulty_session_threshold: int = 30
+    faulty_session_threshold: int = FAULTY_SESSION_THRESHOLD
 
 
 @dataclasses.dataclass(frozen=True)

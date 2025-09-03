@@ -1,6 +1,9 @@
+import os
 from typing import Any
 from typing import Dict
 from typing import Optional
+
+import pytest
 
 from ddtrace.ext import test
 from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
@@ -147,12 +150,24 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
                     if _test.is_new():
                         new_tests_count += 1
 
-        if new_tests_count <= self._session_settings.efd_settings.faulty_session_threshold:
+        # Use threshold from settings (which comes from _DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD)
+        threshold = self._session_settings.efd_settings.faulty_session_threshold
+        
+        # Check if we're in a pytest-xdist worker and adjust threshold accordingly
+        xdist_worker_id = os.getenv("PYTEST_XDIST_WORKER")
+        if xdist_worker_id is not None:
+            # Get from pytest global variable set by main process via execnet
+            if hasattr(pytest, "xdist_total_workers") and pytest.xdist_total_workers > 1:
+                # Adjust threshold proportionally to account for distributed test execution
+                # If 30% threshold with 4 workers, each worker should use 30/4 = 7.5% threshold
+                threshold = max(1.0, threshold / pytest.xdist_total_workers)
+
+        if new_tests_count <= threshold:
             return False
 
         new_tests_pct = 100 * (new_tests_count / total_tests_count)
 
-        self._efd_is_faulty_session = new_tests_pct > self._session_settings.efd_settings.faulty_session_threshold
+        self._efd_is_faulty_session = new_tests_pct > threshold
 
         return self._efd_is_faulty_session
 

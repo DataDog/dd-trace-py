@@ -470,6 +470,13 @@ def pytest_sessionstart(session: pytest.Session) -> None:
                     "pytest_sessionstart: Could not convert root_span %s to int",
                     received_root_span,
                 )
+            
+            # Store total worker count for EFD threshold adjustment
+            total_workers = session.config.workerinput.get("total_workers")
+            if total_workers:
+                pytest.xdist_total_workers = total_workers
+                log.debug("Worker received total_workers=%d from main process", total_workers)
+                
         elif hasattr(pytest, "global_worker_itr_results"):
             distributed_children = True
 
