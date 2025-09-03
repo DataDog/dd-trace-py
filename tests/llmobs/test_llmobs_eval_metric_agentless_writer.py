@@ -73,8 +73,8 @@ def test_send_metric_bad_api_key(mock_writer_logs):
         1,
         "evaluation_metric",
         INTAKE_ENDPOINT,
-        403,
-        b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',  # noqa
+        401,
+        b'{"errors":["Unauthorized"]}',  # noqa
     )
 
 
@@ -163,8 +163,5 @@ llmobs_eval_metric_writer.enqueue(_score_metric_event())
     )
     assert status == 0, err
     assert out == b""
-    assert b"got response code 403" in err
-    assert (
-        b'status: b\'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}\'\n'
-        in err
-    )
+    assert b"got response code 401" in err
+    assert b'status: b\'{"errors":["Unauthorized"]}\'\n' in err

@@ -115,11 +115,8 @@ LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"
     )
     assert status == 0, err
     assert out == b""
-    assert b"got response code 403" in err
-    assert (
-        b'status: b\'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}\'\n'
-        in err
-    )
+    assert b"got response code 401" in err
+    assert b'status: b\'{"errors":["Unauthorized"]}' in err
 
 
 def test_evaluator_runner_unsupported_evaluator():
