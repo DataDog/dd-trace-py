@@ -90,6 +90,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import AnnotationContext
+from ddtrace.llmobs._utils import GuardrailLinkTracker
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
@@ -220,6 +221,7 @@ class LLMObs(Service):
         self._annotation_context_lock = forksafe.RLock()
 
         self._tool_call_tracker = ToolCallTracker()
+        self._guardrail_link_tracker = GuardrailLinkTracker()
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -255,6 +257,10 @@ class LLMObs(Service):
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
+        
+        if span_kind == "llm":
+            self._guardrail_link_tracker._last_llm_span = span
+            self._guardrail_link_tracker.on_llm_span_finish(span)
 
         llmobs_span = LLMObsSpan()
         _dd_attrs = {

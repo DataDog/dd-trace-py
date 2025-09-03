@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Dict
+from typing import Set
 from typing import List
 from typing import Optional
 from typing import Tuple
@@ -386,3 +387,42 @@ class ToolCallTracker:
             "output",
             "input",
         )
+
+class GuardrailLinkTracker:
+    """Used to link input and output guardrails to their associated LLM spans."""
+
+    def __init__(self):
+        self._active_guardrail_spans: Set[Span] = set()
+        self._last_llm_span: Span = None
+    
+    def on_llm_span_finish(self, span: Span) -> None:
+        """
+        Called when an LLM span finishes. If the LLM span is the first LLM span, it will consume all active guardrail links.
+        """
+        spans_to_remove = set()
+        for guardrail_span in self._active_guardrail_spans:
+            if guardrail_span.parent_id == span.parent_id:
+                add_span_link(
+                    span,
+                    str(guardrail_span.span_id),
+                    format_trace_id(guardrail_span.trace_id),
+                    "output",
+                    "input",
+                )
+                spans_to_remove.add(guardrail_span)
+        self._active_guardrail_spans -= spans_to_remove
+    
+    def on_guardrail_span_start(self, span: Span) -> None:
+        """
+        Called when a guardrail span starts. This is used to track the active guardrail spans and link the output of the last
+        LLM span to the input of the guardrail span.
+        """
+        self._active_guardrail_spans.add(span)
+        if self._last_llm_span is not None:
+            add_span_link(
+                span,
+                str(self._last_llm_span.span_id),
+                format_trace_id(self._last_llm_span.trace_id),
+                "output",
+                "input",
+            )
