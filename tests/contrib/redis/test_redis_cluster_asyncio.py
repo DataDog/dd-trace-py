@@ -115,6 +115,32 @@ async def test_pipeline(traced_redis_cluster):
     assert span.get_metric("redis.pipeline_length") == 3
 
 
+@pytest.mark.skipif(redis.VERSION < (6, 2, 0), reason="_command_stack removed in redis>=6.2.0 only")
+@pytest.mark.asyncio
+async def test_pipeline_no_internal_command_stack(traced_redis_cluster):
+    cluster, test_spans = traced_redis_cluster
+    async with cluster.pipeline(transaction=False) as p:
+        # In redis>=6.2.0, the internal _command_stack was removed in favor of command_stack
+        assert not hasattr(p, "_command_stack")
+        assert hasattr(p, "command_stack")
+
+        p.set("a", 1)
+        p.get("a")
+        await p.execute()
+
+    traces = test_spans.pop_traces()
+    assert len(traces) == 1
+    spans = traces[0]
+    assert len(spans) == 1
+
+    span = spans[0]
+    assert_is_measured(span)
+    assert span.service == "redis"
+    assert span.name == "redis.command"
+    assert span.resource == "SET\nGET"
+    assert span.get_tag("component") == "redis"
+    assert span.get_metric("redis.pipeline_length") == 2
+
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.asyncio
 async def test_patch_unpatch(redis_cluster):
