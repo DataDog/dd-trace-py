@@ -144,12 +144,12 @@ def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
         from langchain.agents import AgentFinish
 
     for action in result if isinstance(result, Sequence) else [result]:
-        if isinstance(action, AgentAction) and "input" in kwargs:
+        if isinstance(action, AgentAction) and action.tool:
             try:
-                agent_input = kwargs["input"]
                 history = _convert_messages(kwargs["chat_history"]) if "chat_history" in kwargs else []
-                # TODO we are assuming user prompt
-                history.append(Prompt(role="user", content=agent_input))
+                if "input" in kwargs:
+                    # TODO we are assuming user prompt
+                    history.append(Prompt(role="user", content=kwargs["input"]))
                 tool_name = action.tool
                 tool_input = action.tool_input
                 if not client.evaluate_tool(tool_name, tool_input, history=history):
