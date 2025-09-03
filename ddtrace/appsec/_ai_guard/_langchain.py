@@ -67,11 +67,14 @@ async def _langchain_agent_aplan(client: AIGuardClient, func, instance, args, kw
     return _handle_agent_action_result(client, action, kwargs)
 
 
-def _try_parse_json(value: str, default_name: str) -> Any:
+def _try_parse_json(value: dict, attribute: str) -> Any:
+    json_str = value.get(attribute, None)
+    if json_str is None:
+        return None
     try:
-        return json.loads(value)
+        return json.loads(json_str)
     except Exception:
-        return {default_name: value}
+        return {attribute: json_str}
 
 
 def _get_message_text(msg: Any) -> str:
@@ -98,59 +101,65 @@ def _convert_messages(messages: list[Any]) -> list[Evaluation]:
     tool_calls: Dict[str, ToolCall] = dict()
     function_call: Optional[ToolCall] = None
     for message in messages:
-        if isinstance(message, HumanMessage):
-            result.append(Prompt(role="user", content=_get_message_text(message)))
-        elif isinstance(message, SystemMessage):
-            result.append(Prompt(role="system", content=_get_message_text(message)))
-        elif isinstance(message, ChatMessage):
-            result.append(Prompt(role=message.role, content=_get_message_text(message)))
-        elif isinstance(message, AIMessage):
-            for call in message.tool_calls:
-                tool_call = ToolCall(tool_name=call["name"], tool_args=call["args"])
-                result.append(tool_call)
-                if call["id"]:
-                    tool_calls[call["id"]] = tool_call
-            if "function_call" in message.additional_kwargs:
-                call = message.additional_kwargs["function_call"]
-                function_call = ToolCall(
-                    tool_name=call.get("name"), tool_args=_try_parse_json(call.get("arguments"), "arguments")
-                )
-                result.append(function_call)
-            if message.content:
+        try:
+            if isinstance(message, HumanMessage):
+                result.append(Prompt(role="user", content=_get_message_text(message)))
+            elif isinstance(message, SystemMessage):
+                result.append(Prompt(role="system", content=_get_message_text(message)))
+            elif isinstance(message, ChatMessage):
                 result.append(Prompt(role=message.role, content=_get_message_text(message)))
-        elif isinstance(message, ToolMessage):
-            current_call = tool_calls.get(message.tool_call_id)
-            if current_call:
-                current_call["output"] = _get_message_text(message)
-        elif isinstance(message, FunctionMessage):
-            if function_call and function_call["tool_name"] == message.name:
-                function_call["output"] = _get_message_text(message)
-                function_call = None
+            elif isinstance(message, AIMessage):
+                for call in message.tool_calls:
+                    tool_call = ToolCall(tool_name=call["name"], tool_args=call["args"])
+                    result.append(tool_call)
+                    if call["id"]:
+                        tool_calls[call["id"]] = tool_call
+                if "function_call" in message.additional_kwargs:
+                    call = message.additional_kwargs["function_call"]
+                    function_call = ToolCall(tool_name=call.get("name"), tool_args=_try_parse_json(call, "arguments"))
+                    result.append(function_call)
+                if message.content:
+                    result.append(Prompt(role="assistant", content=_get_message_text(message)))
+            elif isinstance(message, ToolMessage):
+                current_call = tool_calls.get(message.tool_call_id)
+                if current_call:
+                    current_call["output"] = _get_message_text(message)
+            elif isinstance(message, FunctionMessage):
+                if function_call and function_call["tool_name"] == message.name:
+                    function_call["output"] = _get_message_text(message)
+                    function_call = None
+        except Exception:
+            logger.debug("Failed to convert message", exc_info=True)
 
     return result
 
 
-def _handle_agent_action_result(client: AIGuardClient, action, kwargs):
-    from langchain_core.agents import AgentAction
-    from langchain_core.agents import AgentFinish
+def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
+    try:
+        from langchain_core.agents import AgentAction
+        from langchain_core.agents import AgentFinish
+    except ImportError:
+        from langchain.agents import AgentAction
+        from langchain.agents import AgentFinish
 
-    if isinstance(action, AgentAction) and "input" in kwargs:
-        try:
-            agent_input = kwargs["input"]
-            history = _convert_messages(kwargs["chat_history"]) if "chat_history" in kwargs else []
-            # TODO we are assuming user prompt
-            history.append(Prompt(role="user", content=agent_input))
-            tool_name = action.tool
-            tool_input = action.tool_input
-            if not client.evaluate_tool(tool_name, tool_input, history=history):
-                blocked_message = f"Tool call '{tool_name}' was blocked due to security policies."
-                return AgentFinish(return_values={"output": blocked_message}, log=blocked_message)
-        except AIGuardAbortError:
-            raise
-        except Exception:
-            logger.debug("Failed to evaluate tool call", exc_info=True)
+    for action in result if isinstance(result, list) else [result]:
+        if isinstance(action, AgentAction) and "input" in kwargs:
+            try:
+                agent_input = kwargs["input"]
+                history = _convert_messages(kwargs["chat_history"]) if "chat_history" in kwargs else []
+                # TODO we are assuming user prompt
+                history.append(Prompt(role="user", content=agent_input))
+                tool_name = action.tool
+                tool_input = action.tool_input
+                if not client.evaluate_tool(tool_name, tool_input, history=history):
+                    blocked_message = f"Tool call '{tool_name}' was blocked due to security policies."
+                    return AgentFinish(return_values={"output": blocked_message}, log=blocked_message)
+            except AIGuardAbortError:
+                raise
+            except Exception:
+                logger.debug("Failed to evaluate tool call", exc_info=True)
 
-    return action
+    return result
 
 
 def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists, args: Dict[str, Any]):
