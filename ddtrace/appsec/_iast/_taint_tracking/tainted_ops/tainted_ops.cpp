@@ -37,10 +37,24 @@ api_is_tainted(py::object tainted_object)
     return false;
 }
 
+bool
+api_is_tainted_new(py::object tainted_object)
+{
+    if (tainted_object) {
+        const auto& to_initial = application_context->get_tainted_object_from_contexts_array(tainted_object.ptr());
+        if (to_initial and !to_initial->get_ranges().empty()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 void
 pyexport_tainted_ops(py::module& m)
 {
     m.def("is_tainted", &api_is_tainted, "tainted_object"_a, py::return_value_policy::move);
+    m.def("is_tainted_new", &api_is_tainted_new, "is_tainted_new"_a, py::return_value_policy::move);
     m.def("are_all_text_all_ranges",
           &are_all_text_all_ranges,
           "candidate_text"_a,
