@@ -137,9 +137,6 @@ ENV/
 # Cursor
 .cursor/
 
-# Cascade
-.windsurf/
-
 # Claude
 CLAUDE.local.md
 

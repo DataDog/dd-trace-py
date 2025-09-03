@@ -3,6 +3,8 @@
 #include <pybind11/pybind11.h>
 
 #include "context/application_context.h"
+#include "taint_tracking/taint_range.h"
+#include "taint_tracking/tainted_object.h"
 
 namespace py = pybind11;
 
@@ -94,4 +96,56 @@ TEST_F(ApplicationContextTest, ClearAllContexts)
         auto m = application_context->get_taint_map_by_ctx_id(i);
         ASSERT_EQ(m, nullptr);
     }
+}
+
+TEST_F(ApplicationContextTest, ClearTaintMapFreesContainedTaintedObjects)
+{
+    // Arrange: create a context and a tainted entry
+    auto idx_opt = application_context->create_context_array();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = application_context->get_taint_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    // Insert a TaintedObjectPtr directly into the map with a dummy key/hash
+    TaintedObjectPtr to = std::make_shared<TaintedObject>();
+    std::weak_ptr<TaintedObject> w_to = to; // observe lifetime
+    const uintptr_t dummy_key = 0xDEADBEEF;
+    const Py_hash_t dummy_hash = 0;
+    tx_map->insert({ dummy_key, std::make_pair(dummy_hash, to) });
+
+    // Drop our local strong reference so the map is the sole owner
+    to.reset();
+
+    // Sanity: ensure the weak_ptr is not expired yet
+    ASSERT_FALSE(w_to.expired());
+
+    // Act: clear the taint map slot
+    application_context->clear_taint_map(ctx_id);
+
+    // Assert: the TaintedObject has been destroyed (no remaining strong refs)
+    ASSERT_TRUE(w_to.expired());
+}
+
+TEST_F(ApplicationContextTest, ClearContextsArrayFreesTaintRangeMap)
+{
+    // Arrange: create a context map
+    auto idx_opt = application_context->create_context_array();
+    ASSERT_TRUE(idx_opt.has_value());
+    const auto ctx_id = *idx_opt;
+    auto tx_map = application_context->get_taint_map_by_ctx_id(ctx_id);
+    ASSERT_NE(tx_map, nullptr);
+
+    // Take a weak reference to the map itself
+    std::weak_ptr<TaintRangeMapType> w_map = tx_map;
+
+    // Drop local strong reference; contexts_array should be the only owner now
+    tx_map.reset();
+    ASSERT_FALSE(w_map.expired());
+
+    // Act: clear all contexts (sets slot to nullptr and releases the shared_ptr)
+    application_context->clear_contexts_array();
+
+    // Assert: the map is destroyed (no remaining strong refs)
+    ASSERT_TRUE(w_map.expired());
 }
