@@ -1,0 +1,66 @@
+[[
+  {
+    "name": "non_monkey",
+    "service": "animals",
+    "resource": "non_monkey",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "68addfd300000000",
+      "language": "python",
+      "runtime-id": "523f5eaef3a74ae3bfb9e77e4c19e621"
+    },
+    "metrics": {
+      "_dd.rule_psr": 0.0,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 25190
+    },
+    "duration": 76417,
+    "start": 1756225491270116303
+  },
+     {
+       "name": "monkey",
+       "service": "animals",
+       "resource": "non_root_span",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "metrics": {
+         "_dd.span_sampling.mechanism": 8,
+         "_dd.span_sampling.rule_rate": 1
+       },
+       "duration": 31208,
+       "start": 1756225491270144303
+     },
+        {
+          "name": "human_monkey",
+          "service": "animals",
+          "resource": "human_monkey",
+          "trace_id": 0,
+          "span_id": 4,
+          "parent_id": 2,
+          "type": "",
+          "error": 0,
+          "duration": 7250,
+          "start": 1756225491270158970
+        },
+     {
+       "name": "donkey_monkey",
+       "service": "animals",
+       "resource": "donkey_monkey",
+       "trace_id": 0,
+       "span_id": 3,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "duration": 5208,
+       "start": 1756225491270183595
+     }]]
