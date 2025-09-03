@@ -196,7 +196,7 @@ def _llmobs_decorator(operation_kind):
                         resp = await func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
-                            and resp
+                            and resp is not None
                             and operation_kind != "retrieval"
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
@@ -246,7 +246,7 @@ def _llmobs_decorator(operation_kind):
                         resp = func(*args, **kwargs)
                         if (
                             _automatic_io_annotation
-                            and resp
+                            and resp is not None
                             and operation_kind != "retrieval"
                             and span._get_ctx_item(OUTPUT_VALUE) is None
                         ):
