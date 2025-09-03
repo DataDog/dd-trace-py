@@ -1,5 +1,6 @@
 import ray
 
+
 ray.init()
 
 @ray.remote

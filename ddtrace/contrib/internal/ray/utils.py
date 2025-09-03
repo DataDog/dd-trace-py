@@ -1,11 +1,15 @@
 import inspect
+from inspect import Parameter
+from inspect import Signature
 import os
-from typing import Callable, Any, List
+from typing import Any
+from typing import Callable
+from typing import List
 
-from inspect import Parameter, Signature
-from ddtrace.propagation.http import _TraceContext
 import ray
 from ray.runtime_context import get_runtime_context
+
+from ddtrace.propagation.http import _TraceContext
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
