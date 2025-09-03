@@ -226,7 +226,7 @@ class _DatadogMultiHeader:
                 "_dd.propagation_error": "decoding_error",
             }
             log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
-        return meta, metrics
+        return meta
 
     @staticmethod
     def _put_together_trace_id(trace_id_hob_hex: str, low_64_bits: int) -> int:
