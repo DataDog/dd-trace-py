@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CI Visibility: This fix resolves an issue where coverage from sessions with pytest-xdist were not submitted with the proper session id, preventing Test Impact Analysis feature from working properly.
