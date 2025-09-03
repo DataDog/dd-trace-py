@@ -12,6 +12,7 @@ from ddtrace.llmobs import _constants as const
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import ROOT_PARENT_ID
 from ddtrace.llmobs._utils import _get_session_id
+from ddtrace.llmobs.utils import Prompt
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
 
 
@@ -458,17 +459,44 @@ def test_structured_io_data(llmobs, llmobs_backend):
         assert events[0][0]["spans"][0]["meta"]["output"]["value"] == '{"data": "test2"}'
 
 
-def test_structured_prompt_data(llmobs, llmobs_backend):
+def test_structured_prompt_data_v1(llmobs, llmobs_backend):
     with llmobs.llm() as span:
-        llmobs.annotate(span, prompt={"template": "test {{value}}"})
+        llmobs.annotate(span, input_data={"data": "test1"}, prompt={"template": "test {{value}}"})
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["input"]["prompt"] == {
+        "id": "unnamed-ml-app_unnamed-prompt",
+        "template": "test {{value}}",
+        "_dd_context_variable_keys": ["context"],
+        "_dd_query_variable_keys": ["question"],
+    }
+
+
+def test_structured_prompt_data_v2(llmobs, llmobs_backend):
+    prompt = Prompt(
+        id="test",
+        chat_template=[{"role": "user", "content": "test {{value}}"}],
+        variables={"value": "test","context": "test", "question": "test"},
+        tags={"env":"prod", "llm": "openai"},
+        rag_context_variables=["context"],
+        rag_query_variables=["question"],
+    )
+    with llmobs.llm() as span:
+        llmobs.annotate(
+            span,
+            prompt=prompt,
+        )
     events = llmobs_backend.wait_for_num_events(num=1)
     assert len(events) == 1
     assert events[0][0]["spans"][0]["meta"]["input"] == {
         "prompt": {
-            "template": "test {{value}}",
+            "id": "test",
+            "chat_template": [{"role": "user", "content": "test {{value}}"}],
+            "variables": {"value": "test","context": "test", "question": "test"},
+            "tags": {"env":"prod", "llm": "openai"},
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
-        },
+        }
     }
 
 

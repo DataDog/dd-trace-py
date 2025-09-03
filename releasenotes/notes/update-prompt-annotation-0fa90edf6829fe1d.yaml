@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    LLM Observability: This introduces prompt annotation for ``LLMObs.llm`` and a new ``prompt_context`` annotation context to add prompts.
+upgrade:
+  - |
+    LLM Observability: Extends the prompt structure to add ``tags`` and ``chat_template``.
