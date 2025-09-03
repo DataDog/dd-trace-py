@@ -735,6 +735,7 @@ class Span(object):
                 log.warning(msg)
 
         if context.trace_id and context.span_id:
+            print("link_span: linking span")
             self.set_link(
                 trace_id=context.trace_id,
                 span_id=context.span_id,

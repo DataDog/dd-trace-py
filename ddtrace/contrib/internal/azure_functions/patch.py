@@ -85,21 +85,21 @@ def _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        event = kwargs.get(trigger_arg_name)
-
+        # event = kwargs.get(trigger_arg_name)
+        application_properties = None
         # Reparent trace if single message or list of messages all with same context
-        if isinstance(event, azure_functions.EventHubEvent) and event.metadata is not None:
-            application_properties = event.metadata.get("Properties")
-        elif (
-            isinstance(event, list)
-            and event
-            and isinstance(event[0], azure_functions.EventHubEvent)
-            and event[0].metadata is not None
-            and message_list_has_single_context(event)
-        ):
-            application_properties = event[0].metadata.get("Properties")
-        else:
-            application_properties = None
+        # if isinstance(event, azure_functions.EventHubEvent) and event.metadata is not None:
+        #     application_properties = event.metadata.get("Properties")
+        # elif (
+        #     isinstance(event, list)
+        #     and event
+        #     and isinstance(event[0], azure_functions.EventHubEvent)
+        #     and event[0].metadata is not None
+        #     and message_list_has_single_context(event)
+        # ):
+        #     application_properties = event[0].metadata.get("Properties")
+        # else:
+        #     application_properties = None
         return create_context("azure.functions.patched_event_hub", pin, resource_name, headers=application_properties)
 
     def pre_dispatch(ctx, kwargs):
