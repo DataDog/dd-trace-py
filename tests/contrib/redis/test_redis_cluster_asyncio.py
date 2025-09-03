@@ -141,6 +141,7 @@ async def test_pipeline_no_internal_command_stack(traced_redis_cluster):
     assert span.get_tag("component") == "redis"
     assert span.get_metric("redis.pipeline_length") == 2
 
+
 @pytest.mark.skipif(redis.VERSION < (4, 3, 0), reason="redis.asyncio.cluster is not implemented in redis<4.3.0")
 @pytest.mark.asyncio
 async def test_patch_unpatch(redis_cluster):
