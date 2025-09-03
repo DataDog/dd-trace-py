@@ -63,6 +63,7 @@ def test_buffer_limit(mock_writer_logs):
     )
 
 
+@pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
 def test_send_metric_bad_api_key(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="<bad-api-key>")
 
@@ -142,6 +143,7 @@ def test_send_multiple_events(mock_writer_logs):
     )
 
 
+@pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
 def test_send_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
