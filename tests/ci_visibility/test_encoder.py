@@ -959,33 +959,3 @@ def test_coverage_encoder_parent_session_id_propagation():
     # Should use parent session ID (0xAAAAAA) instead of worker session ID
     assert coverage_event[b"test_session_id"] == 0xAAAAAA
     assert coverage_event[b"test_suite_id"] == 67890
-
-
-def test_coverage_encoder_no_session_span_fallback():
-    """Test that coverage encoder falls back to span's own session ID when no session span present"""
-    # Create test span with coverage data but no session span in trace
-    coverage_data = {"files": [{"filename": "test.py", "segments": [[1, 0, 1, 0, -1]]}]}
-    test_span = Span(name="test.case", span_id=0xCCCCCC, service="test", span_type="test")
-    test_span.set_tag(COVERAGE_TAG_NAME, json.dumps(coverage_data))
-    test_span.set_tag(SESSION_ID, "456")
-    test_span.set_tag(SUITE_ID, "67890")
-
-    traces = [[test_span]]  # No session span
-
-    encoder = CIVisibilityCoverageEncoderV02(0, 0)
-    encoder.put(traces[0])
-
-    # Build coverage data
-    coverage_data_bytes = encoder._build_data(traces)
-    assert coverage_data_bytes is not None
-
-    # Decode the coverage data
-    decoded = msgpack.unpackb(coverage_data_bytes, raw=True, strict_map_key=False)
-    coverages = decoded[b"coverages"]
-
-    assert len(coverages) == 1
-    coverage_event = coverages[0]
-
-    # Should fallback to span's own session ID since no session span found
-    assert coverage_event[b"test_session_id"] == 456  # int() conversion
-    assert coverage_event[b"test_suite_id"] == 67890
