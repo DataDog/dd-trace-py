@@ -3,6 +3,7 @@ import ray
 
 ray.init()
 
+
 @ray.remote
 def add_one(x):
     raise ValueError("foo")
