@@ -18,9 +18,9 @@ from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitdrive  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitext  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitroot  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.context import get_taint_map  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import active_map_addreses_size  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import debug_taint_map  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.initializer import initializer_size  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import num_objects_tainted  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
@@ -47,6 +47,7 @@ log = get_logger(__name__)
 
 __all__ = [
     "OriginType",
+    "active_map_addreses_size",
     "Source",
     "TagMappingMode",
     "TaintRange",
@@ -64,7 +65,6 @@ __all__ = [
     "_aspect_splitlines",
     "_convert_escaped_text_to_tainted_text",
     "_format_aspect",
-    "active_map_addreses_size",
     "are_all_text_all_ranges",
     "as_formatted_evidence",
     "common_replace",
@@ -73,7 +73,7 @@ __all__ = [
     "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
-    "initializer_size",
+    "get_taint_map",
     "is_tainted",
     "new_pyobject_id",
     "num_objects_tainted",
@@ -87,3 +87,4 @@ __all__ = [
 ]
 new_pyobject_id = ops.new_pyobject_id
 set_ranges_from_values = ops.set_ranges_from_values
+taint_pyobject = ops.taint_pyobject
