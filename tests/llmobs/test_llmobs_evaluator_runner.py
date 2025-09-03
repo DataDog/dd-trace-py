@@ -92,7 +92,6 @@ def test_evaluator_runner_multiple_evaluators(llmobs, mock_llmobs_eval_metric_wr
     ]
 
 
-# TODO: use vcr proxy for this test
 def test_evaluator_runner_on_exit(mock_writer_logs, run_python_code_in_subprocess):
     env = os.environ.copy()
     pypath = [os.path.dirname(os.path.dirname(os.path.dirname(__file__)))]
@@ -107,7 +106,12 @@ from ddtrace.llmobs import LLMObs
 from ddtrace.llmobs._evaluators.runner import EvaluatorRunner
 from tests.llmobs._utils import DummyEvaluator
 
-LLMObs.enable(api_key="dummy-api-key", site="datad0g.com", ml_app="unnamed-ml-app", agentless_enabled=True)
+LLMObs.enable(api_key="dummy-api-key", ml_app="unnamed-ml-app", agentless_enabled=True)
+
+LLMObs._instance._llmobs_eval_metric_writer._override_url = "http://localhost:9126/vcr/datadog/"
+LLMObs._instance._llmobs_eval_metric_writer._intake = "http://localhost:9126/vcr/datadog/"
+LLMObs._instance._llmobs_eval_metric_writer._endpoint = "api/intake/llm-obs/v2/eval-metric"
+
 LLMObs._instance._evaluator_runner.evaluators.append(DummyEvaluator(llmobs_service=LLMObs))
 LLMObs._instance._evaluator_runner.start()
 LLMObs._instance._evaluator_runner.enqueue({"span_id": "123", "trace_id": "1234"}, None)
