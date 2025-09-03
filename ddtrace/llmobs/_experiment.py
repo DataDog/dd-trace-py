@@ -101,6 +101,8 @@ class Dataset:
     _updated_record_ids_to_new_fields: Dict[str, UpdatableDatasetRecord]
     _deleted_record_ids: List[str]
 
+    BATCH_UPDATE_THRESHOLD = 5 * 1024 * 1024  # 5MB
+
     def __init__(
         self,
         name: str,
@@ -136,17 +138,24 @@ class Dataset:
                 )
             )
 
-        updated_records = list(self._updated_record_ids_to_new_fields.values())
-        new_version, new_record_ids = self._dne_client.dataset_batch_update(
-            self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
-        )
+        delta_size = self._estimate_delta_size()
+        if delta_size > self.BATCH_UPDATE_THRESHOLD:
+            logger.debug("dataset delta is %d, using bulk upload", delta_size)
+            # TODO must return version too
+            self._dne_client.dataset_bulk_upload(self._id, self)
+        else:
+            logger.debug("dataset delta is %d, using batch update", delta_size)
+            updated_records = list(self._updated_record_ids_to_new_fields.values())
+            new_version, new_record_ids = self._dne_client.dataset_batch_update(
+                self._id, list(self._new_records_by_record_id.values()), updated_records, self._deleted_record_ids
+            )
 
-        # attach record ids to newly created records
-        for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
-            record["record_id"] = record_id  # type: ignore
+            # attach record ids to newly created records
+            for record, record_id in zip(self._new_records_by_record_id.values(), new_record_ids):
+                record["record_id"] = record_id  # type: ignore
 
-        # FIXME: we don't get version numbers in responses to deletion requests
-        self._version = new_version if new_version != -1 else self._version + 1
+            # FIXME: we don't get version numbers in responses to deletion requests
+            self._version = new_version if new_version != -1 else self._version + 1
         self._new_records_by_record_id = {}
         self._deleted_record_ids = []
         self._updated_record_ids_to_new_fields = {}
@@ -198,6 +207,30 @@ class Dataset:
     def url(self) -> str:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/datasets/{self._id}"
+
+    # very rough estimate of the size of the next batch update call if it happens, will likely overestimate
+    def _estimate_delta_size(self) -> int:
+        num_bytes = 0
+        for r_id, insert_rec in self._new_records_by_record_id.items():
+            num_bytes += (
+                len(r_id)
+                + sys.getsizeof(insert_rec.get("input_data", ""))
+                + sys.getsizeof(insert_rec.get("expected_output", ""))
+                + sys.getsizeof(insert_rec.get("metadata", ""))
+            )
+        for r_id, update_rec in self._updated_record_ids_to_new_fields.items():
+            num_bytes += (
+                len(r_id)
+                + sys.getsizeof(update_rec.get("input_data", ""))
+                + sys.getsizeof(update_rec.get("expected_output", ""))
+                + sys.getsizeof(update_rec.get("metadata", ""))
+            )
+        logger.debug(
+            "estimated size is %d, naive estimation is %d",
+            num_bytes,
+            sys.getsizeof(self._new_records_by_record_id) + sys.getsizeof(self._updated_record_ids_to_new_fields),
+        )
+        return num_bytes
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
