@@ -3666,14 +3666,50 @@ venv = Venv(
             },
         ),
         Venv(
-            name="ai_guard",
-            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            name="ai_guard_api",
+            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
             pkgs={
                 "requests": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_langchain",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "langchain": "==0.1.20",
+                        "langchain-core": "==0.1.53",
+                        "langchain-openai": "==0.1.6",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": "==0.2.17",
+                        "langchain-core": "==0.2.43",
+                        "langchain-openai": "==0.1.7",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "openai": latest,
+                    },
                 ),
             ],
         ),
