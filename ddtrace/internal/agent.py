@@ -1,4 +1,5 @@
 import json
+import typing as t
 
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings._agent import config
@@ -8,8 +9,15 @@ from .utils.http import get_connection
 
 log = get_logger(__name__)
 
+_INFO: t.Optional[t.Dict[str, t.Any]] = None
 
-def info(url=None):
+
+def info(url=None) -> t.Optional[t.Dict[str, t.Any]]:
+    global _INFO
+
+    if _INFO is not None:
+        return _INFO
+
     agent_url = config.trace_agent_url if url is None else url
     timeout = config.trace_agent_timeout_seconds
     _conn = get_connection(agent_url, timeout=timeout)
@@ -28,4 +36,4 @@ def info(url=None):
         log.warning("Unexpected error: HTTP error status %s, reason %s", resp.status, resp.reason)
         return None
 
-    return json.loads(data)
+    return (_INFO := json.loads(data))

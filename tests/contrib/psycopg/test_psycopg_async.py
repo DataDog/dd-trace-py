@@ -5,9 +5,9 @@ import psycopg
 from psycopg.sql import SQL
 from psycopg.sql import Literal
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.psycopg.patch import patch
 from ddtrace.contrib.internal.psycopg.patch import unpatch
-from ddtrace.trace import Pin
 from tests.contrib.asyncio.utils import AsyncioTestCase
 from tests.contrib.config import POSTGRES_CONFIG
 from tests.opentracer.utils import init_tracer
