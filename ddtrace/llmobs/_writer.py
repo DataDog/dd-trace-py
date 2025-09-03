@@ -154,6 +154,9 @@ class BaseLLMObsWriter(PeriodicService):
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
+        if self._override_url:
+            self._endpoint = self.ENDPOINT.lstrip("/")
+
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
         if is_agentless:
             self._headers["DD-API-KEY"] = self._api_key
