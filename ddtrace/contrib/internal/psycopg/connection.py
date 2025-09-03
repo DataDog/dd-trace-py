@@ -1,4 +1,5 @@
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.psycopg.cursor import Psycopg2FetchTracedCursor
@@ -14,7 +15,6 @@ from ddtrace.ext import net
 from ddtrace.ext import sql
 from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
-from ddtrace.trace import Pin
 
 
 class Psycopg3TracedConnection(dbapi.TracedConnection):

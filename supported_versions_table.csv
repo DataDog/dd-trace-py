@@ -52,9 +52,9 @@ jinja2,jinja2,2.10.3,3.1.4,True
 confluent-kafka,kafka,1.9.2,2.6.2,True
 kombu,kombu,4.6.11,5.4.2,False
 langchain,langchain,0.1.20,0.3.18,True
-langgraph,langgraph,0.2.23,0.6.3,True
+langgraph,langgraph,0.2.23,0.6.5,True
 langgraph-checkpoint,langgraph,1.0.12,2.1.1,True
-langgraph-prebuilt,langgraph,0.1.8,0.6.3,True
+langgraph-prebuilt,langgraph,0.1.8,0.6.4,True
 litellm,litellm *,1.65.4,1.65.4,True
 logbook,logbook,1.0.0,1.8.1,True
 loguru,loguru,0.4.1,0.7.2,True
