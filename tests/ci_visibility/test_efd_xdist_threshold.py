@@ -9,8 +9,8 @@ from ddtrace.ext.test_visibility._test_visibility_base import TestModuleId
 from ddtrace.ext.test_visibility._test_visibility_base import TestSuiteId
 from ddtrace.internal.ci_visibility._api_client import EarlyFlakeDetectionSettings
 from ddtrace.internal.ci_visibility.api._base import TestVisibilitySessionSettings
-from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._module import TestVisibilityModule
+from ddtrace.internal.ci_visibility.api._session import TestVisibilitySession
 from ddtrace.internal.ci_visibility.api._suite import TestVisibilitySuite
 from ddtrace.internal.ci_visibility.api._test import TestVisibilityTest
 from ddtrace.internal.ci_visibility.telemetry.constants import TEST_FRAMEWORKS
@@ -19,7 +19,7 @@ from tests.utils import DummyTracer
 
 class TestEFDXdistThreshold:
     """Test EFD faulty session threshold adjustment for pytest-xdist."""
-    
+
     def _get_session_settings(self, efd_settings=None):
         """Helper method to create session settings with EFD settings."""
         return TestVisibilitySessionSettings(
@@ -41,10 +41,10 @@ class TestEFDXdistThreshold:
         """Test that EFD threshold is adjusted for xdist workers using execnet-passed worker count"""
         # Set environment variable to simulate xdist worker
         monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw2")  # Worker 2 of 4
-        
+
         # Simulate pytest global variable set by main process via execnet
         pytest.xdist_total_workers = 4
-        
+
         efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=30)
         ssettings = self._get_session_settings(efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
@@ -77,19 +77,19 @@ class TestEFDXdistThreshold:
 
         # 50% new tests > 7.5% threshold = faulty session
         assert test_session.efd_is_faulty_session() is True
-        
+
         # Clean up
         if hasattr(pytest, "xdist_total_workers"):
             delattr(pytest, "xdist_total_workers")
 
     def test_efd_session_not_faulty_xdist_threshold_adjustment(self, monkeypatch):
         """Test that EFD does not trigger faulty session with adjusted xdist threshold"""
-        # Set environment variable to simulate xdist worker  
+        # Set environment variable to simulate xdist worker
         monkeypatch.setenv("PYTEST_XDIST_WORKER", "gw0")
-        
+
         # Simulate pytest global variable set by main process via execnet
         pytest.xdist_total_workers = 4
-        
+
         efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=30)
         ssettings = self._get_session_settings(efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
@@ -112,7 +112,7 @@ class TestEFDXdistThreshold:
                 TestVisibilityTest(test_name, session_settings=ssettings, is_new=False),
             )
 
-        # New tests  
+        # New tests
         for i in range(2):
             test_name = f"new_t{i}"
             m1_s1.add_child(
@@ -122,7 +122,7 @@ class TestEFDXdistThreshold:
 
         # 3.8% new tests < 7.5% threshold = not faulty session
         assert test_session.efd_is_faulty_session() is False
-        
+
         # Clean up
         if hasattr(pytest, "xdist_total_workers"):
             delattr(pytest, "xdist_total_workers")
@@ -131,11 +131,12 @@ class TestEFDXdistThreshold:
         """Test that EFD uses custom threshold from _DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD"""
         # Set custom threshold to 20% via the existing environment variable
         monkeypatch.setenv("_DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD", "20")
-        
+
         # Create settings with custom threshold (will read from env var via _get_faulty_session_threshold)
         from ddtrace.internal.ci_visibility._api_client import _get_faulty_session_threshold
+
         custom_threshold = _get_faulty_session_threshold()
-        
+
         efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=custom_threshold)
         ssettings = self._get_session_settings(efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
@@ -169,15 +170,15 @@ class TestEFDXdistThreshold:
         assert test_session.efd_is_faulty_session() is False
 
         # Now test with 21 new tests (20.8% new) which should trigger faulty session
-        test_name = f"new_t_extra"
+        test_name = "new_t_extra"
         m1_s1.add_child(
             TestId(m1_s1_id, name=test_name),
             TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
         )
-        
+
         # Reset cached result to force recalculation
         test_session._efd_is_faulty_session = None
-        
+
         # 20.8% new tests > 20% threshold = faulty session
         assert test_session.efd_is_faulty_session() is True
 
@@ -187,7 +188,7 @@ class TestEFDXdistThreshold:
         monkeypatch.delenv("PYTEST_XDIST_WORKER", raising=False)
         if hasattr(pytest, "xdist_total_workers"):
             delattr(pytest, "xdist_total_workers")
-        
+
         efd_settings = EarlyFlakeDetectionSettings(True, faulty_session_threshold=30)
         ssettings = self._get_session_settings(efd_settings=efd_settings)
         test_session = TestVisibilitySession(session_settings=ssettings)
@@ -222,14 +223,14 @@ class TestEFDXdistThreshold:
         assert test_session.efd_is_faulty_session() is False
 
         # Add one more new test to trigger faulty session
-        test_name = f"new_t_extra"
+        test_name = "new_t_extra"
         m1_s1.add_child(
             TestId(m1_s1_id, name=test_name),
             TestVisibilityTest(test_name, session_settings=ssettings, is_new=True),
         )
-        
+
         # Reset cached result
         test_session._efd_is_faulty_session = None
-        
+
         # 30.7% new tests > 30% threshold = faulty session
         assert test_session.efd_is_faulty_session() is True

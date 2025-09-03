@@ -62,6 +62,7 @@ DEFAULT_TIMEOUT: float = 15.0
 DEFAULT_ITR_SKIPPABLE_TIMEOUT: float = 20.0
 DEFAULT_ATTEMPT_TO_FIX_RETRIES: int = 20
 
+
 def _get_faulty_session_threshold() -> int:
     """Get faulty session threshold with safe parsing and fallback to default."""
     try:

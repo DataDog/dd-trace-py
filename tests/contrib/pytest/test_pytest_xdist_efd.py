@@ -1,8 +1,9 @@
 """Tests EFD (Early Flake Detection) threshold adjustment functionality with pytest-xdist.
 
-The tests in this module validate that EFD faulty session threshold is properly 
+The tests in this module validate that EFD faulty session threshold is properly
 adjusted when running with pytest-xdist distributed test execution.
 """
+
 import os
 from unittest import mock
 
@@ -125,13 +126,13 @@ _ITR_PATCH.start()
         """Test that EFD threshold adjustment prevents faulty session with distributed workers"""
         self.testdir.makepyfile(test_known=_TEST_KNOWN_CONTENT)
         self.testdir.makepyfile(test_new=_TEST_NEW_CONTENT)
-        
+
         # 12 new tests + 4 known tests = 16 total, 75% new
         # Without xdist: 75% > 30% = faulty session
         # With 4 workers: threshold becomes 30/4 = 7.5% per worker
         # Each worker gets ~3-4 tests, so percentage varies per worker
         # The test should pass (exit 0) because threshold is adjusted
-        
+
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             rec = self.inline_run("--ddtrace", "-v")
             assert rec.ret == 0
@@ -142,14 +143,16 @@ _ITR_PATCH.start()
         # we should still get faulty session detection
         many_new_tests = """
 import pytest
-""" + "\n".join([f"def test_new_{i}():\n    assert True" for i in range(1, 41)])  # 40 new tests
-        
+""" + "\n".join(
+            [f"def test_new_{i}():\n    assert True" for i in range(1, 41)]
+        )  # 40 new tests
+
         self.testdir.makepyfile(test_new_many=many_new_tests)
-        
+
         # 40 new tests, 0 known = 100% new
-        # With 4 workers: threshold becomes 30/4 = 7.5% per worker  
+        # With 4 workers: threshold becomes 30/4 = 7.5% per worker
         # Each worker gets ~10 tests, 100% new > 7.5% = should still trigger faulty session
-        
+
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             # Set custom threshold via environment variable to test env var handling
             rec = self.inline_run("--ddtrace", "-v", extra_env={"_DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD": "30"})
@@ -160,11 +163,11 @@ import pytest
         """Test that custom EFD threshold environment variable works with xdist"""
         self.testdir.makepyfile(test_known=_TEST_KNOWN_CONTENT)
         self.testdir.makepyfile(test_new=_TEST_NEW_CONTENT)
-        
+
         # Use custom 80% threshold - should NOT trigger faulty session
         # With 4 workers: 80/4 = 20% threshold per worker
         # 12 new + 4 known = 75% new, which when distributed should be fine
-        
+
         with mock.patch("ddtrace.internal.ci_visibility.recorder.ddconfig", _get_default_civisibility_ddconfig()):
             rec = self.inline_run("--ddtrace", "-v", extra_env={"_DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD": "80"})
             assert rec.ret == 0

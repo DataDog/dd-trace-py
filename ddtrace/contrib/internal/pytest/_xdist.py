@@ -169,13 +169,13 @@ def _skipping_level_for_xdist_parallelization_mode(
 class XdistHooks:
     def __init__(self):
         self._resolved_worker_count = None
-    
+
     @pytest.hookimpl
     def pytest_xdist_setupnodes(self, config, specs):
         """Called after pytest-xdist resolves worker count (including 'auto') but before workers start."""
         self._resolved_worker_count = len(specs)
         log.debug("pytest-xdist resolved to %d workers", self._resolved_worker_count)
-    
+
     @pytest.hookimpl
     def pytest_configure_node(self, node):
         main_session_span = InternalTestSession.get_span()
@@ -185,7 +185,7 @@ class XdistHooks:
             root_span = 0
 
         node.workerinput["root_span"] = root_span
-        
+
         # Pass resolved worker count to worker for EFD threshold adjustment
         if self._resolved_worker_count and self._resolved_worker_count > 0:
             node.workerinput["total_workers"] = self._resolved_worker_count

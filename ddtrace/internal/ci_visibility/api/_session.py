@@ -152,7 +152,7 @@ class TestVisibilitySession(TestVisibilityParentItem[TestModuleId, TestVisibilit
 
         # Use threshold from settings (which comes from _DD_CIVISIBILITY_EFD_FAULTY_SESSION_THRESHOLD)
         threshold = self._session_settings.efd_settings.faulty_session_threshold
-        
+
         # Check if we're in a pytest-xdist worker and adjust threshold accordingly
         xdist_worker_id = os.getenv("PYTEST_XDIST_WORKER")
         if xdist_worker_id is not None:
