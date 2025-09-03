@@ -174,18 +174,18 @@ def get_app():
                     if param.startswith("url_urlopen_request"):
                         import urllib.request
 
-                        request = urllib.request.Request(urlname)
-                        with urllib.request.urlopen(request, timeout=0.15) as f:
+                        request = urllib.request.Request(urlname, method="GET")
+                        with urllib.request.urlopen(request, timeout=4) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_urlopen_string"):
                         import urllib.request
 
-                        with urllib.request.urlopen(urlname, timeout=0.15) as f:
+                        with urllib.request.urlopen(urlname, timeout=4) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_requests"):
                         import requests
 
-                        r = requests.get(urlname, timeout=0.15)
+                        r = requests.get(urlname, timeout=4)
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")

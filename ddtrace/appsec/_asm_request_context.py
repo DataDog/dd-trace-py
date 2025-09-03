@@ -1,6 +1,7 @@
 import functools
 import json
 import re
+from time import monotonic
 from types import TracebackType
 from typing import Any
 from typing import Callable
@@ -105,6 +106,7 @@ class ASM_Environment:
         self.finalized: bool = False
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
+        self.downstream_requests: int = 0
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -138,6 +140,55 @@ def get_entry_span() -> Optional[Span]:
         else:
             return core.get_root_span()
     return env.entry_span
+
+
+KNUTH_FACTOR: int = 1111111111111111111
+UINT64_MAX: int = (1 << 64) - 1
+
+
+class DownstreamRequests:
+    counter: int = 0
+    sampling_rate: int = int(asm_config._dr_sample_rate * UINT64_MAX)
+    bucket: float = float(asm_config._dr_rate_limit)
+    time: float = monotonic()
+    rate: float = asm_config._dr_rate_limit / 60
+
+
+def should_analyze_downstream(*, body: bool = False) -> bool:
+    DownstreamRequests.counter += 1
+    # check limit per requests
+    env = _get_asm_context()
+    if env is None:
+        return False
+    # Raw-body parsing guard
+    if body and env.downstream_requests >= asm_config._dr_raw_limit_per_request:
+        return False
+    # Per request total cap
+    if env.downstream_requests >= asm_config._dr_limit_per_request:
+        return False
+    # check sampling rate
+    if (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX > DownstreamRequests.sampling_rate:
+        return False
+    # check rate limiter
+    current_time = monotonic()
+    DownstreamRequests.bucket = min(
+        asm_config._dr_rate_limit,
+        DownstreamRequests.bucket + (current_time - DownstreamRequests.time) * DownstreamRequests.rate,
+    )
+    if DownstreamRequests.bucket < 1.0:
+        return False
+    DownstreamRequests.bucket -= 1.0
+    DownstreamRequests.time = current_time
+    env.downstream_requests += 1
+    return True
+
+
+def should_analyze_body_response() -> bool:
+    """Must be called only after should_analyze_downstream returned True."""
+    env = _get_asm_context()
+    if env is None:
+        return False
+    return env.downstream_requests <= asm_config._dr_raw_limit_per_request
 
 
 def get_framework() -> str:
