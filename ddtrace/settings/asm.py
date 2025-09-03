@@ -189,7 +189,7 @@ class ASMConfig(DDConfig):
     # rate limit, requests/minute
     _dr_rate_limit: int = DDConfig.var(int, "DD_API_SECURITY_DOWNSTREAM_REQUEST_ANALYSIS_RATE_LIMIT", default=32)
     # sample rate
-    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_ANALYSIS_SAMPLE_RATE", default=0.1)
+    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_ANALYSIS_SAMPLE_RATE", default=1.0)
     # max number of downstream requests analysis per request
     _dr_limit_per_request: int = DDConfig.var(int, "DD_API_SECURITY_MAX_DOWNSTREAM_TOTAL_REQUEST_ANALYSIS", default=4)
     # max number of downstream requests analysis with bodies per request

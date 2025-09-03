@@ -1972,7 +1972,9 @@ class Contrib_TestClass_For_Threats:
                 assert get_security(root_span()) is None
                 assert stack_traces == []
 
-    def test_api10(self, interface, get_tag):
+    @pytest.mark.parametrize("endpoint", ["urlopen_request", "urlopen_string"])
+    def test_api10(self, endpoint, interface, get_tag):
+        """test api10 on downstream request headers"""
         TAG_AGENT: str = "TAG_API10"
         with override_global_config(
             dict(
@@ -1984,10 +1986,11 @@ class Contrib_TestClass_For_Threats:
         ):
             self.update_tracer(interface)
             response = interface.client.get(
-                "/rasp/ssrf/?url_urlopen_request=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1",
+                f"/rasp/ssrf/?url_{endpoint}=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1",
             )
-            assert self.status(response) == 200
-            assert get_tag("_dd.appsec.trace.agent_api") == TAG_AGENT
+            assert self.status(response) == 200, f"{self.status(response)} is not 200"
+            tag = get_tag("_dd.appsec.trace.agent_api")
+            assert tag == TAG_AGENT, f"[{tag}] is not [{TAG_AGENT}]"
 
 
 @contextmanager
