@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    crewai: Introduces APM and LLM Observability tracing support for CrewAI Flow ``kickoff/kickoff_async`` calls, including tracing internal flow method execution.
