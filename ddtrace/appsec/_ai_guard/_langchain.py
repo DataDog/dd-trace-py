@@ -163,7 +163,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
     return result
 
 
-def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists, args: Dict[str, Any]):
+def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists):
     from langchain_core.messages import HumanMessage
 
     for messages in message_lists:
@@ -173,23 +173,19 @@ def _langchain_chatmodel_generate_before(client: AIGuardClient, message_lists, a
             prompt = history.pop(-1)
             try:
                 if not client.evaluate_prompt(prompt["role"], prompt["content"], history=history):  # type: ignore[typeddict-item]
-                    args["exception"] = AIGuardAbortError()
-                    break
+                    return AIGuardAbortError()
             except AIGuardAbortError as e:
-                args["exception"] = e
-                break
+                return e
             except Exception:
                 logger.debug("Failed to evaluate chat model prompt", exc_info=True)
 
 
-def _langchain_llm_generate_before(client: AIGuardClient, prompts, args: Dict[str, Any]):
+def _langchain_llm_generate_before(client: AIGuardClient, prompts):
     for prompt in prompts:
         try:
             if not client.evaluate_prompt("user", prompt):
-                args["exception"] = AIGuardAbortError()
-                break
+                return AIGuardAbortError()
         except AIGuardAbortError as e:
-            args["exception"] = e
-            break
+            return e
         except Exception:
             logger.debug("Failed to evaluate llm prompt", exc_info=True)

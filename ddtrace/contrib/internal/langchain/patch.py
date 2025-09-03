@@ -84,10 +84,12 @@ def _extract_model_name(instance: Any) -> Optional[str]:
 
 
 def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
-    result = {}
-    core.dispatch(event_id, args + (result,))
-    if "exception" in result:
-        raise result["exception"]
+    result = core.dispatch_with_results(event_id, args)
+    if len(result) > 0:
+        for event in result.values():
+            # we explicitly set the exception as a value to prevent caught exceptions from leaking
+            if isinstance(event.value, Exception):
+                raise event.value
 
 
 @with_traced_module
