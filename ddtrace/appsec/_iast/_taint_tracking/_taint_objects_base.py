@@ -45,30 +45,21 @@ def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, sou
         - Returns unmodified object for empty strings
         - Automatically handles bytes/bytearray to str conversion
     """
-    # Early type validation
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES) or not pyobject:
         return pyobject
 
-    # Fast path for empty strings
-    if isinstance(pyobject, IAST.TEXT_TYPES) and not pyobject:
-        return pyobject
-
-    # Efficient source_name conversion
     if isinstance(source_name, (bytes, bytearray)):
         source_name = source_name.decode("utf-8", errors="ignore")
     elif isinstance(source_name, OriginType):
         source_name = origin_to_str(source_name)
 
-    # Efficient source_value conversion
     if isinstance(source_value, (bytes, bytearray)):
         source_value = source_value.decode("utf-8", errors="ignore")
 
-    # Default source_origin
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
     try:
-        # Calculate length only for text types
         pyobject_len = len(pyobject) if isinstance(pyobject, IAST.TEXT_TYPES) else 0
         return set_ranges_from_values(pyobject, pyobject_len, source_name, source_value, source_origin)
     except ValueError:
@@ -108,30 +99,21 @@ def _taint_pyobject_base_new(
         - Returns unmodified object for empty strings
         - Automatically handles bytes/bytearray to str conversion
     """
-    # Early type validation
-    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES):
+    if not isinstance(pyobject, IAST.TAINTEABLE_TYPES) or not pyobject:
         return pyobject
 
-    # Fast path for empty strings
-    if isinstance(pyobject, IAST.TEXT_TYPES) and not pyobject:
-        return pyobject
-
-    # Efficient source_name conversion
     if isinstance(source_name, (bytes, bytearray)):
         source_name = source_name.decode("utf-8", errors="ignore")
     elif isinstance(source_name, OriginType):
         source_name = origin_to_str(source_name)
 
-    # Efficient source_value conversion
     if isinstance(source_value, (bytes, bytearray)):
         source_value = source_value.decode("utf-8", errors="ignore")
 
-    # Default source_origin
     if source_origin is None:
         source_origin = OriginType.PARAMETER
 
     try:
-        # Calculate length only for text types
         pyobject_len = len(pyobject) if isinstance(pyobject, IAST.TEXT_TYPES) else 0
         return taint_pyobject(pyobject, pyobject_len, source_name, source_value, source_origin, contextid)
     except ValueError:
