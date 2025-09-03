@@ -137,7 +137,7 @@ def wrapped_open_CFDDB7ABBA9081B6(original_open_callable, instance, args, kwargs
 
 
 def _build_headers(lst: Iterable[Tuple[str, str]]) -> Dict[str, Union[str, List[str]]]:
-    res : Dict[str, Union[str, List[str]]] = {}
+    res: Dict[str, Union[str, List[str]]] = {}
     for a, b in lst:
         if a in res:
             v = res[a]
@@ -220,9 +220,9 @@ def wrapped_open_ED4CF71136E15EBF(original_open_callable, instance, args, kwargs
                                 response_headers = None
                             if status_code is not None or response_headers is not None:
                                 call_waf_callback(
-                                {"DOWN_RES_STATUS": status_code, "DOWN_RES_HEADERS": response_headers},
-                                rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
-                            )
+                                    {"DOWN_RES_STATUS": status_code, "DOWN_RES_HEADERS": response_headers},
+                                    rule_type=EXPLOIT_PREVENTION.TYPE.SSRF,
+                                )
                         raise
             else:
                 # no API10, doing only RASP call

@@ -1974,10 +1974,17 @@ class Contrib_TestClass_For_Threats:
 
     def test_api10(self, interface, get_tag):
         TAG_AGENT: str = "TAG_API10"
-        with override_global_config(dict(_asm_enabled=True, _api_security_enabled=True, _ep_enabled=True, _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION)):
+        with override_global_config(
+            dict(
+                _asm_enabled=True,
+                _api_security_enabled=True,
+                _ep_enabled=True,
+                _asm_static_rule_file=rules.RULES_EXPLOIT_PREVENTION,
+            )
+        ):
             self.update_tracer(interface)
             response = interface.client.get(
-                "/rasp/ssrf/?url_urlopen_request=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1", 
+                "/rasp/ssrf/?url_urlopen_request=https%3A%2F%2Fwww.datadoghq.com%2Ftest%3Fx%3D1",
             )
             assert self.status(response) == 200
             assert get_tag("_dd.appsec.trace.agent_api") == TAG_AGENT
