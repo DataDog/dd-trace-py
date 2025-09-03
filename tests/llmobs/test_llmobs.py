@@ -476,8 +476,8 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
     prompt = Prompt(
         id="test",
         chat_template=[{"role": "user", "content": "test {{value}}"}],
-        variables={"value": "test","context": "test", "question": "test"},
-        tags={"env":"prod", "llm": "openai"},
+        variables={"value": "test", "context": "test", "question": "test"},
+        tags={"env": "prod", "llm": "openai"},
         rag_context_variables=["context"],
         rag_query_variables=["question"],
     )
@@ -492,8 +492,8 @@ def test_structured_prompt_data_v2(llmobs, llmobs_backend):
         "prompt": {
             "id": "test",
             "chat_template": [{"role": "user", "content": "test {{value}}"}],
-            "variables": {"value": "test","context": "test", "question": "test"},
-            "tags": {"env":"prod", "llm": "openai"},
+            "variables": {"value": "test", "context": "test", "question": "test"},
+            "tags": {"env": "prod", "llm": "openai"},
             "_dd_context_variable_keys": ["context"],
             "_dd_query_variable_keys": ["question"],
         }
