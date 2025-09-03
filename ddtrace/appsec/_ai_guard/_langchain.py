@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Sequence
 
 from ddtrace.appsec.ai_guard import AIGuardAbortError
 from ddtrace.appsec.ai_guard import AIGuardClient
@@ -142,7 +143,7 @@ def _handle_agent_action_result(client: AIGuardClient, result, kwargs):
         from langchain.agents import AgentAction
         from langchain.agents import AgentFinish
 
-    for action in result if isinstance(result, list) else [result]:
+    for action in result if isinstance(result, Sequence) else [result]:
         if isinstance(action, AgentAction) and "input" in kwargs:
             try:
                 agent_input = kwargs["input"]
