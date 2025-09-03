@@ -497,6 +497,13 @@ def test_dataset_modify_single_record_empty_record(llmobs, test_dataset, test_da
         test_dataset.update(0, {})
 
 
+def test_dataset_estimate_size(llmobs, test_dataset):
+    test_dataset.append(
+        {"input_data": {"prompt": "What is the capital of France?"}, "expected_output": {"answer": "Paris"}}
+    )
+    assert 170 <= test_dataset._estimate_delta_size() <= 200
+
+
 @pytest.mark.parametrize(
     "test_dataset_records",
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],

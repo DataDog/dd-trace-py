@@ -328,12 +328,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     def multipart_request(self, method: str, path: str, content_type: str, body: bytes = b"") -> Response:
         headers = {
             "Content-Type": content_type,
-            # "Content-Type": "multipart/form-data", this one maybe?
             "DD-API-KEY": self._api_key,
             "DD-APPLICATION-KEY": self._app_key,
         }
-        if not self._agentless:
-            headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         conn = get_connection(url=self._intake, timeout=self.BULK_UPLOAD_TIMEOUT)
         try:
@@ -472,7 +469,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
-    def dataset_bulk_upload(self, dataset_id: str, dataset: Dataset):
+    def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -488,7 +485,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 field_names = ["input", "expected_output", "metadata"]
                 writer = csv.writer(csv_file)
                 writer.writerow(field_names)
-                for r in dataset._records:
+                for r in records:
                     writer.writerow(
                         [
                             json.dumps(r.get("input_data", "")),

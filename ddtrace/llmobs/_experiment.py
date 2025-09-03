@@ -1,5 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
+import json
 import sys
 import traceback
 from typing import TYPE_CHECKING
@@ -142,7 +143,7 @@ class Dataset:
         if delta_size > self.BATCH_UPDATE_THRESHOLD:
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
             # TODO must return version too
-            self._dne_client.dataset_bulk_upload(self._id, self)
+            self._dne_client.dataset_bulk_upload(self._id, self._records)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
@@ -208,29 +209,11 @@ class Dataset:
         # FIXME: will not work for subdomain orgs
         return f"{_get_base_url()}/llm/datasets/{self._id}"
 
-    # very rough estimate of the size of the next batch update call if it happens, will likely overestimate
+    # rough estimate (in bytes) of the size of the next batch update call if it happens
     def _estimate_delta_size(self) -> int:
-        num_bytes = 0
-        for r_id, insert_rec in self._new_records_by_record_id.items():
-            num_bytes += (
-                len(r_id)
-                + sys.getsizeof(insert_rec.get("input_data", ""))
-                + sys.getsizeof(insert_rec.get("expected_output", ""))
-                + sys.getsizeof(insert_rec.get("metadata", ""))
-            )
-        for r_id, update_rec in self._updated_record_ids_to_new_fields.items():
-            num_bytes += (
-                len(r_id)
-                + sys.getsizeof(update_rec.get("input_data", ""))
-                + sys.getsizeof(update_rec.get("expected_output", ""))
-                + sys.getsizeof(update_rec.get("metadata", ""))
-            )
-        logger.debug(
-            "estimated size is %d, naive estimation is %d",
-            num_bytes,
-            sys.getsizeof(self._new_records_by_record_id) + sys.getsizeof(self._updated_record_ids_to_new_fields),
-        )
-        return num_bytes
+        size = len(json.dumps(self._new_records_by_record_id)) + len(json.dumps(self._updated_record_ids_to_new_fields))
+        logger.debug("estimated delta size %d", size)
+        return size
 
     @overload
     def __getitem__(self, index: int) -> DatasetRecord:
