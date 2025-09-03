@@ -108,11 +108,11 @@ class ASM_Environment:
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
-    return core.get_item(_ASM_CONTEXT)
+    return core.find_item(_ASM_CONTEXT)
 
 
 def in_asm_context() -> bool:
-    return core.get_item(_ASM_CONTEXT) is not None
+    return core.find_item(_ASM_CONTEXT) is not None
 
 
 def is_blocked() -> bool:
@@ -530,10 +530,10 @@ def start_context(span: Span, rc_products: str):
         # it should only be called at start of a core context, when ASM_Env is not set yet
         core.set_item(_ASM_CONTEXT, ASM_Environment(span=span, rc_products=rc_products))
         asm_request_context_set(
-            core.get_local_item("remote_addr"),
-            core.get_local_item("headers"),
-            core.get_local_item("headers_case_sensitive"),
-            core.get_local_item("block_request_callable"),
+            core.get_item("remote_addr"),
+            core.get_item("headers"),
+            core.get_item("headers_case_sensitive"),
+            core.get_item("block_request_callable"),
         )
 
 
@@ -544,7 +544,7 @@ def end_context(span: Span):
 
 
 def _on_context_ended(ctx, _exc_info: Tuple[Optional[type], Optional[BaseException], Optional[TracebackType]]):
-    env = ctx.get_local_item(_ASM_CONTEXT)
+    env = ctx.get_item(_ASM_CONTEXT)
     if env is not None:
         finalize_asm_env(env)
 
