@@ -52,15 +52,18 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with context_factory(kwargs) as ctx, ctx.span:
-            event = kwargs.get("event")
-            print(f"event: {event}")
+            events = kwargs.get("event")
+            print(f"events: {events}")
             print(f"kwargs: {kwargs}")
-            if event:
-                print(f"context properties: {get_properties(event)}")
-                parent_context = HTTPPropagator.extract(get_properties(event))
-                print(f"parent_context: {parent_context}")
-                ctx.span.link_span(parent_context)
-                print(f"span: {ctx.span}")
+            if events is not None:
+                for event in events:
+                    print(f"event: {event}")
+                    print(f"event.metadata: {event.metadata}")
+                    print(f"context properties: {get_properties(event)}")
+                    parent_context = HTTPPropagator.extract(get_properties(event))
+                    print(f"parent_context: {parent_context}")
+                    ctx.span.link_span(parent_context)
+                    print(f"span: {ctx.span}")
             if pre_dispatch:
                 core.dispatch(*pre_dispatch(ctx, kwargs))
 
@@ -79,7 +82,12 @@ def get_properties(message: Union[azure_functions.ServiceBusMessage, azure_funct
     if isinstance(message, azure_functions.ServiceBusMessage):
         return message.application_properties
     if isinstance(message, azure_functions.EventHubEvent) and message.metadata is not None:
-        return message.metadata.get("Properties")
+        properties = message.metadata.get("Properties")
+        if properties is not None:
+            return message.metadata.get("Properties")
+        properties_array = message.metadata.get("PropertiesArray")
+        if properties_array is not None and len(properties_array) > 0:
+            return properties_array[0]
     return {}
 
 
