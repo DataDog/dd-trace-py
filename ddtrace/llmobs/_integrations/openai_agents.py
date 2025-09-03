@@ -3,6 +3,7 @@ from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Union
 import weakref
 
@@ -28,6 +29,7 @@ from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import PARENT_ID_KEY
 from ddtrace.llmobs._constants import SESSION_ID
 from ddtrace.llmobs._constants import SPAN_KIND
+from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._integrations.utils import LLMObsTraceInfo
 from ddtrace.llmobs._integrations.utils import OaiSpanAdapter
@@ -51,6 +53,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         # a map of LLM Obs trace ids to LLMObsTraceInfo which stores metadata about the trace
         # used to set attributes on the root span of the trace.
         self.llmobs_traces: Dict[str, LLMObsTraceInfo] = {}
+        # active guardrail spans for span linking input guardrail spans to LLM spans
+        self.active_guardrail_llmobs_spans: Set[Span] = set()
+        # last LLM span executed for span linking LLM span to output guardrail spans
+        self.last_llm_span: Span = None
 
     def trace(
         self,
@@ -79,6 +85,20 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         elif oai_span:
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
+
+            if oai_span.span_type == "guardrail":
+                self.active_guardrail_llmobs_spans.add(llmobs_span)
+                if self.last_llm_span:
+                    current_span_links = llmobs_span._get_ctx_item(SPAN_LINKS) or []
+                    current_span_links.append(
+                        {
+                            "span_id": str(self.last_llm_span.span_id),
+                            "trace_id": format_trace_id(self.last_llm_span.trace_id),
+                            "attributes": {"from": "output", "to": "input"},
+                        }
+                    )
+                    llmobs_span._set_ctx_item(SPAN_LINKS, current_span_links)
+
         return llmobs_span
 
     def _llmobs_set_tags(
@@ -125,6 +145,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         if span_type == "response":
             self._llmobs_set_response_attributes(span, oai_span)
             self._llmobs_update_trace_info_output(oai_span)
+            self.last_llm_span = span
         elif span_type in ("function", "tool"):
             self._llmobs_set_tool_attributes(span, oai_span)
         elif span_type == "handoff":
@@ -248,6 +269,18 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         metrics = oai_span.llmobs_metrics
         if metrics:
             span._set_ctx_item(METRICS, metrics)
+
+        current_span_links = span._get_ctx_item(SPAN_LINKS) or []
+        for guardrail_span in self.active_guardrail_llmobs_spans:
+            if guardrail_span.parent_id == span.parent_id:
+                current_span_links.append(
+                    {
+                        "span_id": str(guardrail_span.span_id),
+                        "trace_id": format_trace_id(span.trace_id),
+                        "attributes": {"from": "output", "to": "input"},
+                    }
+                )
+        span._set_ctx_item(SPAN_LINKS, current_span_links)
 
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")

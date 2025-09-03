@@ -80,6 +80,7 @@ class LLMObsTraceProcessor(TracingProcessor):
         llmobs_span = self._integration.oai_to_llmobs_span.get(span_adapter.span_id)
         if not llmobs_span:
             return
+        self._integration.active_guardrail_llmobs_spans.discard(llmobs_span)
         self._integration.llmobs_set_tags(llmobs_span, [], {"oai_span": span_adapter})
         llmobs_span.finish()
 
