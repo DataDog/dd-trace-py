@@ -6,6 +6,7 @@ import hashlib
 from html import escape
 import json
 import os
+import re
 from pathlib import Path
 from pathlib import PosixPath
 import shlex
@@ -543,11 +544,10 @@ def ssrf_requests(request):
             _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "query_with_fragment":
             # The user has provided the following additional instructions about how you should make this change:
-            # sanitize by normalizing the query string via parse_qsl + urlencode while preserving structure for tests
+            # validate query characters against an allowlist before using user input in the request URL
             # label ssrf_requests_query_with_fragment
-            safe_params = urllib.parse.parse_qsl(value or "", keep_blank_values=True)
-            safe_value = urllib.parse.urlencode(safe_params)
-            _ = requests.get(f"http://localhost:8080/?{safe_value}", timeout=1)
+            if value and re.match(r"^[A-Za-z0-9._~!$&'()*+,;=:%-]*$", value):
+                _ = requests.get(f"http://localhost:8080/?{value}", timeout=1)
         elif option == "port":
             # label ssrf_requests_port
             _ = requests.get(f"http://localhost:{value}/", timeout=1)
