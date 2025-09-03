@@ -18,10 +18,8 @@ from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
 from ddtrace._trace.types import _MetaDictType
-from ddtrace._trace.types import _MetricDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
-from ddtrace.internal.constants import KNUTH_SAMPLE_RATE_KEY
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
 from ddtrace.internal.utils.deprecations import DDTraceDeprecationWarning
@@ -191,7 +189,7 @@ class _DatadogMultiHeader:
         trailing spaces are trimmed.
     """
 
-    _X_DATADOG_TAGS_EXTRACT_REJECT = frozenset(["_dd.p.upstream_services", KNUTH_SAMPLE_RATE_KEY])
+    _X_DATADOG_TAGS_EXTRACT_REJECT = frozenset(["_dd.p.upstream_services"])
 
     @staticmethod
     def _is_valid_datadog_trace_tag_key(key):
@@ -210,13 +208,9 @@ class _DatadogMultiHeader:
     def _extract_meta(tags_value):
         # Do not fail if the tags are malformed
         try:
-            tags = decode_tagset_string(tags_value).items()
-            metrics = (
-                {KNUTH_SAMPLE_RATE_KEY: float(tags[KNUTH_SAMPLE_RATE_KEY])} if KNUTH_SAMPLE_RATE_KEY in tags else {}
-            )
             meta = {
                 k: v
-                for (k, v) in tags
+                for (k, v) in decode_tagset_string(tags_value).items()
                 if (
                     k not in _DatadogMultiHeader._X_DATADOG_TAGS_EXTRACT_REJECT
                     and _DatadogMultiHeader._is_valid_datadog_trace_tag_key(k)
@@ -226,13 +220,11 @@ class _DatadogMultiHeader:
             meta = {
                 "_dd.propagation_error": "extract_max_size",
             }
-            metrics = {}
             log.warning("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
         except TagsetDecodeError:
             meta = {
                 "_dd.propagation_error": "decoding_error",
             }
-            metrics = {}
             log.debug("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
         return meta, metrics
 
@@ -348,10 +340,9 @@ class _DatadogMultiHeader:
         )
 
         meta = {}
-        metrics = {}
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
-            meta, metrics = _DatadogMultiHeader._extract_meta(tags_value)
+            meta = _DatadogMultiHeader._extract_meta(tags_value)
 
         # When 128 bit trace ids are propagated the 64 lowest order bits are set in the `x-datadog-trace-id`
         # header. The 64 highest order bits are encoded in base 16 and store in the `_dd.p.tid` tag.
@@ -394,7 +385,6 @@ class _DatadogMultiHeader:
                 # span tags and trace tags which are currently implemented using
                 # the same type internally (_MetaDictType).
                 meta=cast(_MetaDictType, meta),
-                metrics=cast(_MetricDictType, metrics),
             )
         except (TypeError, ValueError):
             log.debug(
@@ -846,7 +836,6 @@ class _TraceContext:
         # type: (int, int, Literal[0,1], Optional[str], Optional[_MetaDictType]) -> Context
         if meta is None:
             meta = {}
-        metrics: _MetricDictType = {}
         origin = None
         sampling_priority = trace_flag  # type: int
         if ts:
@@ -869,9 +858,6 @@ class _TraceContext:
 
                 if tracestate_values:
                     sampling_priority_ts, other_propagated_tags, origin, lpid = tracestate_values
-                    if KNUTH_SAMPLE_RATE_KEY in other_propagated_tags:
-                        metrics[KNUTH_SAMPLE_RATE_KEY] = float(other_propagated_tags[KNUTH_SAMPLE_RATE_KEY])
-                        del other_propagated_tags[KNUTH_SAMPLE_RATE_KEY]
                     meta.update(other_propagated_tags.items())
                     if lpid:
                         meta[LAST_DD_PARENT_ID_KEY] = lpid
@@ -886,7 +872,6 @@ class _TraceContext:
             sampling_priority=sampling_priority,
             dd_origin=origin,
             meta=meta,
-            metrics=metrics,
         )
 
     @staticmethod
