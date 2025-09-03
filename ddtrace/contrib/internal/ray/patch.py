@@ -45,12 +45,12 @@ from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
-
 config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
         ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
+        ray_reduce_noise=asbool(_get_config("DD_TRACE_RAY_REDUCE_NOISE", default=True)),
     ),
 )
 
@@ -87,19 +87,14 @@ class RayTraceProcessor:
         if not trace:
             return trace
 
-        processed_trace = []
-        ray_spans_only = config.ray.ray_spans_only
         for span in trace:
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
-                processed_trace.append(span)
-            elif not ray_spans_only:
-                processed_trace.append(span)
 
-        return processed_trace
+        return trace
 
 def _inject_tracing_into_remote_function(function):
     """Inject trace context parameter into function signature"""
@@ -426,6 +421,29 @@ def patch():
         return
 
     ray._datadog_patch = True
+
+    # Ray cluster emits a high volume of grpc and aiohttp spans which are not
+    # actionnable. By default, we deactivate them so we have only the useful spans
+    if config.ray.ray_reduce_noise:
+        try:
+            import aiohttp
+            from ddtrace.contrib.internal.aiohttp.patch import unpatch as unpatch_aiohttp
+            if getattr(aiohttp, "_datadog_patch", True):
+                unpatch_aiohttp()
+        except ImportError:
+            pass
+        finally:
+            os.environ["DD_TRACE_AIOHTTP_ENABLED"] = "False"
+
+        try:
+            import grpc
+            from ddtrace.contrib.internal.grpc.patch import unpatch as unpatch_grpc
+            if getattr(grpc, "_datadog_patch", True):
+                unpatch_grpc()
+        except ImportError:
+            pass
+        finally:
+            os.environ["DD_TRACE_GRPC_ENABLED"] = "False"
 
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
 
