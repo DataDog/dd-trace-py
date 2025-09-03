@@ -17,6 +17,14 @@ class ApplicationContextTest : public ::testing::Test
         application_context = std::make_unique<ApplicationContext>();
         application_context->clear_contexts_array();
     }
+    void TearDown() override
+    {
+        // Ensure we don't leak a running Python interpreter into subsequent tests
+        application_context.reset();
+        if (Py_IsInitialized()) {
+            py::finalize_interpreter();
+        }
+    }
 };
 
 TEST_F(ApplicationContextTest, CreateTwoContextsAndRetrieveByIndex)
@@ -45,8 +53,7 @@ TEST_F(ApplicationContextTest, ClearSpecificMap)
 
     application_context->clear_taint_map(*idx);
     auto after = application_context->get_taint_map_by_ctx_id(*idx);
-    ASSERT_EQ(after, nullptr);
-}
+    ASSERT_EQ(after, nullptr);}
 
 TEST_F(ApplicationContextTest, ReuseFreedSlotOnCreate)
 {
