@@ -48,6 +48,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.error.stack",
     # Service names that include dynamic submission IDs
     "service",
+    # Base service sometimes gets set to a different value in CI than in the local environment,
+    # ignore it to make the tests pass in both environments
+    "meta._dd.base_service",
 ]
 
 
