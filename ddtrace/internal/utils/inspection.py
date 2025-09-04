@@ -13,6 +13,7 @@ from typing import Set
 from typing import cast
 
 from ddtrace.internal.safety import _isinstance
+from ddtrace.internal.utils.cache import cached
 
 
 @singledispatch
@@ -31,6 +32,15 @@ def _(f: FunctionType) -> Set[int]:
     return linenos(f.__code__)
 
 
+@cached(maxsize=4 << 10)
+def _filename_to_resolved_path(filename: str) -> Path:
+    return Path(filename).resolve()
+
+
+def resolved_code_origin(code: CodeType) -> Path:
+    return _filename_to_resolved_path(code.co_filename)
+
+
 def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     # Find the original function object from a decorated function. We use the
     # expected function name to guide the search and pick the correct function.
@@ -38,7 +48,7 @@ def undecorated(f: FunctionType, name: str, path: Path) -> FunctionType:
     # to find the function as soon as possible.
 
     def match(g):
-        return g.__code__.co_name == name and Path(g.__code__.co_filename).resolve() == path
+        return g.__code__.co_name == name and resolved_code_origin(g.__code__) == path
 
     if _isinstance(f, FunctionType) and match(f):
         return f
