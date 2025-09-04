@@ -42,7 +42,7 @@ To use debug symbols for debugging or crash analysis:
 3. Your debugger or crash analysis tool should automatically find the debug symbols
 4. To view assembly with code side by side, you also need the source code, and
    set substitute paths in your debugger to the source code directory. For example,
-   for `_stack_v2.cpython-313-x86_64-linux-gnu.so` is mostly compiled from
+   for `_stack_v2.cpython-313-x86_64-linux-gnu.so` is compiled from
    echion as specified in `ddtrace/internal/datadog/profiling/stack_v2/CMakeLists.txt`.
    So you first need to check out the echion repository and checkout the commit hash.
    Then, set substitute paths in gdb to the echion source code directory.
@@ -69,32 +69,33 @@ To use debug symbols for debugging or crash analysis:
 
        (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
    Then you can run `dias /m Frame::read` again to see the assembly with code side by side.
-   ```
-   (gdb) disas /m Frame::read
-   Dump of assembler code for function _ZN5Frame4readEP19_PyInterpreterFramePS1_:
-   warning: Source file is more recent than executable.
-   269     {
-      0x000000000000ece4 <+0>:     push   %r12
-      0x000000000000ece6 <+2>:     mov    %rdi,%r8
-      0x000000000000ece9 <+5>:     push   %rbp
-      0x000000000000ecea <+6>:     mov    %rsi,%rbp
-      0x000000000000eced <+9>:     push   %rbx
-      0x000000000000ecee <+10>:    sub    $0x60,%rsp
 
-   270     #if PY_VERSION_HEX >= 0x030b0000
-   271         _PyInterpreterFrame iframe;
+   .. code-block:: bash
 
-   272     #if PY_VERSION_HEX >= 0x030d0000
-   273         // From Python versions 3.13, f_executable can have objects other than
-   274         // code objects for an internal frame. We need to skip some frames if
-   275         // its f_executable is not code as suggested here:
-   276         // https://github.com/python/cpython/issues/100987#issuecomment-1485556487
-   277         PyObject f_executable;
+       (gdb) disas /m Frame::read
+       Dump of assembler code for function _ZN5Frame4readEP19_PyInterpreterFramePS1_:
+       warning: Source file is more recent than executable.
+       269     {
+          0x000000000000ece4 <+0>:     push   %r12
+          0x000000000000ece6 <+2>:     mov    %rdi,%r8
+          0x000000000000ece9 <+5>:     push   %rbp
+          0x000000000000ecea <+6>:     mov    %rsi,%rbp
+          0x000000000000eced <+9>:     push   %rbx
+          0x000000000000ecee <+10>:    sub    $0x60,%rsp
 
-   278
-   279         for (; frame_addr; frame_addr = frame_addr->previous)
-      0x000000000000ecf7 <+19>:    test   %r8,%r8
-      0x000000000000ecfa <+22>:    je     0xed91 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+173>
-      0x000000000000ed88 <+164>:   mov    0x8(%rbx),%r8
-      0x000000000000ed8c <+168>:   jmp    0xecf7 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+19>
-   ```
+       270     #if PY_VERSION_HEX >= 0x030b0000
+       271         _PyInterpreterFrame iframe;
+
+       272     #if PY_VERSION_HEX >= 0x030d0000
+       273         // From Python versions 3.13, f_executable can have objects other than
+       274         // code objects for an internal frame. We need to skip some frames if
+       275         // its f_executable is not code as suggested here:
+       276         // https://github.com/python/cpython/issues/100987#issuecomment-1485556487
+       277         PyObject f_executable;
+
+       278
+       279         for (; frame_addr; frame_addr = frame_addr->previous)
+          0x000000000000ecf7 <+19>:    test   %r8,%r8
+          0x000000000000ecfa <+22>:    je     0xed91 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+173>
+          0x000000000000ed88 <+164>:   mov    0x8(%rbx),%r8
+          0x000000000000ed8c <+168>:   jmp    0xecf7 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+19>
