@@ -25,7 +25,7 @@ jobs:
     outputs:
       outcome: ${{ steps.run_needed.outcome }}
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
       - id: run_needed
@@ -75,12 +75,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.10'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           path: ddtrace
           persist-credentials: false
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -150,12 +150,12 @@ jobs:
       run:
         working-directory: django
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -252,12 +252,12 @@ jobs:
       run:
         working-directory: graphene
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -323,19 +323,19 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.10'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           repository: tiangolo/fastapi
           ref: 0.92.0
           path: fastapi
-      - uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      - uses: actions/cache@0400d5f644dc74513175e3cd8d07132dd4860809 # v4.2.4
         if: needs.needs-run.outputs.outcome == 'success'
         id: cache
         with:
@@ -393,12 +393,12 @@ jobs:
       run:
         working-directory: flask
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -445,12 +445,12 @@ jobs:
       run:
         working-directory: httpx
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -516,12 +516,12 @@ jobs:
       run:
         working-directory: mako
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -586,12 +586,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -649,12 +649,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -715,12 +715,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -771,12 +771,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
@@ -828,12 +828,12 @@ jobs:
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           python-version: '3.9'
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
           path: ddtrace
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         if: needs.needs-run.outputs.outcome == 'success'
         with:
           persist-credentials: false
