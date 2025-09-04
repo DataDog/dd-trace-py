@@ -582,6 +582,49 @@ def test_dataset_append(llmobs, test_dataset):
     "test_dataset_records",
     [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
 )
+def test_dataset_extend(llmobs, test_dataset):
+    test_dataset.extend(
+        [
+            DatasetRecord(input_data={"prompt": "What is the capital of Italy?"}, expected_output={"answer": "Rome"}),
+            DatasetRecord(
+                input_data={"prompt": "What is the capital of Sweden?"}, expected_output={"answer": "Stockholm"}
+            ),
+        ]
+    )
+    assert len(test_dataset) == 3
+    assert test_dataset._version == 1
+
+    wait_for_backend()
+    test_dataset.push()
+    assert len(test_dataset) == 3
+    assert test_dataset[0]["input_data"] == {"prompt": "What is the capital of France?"}
+    assert test_dataset[0]["expected_output"] == {"answer": "Paris"}
+    assert test_dataset[1]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert test_dataset[1]["expected_output"] == {"answer": "Rome"}
+    assert test_dataset[2]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert test_dataset[2]["expected_output"] == {"answer": "Stockholm"}
+    assert test_dataset.name == test_dataset.name
+    assert test_dataset.description == test_dataset.description
+    assert test_dataset._version == 2
+
+    # check that a pulled dataset matches the pushed dataset
+    wait_for_backend()
+    ds = llmobs.pull_dataset(name=test_dataset.name)
+    assert ds._version == 2
+    assert len(ds) == 3
+    assert ds[2]["input_data"] == {"prompt": "What is the capital of France?"}
+    # france was first inserted so it is last (last updated)
+    # then order is reversed for the append
+    assert ds[1]["input_data"] == {"prompt": "What is the capital of Sweden?"}
+    assert ds[0]["input_data"] == {"prompt": "What is the capital of Italy?"}
+    assert ds.name == test_dataset.name
+    assert ds.description == test_dataset.description
+
+
+@pytest.mark.parametrize(
+    "test_dataset_records",
+    [[DatasetRecord(input_data={"prompt": "What is the capital of France?"}, expected_output={"answer": "Paris"})]],
+)
 def test_dataset_append_no_expected_output(llmobs, test_dataset):
     test_dataset.append(DatasetRecord(input_data={"prompt": "What is the capital of Sealand?"}))
     assert len(test_dataset) == 2
