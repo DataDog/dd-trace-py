@@ -469,7 +469,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             )
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
-    def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
+    def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]) -> int:
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
             file_name = os.path.basename(tmp.name)
             file_name_parts = file_name.rsplit(".", 1)
@@ -519,6 +519,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if resp.status != 200:
             raise ValueError(f"Failed to upload dataset from file: {resp.status} {resp.get_json()}")
         logger.debug("successfully uploaded with code %d", resp.status)
+        print(resp.get_json())
+        return resp.get_json()["data"]["attributes"]["version_number"]
 
     def project_create_or_get(self, name: str) -> str:
         path = "/api/unstable/llm-obs/v1/projects"

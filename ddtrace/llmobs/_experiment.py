@@ -142,8 +142,7 @@ class Dataset:
         delta_size = self._estimate_delta_size()
         if delta_size > self.BATCH_UPDATE_THRESHOLD:
             logger.debug("dataset delta is %d, using bulk upload", delta_size)
-            # TODO must return version too
-            self._dne_client.dataset_bulk_upload(self._id, self._records)
+            self._version = self._dne_client.dataset_bulk_upload(self._id, self._records)
         else:
             logger.debug("dataset delta is %d, using batch update", delta_size)
             updated_records = list(self._updated_record_ids_to_new_fields.values())
