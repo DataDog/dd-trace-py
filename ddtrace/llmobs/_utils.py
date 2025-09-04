@@ -430,3 +430,10 @@ class GuardrailLinkTracker:
                 "output",
                 "input",
             )
+
+    def on_openai_agent_span_finish(self) -> None:
+        """
+        Called when an OpenAI agent span finishes. This is used to reset the last LLM span
+        since output guardrails are only linked to the last LLM span for a particular agent.
+        """
+        self._last_llm_span = None
