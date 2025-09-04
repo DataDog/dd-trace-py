@@ -12,9 +12,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
-from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
