@@ -1,11 +1,23 @@
 import inspect
+from inspect import Parameter
+from inspect import Signature
 import os
-from typing import Callable, Any, List
+from typing import Any
+from typing import Callable
+from typing import List
 
-from inspect import Parameter, Signature
 from ddtrace.propagation.http import _TraceContext
 import ray
 from ray.runtime_context import get_runtime_context
+
+
+def in_ray_job():
+    # type: () -> bool
+    """Returns whether we are in a ray environemt.
+    This is accomplished by checking if the _RAY_SUBMISSION_ID environment variable is defined
+    which means a job has been submitted and is traced
+    """
+    return bool(os.environ.get("_RAY_SUBMISSION_ID", False))
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -69,6 +81,7 @@ def _inject_ray_span_tags(span):
     if submission_id is not None:
         span.set_tag_str("ray.submission_id", submission_id)
 
+
 # -------------------------------------------------------------------------------------------
 # This is extracted from ray code
 # it allows to ensure compatibility with older versions of ray still maintained (2.46.0)
@@ -129,12 +142,12 @@ def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
     if ignore_first:
         if len(signature_parameters) == 0:
             raise ValueError(
-                "Methods must take a 'self' argument, but the "
-                f"method '{func.__name__}' does not have one."
+                "Methods must take a 'self' argument, but the " f"method '{func.__name__}' does not have one."
             )
         signature_parameters = signature_parameters[1:]
 
     return signature_parameters
+
 
 def is_cython(obj):
     """Check if an object is a Cython function or method"""
@@ -147,6 +160,4 @@ def is_cython(obj):
         return type(x).__name__ == "cython_function_or_method"
 
     # Check if function or method, respectively
-    return check_cython(obj) or (
-        hasattr(obj, "__func__") and check_cython(obj.__func__)
-    )
+    return check_cython(obj) or (hasattr(obj, "__func__") and check_cython(obj.__func__))

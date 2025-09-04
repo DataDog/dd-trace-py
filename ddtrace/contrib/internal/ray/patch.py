@@ -3,12 +3,11 @@ from functools import wraps
 import inspect
 import os
 import threading
-import time
 from typing import Any
 from typing import Callable
+from typing import Dict
 from typing import List
 from typing import Optional
-from typing import Dict
 
 from wrapt import wrap_function_wrapper as _w
 
@@ -45,14 +44,15 @@ from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
+
 config._add(
     "ray",
     dict(
         _default_service=schematize_service_name("ray"),
         ray_spans_only=asbool(_get_config("DD_TRACE_RAY_SPANS_ONLY", default=True)),
-        ray_reduce_noise=asbool(_get_config("DD_TRACE_RAY_REDUCE_NOISE", default=True)),
     ),
 )
+
 
 def _supported_versions() -> Dict[str, str]:
     return {"ray": ">=2.46.0"}
@@ -60,6 +60,7 @@ def _supported_versions() -> Dict[str, str]:
 
 def get_version() -> str:
     return str(getattr(ray, "__version__", ""))
+
 
 class _JobSpanManager:
     def __init__(self):
@@ -87,14 +88,18 @@ class RayTraceProcessor:
         if not trace:
             return trace
 
+        filtered_spans = []
         for span in trace:
+            if span.service == "ray.dashboard" and span.get_tag("component") != "ray":
+                continue
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
+            filtered_spans.append(span)
+        return filtered_spans
 
-        return trace
 
 def _inject_tracing_into_remote_function(function):
     """Inject trace context parameter into function signature"""
@@ -257,16 +262,6 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
             raise e
 
 
-def flush_worker_spans(wrapped, instance, args, kwargs):
-    # Ensure the tracer has the time to send spans before
-    # before the worker is killed
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
-    time.sleep(0.5)
-    return wrapped(*args, **kwargs)
-
-
 def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer as dd_tracer
@@ -326,7 +321,7 @@ def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx):
             return method(self, *args, **kwargs)
 
     return _traced_method
@@ -339,7 +334,7 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return await method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx):
             return await method(self, *args, **kwargs)
 
     return _traced_async_method
@@ -422,29 +417,6 @@ def patch():
 
     ray._datadog_patch = True
 
-    # Ray cluster emits a high volume of grpc and aiohttp spans which are not
-    # actionnable. By default, we deactivate them so we have only the useful spans
-    if config.ray.ray_reduce_noise:
-        try:
-            import aiohttp
-            from ddtrace.contrib.internal.aiohttp.patch import unpatch as unpatch_aiohttp
-            if getattr(aiohttp, "_datadog_patch", True):
-                unpatch_aiohttp()
-        except ImportError:
-            pass
-        finally:
-            os.environ["DD_TRACE_AIOHTTP_ENABLED"] = "False"
-
-        try:
-            import grpc
-            from ddtrace.contrib.internal.grpc.patch import unpatch as unpatch_grpc
-            if getattr(grpc, "_datadog_patch", True):
-                unpatch_grpc()
-        except ImportError:
-            pass
-        finally:
-            os.environ["DD_TRACE_GRPC_ENABLED"] = "False"
-
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
 
     _w(ray.remote_function.RemoteFunction, "__init__", traced_remote_function_init)
@@ -455,8 +427,6 @@ def patch():
 
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
-
-    _w(ray._private.worker, "disconnect", flush_worker_spans)
 
 
 def unpatch():
@@ -477,5 +447,3 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
-
-    _u(ray._private.worker, "disconnect")
