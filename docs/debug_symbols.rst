@@ -13,9 +13,9 @@ The project generates debug symbols during the build process:
 
 These debug symbols are extracted from the main wheels and packaged into separate `.zip` files with the naming convention:
 
-```
-{original-wheel-name}-debug-symbols.zip
-```
+::
+
+    {original-wheel-name}-debug-symbols.zip
 
 For example:
 - `ddtrace-1.20.0-cp39-cp39-linux_x86_64.whl` → `ddtrace-1.20.0-cp39-cp39-linux_x86_64-debug-symbols.zip`
@@ -48,24 +48,26 @@ To use debug symbols for debugging or crash analysis:
    Then, set substitute paths in gdb to the echion source code directory.
    Typically, if you run `dias /m <symbol>` in gdb, it will tell you the full
    file path of the source code as the following:
-   ```
-(gdb) disas /m Frame::read
-Dump of assembler code for function _ZN5Frame4readEP19_PyInterpreterFramePS1_:
-269     /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc: No such file or directory.
-   0x000000000000ece4 <+0>:     push   %r12
-   0x000000000000ece6 <+2>:     mov    %rdi,%r8
-   0x000000000000ece9 <+5>:     push   %rbp
-   0x000000000000ecea <+6>:     mov    %rsi,%rbp
-   0x000000000000eced <+9>:     push   %rbx
-   0x000000000000ecee <+10>:    sub    $0x60,%rsp
 
-270     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
-271     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
-   ```
+   .. code-block:: bash
+
+       (gdb) disas /m Frame::read
+       Dump of assembler code for function _ZN5Frame4readEP19_PyInterpreterFramePS1_:
+       269     /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc: No such file or directory.
+          0x000000000000ece4 <+0>:     push   %r12
+          0x000000000000ece6 <+2>:     mov    %rdi,%r8
+          0x000000000000ece9 <+5>:     push   %rbp
+          0x000000000000ecea <+6>:     mov    %rsi,%rbp
+          0x000000000000eced <+9>:     push   %rbx
+          0x000000000000ecee <+10>:    sub    $0x60,%rsp
+
+       270     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
+       271     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
    Then you can set substitute paths in gdb to the echion source code directory
-   ```
-   (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
-   ```
+
+   .. code-block:: bash
+
+       (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
    Then you can run `dias /m Frame::read` again to see the assembly with code side by side.
    ```
    (gdb) disas /m Frame::read
