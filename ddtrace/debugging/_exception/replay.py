@@ -266,12 +266,16 @@ class SpanExceptionHandler:
         return snapshot is not None
 
     def on_span_exception(
-        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, tb: t.Optional[TracebackType]
+        self, span: Span, _exc_type: t.Type[BaseException], exc: BaseException, traceback: t.Optional[TracebackType]
     ) -> None:
         if span.get_tag(DEBUG_INFO_TAG) == "true" or not can_capture(span):
             # Debug info for span already captured or no budget to capture
             return
 
+        # Prioritize the traceback from the exception, if available. Some
+        # frameworks (like celery) may modify the traceback object that is
+        # passed to the exception handler.
+        tb = exc.__traceback__ or traceback
         chain, exc_id = unwind_exception_chain(exc, tb)
         if not chain or exc_id is None:
             # No exceptions to capture
