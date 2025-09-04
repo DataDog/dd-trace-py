@@ -148,7 +148,7 @@ async def simple_output_guardrail(
 def simple_agent_with_guardrail():
     """An agent with addition tools and a guardrail"""
     yield Agent(
-        name="Simple Agent",
+        name="Simple Agent with Guardrails",
         instructions="You are a helpful assistant specialized in addition calculations.",
         input_guardrails=[simple_input_guardrail],
         output_guardrails=[simple_output_guardrail],

@@ -24,6 +24,14 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
     "Simple Agent": {
         "framework": "OpenAI",
         "name": "Simple Agent",
+        "instructions": "You are a helpful assistant who answers questions concisely and accurately.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,  # different versions of the library have different model settings
+    },
+    "Simple Agent with Guardrails": {
+        "framework": "OpenAI",
+        "name": "Simple Agent",
         "instructions": "You are a helpful assistant specialized in addition calculations.",
         "handoff_description": None,
         "model": "gpt-4o",
