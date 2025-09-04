@@ -102,3 +102,6 @@ To use debug symbols for debugging or crash analysis:
           0x000000000000ecfa <+22>:    je     0xed91 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+173>
           0x000000000000ed88 <+164>:   mov    0x8(%rbx),%r8
           0x000000000000ed8c <+168>:   jmp    0xecf7 <_ZN5Frame4readEP19_PyInterpreterFramePS1_+19>
+
+      On lldb, you can find the source code full path by running ``image lookup -n Frame::read --verbose``,
+      and set the source code path using ``settings set target.source-map <expected-path> <actual-path>``.
