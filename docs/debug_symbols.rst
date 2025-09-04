@@ -40,3 +40,33 @@ To use debug symbols for debugging or crash analysis:
 2. Extract the debug symbol files to the same directory as the corresponding `.so` files.
    Typically, the site-packages directory where ddtrace is installed.
 3. Your debugger or crash analysis tool should automatically find the debug symbols
+4. To view assembly with code side by side, you also need the source code, and
+   set substitute paths in your debugger to the source code directory. For example,
+   for `_stack_v2.cpython-313-x86_64-linux-gnu.so` is mostly compiled from
+   echion as specified in `ddtrace/internal/datadog/profiling/stack_v2/CMakeLists.txt`.
+   So you first need to check out the echion repository and checkout the commit hash.
+   Then, set substitute paths in gdb to the echion source code directory.
+   Typically, if you run `dias /m <symbol>` in gdb, it will tell you the full
+   file path of the source code as the following:
+   ```
+(gdb) disas /m Frame::read
+Dump of assembler code for function _ZN5Frame4readEP19_PyInterpreterFramePS1_:
+269     /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc: No such file or directory.
+   0x000000000000ece4 <+0>:     push   %r12
+   0x000000000000ece6 <+2>:     mov    %rdi,%r8
+   0x000000000000ece9 <+5>:     push   %rbp
+   0x000000000000ecea <+6>:     mov    %rsi,%rbp
+   0x000000000000eced <+9>:     push   %rbx
+   0x000000000000ecee <+10>:    sub    $0x60,%rsp
+
+270     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
+271     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
+   ```
+   Then you can set substitute paths in gdb to the echion source code directory
+   ```
+   (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
+   ```
+   Then you can run `dias /m Frame::read` again to see the assembly with code side by side.
+   ```
+   (gdb) disas /m Frame::read
+   ```
