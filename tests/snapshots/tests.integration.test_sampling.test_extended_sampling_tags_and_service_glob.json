@@ -90,13 +90,13 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
+      "_dd.p.ksr": "0",
       "_dd.p.tid": "65cbae1700000000",
       "language": "python",
       "runtime-id": "ddb451e9ba4245cc915e8914d4f8c008",
       "tag1": "mycooltag"
     },
     "metrics": {
-      "_dd.p.ksr": 0,
       "_dd.rule_psr": 0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,

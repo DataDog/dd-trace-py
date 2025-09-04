@@ -11,13 +11,13 @@
     "meta": {
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-1",
+      "_dd.p.ksr": "0.9999",
       "_dd.p.tid": "656a1a2b00000000",
       "language": "python",
       "runtime-id": "701521214f1f4473abe1afca4813fbec"
     },
     "metrics": {
       "_dd.agent_psr": 0.9999,
-      "_dd.p.ksr": 0.9999,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
       "_sampling_priority_v1": 1,

@@ -38,6 +38,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
+      "_dd.p.ksr": "0",
       "_dd.p.tid": "6881b20100000000",
       "language": "python",
       "runtime-id": "e5827348f1274e43a58dc88d9dc65596",
@@ -45,7 +46,6 @@
       "tag2": "banana"
     },
     "metrics": {
-      "_dd.p.ksr": 0.0,
       "_dd.rule_psr": 0.0,
       "_dd.top_level": 1,
       "_dd.tracer_kr": 1.0,
