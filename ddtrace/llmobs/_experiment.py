@@ -1,6 +1,5 @@
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
-import json
 import sys
 import traceback
 from typing import TYPE_CHECKING
