@@ -486,6 +486,94 @@ def test_structured_io_data_unserializable(llmobs, llmobs_backend):
         assert expected_repr in events[0][0]["spans"][0]["meta"]["output"]["value"]
 
 
+def test_annotate_with_tool_definitions(llmobs, llmobs_backend):
+    """Test that tool_definitions parameter is correctly set on spans."""
+    tool_definitions = [
+        {
+            "name": "get_weather",
+            "description": "Get the weather for a specific location",
+            "schema": {
+                "type": "object",
+                "properties": {"location": {"type": "string"}},
+            },
+        }
+    ]
+
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=tool_definitions)
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == tool_definitions
+
+
+def test_annotate_with_tool_definitions_minimal(llmobs, llmobs_backend):
+    """Test that tool_definitions with only required fields work correctly."""
+    tool_definitions = [{"name": "simple_tool"}]
+
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=tool_definitions)
+
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert events[0][0]["spans"][0]["meta"]["tool_definitions"] == tool_definitions
+
+
+def test_annotate_with_invalid_tool_definitions(llmobs, llmobs_backend):
+    """Test that invalid tool_definitions are handled gracefully."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions="not a list")
+
+    # Should not crash, but tool_definitions should not be set
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_missing_name(llmobs, llmobs_backend):
+    """Test that tool_definitions without name field are rejected."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=[{"description": "A tool without name"}])
+
+    # Should not crash, but tool_definitions should not be set
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_empty_name(llmobs, llmobs_backend):
+    """Test that tool_definitions with empty name field are rejected."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=[{"name": "", "description": "A tool with empty name"}])
+
+    # Should not crash, but tool_definitions should not be set
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_invalid_name_type(llmobs, llmobs_backend):
+    """Test that tool_definitions with non-string name field are rejected."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=[{"name": 123, "description": "A tool with invalid name type"}])
+
+    # Should not crash, but tool_definitions should not be set
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
+def test_annotate_with_tool_definitions_non_dict(llmobs, llmobs_backend):
+    """Test that tool_definitions with non-dictionary items are rejected."""
+    with llmobs.llm() as span:
+        llmobs.annotate(span, tool_definitions=["not a dict"])
+
+    # Should not crash, but tool_definitions should not be set
+    events = llmobs_backend.wait_for_num_events(num=1)
+    assert len(events) == 1
+    assert "tool_definitions" not in events[0][0]["spans"][0]["meta"]
+
+
 @pytest.mark.asyncio
 async def test_asyncio_trace_id_propagation(llmobs, llmobs_events):
     """Test that LLMObs trace ID and APM trace ID are properly propagated in async contexts."""

@@ -2,6 +2,7 @@ import sys
 from typing import Dict
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticAsyncContextManager
 from ddtrace.contrib.internal.pydantic_ai.utils import TracedPydanticRunStream
 from ddtrace.contrib.internal.trace_utils import unwrap
@@ -10,7 +11,6 @@ from ddtrace.contrib.trace_utils import with_traced_module
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations.pydantic_ai import PydanticAIIntegration
-from ddtrace.trace import Pin
 
 
 config._add("pydantic_ai", {})

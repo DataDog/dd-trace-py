@@ -5,11 +5,11 @@ from mako.lookup import TemplateLookup
 from mako.runtime import Context
 from mako.template import Template
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.mako.constants import DEFAULT_TEMPLATE_NAME
 from ddtrace.contrib.internal.mako.patch import patch
 from ddtrace.contrib.internal.mako.patch import unpatch
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
-from ddtrace.trace import Pin
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 

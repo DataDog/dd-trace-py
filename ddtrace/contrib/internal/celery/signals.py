@@ -4,6 +4,7 @@ from celery import current_app
 from celery import registry
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib import trace_utils
@@ -22,7 +23,6 @@ from ddtrace.internal import core
 from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 
 
 log = get_logger(__name__)

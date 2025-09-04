@@ -24,9 +24,9 @@ jobs:
       - name: List owners of all changed files
         id: codeowners_resolved
         run: |
-          codeowners ${{ steps.changed-files.outputs.all_changed_files }}
+          codeowners ${{ steps.changed-files.outputs.all_modified_files	 }}
           echo "results<<EOF" >> "$GITHUB_OUTPUT"
-          echo "$(codeowners ${{ steps.changed-files.outputs.all_changed_files }})" >> "$GITHUB_OUTPUT"
+          echo "$(codeowners ${{ steps.changed-files.outputs.all_modified_files	 }})" >> "$GITHUB_OUTPUT"
           echo "EOF" >> "$GITHUB_OUTPUT"
       - name: Comment PR
         uses: thollander/actions-comment-pull-request@24bffb9b452ba05a4f3f77933840a6a841d1b32b # v3.0.1

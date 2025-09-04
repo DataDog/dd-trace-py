@@ -2,13 +2,12 @@
 import pymemcache
 import pytest
 
+# project
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.pymemcache.patch import patch
 from ddtrace.contrib.internal.pymemcache.patch import unpatch
 from ddtrace.ext import memcached as memcachedx
 from ddtrace.ext import net
-
-# project
-from ddtrace.trace import Pin
 from tests.utils import DummyTracer
 from tests.utils import TracerTestCase
 from tests.utils import override_config

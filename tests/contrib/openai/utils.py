@@ -139,8 +139,9 @@ response_tool_function_expected_output = [
                 "type": "function_call",
                 "tool_id": "call_tjEzTywkXuBUO42ugPFnQYqi",
                 "arguments": {"location": "Boston, MA", "unit": "celsius"},
-            }
+            },
         ],
+        "role": "assistant",
     }
 ]
 
@@ -152,8 +153,9 @@ response_tool_function_expected_output_streamed = [
                 "type": "function_call",
                 "tool_id": "call_lGe2JKQEBSP15opZ3KfxtEUC",
                 "arguments": {"location": "Boston, MA", "unit": "celsius"},
-            }
+            },
         ],
+        "role": "assistant",
     }
 ]
 

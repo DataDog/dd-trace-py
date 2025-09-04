@@ -6,10 +6,10 @@ from unittest.mock import patch as mock_patch
 
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.google_genai.patch import patch
 from ddtrace.contrib.internal.google_genai.patch import unpatch
 from ddtrace.llmobs import LLMObs
-from ddtrace.trace import Pin
 from tests.contrib.google_genai.utils import MOCK_EMBED_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE
 from tests.contrib.google_genai.utils import MOCK_GENERATE_CONTENT_RESPONSE_STREAM

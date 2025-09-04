@@ -11,6 +11,7 @@ from urllib.parse import urlencode
 import pytest
 
 import ddtrace
+from ddtrace._trace.pin import Pin
 from ddtrace.appsec import _asm_request_context
 from ddtrace.appsec import _constants as asm_constants
 from ddtrace.appsec._utils import get_security
@@ -184,22 +185,30 @@ class Contrib_TestClass_For_Threats:
 
         Also ensure the resource name is set correctly.
         """
-        if interface.name != "django":
-            pytest.skip("API endpoint discovery is only supported in Django")
-        from ddtrace.settings.asm import endpoint_collection
+        from ddtrace.internal.endpoints import endpoint_collection
 
         def parse(path: str) -> str:
             import re
 
-            # django substitutions to make a url path from route
+            # substitutions to make a url path from route
             if re.match(r"^\^.*\$$", path):
                 path = path[1:-1]
-            path = re.sub(r"<int:param_int>", "123", path)
-            path = re.sub(r"<str:param_str>", "abc", path)
+            path = re.sub(r"<int:param_int>|\{[a-z_]+:int\}", "123", path)
+            path = re.sub(r"<(str|string):[a-z_]+>|\{[a-z_]+:str\}", "abczx", path)
             if path.endswith("/?"):
                 path = path[:-2]
-            return "/" + path
+            return path if path.startswith("/") else ("/" + path)
 
+        must_found: set[str] = {
+            "",
+            "/asm/123/abczx",
+            "/asm",
+            "/new_service/abczx",
+            "/login",
+            "/login_sdk",
+            "/rasp/abczx",
+        }
+        found: set[str] = set()
         with override_global_config(dict(_asm_enabled=True)):
             self.update_tracer(interface)
             # required to load the endpoints
@@ -215,14 +224,16 @@ class Contrib_TestClass_For_Threats:
                 if ep.method not in ("GET", "*", "POST"):
                     continue
                 path = parse(ep.path)
+                found.add(path.rstrip("/"))
                 response = (
-                    interface.client.post(path, {"data": "content"})
+                    interface.client.post(path, data=json.dumps({"data": "content"}), content_type="application/json")
                     if ep.method == "POST"
                     else interface.client.get(path)
                 )
                 assert self.status(response) in (200, 401), f"ep.path failed: {ep.path} -> {path}"
                 resource = "GET" + ep.resource_name[1:] if ep.resource_name.startswith("* ") else ep.resource_name
                 assert find_resource(resource)
+        assert must_found <= found
 
     @pytest.mark.parametrize("asm_enabled", [True, False])
     @pytest.mark.parametrize(
@@ -318,7 +329,7 @@ class Contrib_TestClass_For_Threats:
                         ("request_blocked", "false"),
                         ("waf_timeout", "false"),
                         ("input_truncated", "true"),
-                        ("waf_error", "0"),
+                        ("waf_error", "false"),
                         ("rate_limited", "false"),
                     ),
                 ),
@@ -1980,8 +1991,8 @@ def test_tracer():
 
 @contextmanager
 def post_tracer(interface):
-    original_tracer = getattr(ddtrace.trace.Pin.get_from(interface.framework), "tracer", None)
-    ddtrace.trace.Pin._override(interface.framework, tracer=interface.tracer)
+    original_tracer = getattr(Pin.get_from(interface.framework), "tracer", None)
+    Pin._override(interface.framework, tracer=interface.tracer)
     yield
     if original_tracer is not None:
-        ddtrace.trace.Pin._override(interface.framework, tracer=original_tracer)
+        Pin._override(interface.framework, tracer=original_tracer)

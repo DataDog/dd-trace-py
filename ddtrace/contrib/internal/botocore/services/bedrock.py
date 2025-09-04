@@ -5,8 +5,6 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-import wrapt
-
 from ddtrace import config
 from ddtrace.contrib.internal.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
@@ -15,6 +13,8 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.llmobs._constants import CACHE_READ_INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import CACHE_WRITE_INPUT_TOKENS_METRIC_KEY
+from ddtrace.llmobs._integrations.base_stream_handler import StreamHandler
+from ddtrace.llmobs._integrations.base_stream_handler import make_traced_stream
 from ddtrace.llmobs._integrations.bedrock_utils import parse_model_id
 
 
@@ -29,96 +29,107 @@ _META = "meta"
 _STABILITY = "stability"
 
 
-class TracedBotocoreStreamingBody(wrapt.ObjectProxy):
-    """
-    This class wraps the StreamingBody object returned by botocore api calls, specifically for Bedrock invocations.
-    Since the response body is in the form of a stream object, we need to wrap it in order to tag the response data
-    and fire completion events as the user consumes the streamed response.
-    """
-
-    def __init__(self, wrapped, ctx: core.ExecutionContext):
-        super().__init__(wrapped)
-        self._body = []
-        self._execution_ctx = ctx
-
-    def read(self, amt=None):
-        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
-        try:
-            body = self.__wrapped__.read(amt=amt)
-            self._body.append(json.loads(body))
-            if self.__wrapped__.tell() == int(self.__wrapped__._content_length):
-                formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
-                core.dispatch(
-                    "botocore.bedrock.process_response",
-                    [self._execution_ctx, formatted_response],
-                )
-            return body
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            raise
-
-    def readlines(self):
-        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
-        try:
-            lines = self.__wrapped__.readlines()
-            for line in lines:
-                self._body.append(json.loads(line))
-            formatted_response = _extract_text_and_response_reason(self._execution_ctx, self._body[0])
+def traced_stream_read(traced_stream, original_read, amt=None):
+    """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
+    handler = traced_stream.handler
+    execution_ctx = handler.options.get("execution_ctx", {})
+    try:
+        body = original_read(amt=amt)
+        handler.chunks.append(json.loads(body))
+        if traced_stream.__wrapped__.tell() == int(traced_stream.__wrapped__._content_length):
+            formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
             core.dispatch(
                 "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response],
+                [execution_ctx, formatted_response],
             )
-            return lines
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            raise
-
-    def __iter__(self):
-        """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
-        exception_raised = False
-        try:
-            for line in self.__wrapped__:
-                self._body.append(json.loads(line["chunk"]["bytes"]))
-                yield line
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            exception_raised = True
-            raise
-        finally:
-            if exception_raised:
-                return
-            formatted_response = _extract_streamed_response(self._execution_ctx, self._body)
-            core.dispatch(
-                "botocore.bedrock.process_response",
-                [self._execution_ctx, formatted_response],
-            )
+        return body
+    except Exception:
+        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        raise
 
 
-class TracedBotocoreConverseStream(wrapt.ObjectProxy):
-    """
-    This class wraps the stream response returned by converse_stream.
-    """
+def traced_stream_readlines(traced_stream, original_readlines):
+    """Wraps around method to tags the response data and finish the span as the user consumes the stream."""
+    handler = traced_stream.handler
+    execution_ctx = handler.options.get("execution_ctx", {})
+    try:
+        lines = original_readlines()
+        for line in lines:
+            handler.chunks.append(json.loads(line))
+        formatted_response = _extract_text_and_response_reason(execution_ctx, handler.chunks[0])
+        core.dispatch(
+            "botocore.bedrock.process_response",
+            [execution_ctx, formatted_response],
+        )
+        return lines
+    except Exception:
+        core.dispatch("botocore.patched_bedrock_api_call.exception", [execution_ctx, sys.exc_info()])
+        raise
 
-    def __init__(self, wrapped, ctx: core.ExecutionContext):
-        super().__init__(wrapped)
-        self._execution_ctx = ctx
 
-    def __iter__(self):
-        stream_processor = self._execution_ctx["bedrock_integration"]._converse_output_stream_processor()
-        exception_raised = False
-        try:
-            next(stream_processor)
-            for chunk in self.__wrapped__:
-                stream_processor.send(chunk)
-                yield chunk
-        except Exception:
-            core.dispatch("botocore.patched_bedrock_api_call.exception", [self._execution_ctx, sys.exc_info()])
-            exception_raised = True
-            raise
-        finally:
-            if exception_raised:
-                return
-            core.dispatch("botocore.bedrock.process_response_converse", [self._execution_ctx, stream_processor])
+class BotocoreStreamingBodyStreamHandler(StreamHandler):
+    def process_chunk(self, chunk, iterator=None):
+        self.chunks.append(json.loads(chunk["chunk"]["bytes"]))
+
+    def handle_exception(self, exception):
+        core.dispatch(
+            "botocore.patched_bedrock_api_call.exception", [self.options.get("execution_ctx", {}), sys.exc_info()]
+        )
+
+    def finalize_stream(self, exception=None):
+        if exception:
+            return
+        execution_ctx = self.options.get("execution_ctx", {})
+        formatted_response = _extract_streamed_response(execution_ctx, self.chunks)
+        core.dispatch(
+            "botocore.bedrock.process_response",
+            [execution_ctx, formatted_response],
+        )
+
+
+class BotocoreConverseStreamHandler(StreamHandler):
+    def process_chunk(self, chunk: Dict[str, Any], iterator=None):
+        stream_processor = self.options.get("stream_processor", None)
+        if stream_processor:
+            stream_processor.send(chunk)
+
+    def handle_exception(self, exception):
+        stream_processor = self.options.get("stream_processor", None)
+        execution_ctx = self.options.get("execution_ctx", {})
+        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+
+    def finalize_stream(self, exception=None):
+        if exception:
+            return
+        stream_processor = self.options.get("stream_processor", None)
+        execution_ctx = self.options.get("execution_ctx", {})
+        core.dispatch("botocore.bedrock.process_response_converse", [execution_ctx, stream_processor])
+
+
+def make_botocore_streaming_body_traced_stream(streaming_body, execution_ctx):
+    original_read = getattr(streaming_body, "read", None)
+    original_readlines = getattr(streaming_body, "readlines", None)
+    traced_stream = make_traced_stream(
+        streaming_body,
+        BotocoreStreamingBodyStreamHandler(None, None, None, None, execution_ctx=execution_ctx),
+    )
+    # add bedrock-specific methods to the traced stream
+    if original_read:
+        traced_stream.read = lambda amt=None: traced_stream_read(traced_stream, original_read, amt)
+    if original_readlines:
+        traced_stream.readlines = lambda: traced_stream_readlines(traced_stream, original_readlines)
+    return traced_stream
+
+
+def make_botocore_converse_traced_stream(stream, execution_ctx):
+    stream_processor = execution_ctx["bedrock_integration"]._converse_output_stream_processor()
+    next(stream_processor)
+    return make_traced_stream(
+        stream,
+        BotocoreConverseStreamHandler(
+            None, None, None, None, execution_ctx=execution_ctx, stream_processor=stream_processor
+        ),
+    )
 
 
 def safe_token_count(token_count) -> Optional[int]:
@@ -172,12 +183,14 @@ def _extract_request_params_for_converse(params: Dict[str, Any]) -> Dict[str, An
     if system_content_block:
         prompt.append({"role": "system", "content": system_content_block})
     prompt += messages
+    tool_config = params.get("toolConfig", {})
     return {
         "prompt": prompt,
         "temperature": inference_config.get("temperature", ""),
         "top_p": inference_config.get("topP", ""),
         "max_tokens": inference_config.get("maxTokens", ""),
         "stop_sequences": inference_config.get("stopSequences", []),
+        "tool_config": tool_config,
     }
 
 
@@ -319,7 +332,7 @@ def _extract_streamed_response(ctx: core.ExecutionContext, streamed_body: List[D
         elif provider == _COHERE:
             if "is_finished" in streamed_body[0]:  # streamed response
                 if "index" in streamed_body[0]:  # n >= 2
-                    num_generations = int(ctx.get_item("num_generations") or 0)
+                    num_generations = int(ctx.find_item("num_generations") or 0)
                     text = [
                         "".join([chunk["text"] for chunk in streamed_body[:-1] if chunk["index"] == i])
                         for i in range(num_generations)
@@ -436,11 +449,11 @@ def handle_bedrock_response(
         return result
     if ctx["resource"] == "ConverseStream":
         if "stream" in result:
-            result["stream"] = TracedBotocoreConverseStream(result["stream"], ctx)
+            result["stream"] = make_botocore_converse_traced_stream(result["stream"], ctx)
         return result
 
     body = result["body"]
-    result["body"] = TracedBotocoreStreamingBody(body, ctx)
+    result["body"] = make_botocore_streaming_body_traced_stream(body, ctx)
     return result
 
 

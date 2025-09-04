@@ -7,6 +7,7 @@ from typing import List  # noqa:F401
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib import dbapi
 from ddtrace.contrib.internal.psycopg.async_connection import patched_connect_async_factory
 from ddtrace.contrib.internal.psycopg.async_cursor import Psycopg3FetchTracedAsyncCursor
@@ -23,7 +24,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation._database_monitoring import _DBM_Propagator
 from ddtrace.propagation._database_monitoring import default_sql_injector as _default_sql_injector
-from ddtrace.trace import Pin
 
 
 # These will be initialized lazily to avoid circular imports

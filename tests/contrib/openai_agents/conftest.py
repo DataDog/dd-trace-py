@@ -9,10 +9,10 @@ from openai.types.responses.web_search_tool_param import UserLocation
 import pytest
 import vcr
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.openai_agents.patch import patch
 from ddtrace.contrib.internal.openai_agents.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.llmobs._utils import TestLLMObsSpanWriter
 from tests.utils import DummyTracer
 from tests.utils import override_global_config

@@ -1,0 +1,5 @@
+---
+deprecations:
+  - |
+    tracing: ``ddtrace.tracer.Pin`` is deprecated and will be removed in version 4.0.0.
+    To manage configuration of the tracer or integrations please use environment variables.

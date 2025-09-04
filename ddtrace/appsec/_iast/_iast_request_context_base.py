@@ -1,3 +1,4 @@
+import contextvars
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -18,6 +19,8 @@ from ddtrace.settings.asm import config as asm_config
 log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
+
+IAST_CONTEXT = contextvars.ContextVar("iast_var", default=None)
 
 
 def _set_span_tag_iast_request_tainted(span):

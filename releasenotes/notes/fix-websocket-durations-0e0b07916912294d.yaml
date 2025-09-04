@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    tracing: Fixes issue with ``websocket.receive`` span not closing exactly when another ``websocket.receive`` span was opened. 
+  - |
+    tracing: Fixes duration of websocket handshake span such that the handshake span closes when the connection is upgraded. 
+  - |
+    tracing: Fix where ``websocket.close`` parent should be the handshake span when configuration is disabled.

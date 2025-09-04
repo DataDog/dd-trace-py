@@ -92,6 +92,37 @@ def test_crashtracker_started():
 
 @pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
 @pytest.mark.subprocess()
+def test_crashtracker_receiver_not_in_path():
+    import os
+    import shutil
+
+    import pytest
+
+    from ddtrace.internal.core import crashtracking
+    from tests.internal.crashtracker.utils import CrashtrackerWrapper
+
+    try:
+        # Remove the receiver from the path. This mimics the case where we don't
+        # have _dd_crashtracker_receiver in the PATH, for example when running
+        # in an injected environment. And we should just load the script
+        # directly.
+        os.environ["PATH"] = ""
+        dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+        assert dd_crashtracker_receiver is None
+
+        ct = CrashtrackerWrapper(1234, "started")
+        assert ct.start()
+        assert crashtracking.is_started()  # Confirmation at the module level
+    except Exception:
+        pytest.fail("Exception when starting crashtracker")
+
+    stdout_msg, stderr_msg = ct.logs()
+    if stdout_msg or stderr_msg:
+        pytest.fail("contents of stdout.log: %s, stderr.log: %s" % (stdout_msg, stderr_msg))
+
+
+@pytest.mark.skipif(not sys.platform.startswith("linux"), reason="Linux only")
+@pytest.mark.subprocess()
 def test_crashtracker_simple():
     # This test does the following
     # 1. Finds a random port in the range 10000-20000 it can bind to (5 retries)

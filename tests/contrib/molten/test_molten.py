@@ -3,21 +3,24 @@ from molten.testing import TestClient
 import pytest
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import USER_KEEP
-from ddtrace.contrib.internal.molten.patch import MOLTEN_VERSION
 from ddtrace.contrib.internal.molten.patch import patch
 from ddtrace.contrib.internal.molten.patch import unpatch
 from ddtrace.ext import http
 from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
+from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.trace import Pin
 from tests.tracer.utils_inferred_spans.test_helpers import assert_web_and_inferred_aws_api_gateway_span_data
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
 from tests.utils import assert_span_http_status_code
 from tests.utils import override_global_config
+
+
+MOLTEN_VERSION = parse_version(molten.__version__)
 
 
 # NOTE: Type annotations required by molten otherwise parameters cannot be coerced

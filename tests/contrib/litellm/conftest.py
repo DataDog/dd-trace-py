@@ -1,10 +1,10 @@
 from litellm import Router
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.litellm.patch import patch
 from ddtrace.contrib.internal.litellm.patch import unpatch
 from ddtrace.llmobs import LLMObs as llmobs_service
-from ddtrace.trace import Pin
 from tests.contrib.litellm.utils import get_request_vcr
 from tests.contrib.litellm.utils import model_list
 from tests.llmobs._utils import TestLLMObsSpanWriter

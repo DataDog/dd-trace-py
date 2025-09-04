@@ -51,7 +51,7 @@ def test_dd_otel_mixed_env_configuration():
     assert _global_sampling_rule().sample_rate == 0.1
     assert config._tracing_enabled is True, config._tracing_enabled
     assert config._runtime_metrics_enabled is True, config._runtime_metrics_enabled
-    assert config._otel_enabled is True, config._otel_enabled
+    assert config._otel_trace_enabled is True, config._otel_trace_enabled
     assert config.tags == {
         "env": "staging",
     }, config.tags
@@ -81,7 +81,7 @@ def test_dd_otel_missing_dd_env_configuration():
 
     assert config.service == "Test", config.service
     assert config.version == "1.0"
-    assert config._otel_enabled is True, config._otel_enabled
+    assert config._otel_trace_enabled is True, config._otel_trace_enabled
     assert config._debug_mode is True, config._debug_mode
     assert config._propagation_style_extract == ["tracecontext", "b3"], config._propagation_style_extract
     assert _global_sampling_rule().sample_rate == 0.9
@@ -324,14 +324,14 @@ def test_otel_resource_attributes_tags_warning():
 def test_otel_sdk_disabled_configuration():
     from ddtrace import config
 
-    assert config._otel_enabled is True
+    assert config._otel_trace_enabled is True
 
 
 @pytest.mark.subprocess(env={"OTEL_SDK_DISABLED": "true", "DD_TRACE_OTEL_ENABLED": None})
 def test_otel_sdk_disabled_configuration_true():
     from ddtrace import config
 
-    assert config._otel_enabled is False, config._otel_enabled
+    assert config._otel_trace_enabled is False, config._otel_trace_enabled
 
 
 @pytest.mark.subprocess(

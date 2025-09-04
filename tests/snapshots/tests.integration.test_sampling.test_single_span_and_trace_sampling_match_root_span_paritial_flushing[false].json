@@ -1,0 +1,51 @@
+[[
+  {
+    "name": "monkey",
+    "service": "animals",
+    "resource": "monkey",
+    "trace_id": 0,
+    "span_id": 1,
+    "parent_id": 0,
+    "type": "",
+    "error": 0,
+    "meta": {
+      "_dd.p.dm": "-3",
+      "_dd.p.tid": "68a5d5cb00000000",
+      "language": "python",
+      "runtime-id": "96a6f46af3c444859a4026cb8f628e4f"
+    },
+    "metrics": {
+      "_dd.py.partial_flush": 1,
+      "_dd.rule_psr": 0.0,
+      "_dd.span_sampling.mechanism": 8,
+      "_dd.span_sampling.rule_rate": 1,
+      "_dd.top_level": 1,
+      "_dd.tracer_kr": 1.0,
+      "_sampling_priority_v1": -1,
+      "process_id": 58620
+    },
+    "duration": 23000,
+    "start": 1755698635705503000
+  },
+     {
+       "name": "non_monkey",
+       "service": "animals",
+       "resource": "non_monkey",
+       "trace_id": 0,
+       "span_id": 2,
+       "parent_id": 1,
+       "type": "",
+       "error": 0,
+       "meta": {
+         "_dd.p.dm": "-3",
+         "_dd.p.tid": "68a5d5cb00000000",
+         "language": "python"
+       },
+       "metrics": {
+         "_dd.py.partial_flush": 1,
+         "_dd.tracer_kr": 1.0,
+         "_sampling_priority_v1": -1
+       },
+       "duration": 15000,
+       "start": 1755698635705713000
+     }]]

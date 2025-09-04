@@ -10,6 +10,10 @@ from tests.contrib.google_genai.utils import TOOL_GENERATE_CONTENT_CONFIG
 from tests.contrib.google_genai.utils import get_current_weather
 from tests.contrib.google_genai.utils import get_expected_metadata
 from tests.llmobs._utils import _expected_llmobs_llm_span_event
+from tests.llmobs._utils import aiterate_stream
+from tests.llmobs._utils import anext_stream
+from tests.llmobs._utils import iterate_stream
+from tests.llmobs._utils import next_stream
 
 
 @pytest.mark.parametrize(
@@ -38,14 +42,16 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
-    def test_generate_content_stream(self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream):
+    @pytest.mark.parametrize("consume_stream", [iterate_stream, next_stream])
+    def test_generate_content_stream(
+        self, genai_client, llmobs_events, mock_tracer, mock_generate_content_stream, consume_stream
+    ):
         response = genai_client.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        for _ in response:
-            pass
+        consume_stream(response)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)
@@ -88,16 +94,16 @@ class TestLLMObsGoogleGenAI:
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_error_span_event(span)
 
+    @pytest.mark.parametrize("consume_stream", [aiterate_stream, anext_stream])
     async def test_generate_content_stream_async(
-        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream
+        self, genai_client, llmobs_events, mock_tracer, mock_async_generate_content_stream, consume_stream
     ):
         response = await genai_client.aio.models.generate_content_stream(
             model="gemini-2.0-flash-001",
             contents="Why is the sky blue? Explain in 2-3 sentences.",
             config=FULL_GENERATE_CONTENT_CONFIG,
         )
-        async for _ in response:
-            pass
+        await consume_stream(response)
         span = mock_tracer.pop_traces()[0][0]
         assert len(llmobs_events) == 1
         assert llmobs_events[0] == expected_llmobs_span_event(span)

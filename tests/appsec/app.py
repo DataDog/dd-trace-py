@@ -207,7 +207,7 @@ def appsec_body_hang():
 
 
 @app.route("/iast-cmdi-vulnerability", methods=["GET"])
-def iast_cmdi_vulnerability():
+def view_iast_iast_cmdi_vulnerability():
     filename = request.args.get("filename")
     subp = subprocess.Popen(args=["ls", "-la", filename])
     subp.communicate()
@@ -217,11 +217,40 @@ def iast_cmdi_vulnerability():
 
 
 @app.route("/iast-cmdi-vulnerability-secure", methods=["GET"])
-def view_cmdi_secure():
+def view_iast_cmdi_secure():
     filename = request.args.get("filename")
     subp = subprocess.Popen(args=["ls", "-la", shlex.quote(filename)])
     subp.wait()
     return Response("OK")
+
+
+@app.route("/iast-sqli-vulnerability-complex", methods=["GET"])
+def view_iast_sqli_complex():
+    from sqlalchemy import case
+    from sqlalchemy import create_engine
+    from sqlalchemy import func
+    from sqlalchemy import literal
+    from sqlalchemy import select
+    from sqlalchemy.orm import sessionmaker
+
+    engine = create_engine("sqlite:///:memory:")
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    dummy_table = select(literal(1).label("dummy")).subquery()
+    # Move the expression directly into session.query
+    case_expr = case(
+        (literal(1) == literal(1), literal("1")),
+        (func.lower("Hi") == literal("hi"), literal("hi")),
+        (func.lower("Bye") == literal("bye"), literal("bye")),
+        else_=None,
+    ).label("result")
+    query = session.query(case_expr).select_from(dummy_table)
+    # Short query
+    results = query.all()
+    session.close()
+    engine.dispose()
+    return Response(f"OK: {results}")
 
 
 @app.route("/iast-unvalidated_redirect-header", methods=["GET"])

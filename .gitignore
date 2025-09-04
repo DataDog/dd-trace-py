@@ -137,6 +137,10 @@ ENV/
 # Cursor
 .cursor/
 
+# Cascade
+# .windsurf/  # If you want to use Windsurf/Cascade, do NOT ignore here.
+# Add '.windsurf/' to .git/info/exclude instead so Cascade can read workflow/config files (gitignore would hide them)
+
 # Claude
 CLAUDE.local.md
 

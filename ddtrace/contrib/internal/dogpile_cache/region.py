@@ -1,5 +1,6 @@
 import dogpile
 
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import db
@@ -7,7 +8,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.schema import schematize_cache_operation
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.trace import Pin
 
 
 def _wrap_get_create(func, instance, args, kwargs):

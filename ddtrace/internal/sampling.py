@@ -232,11 +232,6 @@ def _check_unsupported_pattern(string: str) -> None:
             raise ValueError("Unsupported Glob pattern found, character:%r is not supported" % char)
 
 
-def is_single_span_sampled(span):
-    # type: (Span) -> bool
-    return span.get_metric(_SINGLE_SPAN_SAMPLING_MECHANISM) == SamplingMechanism.SPAN_SAMPLING_RULE
-
-
 def _set_sampling_tags(span: Span, sampled: bool, sample_rate: float, mechanism: int) -> None:
     # Set the sampling mechanism once but never overwrite an existing tag
     if not span.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):

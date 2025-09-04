@@ -36,6 +36,7 @@ except ImportError:
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.langchain.constants import text_embedding_models
 from ddtrace.contrib.internal.langchain.constants import vectorstore_classes
 from ddtrace.contrib.internal.langchain.utils import shared_stream
@@ -50,7 +51,6 @@ from ddtrace.internal.utils.formats import deep_getattr
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._integrations import LangChainIntegration
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

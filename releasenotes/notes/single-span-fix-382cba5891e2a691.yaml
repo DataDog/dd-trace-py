@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    sampling: Fixed a bug where single span sampling rules were completely ignored when stats computation was enabled,
+    causing all single-sampled spans to be dropped. Note that single span sampling is only used to override trace sampling 
+    decisions to keep a span where the trace will be dropped.

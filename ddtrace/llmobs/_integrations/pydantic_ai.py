@@ -5,9 +5,11 @@ from typing import Optional
 from typing import Sequence
 from typing import Tuple
 
+from ddtrace._trace.pin import Pin
+from ddtrace.internal import core
 from ddtrace.internal.utils import get_argument_value
-from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
@@ -18,12 +20,10 @@ from ddtrace.llmobs._constants import NAME
 from ddtrace.llmobs._constants import OUTPUT_TOKENS_METRIC_KEY
 from ddtrace.llmobs._constants import OUTPUT_VALUE
 from ddtrace.llmobs._constants import SPAN_KIND
-from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._constants import TOTAL_TOKENS_METRIC_KEY
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_attr
-from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
-from ddtrace.trace import Pin
+from ddtrace.llmobs._utils import safe_json
 from ddtrace.trace import Span
 
 
@@ -71,7 +71,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
         operation: str = "",
     ) -> None:
         span_kind = span._get_ctx_item(SPAN_KIND)
-        span_links = self._get_span_links(span, span_kind)
 
         if span_kind == "agent":
             self._llmobs_set_tags_agent(span, args, kwargs, response)
@@ -81,7 +80,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
         span._set_ctx_items(
             {
                 SPAN_KIND: span_kind,
-                SPAN_LINKS: span_links,
                 MODEL_NAME: span.get_tag("pydantic_ai.request.model") or "",
                 MODEL_PROVIDER: span.get_tag("pydantic_ai.request.provider") or "",
             }
@@ -121,15 +119,19 @@ class PydanticAIIntegration(BaseLLMIntegration):
         self, span: Span, args: List[Any], kwargs: Dict[str, Any], response: Optional[Any] = None
     ) -> None:
         tool_instance = kwargs.get("instance", None)
-        tool_call = get_argument_value(args, kwargs, 0, "message", optional=True)
+        tool_call = get_argument_value(args, kwargs, 0, "call", optional=True) or get_argument_value(
+            args, kwargs, 0, "message", optional=True
+        )
         tool_name = "PydanticAI Tool"
         tool_input: Any = {}
+        tool_id = ""
         if tool_call:
-            tool_name = getattr(tool_call, "tool_name", "")
-            tool_input = getattr(tool_call, "args", {})
-        tool_def = getattr(tool_instance, "tool_def", None)
+            tool_name = _get_attr(tool_call, "tool_name", "")
+            tool_input = _get_attr(tool_call, "args", "") or ""
+            tool_id = _get_attr(tool_call, "tool_call_id", "")
+        tool_def = _get_attr(tool_instance, "tool_def", None)
         tool_description = (
-            getattr(tool_def, "description", "") if tool_def else getattr(tool_instance, "description", "")
+            _get_attr(tool_def, "description", "") if tool_def else _get_attr(tool_instance, "description", "")
         )
         span._set_ctx_items(
             {
@@ -142,6 +144,17 @@ class PydanticAIIntegration(BaseLLMIntegration):
             # depending on the version, the output may be a ToolReturnPart or the raw response
             output_content = getattr(response, "content", "") or response
             span._set_ctx_item(OUTPUT_VALUE, output_content)
+
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (
+                tool_name,
+                safe_json(tool_input) if not isinstance(tool_input, str) else tool_input,
+                "function",
+                span,
+                tool_id,
+            ),
+        )
 
     def _tag_agent_manifest(self, span: Span, kwargs: Dict[str, Any], agent: Any) -> None:
         if not agent:
@@ -230,29 +243,6 @@ class PydanticAIIntegration(BaseLLMIntegration):
             OUTPUT_TOKENS_METRIC_KEY: completion_tokens,
             TOTAL_TOKENS_METRIC_KEY: total_tokens or (prompt_tokens + completion_tokens),
         }
-
-    def _get_span_links(self, span: Span, span_kind: Any) -> List[Dict[str, Any]]:
-        span_links = []
-        if span_kind == "agent":
-            for tool_span_id in self._running_agents.pop(span.span_id, []):
-                span_links.append(
-                    {
-                        "span_id": str(tool_span_id),
-                        "trace_id": format_trace_id(span.trace_id),
-                        "attributes": {"from": "output", "to": "output"},
-                    }
-                )
-        elif span_kind == "tool":
-            ancestor = _get_nearest_llmobs_ancestor(span)
-            if ancestor:
-                span_links.append(
-                    {
-                        "span_id": str(ancestor.span_id),
-                        "trace_id": format_trace_id(ancestor.trace_id),
-                        "attributes": {"from": "input", "to": "input"},
-                    }
-                )
-        return span_links
 
     def _register_span(self, span: Span, kind: Any) -> None:
         if kind == "agent":

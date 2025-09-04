@@ -12,6 +12,7 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from ddtrace._trace.pin import Pin
 import ddtrace.constants
 from ddtrace.trace import tracer
 
@@ -62,16 +63,16 @@ def get_app():
 
         return await call_next(request)
 
-    @app.get("/")
-    @app.post("/")
-    @app.options("/")
+    @app.get("/", response_class=HTMLResponse, status_code=200)
+    @app.post("/", response_class=HTMLResponse, status_code=200)
+    @app.options("/", response_class=HTMLResponse, status_code=200)
     async def read_homepage():  # noqa: B008
-        return HTMLResponse("ok ASM", 200)
+        return "ok ASM"
 
-    @app.get("/asm/{param_int:int}/{param_str:str}/")
-    @app.post("/asm/{param_int:int}/{param_str:str}/")
-    @app.get("/asm/{param_int:int}/{param_str:str}")
-    @app.post("/asm/{param_int:int}/{param_str:str}")
+    @app.get("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}/", response_class=JSONResponse)
+    @app.get("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
+    @app.post("/asm/{param_int:int}/{param_str:str}", response_class=JSONResponse)
     async def multi_view(param_int: int, param_str: str, request: Request):  # noqa: B008
         query_params = dict(request.query_params)
         body = {
@@ -128,7 +129,7 @@ def get_app():
     async def new_service(service_name: str, request: Request):  # noqa: B008
         import ddtrace
 
-        ddtrace.trace.Pin._override(app, service=service_name, tracer=ddtrace.tracer)
+        Pin._override(app, service=service_name, tracer=ddtrace.tracer)
         return HTMLResponse(service_name, 200)
 
     async def slow_numbers(minimum, maximum):

@@ -5,11 +5,11 @@ import azure.functions as azure_functions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
-from ddtrace.trace import Pin
 
 from .utils import create_context
 from .utils import message_list_has_single_context

@@ -1,8 +1,8 @@
 import aiohttp_jinja2
 import pytest
 
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
-from ddtrace.trace import Pin
 from ddtrace.trace import tracer
 from tests.contrib.aiohttp.app.web import set_filesystem_loader
 from tests.contrib.aiohttp.app.web import set_package_loader

@@ -12,6 +12,7 @@ from grpc.aio._typing import ResponseIterableType
 from grpc.aio._typing import ResponseType
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_TYPE
@@ -26,7 +27,6 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_url_operation
 from ddtrace.internal.schema.span_attribute_schema import SpanDirection
 from ddtrace.propagation.http import HTTPPropagator
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 

@@ -66,6 +66,7 @@ class APMTracingAdapter(PubSub):
         seen_config_ids = set()
         for payload in payloads:
             if payload.metadata is None:
+                log.debug("ignoring invalid APM Tracing remote config with missing metadata")
                 continue
 
             log.debug("Received APM tracing config payload: %s", payload)
@@ -74,6 +75,7 @@ class APMTracingAdapter(PubSub):
             seen_config_ids.add(config_id)
 
             if (content := payload.content) is None:
+                log.debug("ignoring invalid APM Tracing remote config payload")
                 continue
 
             service_target = t.cast(t.Optional[dict], content.get("service_target"))
@@ -81,10 +83,14 @@ class APMTracingAdapter(PubSub):
             service = t.cast(str, service_target.get("service")) if service_target is not None else None
             env = t.cast(str, service_target.get("env")) if service_target is not None else None
 
+            log.debug("APM Tracing remote config target: service=%s, env=%s", service, env)
+
             if service is not None and service != "*" and service != config.service:
+                log.debug("ignoring APM Tracing remote config payload for service: %r != %r", service, config.service)
                 continue
 
             if env is not None and env != "*" and env != config.env:
+                log.debug("ignoring APM Tracing remote config payload for env: %r != %r", env, config.env)
                 continue
 
             self.config_map[config_id] = payload

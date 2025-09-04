@@ -5,13 +5,13 @@ import mariadb
 import wrapt
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.contrib.dbapi import TracedConnection
 from ddtrace.ext import db
 from ddtrace.ext import net
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap
-from ddtrace.trace import Pin
 
 
 config._add(
