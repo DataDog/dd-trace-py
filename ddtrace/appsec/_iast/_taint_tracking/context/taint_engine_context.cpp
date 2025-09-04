@@ -17,7 +17,7 @@
 // - finish_request_context(id): clears a specific slot and frees it for reuse.
 // - clear_all_request_context_slots(): clears all slots.
 //
-// Pybind exports (see pyexport_application_context below): minimal helpers for
+// Pybind exports (see pyexport_taint_engine_context below): minimal helpers for
 // diagnostics and micro-benchmarks (slot address, capacity, presence checks).
 //
 #include "taint_engine_context.h"
@@ -149,7 +149,7 @@ TaintEngineContext::debug_num_tainted_objects(size_t ctx_id)
 }
 
 void
-pyexport_application_context(py::module& m)
+pyexport_taint_engine_context(py::module& m)
 {
     m.def("finish_request_context", [](size_t ctx_id) { taint_engine_context->finish_request_context(ctx_id); });
     m.def("start_request_context", [] { return taint_engine_context->start_request_context(); });

@@ -88,4 +88,4 @@ class TaintEngineContext
 extern std::unique_ptr<TaintEngineContext> taint_engine_context;
 
 void
-pyexport_application_context(py::module& m);
+pyexport_taint_engine_context(py::module& m);

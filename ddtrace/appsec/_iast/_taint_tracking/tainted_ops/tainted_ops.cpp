@@ -42,7 +42,7 @@ api_is_tainted_new(py::object tainted_object)
 {
     if (tainted_object) {
         const auto& to_initial =
-          application_context->get_tainted_object_from_request_context_slot(tainted_object.ptr());
+          taint_engine_context->get_tainted_object_from_request_context_slot(tainted_object.ptr());
         if (to_initial and !to_initial->get_ranges().empty()) {
             return true;
         }

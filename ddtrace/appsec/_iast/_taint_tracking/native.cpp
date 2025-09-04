@@ -83,7 +83,7 @@ PYBIND11_MODULE(_native, m)
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);
-    py::module m_appctx = pyexport_m_application_context(m);
+    py::module m_appctx = pyexport_m_taint_engine_context(m);
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);
