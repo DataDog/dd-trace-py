@@ -198,7 +198,7 @@ def _debugger(config_to_override: DDConfig, config_overrides: Any) -> Generator[
             config_to_override.__dict__ = old_config
             # Reset any test changes to the redaction config or cached calls.
             redaction_config.__dict__ = old_config
-            redact.invalidate()
+            redact.cache_clear()
         finally:
             atexit.register = atexit_register
 

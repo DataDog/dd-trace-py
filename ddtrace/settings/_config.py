@@ -411,7 +411,7 @@ class Config(object):
             self._error_statuses = value
             self._error_ranges = get_error_ranges(value)
             # Mypy can't catch cached method's invalidate()
-            self.is_error_code.invalidate()  # type: ignore[attr-defined]
+            self.is_error_code.cache_clear()  # type: ignore[attr-defined]
 
         @property
         def error_ranges(self):
