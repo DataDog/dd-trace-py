@@ -405,7 +405,9 @@ class LinkTracker:
         spans and link the output of the last LLM span to the input of the guardrail span.
         """
         self._active_guardrail_spans.add(span)
-        if self._last_llm_span is not None:
+        if self._last_llm_span is not None and _get_nearest_llmobs_ancestor(span) == _get_nearest_llmobs_ancestor(
+            self._last_llm_span
+        ):
             add_span_link(
                 span,
                 str(self._last_llm_span.span_id),
