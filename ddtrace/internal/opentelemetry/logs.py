@@ -10,8 +10,7 @@ from ddtrace.internal.hostname import get_hostname
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.telemetry import telemetry_writer
 from ddtrace.internal.telemetry.constants import TELEMETRY_NAMESPACE
-from ddtrace.settings._agent import get_agent_hostname
-from ddtrace.settings._opentelemetry import exporter_config
+from ddtrace.settings._opentelemetry import otel_config
 
 
 log = get_logger(__name__)
@@ -36,7 +35,7 @@ def set_otel_logs_provider() -> None:
     if resource is None:
         return
 
-    protocol = (exporter_config.OTLP_PROTOCOL or exporter_config.OTLP_LOGS_PROTOCOL or DEFAULT_PROTOCOL).lower()
+    protocol = otel_config.exporter.LOGS_PROTOCOL
     exporter_class = _import_exporter(protocol)
     if exporter_class is None:
         return
@@ -47,6 +46,8 @@ def set_otel_logs_provider() -> None:
     telemetry_writer.add_count_metric(TELEMETRY_NAMESPACE.TRACERS, "logging_provider_configured", 1, (("type", "dd"),))
     global DD_LOGS_PROVIDER_CONFIGURED
     DD_LOGS_PROVIDER_CONFIGURED = True
+    # Disable log injection to prevent duplicate log attributes from being sent.
+    config._logs_injection = False
 
 
 def _should_configure_logs_exporter() -> bool:
@@ -178,13 +179,9 @@ def _initialize_logging(exporter_class, protocol, resource):
     try:
         from opentelemetry.sdk._configuration import _init_logging
 
-        if not exporter_config.OTLP_ENDPOINT and not exporter_config.OTLP_LOGS_ENDPOINT:
-            if protocol in ("http/json", "http/protobuf"):
-                endpoint = f"http://{get_agent_hostname()}:{HTTP_PORT}{HTTP_LOGS_ENDPOINT}"
-            else:
-                endpoint = f"http://{get_agent_hostname()}:{GRPC_PORT}"
-            os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = endpoint
-
+        # Ensure logging exporter is configured to send payloads to a Datadog Agent.
+        # The default endpoint is resolved using the hostname from DD_AGENT.. and DD_TRACE_AGENT_... configs
+        os.environ["OTEL_EXPORTER_OTLP_LOGS_ENDPOINT"] = otel_config.exporter.LOGS_ENDPOINT
         _init_logging({protocol: exporter_class}, resource=resource)
         return True
     except ImportError as e:
