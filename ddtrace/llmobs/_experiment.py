@@ -174,6 +174,10 @@ class Dataset:
         self._new_records_by_record_id[record_id] = r
         self._records.append(r)
 
+    def extend(self, records: List[DatasetRecordRaw]) -> None:
+        for record in records:
+            self.append(record)
+
     def delete(self, index: int) -> None:
         record_id = self._records[index]["record_id"]
         should_append_to_be_deleted = True

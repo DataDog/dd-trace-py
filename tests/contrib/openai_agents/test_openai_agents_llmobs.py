@@ -566,7 +566,7 @@ async def test_llmobs_multiple_agent_handoffs(agents, mock_tracer, request_vcr, 
             )
         ],
         tool_calls=[],
-        previous_tool_events=previous_tool_events,
+        previous_tool_events=previous_tool_events[-1:],
     )
 
 
@@ -687,6 +687,6 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
             )
         ],
         tool_calls=[],
-        previous_tool_events=previous_tool_events,
+        previous_tool_events=previous_tool_events[-1:],
         is_chat=True,
     )
