@@ -510,9 +510,7 @@ class LLMObs(Service):
 
         core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._link_tracker.on_guardrail_span_start)
         core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._link_tracker.on_llm_span_finish)
-        core.reset_listeners(
-            DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, self._link_tracker.on_openai_agent_span_finish
-        )
+        core.reset_listeners(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, self._link_tracker.on_openai_agent_span_finish)
 
         forksafe.unregister(self._child_after_fork)
 
@@ -629,9 +627,7 @@ class LLMObs(Service):
 
             core.on(DISPATCH_ON_GUARDRAIL_SPAN_START, cls._instance._link_tracker.on_guardrail_span_start)
             core.on(DISPATCH_ON_LLM_SPAN_FINISH, cls._instance._link_tracker.on_llm_span_finish)
-            core.on(
-                DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, cls._instance._link_tracker.on_openai_agent_span_finish
-            )
+            core.on(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, cls._instance._link_tracker.on_openai_agent_span_finish)
 
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)
