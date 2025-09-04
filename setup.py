@@ -61,8 +61,8 @@ CURRENT_OS = platform.system()
 # RustExtension src/native has two build profiles, release and debug, and only
 # DD_COMPILE_MODE=Debug will build with debug profile, and rest will build with
 # release profile, which also has debug symbols by default.
-# And when MinSizeRel is used, we strip the debug symbols from the wheels,
-# see try_strip_symbols() below.
+# And when MinSizeRel or Release is used, we strip the debug symbols from the
+# wheels, see try_strip_symbols() below.
 COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
