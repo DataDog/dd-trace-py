@@ -17,6 +17,7 @@
 #include "aspects/aspect_str.h"
 #include "aspects/aspects_exports.h"
 #include "constants.h"
+#include "context/_application_context.h"
 #include "initializer/_initializer.h"
 #include "taint_tracking/taint_tracking.h"
 #include "tainted_ops/tainted_ops.h"
@@ -51,6 +52,7 @@ static struct PyModuleDef aspects __attribute__((used)) = { PyModuleDef_HEAD_INI
 static PyMethodDef OpsMethods[] = {
     { "new_pyobject_id", (PyCFunction)api_new_pyobject_id, METH_FASTCALL, "new pyobject id" },
     { "set_ranges_from_values", ((PyCFunction)api_set_ranges_from_values), METH_FASTCALL, "set_ranges_from_values" },
+    { "taint_pyobject", ((PyCFunction)api_taint_pyobject), METH_FASTCALL, "api_taint_pyobject" },
     { nullptr, nullptr, 0, nullptr }
 };
 
@@ -67,17 +69,23 @@ static struct PyModuleDef ops __attribute__((used)) = { PyModuleDef_HEAD_INIT,
 PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
+    application_context = make_unique<ApplicationContext>();
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
         initializer->reset_contexts();
         initializer.reset();
+        if (application_context) {
+            application_context->clear_contexts_array();
+            application_context.reset();
+        }
     }));
 
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);
+    py::module m_appctx = pyexport_m_application_context(m);
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);
