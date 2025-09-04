@@ -339,7 +339,8 @@ class _DatadogMultiHeader:
             headers,
         )
 
-        meta = {}
+        meta = None
+
         tags_value = _DatadogMultiHeader._get_tags_value(headers)
         if tags_value:
             meta = _DatadogMultiHeader._extract_meta(tags_value)
@@ -357,6 +358,8 @@ class _DatadogMultiHeader:
                 del meta[_HIGHER_ORDER_TRACE_ID_BITS]
                 log.warning("malformed_tid: %s. Failed to decode trace id from http headers", trace_id_hob_hex)
 
+        if not meta:
+            meta = {}
         # Try to parse values into their expected types
         try:
             if sampling_priority is not None:
