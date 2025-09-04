@@ -8,7 +8,6 @@ from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
 from ddtrace.appsec._iast._stacktrace import get_info_frame
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
-from ddtrace.appsec._iast._taint_tracking import initializer_size
 from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
@@ -68,7 +67,6 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
     """
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
-    _initializer_size = 0
     for _ in range(LOOPS):
         create_context()
         tainted_string_1 = taint_pyobject(
@@ -90,15 +88,11 @@ def test_propagation_memory_check(origin1, origin2, iast_context_defaults):
         if _active_map_addreses_size == 0:
             _active_map_addreses_size = active_map_addreses_size()
             assert _active_map_addreses_size > 0
-        if _initializer_size == 0:
-            _initializer_size = initializer_size()
-            assert _initializer_size > 0
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
-        assert _initializer_size == initializer_size()
         reset_context()
 
 
@@ -129,7 +123,6 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
     """
     _num_objects_tainted = 0
     _active_map_addreses_size = 0
-    _initializer_size = 0
     for _ in range(LOOPS):
         create_context()
         tainted_string_1 = taint_pyobject(
@@ -151,15 +144,11 @@ async def test_propagation_memory_check_async(origin1, origin2, iast_context_def
         if _active_map_addreses_size == 0:
             _active_map_addreses_size = active_map_addreses_size()
             assert _active_map_addreses_size > 0
-        if _initializer_size == 0:
-            _initializer_size = initializer_size()
-            assert _initializer_size > 0
 
         # Some tainted pyobject is freed, and Python may reuse the memory address
         # hence the number of tainted objects may be the same or less
         # assert num_objects_tainted() - 3 <= _num_objects_tainted <= num_objects_tainted() + 3
         assert _active_map_addreses_size == active_map_addreses_size()
-        assert _initializer_size == initializer_size()
         reset_context()
 
 

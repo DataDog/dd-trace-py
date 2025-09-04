@@ -96,12 +96,6 @@ Initializer::debug_taint_map()
 }
 
 int
-Initializer::initializer_size() const
-{
-    return sizeof(*this);
-}
-
-int
 Initializer::active_map_addreses_size() const
 {
     return static_cast<int>(active_map_addreses.size());
@@ -233,10 +227,18 @@ pyexport_initializer(py::module& m)
     m.def("debug_taint_map", [] { return Initializer::debug_taint_map(); });
 
     m.def("num_objects_tainted", [] { return Initializer::num_objects_tainted(); });
-    m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
     m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
     m.def("reset_contexts", [] { initializer->reset_contexts(); });
+
+    // Benchmark helpers (no type exposure required)
+    m.def("create_tainting_map_bench", [] { (void)initializer->create_tainting_map(); });
+    m.def("get_tainting_map_bench", [] { (void)Initializer::get_tainting_map(); });
+    // Return the raw pointer value of the current initializer map (0 if none)
+    m.def("get_tainting_map_addr", []() -> unsigned long long {
+        auto map_ptr = Initializer::get_tainting_map();
+        return map_ptr ? static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(map_ptr.get())) : 0ULL;
+    });
 }
