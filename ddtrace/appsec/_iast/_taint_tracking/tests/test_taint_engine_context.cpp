@@ -81,7 +81,7 @@ TEST_F(ApplicationContextTest, ReuseFreedSlotOnCreate)
 TEST_F(ApplicationContextTest, ClearAllContexts)
 {
     // Create up to min(3, capacity) contexts
-    const auto cap = taint_engine_context->capacity();
+    const auto cap = taint_engine_context->debug_context_array_size();
     const auto n = cap < 3 ? cap : static_cast<size_t>(3);
     std::vector<size_t> indices;
     for (size_t i = 0; i < n; ++i) {
