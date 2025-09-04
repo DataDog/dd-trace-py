@@ -46,6 +46,7 @@ RAY_SNAPSHOT_IGNORES = [
     "meta.error.message",
     "meta.ray.job.message",
     "meta.error.stack",
+    "meta._dd.base_service",
     # Service names that include dynamic submission IDs
     "service",
     # Base service sometimes gets set to a different value in CI than in the local environment,
@@ -69,7 +70,14 @@ class TestRayIntegration(TracerTestCase):
         try:
             # Start the ray cluster once for all tests
             subprocess.run(
-                ["ddtrace-run", "ray", "start", "--head", "--dashboard-host=127.0.0.1", "--port=0"],
+                [
+                    "ray",
+                    "start",
+                    "--head",
+                    "--dashboard-host=127.0.0.1",
+                    "--port=0",
+                    "--tracing-startup-hook=ddtrace.contrib.internal.ray.hook:setup_tracing",
+                ],
                 capture_output=True,
                 text=True,
                 check=True,
@@ -92,7 +100,7 @@ class TestRayIntegration(TracerTestCase):
         submit_ray_job("jobs/simple_task.py")
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_nested_tasks", ignores=RAY_SNAPSHOT_IGNORES)
-    def test_nested_taskx(self):
+    def test_nested_tasks(self):
         submit_ray_job("jobs/nested_tasks.py")
 
     @pytest.mark.snapshot(token="tests.contrib.ray.test_ray.test_simple_actor", ignores=RAY_SNAPSHOT_IGNORES)

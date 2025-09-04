@@ -3,7 +3,6 @@ from functools import wraps
 import inspect
 import os
 import threading
-import time
 from typing import Any
 from typing import Callable
 from typing import Dict
@@ -89,19 +88,18 @@ class RayTraceProcessor:
         if not trace:
             return trace
 
-        processed_trace = []
-        ray_spans_only = config.ray.ray_spans_only
+        filtered_spans = []
         for span in trace:
+            if span.service == "ray.dashboard" and span.get_tag("component") != "ray":
+                continue
             if span.get_tag("component") == "ray":
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
-                processed_trace.append(span)
-            elif not ray_spans_only:
-                processed_trace.append(span)
+            filtered_spans.append(span)
+        return filtered_spans
 
-        return processed_trace
 
 
 def _inject_tracing_into_remote_function(function):
@@ -265,16 +263,6 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
             raise e
 
 
-def flush_worker_spans(wrapped, instance, args, kwargs):
-    # Ensure the tracer has the time to send spans before
-    # before the worker is killed
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
-    time.sleep(0.5)
-    return wrapped(*args, **kwargs)
-
-
 def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
     async def _traced_run_method(self: Any, *args: Any, _dd_trace_ctx=None, **kwargs: Any) -> Any:
         from ddtrace import tracer as dd_tracer
@@ -334,7 +322,7 @@ def _inject_tracing_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx):
             return method(self, *args, **kwargs)
 
     return _traced_method
@@ -347,7 +335,7 @@ def _inject_tracing_async_actor_method(method: Callable[..., Any]) -> Any:
         if not tracer or (_dd_trace_ctx is None and tracer.current_span() is None):
             return await method(self, *args, **kwargs)
 
-        with _trace_actor_method(self, method, _dd_trace_ctx, **kwargs):
+        with _trace_actor_method(self, method, _dd_trace_ctx):
             return await method(self, *args, **kwargs)
 
     return _traced_async_method
@@ -441,8 +429,6 @@ def patch():
     _w(ray.actor, "_modify_class", inject_tracing_into_actor_class)
     _w(ray.actor.ActorHandle, "_actor_method_call", traced_actor_method_call)
 
-    _w(ray._private.worker, "disconnect", flush_worker_spans)
-
 
 def unpatch():
     if not getattr(ray, "_datadog_patch", False):
@@ -462,5 +448,3 @@ def unpatch():
 
     _u(ray.actor, "_modify_class")
     _u(ray.actor.ActorHandle, "_actor_method_call")
-
-    _u(ray._private.worker, "disconnect")
