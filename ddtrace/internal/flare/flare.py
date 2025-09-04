@@ -11,6 +11,7 @@ from typing import Optional
 import zipfile
 
 from ddtrace._logger import _add_file_handler
+from ddtrace.internal.flare.json_formatter import StructuredJSONFormatter
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils.http import get_connection
 
@@ -168,8 +169,15 @@ class Flare:
         )
         logger_level = min(valid_original_level, flare_log_level_int)
         ddlogger.setLevel(logger_level)
+
+        # Use structured JSON formatter for flare logs
+        json_formatter = StructuredJSONFormatter()
         self.file_handler = _add_file_handler(
-            ddlogger, flare_file_path.__str__(), flare_log_level_int, TRACER_FLARE_FILE_HANDLER_NAME
+            ddlogger,
+            flare_file_path.__str__(),
+            flare_log_level_int,
+            TRACER_FLARE_FILE_HANDLER_NAME,
+            formatter=json_formatter,
         )
         return pid
 

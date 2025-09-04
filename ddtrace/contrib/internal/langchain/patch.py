@@ -3,6 +3,7 @@ import sys
 from typing import Any
 from typing import Dict
 from typing import Optional
+from typing import Tuple
 
 import langchain
 
@@ -82,6 +83,15 @@ def _extract_model_name(instance: Any) -> Optional[str]:
     return None
 
 
+def _raising_dispatch(event_id: str, args: Tuple[Any, ...] = ()):
+    result = core.dispatch_with_results(event_id, args)
+    if len(result) > 0:
+        for event in result.values():
+            # we explicitly set the exception as a value to prevent caught exceptions from leaking
+            if isinstance(event.value, Exception):
+                raise event.value
+
+
 @with_traced_module
 def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
@@ -103,6 +113,7 @@ def traced_llm_generate(langchain, pin, func, instance, args, kwargs):
     integration.llmobs_set_prompt_tag(instance, span)
 
     try:
+        _raising_dispatch("langchain.llm.generate.before", (prompts,))
         completions = func(*args, **kwargs)
         core.dispatch("langchain.llm.generate.after", (prompts, completions))
     except Exception:
@@ -136,6 +147,7 @@ async def traced_llm_agenerate(langchain, pin, func, instance, args, kwargs):
 
     completions = None
     try:
+        _raising_dispatch("langchain.llm.agenerate.before", (prompts,))
         completions = await func(*args, **kwargs)
         core.dispatch("langchain.llm.agenerate.after", (prompts, completions))
     except Exception:
@@ -168,6 +180,7 @@ def traced_chat_model_generate(langchain, pin, func, instance, args, kwargs):
 
     chat_completions = None
     try:
+        _raising_dispatch("langchain.chatmodel.generate.before", (chat_messages,))
         chat_completions = func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.generate.after", (chat_messages, chat_completions))
     except Exception:
@@ -200,6 +213,7 @@ async def traced_chat_model_agenerate(langchain, pin, func, instance, args, kwar
 
     chat_completions = None
     try:
+        _raising_dispatch("langchain.chatmodel.agenerate.before", (chat_messages,))
         chat_completions = await func(*args, **kwargs)
         core.dispatch("langchain.chatmodel.agenerate.after", (chat_messages, chat_completions))
     except Exception:

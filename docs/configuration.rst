@@ -806,7 +806,17 @@ Logs
        v3.10.0: |
          The default value was changed to ``true``. This means that the tracer will inject trace context into logs when ``ddtrace-run`` or ``import ddtrace.auto`` is used.
          To disable this behavior, set ``DD_LOGS_INJECTION=false``.
-       
+
+   DD_LOGS_OTEL_ENABLED:
+     type: Boolean
+     default: False
+
+     description: |
+         When used with ``ddtrace-run`` this configuration enables support for exporting OTLP logs generated
+         by the OpenTelemetry Logging API. The application must also include its own OTLP logs exporter.
+     
+     version_added:
+       v3.12.0: Adds support for submitting logs via an OTLP Exporter.
 
    DD_TRACE_DEBUG:
      type: Boolean

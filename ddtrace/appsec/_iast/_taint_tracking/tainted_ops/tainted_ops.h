@@ -1,4 +1,5 @@
 #pragma once
+#include "context/application_context.h"
 #include "initializer/initializer.h"
 #include "utils/string_utils.h"
 

@@ -144,9 +144,3 @@ TaintedObject::reset()
         ranges_.reserve(RANGES_INITIAL_RESERVE);
     }
 }
-
-void
-pyexport_taintedobject(const py::module& m)
-{
-    py::class_<TaintedObject>(m, "TaintedObject").def(py::init<>());
-}

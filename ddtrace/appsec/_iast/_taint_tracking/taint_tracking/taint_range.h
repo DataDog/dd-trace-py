@@ -158,6 +158,9 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int
 PyObject*
 api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
 
+PyObject*
+api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
+
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs>
 are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list);

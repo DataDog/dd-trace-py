@@ -70,13 +70,6 @@ class Initializer
     static string debug_taint_map();
 
     /**
-     * Gets the size of the Initializer object.
-     *
-     * @return The size of the Initializer object.
-     */
-    int initializer_size() const;
-
-    /**
      * Gets the size of active map addresses.
      *
      * @return The size of active map addresses.

@@ -101,17 +101,17 @@ class _TracedIterable(wrapt.ObjectProxy):
         return super(_TracedIterable, self).__getattribute__(name)
 
 
-def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, str]:
+def _get_parameters_for_new_span_directly_from_context(ctx: core.ExecutionContext) -> Dict[str, Any]:
     span_kwargs = {}
     for parameter_name in {"span_type", "resource", "service", "child_of", "activate"}:
-        parameter_value = ctx.get_local_item(parameter_name)
+        parameter_value = ctx.get_item(parameter_name)
         if parameter_value:
             span_kwargs[parameter_name] = parameter_value
     return span_kwargs
 
 
 def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -> "Span":
-    activate_distributed_headers = ctx.get_local_item("activate_distributed_headers")
+    activate_distributed_headers = ctx.get_item("activate_distributed_headers")
     span_kwargs = _get_parameters_for_new_span_directly_from_context(ctx)
     call_trace = ctx.get_item("call_trace", call_trace)
     # Look for the tracer in the context, or fallback to the global tracer
@@ -121,7 +121,7 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         trace_utils.activate_distributed_headers(
             tracer,
             int_config=integration_config,
-            request_headers=ctx["distributed_headers"],
+            request_headers=ctx.get_item("distributed_headers"),
             override=ctx.get_item("distributed_headers_config_override"),
         )
     distributed_context = ctx.get_item("distributed_context")
@@ -135,10 +135,15 @@ def _start_span(ctx: core.ExecutionContext, call_trace: bool = True, **kwargs) -
         span_kwargs = ctx.get_item("span_kwargs", span_kwargs)
 
     span_kwargs.update(kwargs)
-    span = (tracer.trace if call_trace else tracer.start_span)(ctx["span_name"], **span_kwargs)
+    span_name = ctx.get_item("span_name")
+    if not span_name:
+        raise ValueError("span_name must be set in the context before starting a span")
+    span = (tracer.trace if call_trace else tracer.start_span)(span_name, **span_kwargs)
 
-    for tk, tv in ctx.get_item("tags", dict()).items():
-        span.set_tag(tk, tv)
+    tags: Optional[Dict[str, str]] = ctx.get_item("tags")
+    if tags:
+        for tk, tv in tags.items():
+            span.set_tag(tk, tv)
     if ctx.get_item("measured"):
         # PERF: avoid setting via Span.set_tag
         span.set_metric(_SPAN_MEASURED_KEY, 1)
@@ -274,30 +279,30 @@ def _on_inferred_proxy_finish(ctx):
 
 
 def _on_traced_request_context_started_flask(ctx):
-    current_span = ctx["pin"].tracer.current_span()
-    if not ctx["pin"].enabled or not current_span:
+    current_span = ctx.get_item("pin").tracer.current_span()
+    if not ctx.get_item("pin").enabled or not current_span:
         return
 
     ctx.span = current_span
-    flask_config = ctx["flask_config"]
-    _set_flask_request_tags(ctx["flask_request"], current_span, flask_config)
+    flask_config = ctx.get_item("flask_config")
+    _set_flask_request_tags(ctx.get_item("flask_request"), current_span, flask_config)
     request_span = _start_span(ctx)
     request_span._ignore_exception(ctx.get_item("ignored_exception_type"))
 
 
 def _maybe_start_http_response_span(ctx: core.ExecutionContext) -> None:
-    request_span = ctx["request_span"]
-    middleware = ctx["middleware"]
-    status_code, status_msg = ctx["status"].split(" ", 1)
+    request_span = ctx.get_item("request_span")
+    middleware = ctx.get_item("middleware")
+    status_code, status_msg = ctx.get_item("status").split(" ", 1)
     trace_utils.set_http_meta(
-        request_span, middleware._config, status_code=status_code, response_headers=ctx["environ"]
+        request_span, middleware._config, status_code=status_code, response_headers=ctx.get_item("environ")
     )
     if ctx.get_item("start_span", False):
         request_span.set_tag_str(http.STATUS_MSG, status_msg)
         _start_span(
             ctx,
             call_trace=False,
-            child_of=ctx["parent_call"],
+            child_of=ctx.get_item("parent_call"),
             activate=True,
         )
 
@@ -514,7 +519,7 @@ def _on_request_span_modifier_post(ctx, flask_config, request, req_body):
 
 
 def _on_traced_get_response_pre(_, ctx: core.ExecutionContext, request, before_request_tags):
-    before_request_tags(ctx["pin"], ctx.span, request)
+    before_request_tags(ctx.get_item("pin"), ctx.span, request)
     ctx.span._metrics[_SPAN_MEASURED_KEY] = 1
 
 
@@ -528,9 +533,9 @@ def _on_web_request_final_tags(span):
 def _on_django_finalize_response_pre(ctx, after_request_tags, request, response):
     # DEV: Always set these tags, this is where `span.resource` is set
     span = ctx.span
-    after_request_tags(ctx["pin"], span, request, response)
+    after_request_tags(ctx.get_item("pin"), span, request, response)
 
-    trace_utils.set_http_meta(span, ctx["integration_config"], route=span.get_tag("http.route"))
+    trace_utils.set_http_meta(span, ctx.get_item("integration_config"), route=span.get_tag("http.route"))
     _set_inferred_proxy_tags(span, None)
 
 
@@ -543,7 +548,7 @@ def _on_django_start_response(
 
     trace_utils.set_http_meta(
         ctx.span,
-        ctx["integration_config"],
+        ctx.get_item("integration_config"),
         method=request.method,
         query=query,
         raw_uri=uri,
@@ -699,11 +704,11 @@ def _on_botocore_patched_stepfunctions_update_input(ctx, span, _, trace_data, __
 
 def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
     span = ctx.span
-    integration = ctx["bedrock_integration"]
+    integration = ctx.get_item("bedrock_integration")
     integration._tag_proxy_request(ctx)
 
-    span.set_tag_str("bedrock.request.model_provider", ctx["model_provider"])
-    span.set_tag_str("bedrock.request.model", ctx["model_name"])
+    span.set_tag_str("bedrock.request.model_provider", ctx.get_item("model_provider"))
+    span.set_tag_str("bedrock.request.model", ctx.get_item("model_name"))
 
     if "n" in request_params:
         ctx.set_item("num_generations", str(request_params["n"]))
@@ -712,15 +717,15 @@ def _on_botocore_patched_bedrock_api_call_started(ctx, request_params):
 def _on_botocore_patched_bedrock_api_call_exception(ctx, exc_info):
     span = ctx.span
     span.set_exc_info(*exc_info)
-    model_name = ctx["model_name"]
-    integration = ctx["bedrock_integration"]
+    model_name = ctx.get_item("model_name")
+    integration = ctx.get_item("bedrock_integration")
     if "embed" not in model_name:
         integration.llmobs_set_tags(span, args=[ctx], kwargs={})
     span.finish()
 
 
 def _propagate_context(ctx, headers):
-    distributed_tracing_enabled = ctx["integration_config"].distributed_tracing_enabled
+    distributed_tracing_enabled = ctx.get_item("integration_config").distributed_tracing_enabled
     span = ctx.span
     if distributed_tracing_enabled and span:
         HTTPPropagator.inject(span.context, headers)
@@ -741,14 +746,14 @@ def _on_end_of_traced_method_in_fork(ctx):
     """Force flush to agent since the process `os.exit()`s
     immediately after this method returns
     """
-    ctx["pin"].tracer.flush()
+    ctx.get_item("pin").tracer.flush()
 
 
 def _on_botocore_bedrock_process_response_converse(
     ctx: core.ExecutionContext,
     result: List[Dict[str, Any]],
 ):
-    ctx["bedrock_integration"].llmobs_set_tags(
+    ctx.get_item("bedrock_integration").llmobs_set_tags(
         ctx.span,
         args=[ctx],
         kwargs={},
@@ -762,8 +767,8 @@ def _on_botocore_bedrock_process_response(
     formatted_response: Dict[str, Any],
 ) -> None:
     with ctx.span as span:
-        model_name = ctx["model_name"]
-        integration = ctx["bedrock_integration"]
+        model_name = ctx.get_item("model_name")
+        integration = ctx.get_item("bedrock_integration")
         if "embed" in model_name:
             return
         integration.llmobs_set_tags(span, args=[ctx], kwargs={}, response=formatted_response)

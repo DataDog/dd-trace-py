@@ -74,7 +74,7 @@ class CoreAPIScenario(bm.Scenario):
         def get_item(loops):
             """Measure the cost to fetch an item from the root context"""
             for _ in range(loops):
-                core.get_item("key")
+                core.find_item("key")
 
         if "core_dispatch_with_results" in self.scenario_name:
             yield core_dispatch_with_results

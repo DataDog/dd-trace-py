@@ -1,6 +1,7 @@
 baseline: &baseline
   tracer_enabled: false
   errortracking: ""
+  native_writer: false
 tracer-enabled:
   <<: *baseline
   tracer_enabled: true
