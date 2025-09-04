@@ -11,9 +11,11 @@ from ddtrace.ext import azure_eventhub as azure_eventhubx
 from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.trace import Pin
 
 from .utils import create_context
+from .utils import get_properties
 from .utils import message_list_has_single_context
 from .utils import wrap_function_with_tracing
 
@@ -82,6 +84,7 @@ def _patched_get_functions(wrapped, instance, args, kwargs):
 
 def _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_details):
     trigger_type = "EventHub"
+    print(f"trigger_details: {trigger_details}")
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
@@ -100,10 +103,21 @@ def _wrap_event_hub_trigger(pin, func, function_name, trigger_arg_name, trigger_
         #     application_properties = event[0].metadata.get("Properties")
         # else:
         #     application_properties = None
+
         return create_context("azure.functions.patched_event_hub", pin, resource_name, headers=application_properties)
 
     def pre_dispatch(ctx, kwargs):
         event_hub_name = trigger_details.get("eventHubName")
+        if trigger_details.get("cardinality") == azure_functions.Cardinality.MANY:
+            events = kwargs.get("event")
+            for event in events:
+                parent_context = HTTPPropagator.extract(get_properties(event))
+                ctx.span.link_span(parent_context)
+        else:
+            event = kwargs.get("event")
+            parent_context = HTTPPropagator.extract(get_properties(event))
+            ctx.span.link_span(parent_context)
+
         return (
             "azure.functions.event_hub_trigger_modifier",
             (

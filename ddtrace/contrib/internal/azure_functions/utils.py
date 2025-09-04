@@ -52,18 +52,6 @@ def wrap_function_with_tracing(func, context_factory, pre_dispatch=None, post_di
     @functools.wraps(func)
     def wrapper(*args, **kwargs):
         with context_factory(kwargs) as ctx, ctx.span:
-            events = kwargs.get("event")
-            print(f"events: {events}")
-            print(f"kwargs: {kwargs}")
-            if events is not None:
-                for event in events:
-                    print(f"event: {event}")
-                    print(f"event.metadata: {event.metadata}")
-                    print(f"context properties: {get_properties(event)}")
-                    parent_context = HTTPPropagator.extract(get_properties(event))
-                    print(f"parent_context: {parent_context}")
-                    ctx.span.link_span(parent_context)
-                    print(f"span: {ctx.span}")
             if pre_dispatch:
                 core.dispatch(*pre_dispatch(ctx, kwargs))
 
