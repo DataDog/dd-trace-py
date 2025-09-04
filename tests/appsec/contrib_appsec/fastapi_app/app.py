@@ -135,7 +135,7 @@ def get_app():
     async def slow_numbers(minimum, maximum):
         for number in range(minimum, maximum):
             yield "%d" % number
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(0.0625)
 
     @app.get("/stream/")
     async def stream():
@@ -166,6 +166,7 @@ def get_app():
         elif endpoint == "ssrf":
             res = ["ssrf endpoint"]
             for param in query_params:
+                urlname = ""
                 if param.startswith("url"):
                     urlname = query_params[param]
                     if not urlname.startswith("http"):
@@ -174,18 +175,18 @@ def get_app():
                     if param.startswith("url_urlopen_request"):
                         import urllib.request
 
-                        request = urllib.request.Request(urlname, method="GET")
-                        with urllib.request.urlopen(request, timeout=4) as f:
+                        request_urllib = urllib.request.Request(urlname, method="GET")
+                        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_urlopen_string"):
                         import urllib.request
 
-                        with urllib.request.urlopen(urlname, timeout=4) as f:
+                        with urllib.request.urlopen(urlname, timeout=0.5) as f:
                             res.append(f"Url: {f.read()}")
                     elif param.startswith("url_requests"):
                         import requests
 
-                        r = requests.get(urlname, timeout=4)
+                        r = requests.get(urlname, timeout=0.5)
                         res.append(f"Url: {r.text}")
                 except Exception as e:
                     res.append(f"Error: {e}")
@@ -224,19 +225,47 @@ def get_app():
                 if param.startswith("cmda"):
                     cmd = query_params[param]
                     try:
-                        res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=1)}")
+                        res.append(f"cmd stdout: {subprocess.run([cmd, '-c', '3', 'localhost'], timeout=0.25)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
                 elif param.startswith("cmds"):
                     cmd = query_params[param]
                     try:
-                        res.append(f"cmd stdout: {subprocess.run(cmd, timeout=1)}")
+                        res.append(f"cmd stdout: {subprocess.run(cmd, timeout=0.25)}")
                     except Exception as e:
                         res.append(f"Error: {e}")
             tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
             return HTMLResponse("<\\br>\n".join(res))
         tracer.current_span()._service_entry_span.set_tag("rasp.request.done", endpoint)
         return HTMLResponse(f"Unknown endpoint: {endpoint}")
+
+    @app.get("/redirect/{url:str}/", response_class=JSONResponse)
+    async def redirect_get(url: str, request: Request):
+        import urllib.request
+
+        url = "http://" + url
+        try:
+            request_urllib = urllib.request.Request(url, method="GET")
+            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+                payload = {"payload": f.read()}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
+
+    @app.post("/redirect/{url:str}/", response_class=JSONResponse)
+    async def redirect_post(url: str, request: Request):
+        import urllib.request
+
+        url = "http://" + url
+        try:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=(await request.body()), headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+                payload = {"payload": f.read()}
+        except Exception as e:
+            payload = {"error": repr(e)}
+        return payload
 
     @app.get("/login/")
     async def login_user(request: Request):

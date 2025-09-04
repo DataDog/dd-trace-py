@@ -186,14 +186,14 @@ class ASMConfig(DDConfig):
     _fast_api_async_body_timeout = DDConfig.var(float, "DD_FASTAPI_ASYNC_BODY_TIMEOUT_SECONDS", default=0.1)
 
     # DOWNSTREAM REQUESTS INSTRUMENTATION
-    # rate limit, requests/minute
-    _dr_rate_limit: int = DDConfig.var(int, "DD_API_SECURITY_DOWNSTREAM_REQUEST_ANALYSIS_RATE_LIMIT", default=32)
-    # sample rate
-    _dr_sample_rate: float = DDConfig.var(float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_ANALYSIS_SAMPLE_RATE", default=1.0)
-    # max number of downstream requests analysis per request
-    _dr_limit_per_request: int = DDConfig.var(int, "DD_API_SECURITY_MAX_DOWNSTREAM_TOTAL_REQUEST_ANALYSIS", default=4)
-    # max number of downstream requests analysis with bodies per request
-    _dr_raw_limit_per_request: int = DDConfig.var(int, "DD_API_SECURITY_MAX_DOWNSTREAM_RAW_REQUEST_ANALYSIS", default=1)
+    # sample rate for body analysis
+    _dr_sample_rate: float = DDConfig.var(
+        float, "DD_API_SECURITY_DOWNSTREAM_REQUEST_BODY_ANALYSIS_SAMPLE_RATE", default=0.5
+    )
+    # max number of downstream requests analysis  with bodies per request
+    _dr_body_limit_per_request: int = DDConfig.var(
+        int, "DD_API_SECURITY_MAX_DOWNSTREAM_REQUEST_BODY_ANALYSIS", default=1
+    )
 
     # for tests purposes
     _asm_config_keys = [
@@ -225,6 +225,8 @@ class ASMConfig(DDConfig):
         "_api_security_enabled",
         "_api_security_sample_delay",
         "_api_security_parse_response_body",
+        "_dr_sample_rate",
+        "_dr_body_limit_per_request",
         "_waf_timeout",
         "_iast_redaction_enabled",
         "_iast_redaction_name_pattern",
