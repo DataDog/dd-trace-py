@@ -5,4 +5,5 @@ def setup_tracing():
     import ddtrace.auto  # noqa:F401
 
     tracing_helper._global_is_tracing_enabled = False
-    assert not _is_tracing_enabled(), "OTEL Tracing should be disabled at setup."
+    if _is_tracing_enabled():
+        raise AssertionError("OTEL Tracing should be disabled at setup.")
