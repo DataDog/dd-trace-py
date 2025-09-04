@@ -58,6 +58,7 @@ file(
     GLOB
     SOURCE_FILES
     "*.cpp"
+    "context/*.cpp"
     "aspects/*.cpp"
     "initializer/*.cpp"
     "tainted_ops/*.cpp"
@@ -67,6 +68,7 @@ file(
     GLOB
     HEADER_FILES
     "*.h"
+    "context/*.h"
     "aspects/*.h"
     "initializer/*.h"
     "tainted_ops/*.h"

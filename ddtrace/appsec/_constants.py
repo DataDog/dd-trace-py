@@ -122,6 +122,7 @@ class APPSEC(metaclass=Constant_Class):
     ERROR_TYPE: Literal["_dd.appsec.error.type"] = "_dd.appsec.error.type"
     ERROR_MESSAGE: Literal["_dd.appsec.error.message"] = "_dd.appsec.error.message"
     UNSUPPORTED_EVENT_TYPE: Literal["_dd.appsec.unsupported_event_type"] = "_dd.appsec.unsupported_event_type"
+    SERVERLESS_TRACER_ENABLED: Literal["_dd.appsec.serverless.tracer"] = "_dd.appsec.serverless.tracer"
 
 
 TELEMETRY_OFF_NAME = "OFF"
@@ -398,3 +399,23 @@ class STACK_TRACE(metaclass=Constant_Class):
     RASP = "exploit"
     IAST = "vulnerability"
     TAG: Literal["_dd.stack"] = "_dd.stack"
+
+
+class AI_GUARD(metaclass=Constant_Class):
+    # span related information
+    RESOURCE_TYPE: Literal["ai_guard"] = "ai_guard"
+
+    TAG: Literal["ai_guard"] = "ai_guard"
+    ACTION_TAG: str = TAG + ".action"
+    REASON_TAG: str = TAG + ".reason"
+    TARGET_TAG: str = TAG + ".target"
+    BLOCKED_TAG: str = TAG + ".blocked"
+    TOOL_NAME_TAG: str = TAG + ".tool_name"
+
+    # meta struct
+    STRUCT: Literal["ai_guard"] = "ai_guard"
+
+    # metrics
+    METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
+    REQUESTS_METRIC: str = METRIC_PREFIX + ".requests"
+    TRUNCATED_METRIC: str = METRIC_PREFIX + ".truncated"

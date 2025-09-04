@@ -430,7 +430,6 @@ venv = Venv(
                         "AGENT_VERSION": "testagent",
                         "_DD_TRACE_WRITER_NATIVE": "1",
                     },
-                    pys=MAX_PYTHON_VERSION,
                 ),
             ],
         ),
@@ -2583,6 +2582,7 @@ venv = Venv(
                 "pytest-asyncio": "==0.21.1",
                 "opentelemetry-instrumentation-flask": latest,
                 "markupsafe": "==2.0.1",
+                "mock": latest,
                 "flask": latest,
                 "gevent": latest,  # gevent>22.12 is not compatible with py3.8
                 "requests": "==2.28.1",  # specific version expected by tests
@@ -2608,6 +2608,8 @@ venv = Venv(
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
+                    # v1.12.0 introduced support for metrics
+                    # v1.15.0 introduced support for logs
                     pkgs={"opentelemetry-exporter-otlp": ["~=1.15.0", latest]},
                     env={"SDK_EXPORTER_INSTALLED": "1"},
                 ),
@@ -2902,6 +2904,7 @@ venv = Venv(
                 "langgraph": ["==0.2.23", "==0.3.21", "==0.3.22", latest],
                 "langchain_openai": latest,
                 "langchain_core": latest,
+                "langchain": latest,
             },
         ),
         Venv(
@@ -3666,14 +3669,50 @@ venv = Venv(
             },
         ),
         Venv(
-            name="ai_guard",
-            command="pytest {cmdargs} tests/appsec/ai_guard/",
+            name="ai_guard_api",
+            command="pytest {cmdargs} tests/appsec/ai_guard/api/",
             pkgs={
                 "requests": latest,
             },
             venvs=[
                 Venv(
                     pys=select_pys(),
+                ),
+            ],
+        ),
+        Venv(
+            name="ai_guard_langchain",
+            command="pytest {cmdargs} tests/appsec/ai_guard/langchain/",
+            pkgs={
+                "pytest-asyncio": "==0.23.7",
+            },
+            venvs=[
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.11"),
+                    pkgs={
+                        "langchain": "==0.1.20",
+                        "langchain-core": "==0.1.53",
+                        "langchain-openai": "==0.1.6",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": "==0.2.17",
+                        "langchain-core": "==0.2.43",
+                        "langchain-openai": "==0.1.7",
+                        "openai": "==1.102.0",
+                    },
+                ),
+                Venv(
+                    pys=select_pys(min_version="3.9", max_version="3.12"),
+                    pkgs={
+                        "langchain": latest,
+                        "langchain-core": latest,
+                        "langchain-openai": latest,
+                        "openai": latest,
+                    },
                 ),
             ],
         ),
