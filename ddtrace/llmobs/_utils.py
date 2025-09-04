@@ -295,7 +295,6 @@ class TrackedToolCall:
     arguments: str
     llm_span_context: Dict[str, str]  # span/trace id of the LLM span that initiated this tool call
     tool_span_context: Optional[Dict[str, str]] = None  # span/trace id of the tool span that executed this call
-    is_handoff_completed: bool = False  # Track if handoff is completed to noisy links
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
@@ -366,18 +365,12 @@ class ToolCallTracker:
         Called when an LLM span finishes. This is used to link the output of a tool call to the input of an
         LLM span.
 
-        For handoff tool calls, we need to mark the handoff as completed since we only want to link
-        the output of a handoff tool span to the FIRST LLM call that has that handoff as input.
-
-        For function tool calls, the tool output is used as context for every LLM call that has that tool call
-        as an input.
+        The tool call is removed from the tracker since we only want to link the output of a tool call to the FIRST
+        LLM call that has that tool call as an input to reduce noisy links.
         """
-        tool_call = self._tool_calls.get(tool_id)
-        if not tool_call or not tool_call.tool_span_context or tool_call.is_handoff_completed:
+        tool_call = self._tool_calls.pop(tool_id, None)
+        if not tool_call or not tool_call.tool_span_context:
             return
-
-        if tool_call.tool_kind == "handoff":
-            self._tool_calls[tool_id].is_handoff_completed = True
 
         add_span_link(
             llm_span,
