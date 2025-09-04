@@ -89,23 +89,6 @@ def validate_prompt(prompt: dict) -> Dict[str, Union[str, dict, List[str]]]:
     return validated_prompt
 
 
-class LinkTracker:
-    def __init__(self, object_span_links=None):
-        self._object_span_links = object_span_links or {}
-
-    def get_object_id(self, obj):
-        return f"{type(obj).__name__}_{id(obj)}"
-
-    def add_span_links_to_object(self, obj, span_links):
-        obj_id = self.get_object_id(obj)
-        if obj_id not in self._object_span_links:
-            self._object_span_links[obj_id] = []
-        self._object_span_links[obj_id] += span_links
-
-    def get_span_links_from_object(self, obj):
-        return self._object_span_links.get(self.get_object_id(obj), [])
-
-
 class AnnotationContext:
     def __init__(self, _register_annotator, _deregister_annotator):
         self._register_annotator = _register_annotator
@@ -300,12 +283,20 @@ class TrackedToolCall:
     tool_kind: str = "function"  # one of "function", "handoff"
 
 
-class ToolCallTracker:
-    """Used to track tool data and their associated llm/tool spans for span linking."""
+class LinkTracker:
+    """
+    This class is used to create span links across integrations.
+
+    The primary use cases are:
+    - Linking LLM spans to their associated tool spans and vice versa
+    - Linking LLM spans to their associated guardrail spans and vice versa
+    """
 
     def __init__(self):
         self._tool_calls: Dict[str, TrackedToolCall] = {}  # maps tool id's to tool call data
         self._lookup_tool_id: Dict[Tuple[str, str], str] = {}  # maps (tool_name, arguments) to tool id's
+        self._active_guardrail_spans: Set[Span] = set()
+        self._last_llm_span: Optional[Span] = None
 
     def on_llm_tool_choice(
         self, tool_id: str, tool_name: str, arguments: str, llm_span_context: Dict[str, str]
@@ -388,17 +379,9 @@ class ToolCallTracker:
             "input",
         )
 
-
-class GuardrailLinkTracker:
-    """Used to link input and output guardrails to their associated LLM spans."""
-
-    def __init__(self):
-        self._active_guardrail_spans: Set[Span] = set()
-        self._last_llm_span: Optional[Span] = None
-
     def on_llm_span_finish(self, span: Span) -> None:
         """
-        Called when an LLM span finishes. If the LLM span is the first LLM span,
+        Called when an LLM span event is created. If the LLM span is the first LLM span,
         it will consume all active guardrail links.
         """
         self._last_llm_span = span

@@ -93,9 +93,7 @@ from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
 from ddtrace.llmobs._utils import AnnotationContext
-from ddtrace.llmobs._utils import GuardrailLinkTracker
 from ddtrace.llmobs._utils import LinkTracker
-from ddtrace.llmobs._utils import ToolCallTracker
 from ddtrace.llmobs._utils import _get_ml_app
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import _get_session_id
@@ -222,9 +220,6 @@ class LLMObs(Service):
         self._link_tracker = LinkTracker()
         self._annotations: List[Tuple[str, str, Dict[str, Any]]] = []
         self._annotation_context_lock = forksafe.RLock()
-
-        self._tool_call_tracker = ToolCallTracker()
-        self._guardrail_link_tracker = GuardrailLinkTracker()
 
     def _on_span_start(self, span: Span) -> None:
         if self.enabled and span.span_type == SpanTypes.LLM:
@@ -509,14 +504,14 @@ class LLMObs(Service):
         core.reset_listeners("threading.submit", self._current_trace_context)
         core.reset_listeners("threading.execution", self._llmobs_context_provider.activate)
 
-        core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._tool_call_tracker.on_llm_tool_choice)
-        core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._tool_call_tracker.on_tool_call)
-        core.reset_listeners(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, self._tool_call_tracker.on_tool_call_output_used)
+        core.reset_listeners(DISPATCH_ON_LLM_TOOL_CHOICE, self._link_tracker.on_llm_tool_choice)
+        core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._link_tracker.on_tool_call)
+        core.reset_listeners(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, self._link_tracker.on_tool_call_output_used)
 
-        core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._guardrail_link_tracker.on_guardrail_span_start)
-        core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._guardrail_link_tracker.on_llm_span_finish)
+        core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._link_tracker.on_guardrail_span_start)
+        core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._link_tracker.on_llm_span_finish)
         core.reset_listeners(
-            DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, self._guardrail_link_tracker.on_openai_agent_span_finish
+            DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, self._link_tracker.on_openai_agent_span_finish
         )
 
         forksafe.unregister(self._child_after_fork)
@@ -628,14 +623,14 @@ class LLMObs(Service):
             core.on("threading.submit", cls._instance._current_trace_context, "llmobs_ctx")
             core.on("threading.execution", cls._instance._llmobs_context_provider.activate)
 
-            core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._tool_call_tracker.on_llm_tool_choice)
-            core.on(DISPATCH_ON_TOOL_CALL, cls._instance._tool_call_tracker.on_tool_call)
-            core.on(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, cls._instance._tool_call_tracker.on_tool_call_output_used)
+            core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._link_tracker.on_llm_tool_choice)
+            core.on(DISPATCH_ON_TOOL_CALL, cls._instance._link_tracker.on_tool_call)
+            core.on(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, cls._instance._link_tracker.on_tool_call_output_used)
 
-            core.on(DISPATCH_ON_GUARDRAIL_SPAN_START, cls._instance._guardrail_link_tracker.on_guardrail_span_start)
-            core.on(DISPATCH_ON_LLM_SPAN_FINISH, cls._instance._guardrail_link_tracker.on_llm_span_finish)
+            core.on(DISPATCH_ON_GUARDRAIL_SPAN_START, cls._instance._link_tracker.on_guardrail_span_start)
+            core.on(DISPATCH_ON_LLM_SPAN_FINISH, cls._instance._link_tracker.on_llm_span_finish)
             core.on(
-                DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, cls._instance._guardrail_link_tracker.on_openai_agent_span_finish
+                DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, cls._instance._link_tracker.on_openai_agent_span_finish
             )
 
             atexit.register(cls.disable)
@@ -830,41 +825,6 @@ class LLMObs(Service):
         telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, False)
 
         log.debug("%s disabled", cls.__name__)
-
-    def _record_object(self, span, obj, input_or_output):
-        if obj is None:
-            return
-        span_links = []
-        for span_link in self._link_tracker.get_span_links_from_object(obj):
-            try:
-                if span_link["attributes"]["from"] == "input" and input_or_output == "output":
-                    continue
-            except KeyError:
-                log.debug("failed to read span link: ", span_link)
-                continue
-            span_links.append(
-                {
-                    "trace_id": span_link["trace_id"],
-                    "span_id": span_link["span_id"],
-                    "attributes": {
-                        "from": span_link["attributes"]["from"],
-                        "to": input_or_output,
-                    },
-                }
-            )
-        self._tag_span_links(span, span_links)
-        self._link_tracker.add_span_links_to_object(
-            obj,
-            [
-                {
-                    "trace_id": self.export_span(span)["trace_id"],
-                    "span_id": self.export_span(span)["span_id"],
-                    "attributes": {
-                        "from": input_or_output,
-                    },
-                }
-            ],
-        )
 
     def _tag_span_links(self, span, span_links):
         if not span_links:
