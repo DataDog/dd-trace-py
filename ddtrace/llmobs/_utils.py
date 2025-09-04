@@ -394,7 +394,7 @@ class GuardrailLinkTracker:
 
     def __init__(self):
         self._active_guardrail_spans: Set[Span] = set()
-        self._last_llm_span: Span = None
+        self._last_llm_span: Optional[Span] = None
 
     def on_llm_span_finish(self, span: Span) -> None:
         """
