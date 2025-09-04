@@ -171,7 +171,7 @@
         "dependency": "crewai",
         "integration": "crewai",
         "minimum_tracer_supported": "0.102.0",
-        "max_tracer_supported": "0.121.1",
+        "max_tracer_supported": "0.157.0",
         "pinned": "true",
         "auto-instrumented": true
     },

@@ -358,14 +358,13 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
-        # for now, if a user wants to "erase" the value of expected_output, they are expected to
-        # set expected_output to None, and we serialize that as empty string to indicate this to BE
+        # for now, if a user wants to "erase" the value of expected_output or metadata, they are expected to
+        # set it to None, and we serialize an empty string (for expected_output) and empty dict (for metadata)
+        # to indicate this erasure to BE
         expected_output: JSONType = None
         if "expected_output" in record:
             expected_output = "" if record["expected_output"] is None else record["expected_output"]
 
-        # for now, if a user wants to "erase" the value of metadata, they are expected to
-        # set metadata to None, and we serialize that as an empty map to indicate this to BE
         metadata: JSONType = None
         if "metadata" in record:
             metadata = {} if record["metadata"] is None else record["metadata"]
