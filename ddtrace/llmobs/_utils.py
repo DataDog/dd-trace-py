@@ -3,9 +3,9 @@ from dataclasses import dataclass
 from dataclasses import is_dataclass
 import json
 from typing import Dict
-from typing import Set
 from typing import List
 from typing import Optional
+from typing import Set
 from typing import Tuple
 from typing import Union
 
@@ -398,7 +398,8 @@ class GuardrailLinkTracker:
 
     def on_llm_span_finish(self, span: Span) -> None:
         """
-        Called when an LLM span finishes. If the LLM span is the first LLM span, it will consume all active guardrail links.
+        Called when an LLM span finishes. If the LLM span is the first LLM span,
+        it will consume all active guardrail links.
         """
         self._last_llm_span = span
         spans_to_remove = set()
@@ -417,8 +418,8 @@ class GuardrailLinkTracker:
 
     def on_guardrail_span_start(self, span: Span) -> None:
         """
-        Called when a guardrail span starts. This is used to track the active guardrail spans and link the output of the last
-        LLM span to the input of the guardrail span.
+        Called when a guardrail span starts. This is used to track the active guardrail
+        spans and link the output of the last LLM span to the input of the guardrail span.
         """
         self._active_guardrail_spans.add(span)
         if self._last_llm_span is not None:
