@@ -211,7 +211,7 @@ class Dataset:
 
     def _estimate_delta_size(self) -> int:
         """rough estimate (in bytes) of the size of the next batch update call if it happens"""
-        size = len(json.dumps(self._new_records_by_record_id)) + len(json.dumps(self._updated_record_ids_to_new_fields))
+        size = len(safe_json(self._new_records_by_record_id)) + len(safe_json(self._updated_record_ids_to_new_fields))
         logger.debug("estimated delta size %d", size)
         return size
 
