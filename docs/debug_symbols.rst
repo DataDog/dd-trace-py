@@ -1,5 +1,5 @@
-Debug Symbols Packaging
-=======================
+Debugging Native Extensions with Debug Symbols
+==============================================
 
 dd-trace-py is built with debug symbols by default, and packaged separately from the main wheel files to reduce the size of the primary distribution packages.
 
@@ -64,12 +64,14 @@ To use debug symbols for debugging or crash analysis:
 
        270     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
        271     in /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion/frame.cc
+
    Then you can set substitute paths in gdb to the echion source code directory
 
    .. code-block:: bash
 
        (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
-   Then you can run ``dias /m Frame::read`` again to see the assembly with code side by side.
+
+   Run ``dias /m Frame::read`` again to see the assembly with code side by side.
 
    .. code-block:: bash
 
