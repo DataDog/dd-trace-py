@@ -101,7 +101,6 @@ class RayTraceProcessor:
         return filtered_spans
 
 
-
 def _inject_tracing_into_remote_function(function):
     """Inject trace context parameter into function signature"""
 
