@@ -1,4 +1,4 @@
 ---
 features:
   - |
-    LLM Observability: ``ml_app`` is now entirely optional, defaulting to ``service``. while it is still recommended to set ``ml_app``, ``ddtrace.llmobs`` will no longer throw if one is not provided or propagated from an upstream service.
+    LLM Observability: ``ml_app`` is now optional, defaulting to ``service``. while it is still recommended to set ``ml_app``, enabling LLM Observability will no longer throw if one is not provided or propagated from an upstream service.
