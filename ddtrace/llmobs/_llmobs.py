@@ -45,6 +45,8 @@ from ddtrace.internal.utils.formats import parse_tags_str
 from ddtrace.llmobs import _constants as constants
 from ddtrace.llmobs import _telemetry as telemetry
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
+from ddtrace.llmobs._constants import DISPATCH_ON_LLM_SPAN_FINISH
 from ddtrace.llmobs._constants import ANNOTATIONS_CONTEXT_ID
 from ddtrace.llmobs._constants import DECORATOR
 from ddtrace.llmobs._constants import DEFAULT_PROJECT_NAME
@@ -257,10 +259,9 @@ class LLMObs(Service):
         span_kind = span._get_ctx_item(SPAN_KIND)
         if not span_kind:
             raise KeyError("Span kind not found in span context")
-        
+
         if span_kind == "llm":
-            self._guardrail_link_tracker._last_llm_span = span
-            self._guardrail_link_tracker.on_llm_span_finish(span)
+            core.dispatch(DISPATCH_ON_LLM_SPAN_FINISH, (span,))
         elif span_kind == "agent":
             # reset last LLM span per agent
             self._guardrail_link_tracker._last_llm_span = None
@@ -514,6 +515,9 @@ class LLMObs(Service):
         core.reset_listeners(DISPATCH_ON_TOOL_CALL, self._tool_call_tracker.on_tool_call)
         core.reset_listeners(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, self._tool_call_tracker.on_tool_call_output_used)
 
+        core.reset_listeners(DISPATCH_ON_GUARDRAIL_SPAN_START, self._guardrail_link_tracker.on_guardrail_span_start)
+        core.reset_listeners(DISPATCH_ON_LLM_SPAN_FINISH, self._guardrail_link_tracker.on_llm_span_finish)
+
         forksafe.unregister(self._child_after_fork)
 
     @classmethod
@@ -626,6 +630,9 @@ class LLMObs(Service):
             core.on(DISPATCH_ON_LLM_TOOL_CHOICE, cls._instance._tool_call_tracker.on_llm_tool_choice)
             core.on(DISPATCH_ON_TOOL_CALL, cls._instance._tool_call_tracker.on_tool_call)
             core.on(DISPATCH_ON_TOOL_CALL_OUTPUT_USED, cls._instance._tool_call_tracker.on_tool_call_output_used)
+
+            core.on(DISPATCH_ON_GUARDRAIL_SPAN_START, cls._instance._guardrail_link_tracker.on_guardrail_span_start)
+            core.on(DISPATCH_ON_LLM_SPAN_FINISH, cls._instance._guardrail_link_tracker.on_llm_span_finish)
 
             atexit.register(cls.disable)
             telemetry_writer.product_activated(TELEMETRY_APM_PRODUCT.LLMOBS, True)

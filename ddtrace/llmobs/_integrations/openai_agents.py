@@ -13,7 +13,7 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs import LLMObs
-from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import AGENT_MANIFEST, DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
@@ -84,8 +84,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
 
             if oai_span.span_type == "guardrail":
-                if LLMObs._instance and hasattr(LLMObs._instance, '_guardrail_link_tracker'):
-                    LLMObs._instance._guardrail_link_tracker.on_guardrail_span_start(llmobs_span)
+                core.dispatch(DISPATCH_ON_GUARDRAIL_SPAN_START, (llmobs_span,))
 
         return llmobs_span
 
@@ -256,7 +255,6 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         metrics = oai_span.llmobs_metrics
         if metrics:
             span._set_ctx_item(METRICS, metrics)
-
 
     def _llmobs_set_tool_attributes(self, span: Span, oai_span: OaiSpanAdapter) -> None:
         span._set_ctx_item(INPUT_VALUE, oai_span.input or "")

@@ -708,9 +708,7 @@ async def test_llmobs_oai_agents_with_guardrail_spans(
     agents, mock_tracer_chat_completions, request_vcr, llmobs_events, simple_agent_with_guardrail
 ):
     with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
-        await agents.Runner.run(
-            simple_agent_with_guardrail, "What is the sum of 1 and 2?"
-        )
+        await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
 
     spans = mock_tracer_chat_completions.pop_traces()[0]
     spans.sort(key=lambda span: span.start_ns)

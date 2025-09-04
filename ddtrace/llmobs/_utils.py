@@ -388,19 +388,22 @@ class ToolCallTracker:
             "input",
         )
 
+
 class GuardrailLinkTracker:
     """Used to link input and output guardrails to their associated LLM spans."""
 
     def __init__(self):
         self._active_guardrail_spans: Set[Span] = set()
         self._last_llm_span: Span = None
-    
+
     def on_llm_span_finish(self, span: Span) -> None:
         """
         Called when an LLM span finishes. If the LLM span is the first LLM span, it will consume all active guardrail links.
         """
+        self._last_llm_span = span
         spans_to_remove = set()
         for guardrail_span in self._active_guardrail_spans:
+            # some guardrail spans may have LLM spans as children which we don't want to link to
             if _get_nearest_llmobs_ancestor(guardrail_span) == _get_nearest_llmobs_ancestor(span):
                 add_span_link(
                     span,
@@ -411,7 +414,7 @@ class GuardrailLinkTracker:
                 )
                 spans_to_remove.add(guardrail_span)
         self._active_guardrail_spans -= spans_to_remove
-    
+
     def on_guardrail_span_start(self, span: Span) -> None:
         """
         Called when a guardrail span starts. This is used to track the active guardrail spans and link the output of the last
