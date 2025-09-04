@@ -6,7 +6,7 @@
     "trace_id": 0,
     "span_id": 1,
     "parent_id": 0,
-    "type": "ml",
+    "type": "ray",
     "error": 0,
     "meta": {
       "_dd.base_service": "ray.dashboard",
@@ -37,7 +37,7 @@
        "trace_id": 0,
        "span_id": 2,
        "parent_id": 1,
-       "type": "ml",
+       "type": "ray",
        "error": 0,
        "meta": {
          "_dd.base_service": "ray.dashboard",
@@ -61,7 +61,7 @@
        "trace_id": 0,
        "span_id": 3,
        "parent_id": 1,
-       "type": "ml",
+       "type": "ray",
        "error": 0,
        "meta": {
          "_dd.base_service": "ray.dashboard",
@@ -87,7 +87,7 @@
           "trace_id": 0,
           "span_id": 4,
           "parent_id": 3,
-          "type": "ml",
+          "type": "ray",
           "error": 0,
           "meta": {
             "_dd.base_service": "ray._private.workers",
@@ -125,7 +125,7 @@
              "trace_id": 0,
              "span_id": 5,
              "parent_id": 4,
-             "type": "ml",
+             "type": "ray",
              "error": 0,
              "meta": {
                "_dd.base_service": "ray._private.workers",
@@ -154,7 +154,7 @@
                 "trace_id": 0,
                 "span_id": 8,
                 "parent_id": 5,
-                "type": "ml",
+                "type": "ray",
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
@@ -183,7 +183,7 @@
              "trace_id": 0,
              "span_id": 6,
              "parent_id": 4,
-             "type": "ml",
+             "type": "ray",
              "error": 0,
              "meta": {
                "_dd.base_service": "ray._private.workers",
@@ -212,7 +212,7 @@
              "trace_id": 0,
              "span_id": 7,
              "parent_id": 4,
-             "type": "ml",
+             "type": "ray",
              "error": 0,
              "meta": {
                "_dd.base_service": "project",
@@ -249,7 +249,7 @@
                 "trace_id": 0,
                 "span_id": 9,
                 "parent_id": 7,
-                "type": "ml",
+                "type": "ray",
                 "error": 0,
                 "meta": {
                   "_dd.base_service": "ray._private.workers",
@@ -287,7 +287,7 @@
                    "trace_id": 0,
                    "span_id": 10,
                    "parent_id": 9,
-                   "type": "ml",
+                   "type": "ray",
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "ray._private.workers",
@@ -316,7 +316,7 @@
                       "trace_id": 0,
                       "span_id": 13,
                       "parent_id": 10,
-                      "type": "ml",
+                      "type": "ray",
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "ray._private.workers",
@@ -354,7 +354,7 @@
                    "trace_id": 0,
                    "span_id": 11,
                    "parent_id": 9,
-                   "type": "ml",
+                   "type": "ray",
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "ray._private.workers",
@@ -383,7 +383,7 @@
                       "trace_id": 0,
                       "span_id": 14,
                       "parent_id": 11,
-                      "type": "ml",
+                      "type": "ray",
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "ray._private.workers",
@@ -421,7 +421,7 @@
                    "trace_id": 0,
                    "span_id": 12,
                    "parent_id": 9,
-                   "type": "ml",
+                   "type": "ray",
                    "error": 0,
                    "meta": {
                      "_dd.base_service": "ray._private.workers",
@@ -450,7 +450,7 @@
                       "trace_id": 0,
                       "span_id": 15,
                       "parent_id": 12,
-                      "type": "ml",
+                      "type": "ray",
                       "error": 0,
                       "meta": {
                         "_dd.base_service": "ray._private.workers",

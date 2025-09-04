@@ -1,5 +1,6 @@
 import os
 
+
 def in_ray_job():
     # type: () -> bool
     """Returns whether we are in a ray environemt.

@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 
@@ -28,6 +29,7 @@ def submit_ray_job(script_name, timeout=60):
     print(result.stdout)
 
     if result.returncode != 0:
+        logging.error("Failed to submit Ray job. Error: %s", result.stderr)
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
     return result
@@ -49,6 +51,9 @@ RAY_SNAPSHOT_IGNORES = [
     "meta._dd.base_service",
     # Service names that include dynamic submission IDs
     "service",
+    # Base service sometimes gets set to a different value in CI than in the local environment,
+    # ignore it to make the tests pass in both environments
+    "meta._dd.base_service",
 ]
 
 

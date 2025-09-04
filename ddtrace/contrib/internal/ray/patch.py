@@ -9,6 +9,16 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray._private.worker
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.dashboard.modules.job.job_supervisor
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -26,16 +36,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray._private.worker
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.dashboard.modules.job.job_supervisor
-import ray.exceptions
 
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
@@ -127,7 +127,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     function_module = getattr(wrapped, "__module__", "unknown_module")
 
     with tracer.trace(
-        f"{function_module}.{function_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{function_module}.{function_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags(span)
@@ -167,7 +167,7 @@ def traced_submit_task(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -199,7 +199,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     kwargs["submission_id"] = submission_id
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.ML)
+    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
     # This will allow to finish the span at the end of the job
     _job_span_manager.add_span(submission_id, job_span)
@@ -207,7 +207,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     # Set global span as the root span
     tracer.context_provider.activate(job_span)
     try:
-        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.ML) as submit_span:
+        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.RAY) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -250,7 +250,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -276,7 +276,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
 
         with dd_tracer.trace(
-            f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.ML
+            f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.RAY
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
@@ -306,7 +306,7 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
     with tracer.trace(
         f"{self.__class__.__name__}.{method.__name__}",
         service=os.environ.get("_RAY_SUBMISSION_ID"),
-        span_type=SpanTypes.ML,
+        span_type=SpanTypes.RAY,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags(span)
