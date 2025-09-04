@@ -53,6 +53,3 @@ class TaintedObject
 
     void reset();
 };
-
-void
-pyexport_taintedobject(const py::module& m);
