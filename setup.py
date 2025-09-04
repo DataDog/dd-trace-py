@@ -569,7 +569,7 @@ class CustomBuildExt(build_ext):
         else:
             super().build_extension(ext)
 
-        if COMPILE_MODE.lower() == "minsizerel":
+        if COMPILE_MODE.lower() in ("release", "minsizerel"):
             try:
                 self.try_strip_symbols(self.get_ext_fullpath(ext.name))
             except Exception as e:
