@@ -8,8 +8,8 @@ Debug Symbol Files
 
 The project generates debug symbols during the build process:
 
-- **Linux**: `.debug` files (using `objcopy --only-keep-debug`)
-- **macOS**: `.dSYM` bundles (using `dsymutil`)
+- **Linux**: ``.debug`` files (using ``objcopy --only-keep-debug``)
+- **macOS**: ``.dSYM`` bundles (using ``dsymutil``)
 
 These debug symbols are extracted from the main wheels and packaged into separate `.zip` files with the naming convention:
 
@@ -69,7 +69,7 @@ To use debug symbols for debugging or crash analysis:
    .. code-block:: bash
 
        (gdb) set substitute-path /project/build/cmake.linux-x86_64-cpython-313/ddtrace.internal.datadog.profiling.stack_v2._stack_v2/_deps/echion-src/echion /path/to/echion/source/code
-   Then you can run `dias /m Frame::read` again to see the assembly with code side by side.
+   Then you can run ``dias /m Frame::read`` again to see the assembly with code side by side.
 
    .. code-block:: bash
 
