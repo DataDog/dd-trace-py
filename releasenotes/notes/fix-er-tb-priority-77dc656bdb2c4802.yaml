@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    exception replay: fixed an issue that prevented snapshots from retrieving
+    local variables from traceback frames from exception thrown by Celery tasks.
