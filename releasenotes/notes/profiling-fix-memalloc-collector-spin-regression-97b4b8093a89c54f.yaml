@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    profiling: This fixes a performance regression where the memory profiler's
+    collector thread would spin in a tight loop, consuming nearly a full CPU
+    core.
