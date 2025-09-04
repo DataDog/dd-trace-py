@@ -1,3 +1,4 @@
+import logging
 import os
 import subprocess
 
@@ -28,6 +29,7 @@ def submit_ray_job(script_name, timeout=60):
     print(result.stdout)
 
     if result.returncode != 0:
+        logging.error("Failed to submit Ray job. Error: %s", result.stderr)
         raise subprocess.CalledProcessError(result.returncode, cmd, result.stdout, result.stderr)
 
     return result
