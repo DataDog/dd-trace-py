@@ -6,7 +6,7 @@ from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import get_taint_map
+from ddtrace.appsec._iast._taint_tracking import get_tainted_object_map
 from ddtrace.appsec._iast._taint_tracking import is_tainted
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import set_ranges
@@ -149,7 +149,7 @@ def is_pyobject_tainted_new(pyobject: Any) -> bool:
         return False
 
     try:
-        return get_taint_map(pyobject)
+        return get_tainted_object_map(pyobject)
     except ValueError as e:
         iast_propagation_error_log(f"Checking tainted object error: {e}")
     return False
