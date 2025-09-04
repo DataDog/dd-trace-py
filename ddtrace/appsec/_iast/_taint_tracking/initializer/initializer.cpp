@@ -7,7 +7,7 @@ using namespace pybind11::literals;
 
 struct ThreadContextCache_
 {
-    TaintRangeMapTypePtr tx_map = nullptr;
+    TaintedObjectMapTypePtr tx_map = nullptr;
 } ThreadContextCache;
 
 Initializer::Initializer()
@@ -23,16 +23,16 @@ Initializer::Initializer()
     }
 }
 
-TaintRangeMapTypePtr
+TaintedObjectMapTypePtr
 Initializer::create_tainting_map()
 {
-    auto map_ptr = make_shared<TaintRangeMapType>();
+    auto map_ptr = make_shared<TaintedObjectMapType>();
     active_map_addreses[map_ptr.get()] = map_ptr;
     return map_ptr;
 }
 
 void
-Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
+Initializer::clear_tainting_map(const TaintedObjectMapTypePtr& tx_map)
 {
     if (tx_map == nullptr) {
         return;
@@ -62,7 +62,7 @@ Initializer::clear_tainting_maps()
 }
 
 // User must check for nullptr return
-TaintRangeMapTypePtr
+TaintedObjectMapTypePtr
 Initializer::get_tainting_map()
 {
     return ThreadContextCache.tx_map;
@@ -188,7 +188,7 @@ Initializer::create_context()
 }
 
 void
-Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
+Initializer::reset_context(const TaintedObjectMapTypePtr& tx_map)
 {
     if (tx_map == nullptr) {
         return;
