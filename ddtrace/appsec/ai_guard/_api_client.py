@@ -280,9 +280,10 @@ class AIGuardClient:
                 if history is None:
                     history = []
 
-                payload = {"data": {"attributes": {"history": history, "current": current}}}
+                attributes: dict[str, Any] = {"history": history, "current": current}
                 if config.service and config.env:
-                    payload["meta"] = {"service": config.service, "env": config.env}
+                    attributes["meta"] = {"service": config.service, "env": config.env}
+                payload = {"data": {"attributes": attributes}}
 
                 try:
                     response = self._execute_request(f"{self._endpoint.rstrip('/')}/evaluate", payload)
