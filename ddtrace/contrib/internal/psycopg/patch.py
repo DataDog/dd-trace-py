@@ -139,7 +139,6 @@ def _patch(psycopg_module):
         _get_psycopg3_original_methods()
 
         _w(psycopg_module, "connect", patched_connect_factory(psycopg_module))
-        _w(psycopg_module, "Cursor", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module.Cursor, "__init__", init_cursor_from_connection_factory(psycopg_module))
         _w(psycopg_module.AsyncCursor, "__init__", init_cursor_from_connection_factory(psycopg_module))
 
