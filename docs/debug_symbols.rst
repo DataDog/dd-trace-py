@@ -18,8 +18,9 @@ These debug symbols are extracted from the main wheels and packaged into separat
     {original-wheel-name}-debug-symbols.zip
 
 For example:
-- `ddtrace-1.20.0-cp39-cp39-linux_x86_64.whl` → `ddtrace-1.20.0-cp39-cp39-linux_x86_64-debug-symbols.zip`
-- `ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64.whl` → `ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64-debug-symbols.zip`
+
+- ``ddtrace-1.20.0-cp39-cp39-linux_x86_64.whl`` → ``ddtrace-1.20.0-cp39-cp39-linux_x86_64-debug-symbols.zip``
+- ``ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64.whl`` → ``ddtrace-1.20.0-cp39-cp39-macosx_10_9_x86_64-debug-symbols.zip``
 
 Build Process
 -------------
@@ -27,7 +28,7 @@ Build Process
 The debug symbols are handled automatically during the CI build process:
 
 1. Wheels are built with debug symbols included
-2. Debug symbols are extracted using the `scripts/extract_debug_symbols.py` script
+2. Debug symbols are extracted using the ``scripts/extract_debug_symbols.py`` script
 3. Debug symbols are removed from the main wheel to reduce size
 4. Separate debug symbol packages are created and uploaded as artifacts
 
@@ -42,11 +43,11 @@ To use debug symbols for debugging or crash analysis:
 3. Your debugger or crash analysis tool should automatically find the debug symbols
 4. To view assembly with code side by side, you also need the source code, and
    set substitute paths in your debugger to the source code directory. For example,
-   for `_stack_v2.cpython-313-x86_64-linux-gnu.so` is compiled from
-   echion as specified in `ddtrace/internal/datadog/profiling/stack_v2/CMakeLists.txt`.
+   for ``_stack_v2.cpython-313-x86_64-linux-gnu.so`` is compiled from
+   echion as specified in ``ddtrace/internal/datadog/profiling/stack_v2/CMakeLists.txt``.
    So you first need to check out the echion repository and checkout the commit hash.
    Then, set substitute paths in gdb to the echion source code directory.
-   Typically, if you run `dias /m <symbol>` in gdb, it will tell you the full
+   Typically, if you run ``dias /m <symbol>`` in gdb, it will tell you the full
    file path of the source code as the following:
 
    .. code-block:: bash
