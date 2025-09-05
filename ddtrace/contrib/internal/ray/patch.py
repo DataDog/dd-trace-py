@@ -50,11 +50,7 @@ from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
 
-LOG_FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] '
-          '[dd.service=%(dd.service)s dd.env=%(dd.env)s dd.version=%(dd.version)s dd.trace_id=%(dd.trace_id)s dd.span_id=%(dd.span_id)s] '
-          '- %(message)s')
-
-LOGGERS_TO_IGNORE = ["ray.dashboard.modules.event.event_agent"]
+LOG_FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s')
 
 config._add(
     "ray",
@@ -304,7 +300,6 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         dd_tracer.context_provider.activate(context)
 
         job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
-        print(f"{job_submission_id=}")
 
         with dd_tracer.trace(
             f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.ML
@@ -451,14 +446,14 @@ def setup_logging():
     try:
         logger.setLevel(log_level)
     except ValueError:
-        logger.setLevel("INFO")
+        logger.setLevel(logging.INFO)
     json_formatter = jsonlogger.JsonFormatter(fmt=LOG_FORMAT)  # type: ignore
     dd_trace_ray_output_log_dir = os.environ.get("DD_TRACE_RAY_OUTPUT_LOG_DIR", "/tmp/ray/session_latest/logs/")
     os.makedirs(dd_trace_ray_output_log_dir, exist_ok=True)
     dd_trace_ray_output_log_path = os.path.join(dd_trace_ray_output_log_dir, "dd-trace-ray.log")
     file_handler = RayLoggingFileHandler(dd_trace_ray_output_log_path)
     file_handler.setFormatter(json_formatter)
-    file_handler.addFilter(ActiveSpanFilter())    
+    file_handler.addFilter(ActiveSpanFilter())
     logger.addHandler(file_handler)
 
 
@@ -474,9 +469,6 @@ def patch():
     ray._datadog_patch = True
 
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
-
-    # span_processor_for_logging = RaySpanProcessor()
-    # tracer._span_processors.append(span_processor_for_logging)
 
     setup_logging()
 
