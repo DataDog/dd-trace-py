@@ -4,17 +4,12 @@ import azure.servicebus.amqp as azure_servicebus_amqp
 from ddtrace import config
 from ddtrace.contrib.trace_utils import ext_service
 from ddtrace.ext import SpanTypes
-from ddtrace.ext import azure_servicebus as azure_servicebusx
 from ddtrace.internal import core
-from ddtrace.internal.schema import schematize_cloud_messaging_operation
-from ddtrace.internal.schema.span_attribute_schema import SpanDirection
+from ddtrace.internal.utils import get_argument_value
 from ddtrace.propagation.http import HTTPPropagator
 
 
-def create_context(context_name, pin, resource=None):
-    operation_name = schematize_cloud_messaging_operation(
-        azure_servicebusx.PRODUCE, cloud_provider="azure", cloud_service="servicebus", direction=SpanDirection.OUTBOUND
-    )
+def create_context(context_name, pin, operation_name, resource=None):
     return core.context_with_data(
         context_name,
         span_name=operation_name,
@@ -25,9 +20,8 @@ def create_context(context_name, pin, resource=None):
     )
 
 
-def handle_service_bus_message_arg(span, message_arg_value):
+def handle_service_bus_message_context(span, message_arg_value):
     if isinstance(message_arg_value, (azure_servicebus.ServiceBusMessage, azure_servicebus_amqp.AmqpAnnotatedMessage)):
-        message_arg_value.application_properties
         inject_context(span, message_arg_value)
     elif (
         isinstance(message_arg_value, list)
@@ -38,14 +32,20 @@ def handle_service_bus_message_arg(span, message_arg_value):
     ):
         for message in message_arg_value:
             inject_context(span, message)
+    elif isinstance(message_arg_value, azure_servicebus.ServiceBusMessageBatch):
+        if config.azure_servicebus.distributed_batch_tracing:
+            for message in message_arg_value._messages:
+                parent_context = HTTPPropagator.extract(message._message.application_properties)
+                span.link_span(parent_context)
 
 
 def inject_context(span, message):
     """
-    message.application_properties is of type Dict[str | bytes, PrimitiveTypes] | Dict[str | bytes, Any] | None
+    ServiceBusMessage.application_properties is of type Dict[str | bytes, PrimitiveTypes] | None
+    AmqpAnnotatedMessage.application_properties is of type Dict[str | bytes, Any] | None
     while HTTPPropagator.inject expects type of Dict[str, str].
 
-    Inject the context into an empty dictionary and merge it with message.application_properties
+    Inject the context into an empty dictionary and merge it with application_properties
     to preserve the original type.
     """
     inject_carrier = {}
@@ -56,3 +56,45 @@ def inject_context(span, message):
         message.application_properties = {}
 
     message.application_properties.update(inject_carrier)
+
+
+def handle_service_bus_message_attributes(message_arg_value):
+    if isinstance(message_arg_value, (azure_servicebus.ServiceBusMessage)):
+        batch_count = None
+        message_id = message_arg_value.message_id
+    elif isinstance(message_arg_value, (azure_servicebus_amqp.AmqpAnnotatedMessage)):
+        batch_count = None
+        message_id = getattr(message_arg_value.properties, "message_id", None)
+    elif isinstance(message_arg_value, azure_servicebus.ServiceBusMessageBatch):
+        batch_count = str(len(message_arg_value._messages))
+        message_id = None
+    elif isinstance(message_arg_value, list):
+        batch_count = str(len(message_arg_value))
+        message_id = None
+    else:
+        message_id = None
+        batch_count = None
+    return message_id, batch_count
+
+
+def dispatch_message_modifier(
+    ctx, args, kwargs, message_operation, resource_name, fully_qualified_namespace, message_arg
+):
+    message_arg_value = get_argument_value(args, kwargs, 0, message_arg, True)
+    message_id, batch_count = handle_service_bus_message_attributes(message_arg_value)
+
+    if config.azure_servicebus.distributed_tracing:
+        handle_service_bus_message_context(ctx.span, message_arg_value)
+
+    core.dispatch(
+        "azure.servicebus.message_modifier",
+        (
+            ctx,
+            config.azure_servicebus,
+            message_operation,
+            resource_name,
+            fully_qualified_namespace,
+            message_id,
+            batch_count,
+        ),
+    )

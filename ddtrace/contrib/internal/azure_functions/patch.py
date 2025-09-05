@@ -10,9 +10,9 @@ from ddtrace.contrib.internal.trace_utils import unwrap as _u
 from ddtrace.ext import SpanKind
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.formats import asbool
+from ddtrace.propagation.http import HTTPPropagator
 
 from .utils import create_context
-from .utils import message_list_has_single_context
 from .utils import wrap_function_with_tracing
 
 
@@ -97,35 +97,56 @@ def _wrap_service_bus_trigger(pin, func, function_name, trigger_arg_name, trigge
 
     def context_factory(kwargs):
         resource_name = f"{trigger_type} {function_name}"
-        msg = kwargs.get(trigger_arg_name)
-
-        # Reparent trace if single message or list of messages all with same context
-        if isinstance(msg, azure_functions.ServiceBusMessage):
-            application_properties = msg.application_properties
-        elif (
-            isinstance(msg, list)
-            and msg
-            and isinstance(msg[0], azure_functions.ServiceBusMessage)
-            and message_list_has_single_context(msg)
-        ):
-            application_properties = msg[0].application_properties
-        else:
-            application_properties = None
-
-        return create_context("azure.functions.patched_service_bus", pin, resource_name, headers=application_properties)
+        return create_context("azure.functions.patched_service_bus", pin, resource_name)
 
     def pre_dispatch(ctx, kwargs):
-        msg = kwargs.get(trigger_arg_name)
+        entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
+        cardinality = trigger_details.get("cardinality")
+        msg_arg_value = kwargs.get(trigger_arg_name)
 
-        if isinstance(msg, azure_functions.ServiceBusMessage):
-            message_id = msg.message_id
-        else:
+        if (
+            cardinality == azure_functions.Cardinality.MANY
+            and isinstance(msg_arg_value, list)
+            and isinstance(msg_arg_value[0], azure_functions.ServiceBusMessage)
+        ):
+            batch_count = str(len(msg_arg_value))
+            fully_qualified_namespace = (
+                getattr(msg_arg_value[0], "metadata", {}).get("Client", {}).get("FullyQualifiedNamespace")
+            )
             message_id = None
 
-        entity_name = trigger_details.get("topicName") or trigger_details.get("queueName")
+            for message in msg_arg_value:
+                parent_context = HTTPPropagator.extract(message.application_properties)
+                if parent_context.trace_id is not None and parent_context.span_id is not None:
+                    ctx.span.link_span(parent_context)
+        elif isinstance(msg_arg_value, azure_functions.ServiceBusMessage):
+            batch_count = None
+            fully_qualified_namespace = (
+                getattr(msg_arg_value, "metadata", {}).get("Client", {}).get("FullyQualifiedNamespace")
+            )
+            message_id = msg_arg_value.message_id
+
+            parent_context = HTTPPropagator.extract(msg_arg_value.application_properties)
+            if parent_context.trace_id is not None and parent_context.span_id is not None:
+                ctx.span.link_span(parent_context)
+        else:
+            batch_count = None
+            fully_qualified_namespace = None
+            message_id = None
+
         return (
             "azure.functions.service_bus_trigger_modifier",
-            (ctx, config.azure_functions, function_name, trigger_type, SpanKind.CONSUMER, entity_name, message_id),
+            (
+                ctx,
+                config.azure_functions,
+                function_name,
+                trigger_type,
+                SpanKind.CONSUMER,
+                entity_name,
+                fully_qualified_namespace,
+                message_id,
+                batch_count,
+            ),
         )
 
     return wrap_function_with_tracing(func, context_factory, pre_dispatch=pre_dispatch)
