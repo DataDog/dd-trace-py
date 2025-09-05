@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    redis: Fix pipeline compatibility with redis >= 6.2.0 after ``_command_stack`` removal.
