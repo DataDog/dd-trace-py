@@ -23,7 +23,7 @@ class TestPytestKillswitch(PytestTestCaseBase):
             """
         )
         file_name = os.path.basename(py_file.strpath)
-        
+
         # Test all combinations of killswitch values and CLI args
         for value in ["0", "false"]:
             for arg in [None, "--ddtrace", "--no-ddtrace"]:
