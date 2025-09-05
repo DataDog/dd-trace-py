@@ -5,6 +5,7 @@ import mock
 import pytest
 
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
+from ddtrace.llmobs._writer import LLMObsEvaluationMetricEvent
 from tests.utils import override_global_config
 
 
@@ -13,7 +14,7 @@ INTAKE_ENDPOINT = "https://api.datad0g.com/api/intake/llm-obs/v2/eval-metric"
 DD_API_KEY = os.getenv("DD_API_KEY", default="<not-a-real-api-key>")
 
 
-def _categorical_metric_event(label: str, value: str):
+def _categorical_metric_event(label: str, value: str) -> LLMObsEvaluationMetricEvent:
     return {
         "join_on": {
             "span": {
@@ -29,7 +30,7 @@ def _categorical_metric_event(label: str, value: str):
     }
 
 
-def _score_metric_event(label: str, value: float):
+def _score_metric_event(label: str, value: float) -> LLMObsEvaluationMetricEvent:
     return {
         "join_on": {
             "span": {
@@ -87,7 +88,7 @@ def test_send_metric_bad_api_key(mock_writer_logs):
 def test_send_metric_no_api_key(mock_writer_logs):
     with override_global_config(dict(_dd_api_key="")):
         llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key="")
-        llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+        llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
         llmobs_eval_metric_writer.periodic()
     mock_writer_logs.warning.assert_called_with(
         "A Datadog API key is required for sending data to LLM Observability in agentless mode. "
@@ -156,8 +157,8 @@ def test_send_timed_events(mock_writer_logs):
 def test_send_multiple_events(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
     mock_writer_logs.reset_mock()
-    llmobs_eval_metric_writer.enqueue(_score_metric_event())
-    llmobs_eval_metric_writer.enqueue(_categorical_metric_event())
+    llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
+    llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
     llmobs_eval_metric_writer.periodic()
     mock_writer_logs.debug.assert_has_calls(
         [mock.call("encoded %d LLMObs %s events to be sent", 2, "evaluation_metric")]

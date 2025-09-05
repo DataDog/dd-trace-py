@@ -11,6 +11,7 @@ from typing import Tuple
 from typing import Union
 from typing import cast
 from urllib.parse import quote
+from urllib.parse import urlparse
 
 
 # TypedDict was added to typing in python 3.8
@@ -155,8 +156,19 @@ class BaseLLMObsWriter(PeriodicService):
         self._intake: str = self._override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
+
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
-        if self._override_url:
+        override_url_parsed = urlparse(self._override_url)
+        if (
+            self._override_url
+            and override_url_parsed.scheme != "unix"
+            and override_url_parsed.path != "/"
+            and override_url_parsed.path != ""
+        ):
+            # handles cases where the override url includes a base path, ie
+            # http://localhost:8080/foo/bar and endpoint /buz/baz
+            # we need to strip the base path from the endpoint so the eventual urljoin works properly
+            # to form http://localhost:8080/foo/bar/buz/baz
             self._endpoint = self.ENDPOINT.lstrip("/")
 
         self._headers: Dict[str, str] = {"Content-Type": "application/json"}
