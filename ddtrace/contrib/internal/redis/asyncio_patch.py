@@ -30,6 +30,11 @@ async def instrumented_async_execute_cluster_pipeline(func, instance, args, kwar
     if not pin or not pin.enabled():
         return await func(*args, **kwargs)
 
-    cmds = [stringify_cache_args(c.args, cmd_max_len=config.redis.cmd_max_length) for c in instance._command_stack]
+    # Try to access command_stack, fallback to _command_stack for backward compatibility
+    command_stack = getattr(instance, "command_stack", None)
+    if command_stack is None:
+        command_stack = getattr(instance, "_command_stack", [])
+
+    cmds = [stringify_cache_args(c.args, cmd_max_len=config.redis.cmd_max_length) for c in command_stack]
     with _instrument_redis_execute_pipeline(pin, config.redis, cmds, instance):
         return await func(*args, **kwargs)

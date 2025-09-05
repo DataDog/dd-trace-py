@@ -12,7 +12,9 @@ from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_GUARDRAIL_SPAN_START
 from ddtrace.llmobs._constants import DISPATCH_ON_LLM_TOOL_CHOICE
+from ddtrace.llmobs._constants import DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL_OUTPUT_USED
 from ddtrace.llmobs._constants import INPUT_MESSAGES
@@ -79,6 +81,10 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
         elif oai_span:
             self.oai_to_llmobs_span[oai_span.span_id] = llmobs_span
             self._llmobs_update_trace_info_input(oai_span, llmobs_span)
+
+            if oai_span.span_type == "guardrail":
+                core.dispatch(DISPATCH_ON_GUARDRAIL_SPAN_START, (llmobs_span,))
+
         return llmobs_span
 
     def _llmobs_set_tags(
@@ -131,6 +137,7 @@ class OpenAIAgentsIntegration(BaseLLMIntegration):
             self._llmobs_set_handoff_attributes(span, oai_span)
         elif span_type == "agent":
             self._llmobs_set_agent_attributes(span, oai_span)
+            core.dispatch(DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH, ())
         elif span_type == "custom":
             custom_data = oai_span.formatted_custom_data
             if custom_data:
