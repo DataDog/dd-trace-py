@@ -276,9 +276,11 @@ def test_log_metric_error_ddwaf_update_deduplication_timelapse(telemetry_writer)
     (
         ({}, False, False, 0, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({APPSEC_ENV: "true"}, True, False, 1, APPSEC.ENABLED_ORIGIN_ENV),
+        ({APPSEC_ENV: "true", "_DD_PY_SSI_INJECT": "1"}, True, False, 1, APPSEC.ENABLED_ORIGIN_SSI),
         ({}, True, False, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, True, True, 1, APPSEC.ENABLED_ORIGIN_UNKNOWN),
         ({}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
+        ({"_DD_PY_SSI_INJECT": "true"}, False, True, 1, APPSEC.ENABLED_ORIGIN_RC),
         ({APPSEC_ENV: "true"}, True, True, 1, APPSEC.ENABLED_ORIGIN_ENV),
         (
             {APPSEC_ENV: "true"},
