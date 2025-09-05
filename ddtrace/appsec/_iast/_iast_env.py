@@ -17,7 +17,6 @@ class IASTEnvironment:
     def __init__(self, span: Optional[Span] = None):
         self.span = span or core.get_span()
 
-        self.request_enabled: bool = False
         self.iast_reporter: Optional[IastSpanReporter] = None
         self.iast_span_metrics: Dict[str, int] = {}
         self.iast_stack_trace_reported: bool = False

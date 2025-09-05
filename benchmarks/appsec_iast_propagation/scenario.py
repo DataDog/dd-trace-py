@@ -3,7 +3,7 @@ import bm
 
 try:
     # 3.6+
-    from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+    from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
     from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
     from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 except ImportError:
@@ -14,8 +14,8 @@ except ImportError:
         from ddtrace.appsec._iast._iast_request_context import start_iast_context
     except ImportError:
         # Pre 2.15
-        from ddtrace.appsec._iast._taint_tracking._context import create_context as start_iast_context
-        from ddtrace.appsec._iast._taint_tracking._context import reset_context as end_iast_context
+        from ddtrace.appsec._iast._taint_tracking._context import create_context as start_iast_context  # noqa: F401
+        from ddtrace.appsec._iast._taint_tracking._context import reset_context as end_iast_context  # noqa: F401
 
         set_iast_request_enabled = lambda x: None  # noqa: E731
 from ddtrace.appsec._iast._taint_tracking import OriginType
@@ -39,7 +39,7 @@ def _start_iast_context_and_oce():
 
 
 def _end_iast_context_and_oce():
-    end_iast_context()
+    _iast_finish_request()
     oce.release_request()
 
 

@@ -1,3 +1,4 @@
+import collections
 import importlib
 import json
 import re
@@ -18,16 +19,11 @@ from hypothesis.strategies import one_of
 from hypothesis.strategies import text
 
 from ddtrace.appsec._constants import IAST
-from ddtrace.appsec._iast import oce
 from ddtrace.appsec._iast._ast.ast_patching import astpatch_module
 from ddtrace.appsec._iast._ast.ast_patching import iastpatch
 from ddtrace.appsec._iast._ast.ast_patching import initialize_iast_lists
 from ddtrace.appsec._iast._iast_request_context import get_iast_reporter
-from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
-from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
-from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast.main import patch_iast
-from ddtrace.appsec._iast.sampling.vulnerability_detection import _reset_global_limit
 
 
 # Check if the log contains "iast::" to raise an error if that’s the case BUT, if the logs contains
@@ -128,22 +124,6 @@ def _get_iast_data():
     return data
 
 
-def _start_iast_context_and_oce(span=None):
-    oce.reconfigure()
-    request_iast_enabled = False
-    if oce.acquire_request(span):
-        start_iast_context()
-        request_iast_enabled = True
-
-    set_iast_request_enabled(request_iast_enabled)
-
-
-def _end_iast_context_and_oce(span=None):
-    end_iast_context(span)
-    oce.release_request()
-    _reset_global_limit()
-
-
 def load_iast_report(span):
     """
     Load the IAST report from the span.
@@ -163,3 +143,8 @@ def load_iast_report(span):
         else:
             iast_report = json.loads(iast_report_json)
     return iast_report
+
+
+def _reset_global_limit():
+    global GLOBAL_VULNERABILITIES_LIMIT
+    GLOBAL_VULNERABILITIES_LIMIT = collections.OrderedDict()

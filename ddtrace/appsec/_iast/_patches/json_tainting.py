@@ -1,5 +1,6 @@
 from typing import Text
 
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.internal.logger import get_logger
 from ddtrace.settings.asm import config as asm_config
 
@@ -36,7 +37,7 @@ def patch():
 
 def wrapped_loads(wrapped, instance, args, kwargs):
     obj = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
+    if asm_config._iast_enabled and is_iast_request_enabled():
         try:
             from .._taint_tracking._taint_objects import taint_pyobject
             from .._taint_tracking._taint_objects_base import get_tainted_ranges
