@@ -7,7 +7,7 @@ aspect_join_str(PyObject* sep,
                 PyObject* result,
                 PyObject* iterable_str,
                 size_t len_iterable,
-                const TaintRangeMapTypePtr& tx_taint_map)
+                const TaintedObjectMapTypePtr& tx_taint_map)
 {
     // This is the special case for unicode str and unicode iterable_str.
     // The iterable elements string will be split into 1 char-length strings.
@@ -60,7 +60,7 @@ aspect_join_str(PyObject* sep,
 }
 
 PyObject*
-aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintRangeMapTypePtr& tx_taint_map)
+aspect_join(PyObject* sep, PyObject* result, PyObject* iterable_elements, const TaintedObjectMapTypePtr& tx_taint_map)
 {
     const size_t& len_sep = get_pyobject_size(sep);
 

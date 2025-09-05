@@ -1,13 +1,13 @@
 #pragma once
 #include <pybind11/pybind11.h>
 
-#include "context/application_context.h"
+#include "context/taint_engine_context.h"
 
 inline py::module
-pyexport_m_application_context(py::module& m)
+pyexport_m_taint_engine_context(py::module& m)
 {
-    // ApplicationContext
+    // TaintEngineContext
     py::module m_context = m.def_submodule("context", "Application Context");
-    pyexport_application_context(m_context);
+    pyexport_taint_engine_context(m_context);
     return m_context;
 }
