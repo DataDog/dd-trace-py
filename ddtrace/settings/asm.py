@@ -284,6 +284,8 @@ class ASMConfig(DDConfig):
     @property
     def asm_enabled_origin(self):
         if APPSEC_ENV in os.environ:
+            if os.getenv("_DD_PY_SSI_INJECT") == "1":
+                return APPSEC.ENABLED_ORIGIN_SSI
             return APPSEC.ENABLED_ORIGIN_ENV
         return self._asm_enabled_origin
 
