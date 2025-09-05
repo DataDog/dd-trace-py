@@ -66,6 +66,8 @@ def is_enabled(config):
 
 def pytest_addoption(parser):
     """Add ddtrace options."""
+    # DEV: When changing this function, remember to adjust
+    # _ddtrace/contrib/internal/pytest/plugin.py as well
     group = parser.getgroup("ddtrace")
 
     group._addoption(
