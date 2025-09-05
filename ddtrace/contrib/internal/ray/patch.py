@@ -10,6 +10,16 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray._private.worker
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.dashboard.modules.job.job_supervisor
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -27,16 +37,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray._private.worker
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.dashboard.modules.job.job_supervisor
-import ray.exceptions
 
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
