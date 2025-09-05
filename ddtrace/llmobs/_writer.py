@@ -303,6 +303,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     ENDPOINT = ""
     TIMEOUT = 5.0
     BULK_UPLOAD_TIMEOUT = 60.0
+    LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
     def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
@@ -436,7 +437,6 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return new_version, new_record_ids
 
     def dataset_get_with_records(self, name: str) -> Dataset:
-        LIST_RECORDS_TIMEOUT = 20
         path = f"/api/unstable/llm-obs/v1/datasets?filter[name]={quote(name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
@@ -457,7 +457,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         list_path = list_base_path
         page_num = 0
         while has_next_page:
-            resp = self.request("GET", list_path, timeout=LIST_RECORDS_TIMEOUT)
+            resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
             if resp.status != 200:
                 raise ValueError(
                     f"Failed to pull {page_num}th page of dataset records {name}: {resp.status} {resp.get_json()}"
