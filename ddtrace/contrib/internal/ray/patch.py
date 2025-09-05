@@ -139,6 +139,7 @@ class ActiveSpanFilter(logging.Filter):
                 record.__setattr__("dd.version", context.get(LOG_ATTR_VERSION))
 
                 record.__setattr__("ray.job_submission_id", job_submission_id)
+                record.team = "aiobs"
 
                 return True
             
