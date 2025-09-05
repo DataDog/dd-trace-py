@@ -13,7 +13,7 @@ coverage[toml]==7.10.4
 exceptiongroup==1.3.0
 flask==1.1.2
 flask-babel==2.0.0
-gevent==25.5.1
+gevent==25.8.2
 greenlet==3.2.4
 gunicorn==23.0.0
 hypothesis==6.45.0
