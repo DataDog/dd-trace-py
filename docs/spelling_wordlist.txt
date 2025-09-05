@@ -95,6 +95,7 @@ dramatiq
 Dramatiq
 dsn
 dunder
+echion
 eg
 elasticsearch
 elasticsearch1
@@ -116,6 +117,7 @@ flamegraph
 fnmatch
 formatter
 freezegun
+gdb
 genai
 generativeai
 gevent
