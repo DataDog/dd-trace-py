@@ -156,8 +156,8 @@ pyexport_taint_engine_context(py::module& m)
     m.def("clear_all_request_context_slots", [] { return taint_engine_context->clear_all_request_context_slots(); });
     m.def("get_tainted_object_map_by_ctx_id",
           [](size_t ctx_id) { return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr; });
-    m.def("get_tainted_object_map", [](py::object tainted_obj) {
-        auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
+    m.def("is_in_taint_map", [](py::object tainted_obj) {
+        auto map_ptr = TaintEngineContext::get_tainted_object_map(tainted_obj.ptr());
         return map_ptr != nullptr;
     });
     m.def("debug_context_array_size", [] { return taint_engine_context->debug_context_array_size(); });

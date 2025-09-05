@@ -18,7 +18,7 @@ from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitdrive  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitext  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitroot  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.context import get_tainted_object_map  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.context import is_in_taint_map  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import active_map_addreses_size  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import debug_taint_map  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.initializer import num_objects_tainted  # noqa: F401
@@ -73,7 +73,7 @@ __all__ = [
     "debug_taint_map",
     "get_range_by_hash",
     "get_ranges",
-    "get_tainted_object_map",
+    "is_in_taint_map",
     "is_tainted",
     "new_pyobject_id",
     "num_objects_tainted",

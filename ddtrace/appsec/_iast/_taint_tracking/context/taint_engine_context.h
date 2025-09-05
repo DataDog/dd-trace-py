@@ -59,7 +59,7 @@ class TaintEngineContext
     // Slow-path: find and return the taint map that contains the given
     // tainted object across all active slots. Returns nullptr if not found or
     // object has no taint ranges.
-    TaintedObjectMapTypePtr get_tainted_object_map(PyObject* tainted_object);
+    static TaintedObjectMapTypePtr get_tainted_object_map(PyObject* tainted_object);
 
     // Clear a specific map if present; leaves the slot free for reuse.
     void finish_request_context(size_t ctx_id);
