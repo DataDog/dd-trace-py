@@ -167,7 +167,7 @@ def wrapped_request(original_request_callable, instance, args, kwargs):
             try:
                 addresses["DOWN_REQ_BODY"] = json.loads(body)
             except Exception:
-                pass # nosec
+                pass  # nosec
         res = call_waf_callback(
             addresses,
             crop_trace="wrapped_open_ED4CF71136E15EBF",
