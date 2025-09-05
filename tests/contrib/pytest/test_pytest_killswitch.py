@@ -1,7 +1,4 @@
 import os
-from unittest import mock
-
-import pytest
 
 from tests.contrib.pytest.test_pytest import PytestTestCaseBase
 

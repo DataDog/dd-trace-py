@@ -9,7 +9,7 @@ DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based t
 PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
 
 if asbool(os.getenv("DD_CIVISIBILITY_ENABLED", "true")):
-    from ddtrace.contrib.internal.pytest.plugin import *  # noqa:F401
+    from ddtrace.contrib.internal.pytest.plugin import *  # noqa:F401,F403
 else:
     # Avoid breaking arg parsing
     def pytest_addoption(parser):
