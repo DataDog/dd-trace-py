@@ -1,4 +1,5 @@
 from contextlib import contextmanager
+from contextvars import ContextVar
 from functools import wraps
 import inspect
 import logging
@@ -41,6 +42,7 @@ import ray.actor
 import ray.dashboard.modules.job.job_manager
 from ray.dashboard.modules.job.job_manager import generate_job_id
 import ray.exceptions
+from ray.runtime_context import get_runtime_context
 
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
@@ -51,6 +53,8 @@ from .utils import extract_signature
 
 
 LOG_FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s')
+
+ray_job_submission_id = ContextVar("ray_job_submission_id")
 
 config._add(
     "ray",
@@ -106,20 +110,30 @@ class RayTraceProcessor:
                 span.set_metric(_SAMPLING_PRIORITY_KEY, 2)
             filtered_spans.append(span)
         return filtered_spans
-    
+
+
 class ActiveSpanFilter(logging.Filter):
         def filter(self, record):
 
             context = tracer.get_log_correlation_context()
 
-            if context.get("dd.trace_id") not in [None, 0, "0"]:
+            if context.get(LOG_ATTR_TRACE_ID) and context.get(LOG_ATTR_TRACE_ID) != "0":
+                job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+                if not job_submission_id:
+                    if record.name == "ray.dashboard.modules.job.job_manager" and record.message.startswith("Starting job with submission_id: "):
+                        _, _, job_submission_id = record.message.partition("Starting job with submission_id: ")
+                        if job_submission_id:
+                            ray_job_submission_id.set(job_submission_id)
+                    else:
+                        job_submission_id = ray_job_submission_id.get()
+
                 record.__setattr__("dd.trace_id", context.get(LOG_ATTR_TRACE_ID))
                 record.__setattr__("dd.span_id", context.get(LOG_ATTR_SPAN_ID))
                 record.__setattr__("dd.env", context.get(LOG_ATTR_ENV))
                 record.__setattr__("dd.service", context.get(LOG_ATTR_SERVICE))
                 record.__setattr__("dd.version", context.get(LOG_ATTR_VERSION))
 
-                record.__setattr__("ray.job_submission_id", os.environ.get("_RAY_SUBMISSION_ID"))
+                record.__setattr__("ray.job_submission_id", job_submission_id)
 
                 return True
             
