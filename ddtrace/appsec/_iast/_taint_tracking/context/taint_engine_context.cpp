@@ -22,6 +22,7 @@
 //
 #include "taint_engine_context.h"
 #include "taint_tracking/tainted_object.h"
+#include <initializer_list>
 #include <cstdint>
 #include <cstdlib>
 
@@ -31,6 +32,38 @@ namespace {
 static constexpr size_t DEFAULT_CAPACITY = 2; // safe default per guidance
 static constexpr size_t MIN_CAPACITY = 1;
 static constexpr size_t MAX_CAPACITY = 1024; // reasonable upper bound
+}
+
+// AIDEV-NOTE: Return the first taint map found when scanning a list of candidate PyObjects.
+// The map must exist and be non-empty to be considered valid.
+TaintedObjectMapTypePtr
+TaintEngineContext::get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*> objects)
+{
+    for (auto* obj : objects) {
+        if (!obj) {
+            continue;
+        }
+        auto map = get_tainted_object_map(obj);
+        if (map && !map->empty()) {
+            return map;
+        }
+    }
+    return nullptr;
+}
+
+TaintedObjectMapTypePtr
+TaintEngineContext::get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>& objects)
+{
+    for (auto* obj : objects) {
+        if (!obj) {
+            continue;
+        }
+        auto map = get_tainted_object_map(obj);
+        if (map && !map->empty()) {
+            return map;
+        }
+    }
+    return nullptr;
 }
 
 size_t
@@ -157,7 +190,7 @@ pyexport_taint_engine_context(py::module& m)
     m.def("get_tainted_object_map_by_ctx_id",
           [](size_t ctx_id) { return taint_engine_context->get_tainted_object_map_by_ctx_id(ctx_id) != nullptr; });
     m.def("is_in_taint_map", [](py::object tainted_obj) {
-        auto map_ptr = TaintEngineContext::get_tainted_object_map(tainted_obj.ptr());
+        auto map_ptr = taint_engine_context->get_tainted_object_map(tainted_obj.ptr());
         return map_ptr != nullptr;
     });
     m.def("debug_context_array_size", [] { return taint_engine_context->debug_context_array_size(); });
