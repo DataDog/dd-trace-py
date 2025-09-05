@@ -4,7 +4,6 @@ import time
 import mock
 import pytest
 
-from ddtrace.llmobs._constants import AGENTLESS_EVAL_BASE_URL
 from ddtrace.llmobs._writer import LLMObsEvalMetricWriter
 from tests.utils import override_global_config
 
