@@ -303,9 +303,10 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
     ENDPOINT = ""
     TIMEOUT = 5.0
     BULK_UPLOAD_TIMEOUT = 60.0
+    LIST_RECORDS_TIMEOUT = 20
     SUPPORTED_UPLOAD_EXTS = {"csv"}
 
-    def request(self, method: str, path: str, body: JSONType = None) -> Response:
+    def request(self, method: str, path: str, body: JSONType = None, timeout=TIMEOUT) -> Response:
         headers = {
             "Content-Type": "application/json",
             "DD-API-KEY": self._api_key,
@@ -315,7 +316,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             headers[EVP_SUBDOMAIN_HEADER_NAME] = self.EVP_SUBDOMAIN_HEADER_VALUE
 
         encoded_body = json.dumps(body).encode("utf-8") if body else b""
-        conn = get_connection(url=self._intake, timeout=self.TIMEOUT)
+        conn = get_connection(url=self._intake, timeout=timeout)
         try:
             url = self._intake + self._endpoint + path
             logger.debug("requesting %s", url)
@@ -450,23 +451,36 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         dataset_description = data[0]["attributes"].get("description", "")
         dataset_id = data[0]["id"]
 
-        path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
-        resp = self.request("GET", path)
-        if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {name}: {resp.status} {resp.get_json()}")
-        records_data = resp.get_json()
-
+        list_base_path = f"/api/unstable/llm-obs/v1/datasets/{dataset_id}/records"
+        has_next_page = True
         class_records: List[DatasetRecord] = []
-        for record in records_data.get("data", []):
-            attrs = record.get("attributes", {})
-            class_records.append(
-                {
-                    "record_id": record["id"],
-                    "input_data": attrs["input"],
-                    "expected_output": attrs.get("expected_output"),
-                    "metadata": attrs.get("metadata", {}),
-                }
-            )
+        list_path = list_base_path
+        page_num = 0
+        while has_next_page:
+            resp = self.request("GET", list_path, timeout=self.LIST_RECORDS_TIMEOUT)
+            if resp.status != 200:
+                raise ValueError(
+                    f"Failed to pull {page_num}th page of dataset records {name}: {resp.status} {resp.get_json()}"
+                )
+            records_data = resp.get_json()
+
+            for record in records_data.get("data", []):
+                attrs = record.get("attributes", {})
+                class_records.append(
+                    {
+                        "record_id": record["id"],
+                        "input_data": attrs["input"],
+                        "expected_output": attrs.get("expected_output"),
+                        "metadata": attrs.get("metadata", {}),
+                    }
+                )
+            next_cursor = records_data.get("meta", {}).get("after")
+            has_next_page = False
+            if next_cursor:
+                has_next_page = True
+                list_path = f"{list_base_path}?page[cursor]={next_cursor}"
+                logger.debug("next list records request path %s", list_path)
+                page_num += 1
         return Dataset(name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
