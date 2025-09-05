@@ -2,8 +2,8 @@
 
 #include "thread_span_links.hpp"
 
-#include "echion/greenlets.h"
 #include "echion/config.h"
+#include "echion/greenlets.h"
 #include "echion/interp.h"
 #include "echion/tasks.h"
 #include "echion/threads.h"
