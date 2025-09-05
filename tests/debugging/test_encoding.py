@@ -11,6 +11,7 @@ import pytest
 from ddtrace.debugging._encoding import JSONTree
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
+from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._probe.model import MAXSIZE
 from ddtrace.debugging._probe.model import CaptureLimits
 from ddtrace.debugging._signal import utils
@@ -580,7 +581,7 @@ def test_json_tree():
     ],
 )
 def test_json_pruning_not_capture_depth(size, expected):
-    class TestEncoder(LogSignalJsonEncoder):
+    class TestEncoder(SnapshotJsonEncoder):
         MAX_SIGNAL_SIZE = size
         MIN_LEVEL = 0
 

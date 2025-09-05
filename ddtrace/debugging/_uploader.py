@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 from typing import Optional
@@ -7,8 +8,11 @@ from urllib.parse import quote
 from ddtrace.debugging._config import di_config
 from ddtrace.debugging._encoding import LogSignalJsonEncoder
 from ddtrace.debugging._encoding import SignalQueue
+from ddtrace.debugging._encoding import SnapshotJsonEncoder
 from ddtrace.debugging._metrics import metrics
 from ddtrace.debugging._signal.collector import SignalCollector
+from ddtrace.debugging._signal.model import SignalTrack
+from ddtrace.internal import agent
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.periodic import ForksafeAwakeablePeriodicService
 from ddtrace.internal.utils.http import connector
@@ -27,6 +31,12 @@ class UploaderProduct(str, Enum):
     CODE_ORIGIN_SPAN = "code_origin.span"
 
 
+@dataclass
+class UploaderTrack:
+    endpoint: str
+    queue: SignalQueue
+
+
 class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     """Logs intake uploader.
 
@@ -40,22 +50,36 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
     __queue__ = SignalQueue
     __collector__ = SignalCollector
 
-    ENDPOINT = di_config._intake_endpoint
-
     RETRY_ATTEMPTS = 3
 
     def __init__(self, interval: Optional[float] = None) -> None:
         super().__init__(interval if interval is not None else di_config.upload_interval_seconds)
 
-        self._queue = self.__queue__(encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full)
-        self._collector = self.__collector__(self._queue)
+        endpoint_suffix = f"?ddtags={quote(di_config.tags)}" if di_config._tags_in_qs and di_config.tags else ""
+        agent_endpoints = set(agent_info.get("endpoints", [])) if (agent_info := agent.info()) is not None else set()
+
+        self._tracks = {
+            SignalTrack.LOGS: UploaderTrack(
+                endpoint=f"/debugger/v1/input{endpoint_suffix}",
+                queue=self.__queue__(
+                    encoder=LogSignalJsonEncoder(di_config.service_name), on_full=self._on_buffer_full
+                ),
+            ),
+            SignalTrack.SNAPSHOT: UploaderTrack(
+                endpoint=(
+                    f"/debugger/v2/input{endpoint_suffix}"
+                    if "/debugger/v2/input" in agent_endpoints
+                    else f"/debugger/v1/diagnostics{endpoint_suffix}"
+                ),
+                queue=self.__queue__(encoder=SnapshotJsonEncoder(di_config.service_name), on_full=self._on_buffer_full),
+            ),
+        }
+        self._collector = self.__collector__({t: ut.queue for t, ut in self._tracks.items()})
         self._headers = {
             "Content-type": "application/json; charset=utf-8",
             "Accept": "text/plain",
         }
 
-        if di_config._tags_in_qs and di_config.tags:
-            self.ENDPOINT += f"?ddtags={quote(di_config.tags)}"
         self._connect = connector(di_config._intake_url, timeout=di_config.upload_timeout)
 
         # Make it retry-able
@@ -65,33 +89,31 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
         )(self._write)
 
         log.debug(
-            "Logs intake uploader initialized (url: %s, endpoint: %s, interval: %f)",
+            "Logs intake uploader initialized (url: %s, endpoints: %s, interval: %f)",
             di_config._intake_url,
-            self.ENDPOINT,
+            {t: ut.endpoint for t, ut in self._tracks.items()},
             self.interval,
         )
 
-    def _write(self, payload: bytes) -> None:
+        self._flush_full = False
+
+    def _write(self, payload: bytes, endpoint: str) -> None:
         try:
             with self._connect() as conn:
-                conn.request(
-                    "POST",
-                    self.ENDPOINT,
-                    payload,
-                    headers=self._headers,
-                )
+                conn.request("POST", endpoint, payload, headers=self._headers)
                 resp = conn.getresponse()
                 if not (200 <= resp.status < 300):
-                    log.error("Failed to upload payload: [%d] %r", resp.status, resp.read())
+                    log.error("Failed to upload payload to endpoint %s: [%d] %r", endpoint, resp.status, resp.read())
                     meter.increment("upload.error", tags={"status": str(resp.status)})
                 else:
                     meter.increment("upload.success")
                     meter.distribution("upload.size", len(payload))
         except Exception:
-            log.error("Failed to write payload", exc_info=True)
+            log.error("Failed to write payload to endpoint %s", endpoint, exc_info=True)
             meter.increment("error")
 
     def _on_buffer_full(self, _item: Any, _encoded: bytes) -> None:
+        self._flush_full = True
         self.upload()
 
     def upload(self) -> None:
@@ -100,20 +122,32 @@ class LogsIntakeUploaderV1(ForksafeAwakeablePeriodicService):
 
     def reset(self) -> None:
         """Reset the buffer on fork."""
-        self._queue = self.__queue__(encoder=self._queue._encoder, on_full=self._on_buffer_full)
-        self._collector._encoder = self._queue
+        for track in self._tracks.values():
+            track.queue = self.__queue__(encoder=track.queue._encoder, on_full=self._on_buffer_full)
+        self._collector._tracks = {t: ut.queue for t, ut in self._tracks.items()}
+
+    def _flush_track(self, track: UploaderTrack) -> None:
+        queue = track.queue
+        payload = queue.flush()
+        if payload is not None:
+            try:
+                self._write_with_backoff(payload, track.endpoint)
+                meter.distribution("batch.cardinality", queue.count)
+            except Exception:
+                log.debug("Cannot upload logs payload", exc_info=True)
 
     def periodic(self) -> None:
         """Upload the buffer content to the logs intake."""
-        count = self._queue.count
-        if count:
-            payload = self._queue.flush()
-            if payload is not None:
-                try:
-                    self._write_with_backoff(payload)
-                    meter.distribution("batch.cardinality", count)
-                except Exception:
-                    log.debug("Cannot upload logs payload", exc_info=True)
+        if self._flush_full:
+            # We received the signal to flush a full buffer
+            self._flush_full = False
+            for track in self._tracks.values():
+                if track.queue.is_full():
+                    self._flush_track(track)
+
+        for track in self._tracks.values():
+            if track.queue.count:
+                self._flush_track(track)
 
     on_shutdown = periodic
 
