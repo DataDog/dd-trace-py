@@ -412,6 +412,8 @@ def traced_chat_stream(langchain, pin, func, instance, args, kwargs):
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
 
+    _raising_dispatch("langchain.chatmodel.stream.before", (instance, args, kwargs))
+
     def _on_span_started(span: Span):
         integration.record_instance(instance, span)
 
@@ -442,6 +444,15 @@ def traced_llm_stream(langchain, pin, func, instance, args, kwargs):
     integration: LangChainIntegration = langchain._datadog_integration
     llm_provider = instance._llm_type
     model = _extract_model_name(instance)
+
+    _raising_dispatch(
+        "langchain.llm.stream.before",
+        (
+            instance,
+            args,
+            kwargs,
+        ),
+    )
 
     def _on_span_start(span: Span):
         integration.record_instance(instance, span)
