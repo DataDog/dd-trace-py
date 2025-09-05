@@ -5,7 +5,7 @@ static void
 set_lengthupdated_ranges(PyObject* result,
                          Py_ssize_t result_len,
                          const TaintRangeRefs& ranges,
-                         const TaintRangeMapTypePtr& tx_map)
+                         const TaintedObjectMapTypePtr& tx_map)
 {
     if (!tx_map || tx_map->empty()) {
         return;

@@ -1,4 +1,6 @@
 from importlib import import_module
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as get_package_version
 from typing import Dict
 from urllib import parse
 
@@ -6,6 +8,7 @@ from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
 from ddtrace._trace import _limits
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import _SPAN_MEASURED_KEY
 from ddtrace.constants import SPAN_KIND
 from ddtrace.contrib.internal.elasticsearch.quantize import quantize
@@ -20,15 +23,6 @@ from ddtrace.internal.constants import COMPONENT
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.schema import schematize_service_name
 from ddtrace.internal.utils.wrappers import unwrap as _u
-from ddtrace.trace import Pin
-
-
-try:
-    from importlib.metadata import PackageNotFoundError
-    from importlib.metadata import version as get_package_version
-except ImportError:
-    from importlib_metadata import PackageNotFoundError
-    from importlib_metadata import version as get_package_version
 
 
 log = get_logger(__name__)

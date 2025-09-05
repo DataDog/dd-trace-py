@@ -16,7 +16,11 @@ from ddtrace.appsec._constants import TELEMETRY_INFORMATION_NAME
 from ddtrace.constants import APPSEC_ENV
 from ddtrace.ext import SpanTypes
 from ddtrace.internal import core
-from ddtrace.internal.endpoints import HttpEndPointsCollection
+from ddtrace.internal.constants import AI_GUARD_ENABLED
+from ddtrace.internal.constants import AI_GUARD_ENDPOINT
+from ddtrace.internal.constants import AI_GUARD_MAX_CONTENT_SIZE
+from ddtrace.internal.constants import AI_GUARD_MAX_HISTORY_LENGTH
+from ddtrace.internal.constants import DD_APPLICATION_KEY
 from ddtrace.internal.serverless import in_aws_lambda
 from ddtrace.settings._config import config as tracer_config
 from ddtrace.settings._core import DDConfig
@@ -58,9 +62,6 @@ def build_libddwaf_filename() -> str:
     TRANSLATE_ARCH = {"amd64": "x64", "i686": "x86_64", "x86": "win32"}
     ARCHITECTURE = TRANSLATE_ARCH.get(ARCHI, ARCHI)
     return os.path.join(_DIRNAME, "appsec", "_ddwaf", "libddwaf", ARCHITECTURE, "lib", "libddwaf." + FILE_EXTENSION)
-
-
-endpoint_collection = HttpEndPointsCollection()
 
 
 class ASMConfig(DDConfig):
@@ -153,6 +154,7 @@ class ASMConfig(DDConfig):
     _iast_lazy_taint = DDConfig.var(bool, IAST.LAZY_TAINT, default=False)
     _iast_deduplication_enabled = DDConfig.var(bool, "DD_IAST_DEDUPLICATION_ENABLED", default=True)
     _iast_security_controls = DDConfig.var(str, "DD_IAST_SECURITY_CONTROLS_CONFIGURATION", default="")
+    _iast_use_root_span = DDConfig.var(bool, "_DD_IAST_USE_ROOT_SPAN", default=False)
 
     _iast_is_testing = False
 
@@ -202,6 +204,7 @@ class ASMConfig(DDConfig):
         "_iast_telemetry_report_lvl",
         "_iast_security_controls",
         "_iast_is_testing",
+        "_iast_use_root_span",
         "_ep_enabled",
         "_use_metastruct_for_triggers",
         "_use_metastruct_for_iast",
@@ -288,9 +291,9 @@ class ASMConfig(DDConfig):
         """For testing purposes, reset the configuration to its default values given current environment variables."""
         self.__init__()
 
-    def _eval_asm_can_be_enabled(self):
+    def _eval_asm_can_be_enabled(self) -> None:
         self._asm_can_be_enabled = APPSEC_ENV not in os.environ and tracer_config._remote_config_enabled
-        self._load_modules: bool = bool(
+        self._load_modules = bool(
             self._iast_enabled or (self._ep_enabled and (self._asm_enabled or self._asm_can_be_enabled))
         )
         self._asm_rc_enabled = (self._asm_enabled and tracer_config._remote_config_enabled) or self._asm_can_be_enabled
@@ -315,10 +318,34 @@ class ASMConfig(DDConfig):
 
     @property
     def is_iast_request_enabled(self) -> bool:
-        env = core.get_item(IAST.REQUEST_CONTEXT_KEY)
+        env = core.find_item(IAST.REQUEST_CONTEXT_KEY)
         if env:
             return env.request_enabled
         return False
 
 
 config = ASMConfig()
+
+
+class AIGuardConfig(DDConfig):
+    _ai_guard_enabled = DDConfig.var(bool, AI_GUARD_ENABLED, default=False)
+    _ai_guard_endpoint = DDConfig.var(str, AI_GUARD_ENDPOINT, default="")
+    _ai_guard_max_history_length = DDConfig.var(int, AI_GUARD_MAX_HISTORY_LENGTH, default=16)
+    _ai_guard_max_content_size = DDConfig.var(int, AI_GUARD_MAX_CONTENT_SIZE, default=512 * 1024)
+    _dd_app_key = DDConfig.var(str, DD_APPLICATION_KEY, default="")
+
+    # for tests purposes
+    _ai_guard_config_keys = [
+        "_ai_guard_enabled",
+        "_ai_guard_endpoint",
+        "_ai_guard_max_history_length",
+        "_ai_guard_max_content_size",
+        "_dd_app_key",
+    ]
+
+    def reset(self):
+        """For testing purposes, reset the configuration to its default values given current environment variables."""
+        self.__init__()
+
+
+ai_guard_config = AIGuardConfig()

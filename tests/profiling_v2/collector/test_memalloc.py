@@ -119,7 +119,7 @@ def test_memory_collector_ignore_profiler(tmp_path):
         alloc_thread._ddtrace_profiling_ignore = True
         alloc_thread.start()
 
-        mc.periodic()
+        mc.snapshot()
 
     # We need to wait for the data collection to happen so it gets the `_ddtrace_profiling_ignore` Thread attribute from
     # the global thread list.
@@ -763,7 +763,7 @@ def test_memory_collector_thread_lifecycle():
     """Test that continuously creates and destroys threads while they perform allocations,
     verifying that the collector can track allocations across changing thread contexts.
     """
-    mc = memalloc.MemoryCollector(heap_sample_size=512)
+    mc = memalloc.MemoryCollector(heap_sample_size=8)
 
     with mc:
         threads = []

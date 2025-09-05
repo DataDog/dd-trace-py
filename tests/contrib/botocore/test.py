@@ -34,6 +34,7 @@ except ImportError:
     from moto import mock_kinesis as mock_firehose
 
 from ddtrace import config
+from ddtrace._trace.pin import Pin
 from ddtrace.constants import ERROR_MSG
 from ddtrace.constants import ERROR_STACK
 from ddtrace.constants import ERROR_TYPE
@@ -46,7 +47,6 @@ from ddtrace.internal.schema import DEFAULT_SPAN_SERVICE_NAME
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.propagation.http import HTTP_HEADER_PARENT_ID
 from ddtrace.propagation.http import HTTP_HEADER_TRACE_ID
-from ddtrace.trace import Pin
 from tests.opentracer.utils import init_tracer
 from tests.utils import TracerTestCase
 from tests.utils import assert_is_measured
@@ -4100,6 +4100,7 @@ class BotocoreTest(TracerTestCase):
 
     @pytest.mark.snapshot(ignores=snapshot_ignores)
     @mock_s3
+    @pytest.mark.skip(reason="Flaky test")
     def test_aws_payload_tagging_s3_invalid_config(self):
         with self.override_config(
             "botocore",

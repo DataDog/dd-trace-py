@@ -1,4 +1,4 @@
-import os
+import contextvars
 from typing import Optional
 
 from ddtrace._trace.span import Span
@@ -13,13 +13,14 @@ from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
-from ddtrace.internal.utils.formats import asbool
 from ddtrace.settings.asm import config as asm_config
 
 
 log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
+
+IAST_CONTEXT = contextvars.ContextVar("iast_var", default=None)
 
 
 def _set_span_tag_iast_request_tainted(span):
@@ -78,10 +79,6 @@ def set_iast_request_endpoint(method, route) -> None:
                 env.endpoint_route = route
         else:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
-
-
-def _move_iast_data_to_root_span():
-    return asbool(os.getenv("_DD_IAST_USE_ROOT_SPAN"))
 
 
 def _iast_start_request(span=None, *args, **kwargs):

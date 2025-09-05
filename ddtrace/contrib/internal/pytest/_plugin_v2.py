@@ -39,12 +39,17 @@ from ddtrace.contrib.internal.pytest._utils import _pytest_version_supports_retr
 from ddtrace.contrib.internal.pytest._utils import _TestOutcome
 from ddtrace.contrib.internal.pytest._utils import excinfo_by_report
 from ddtrace.contrib.internal.pytest._utils import reports_by_item
+from ddtrace.contrib.internal.pytest._xdist import PYTEST_XDIST_WORKER_VALUE
+from ddtrace.contrib.internal.pytest._xdist import XDIST_UNSET
+from ddtrace.contrib.internal.pytest._xdist import XdistHooks
+from ddtrace.contrib.internal.pytest._xdist import _parse_xdist_args_from_cmd
+from ddtrace.contrib.internal.pytest._xdist import _skipping_level_for_xdist_parallelization_mode
 from ddtrace.contrib.internal.pytest.constants import FRAMEWORK
 from ddtrace.contrib.internal.pytest.constants import USER_PROPERTY_QUARANTINED
 from ddtrace.contrib.internal.pytest.constants import XFAIL_REASON
 from ddtrace.contrib.internal.unittest.patch import unpatch as unpatch_unittest
 from ddtrace.ext import test
-from ddtrace.ext.test_visibility import ITR_SKIPPING_LEVEL
+from ddtrace.ext.test_visibility._utils import _catch_and_log_exceptions
 from ddtrace.ext.test_visibility.api import TestExcInfo
 from ddtrace.ext.test_visibility.api import TestStatus
 from ddtrace.ext.test_visibility.api import disable_test_visibility
@@ -106,25 +111,6 @@ skip_pytest_runtest_protocol = False
 # Module-level variable to store the current test's coverage collector
 # This allows access from _pytest_run_one_test which doesn't have direct access to the wrapper's scope
 _current_coverage_collector = None
-
-
-class XdistHooks:
-    @pytest.hookimpl
-    def pytest_configure_node(self, node):
-        main_session_span = InternalTestSession.get_span()
-        if main_session_span:
-            root_span = main_session_span.span_id
-        else:
-            root_span = 0
-
-        node.workerinput["root_span"] = root_span
-
-    @pytest.hookimpl
-    def pytest_testnodedown(self, node, error):
-        if hasattr(node, "workeroutput") and "itr_skipped_count" in node.workeroutput:
-            if not hasattr(pytest, "global_worker_itr_results"):
-                pytest.global_worker_itr_results = 0
-            pytest.global_worker_itr_results += node.workeroutput["itr_skipped_count"]
 
 
 def _handle_itr_should_skip(item, test_id) -> bool:
@@ -224,6 +210,7 @@ def _start_collecting_coverage() -> ModuleCodeCollector.CollectInContext:
     return coverage_collector
 
 
+@_catch_and_log_exceptions
 def _handle_collected_coverage(item, test_id, coverage_collector) -> None:
     if not coverage_collector:
         log.debug("No coverage collector available for test %s", test_id)
@@ -295,24 +282,66 @@ def _pytest_load_initial_conftests_pre_yield(early_config, parser, args):
     """
     take_over_logger_stream_handler()
 
+    # Log early initialization details
+    is_worker = PYTEST_XDIST_WORKER_VALUE is not None
+    process_type = "WORKER" if is_worker else "MAIN"
+    log.debug("EARLY_INIT: %s process starting pytest_load_initial_conftests_pre_yield", process_type)
+
     if not _is_enabled_early(early_config, args):
+        log.debug("EARLY_INIT: %s process - not enabled early, returning", process_type)
         return
 
     try:
-        dd_config.test_visibility.itr_skipping_level = (
-            ITR_SKIPPING_LEVEL.SUITE
-            if asbool(os.getenv("_DD_CIVISIBILITY_ITR_SUITE_MODE", True))
-            else ITR_SKIPPING_LEVEL.TEST
+        # Parse xdist configuration once and reuse for both ITR level detection and coverage optimization
+        log.debug("EARLY_INIT: %s process - parsing xdist configuration", process_type)
+        num_workers, dist_mode = _parse_xdist_args_from_cmd(args)
+
+        # Detect ITR level based on xdist configuration
+        log.debug("EARLY_INIT: %s process - detecting ITR level", process_type)
+        detected_itr_level = _skipping_level_for_xdist_parallelization_mode(
+            config=early_config,
+            num_workers=num_workers,
+            dist_mode=dist_mode,
         )
+        dd_config.test_visibility.itr_skipping_level = detected_itr_level
+        log.debug("EARLY_INIT: %s process - ITR level set to: %s", process_type, detected_itr_level.name)
+
         enable_test_visibility(config=dd_config.pytest)
-        if InternalTestSession.should_collect_coverage():
+        log.debug("EARLY_INIT: %s process - test visibility enabled", process_type)
+
+        should_collect_coverage = InternalTestSession.should_collect_coverage()
+        log.debug("EARLY_INIT: %s process - should_collect_coverage: %s", process_type, should_collect_coverage)
+
+        # Check if we're actually using xdist to optimize coverage collection
+        # Main process doesn't need coverage when using xdist since it doesn't run tests
+        using_xdist = num_workers not in (0, None, XDIST_UNSET)
+
+        if should_collect_coverage and (not using_xdist or is_worker):
             workspace_path = InternalTestSession.get_workspace_path()
             if workspace_path is None:
                 workspace_path = Path.cwd().absolute()
-            log.warning("Installing ModuleCodeCollector with include_paths=%s", [workspace_path])
+            log.debug(
+                "EARLY_INIT: %s process - Installing ModuleCodeCollector with include_paths=%s",
+                process_type,
+                [workspace_path],
+            )
             install_coverage(include_paths=[workspace_path], collect_import_time_coverage=True)
+            log.debug("EARLY_INIT: %s process - ModuleCodeCollector installation completed", process_type)
+        elif using_xdist and not is_worker:
+            log.debug(
+                "EARLY_INIT: %s process - Skipping ModuleCodeCollector (xdist workers will handle coverage)",
+                process_type,
+            )
+        else:
+            log.debug(
+                "EARLY_INIT: %s process - Coverage collection not needed, skipping ModuleCodeCollector", process_type
+            )
     except Exception:  # noqa: E722
-        log.warning("encountered error during configure, disabling Datadog CI Visibility", exc_info=True)
+        log.debug(
+            "EARLY_INIT: %s process - encountered error during configure, disabling Datadog CI Visibility",
+            process_type,
+            exc_info=True,
+        )
         _disable_ci_visibility()
 
 
@@ -371,9 +400,10 @@ def pytest_configure(config: pytest_Config) -> None:
             if config.pluginmanager.hasplugin("xdist"):
                 config.pluginmanager.register(XdistHooks())
 
-                if not hasattr(config, "workerinput") and os.environ.get("PYTEST_XDIST_WORKER") is None:
+                if not hasattr(config, "workerinput") and PYTEST_XDIST_WORKER_VALUE is None:
                     # Main process
                     pytest.global_worker_itr_results = 0
+
         else:
             # If the pytest ddtrace plugin is not enabled, we should disable CI Visibility, as it was enabled during
             # pytest_load_initial_conftests
@@ -551,15 +581,20 @@ def _pytest_runtest_protocol_post_yield(item, nextitem, coverage_collector):
     if coverage_collector is not None and not InternalTest.is_finished(test_id):
         _handle_collected_coverage(item, test_id, coverage_collector)
 
+    reports_dict = reports_by_item.pop(item, None)
+
     if not InternalTest.is_finished(test_id):
         log.debug("Test %s was not finished normally during pytest_runtest_protocol, finishing it now", test_id)
-        reports_dict = reports_by_item.get(item)
         if reports_dict:
             test_outcome = _process_reports_dict(item, reports_dict)
             InternalTest.finish(test_id, test_outcome.status, test_outcome.skip_reason, test_outcome.exc_info)
         else:
             log.debug("Test %s has no entry in reports_by_item", test_id)
             InternalTest.finish(test_id)
+
+    if reports_dict:
+        for report in reports_dict.values():
+            excinfo_by_report.pop(report, None)
 
     # We rely on the CI Visibility service to prevent finishing items that have been discovered and have unfinished
     # children, but as an optimization:
@@ -702,7 +737,7 @@ def _process_reports_dict(item, reports) -> _TestOutcome:
 def _process_result(item, result) -> _TestOutcome:
     test_id = _get_test_id_from_item(item)
 
-    report_excinfo = excinfo_by_report.get(result)
+    report_excinfo = excinfo_by_report.pop(result, None)
     has_exception = report_excinfo is not None
 
     # In cases where a test was marked as XFAIL, the reason is only available during when call.when == "call", so we

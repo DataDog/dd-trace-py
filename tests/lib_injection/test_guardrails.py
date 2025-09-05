@@ -162,15 +162,12 @@ def test_core_dependency_conflict_guardrail(test_venv, mock_telemetry_forwarder)
 
     script_to_run_conflict = """
 import sys
-import time
 try:
     import ddtrace
     print("ddtrace was imported successfully, which is an error.")
     sys.exit(1)
 except ImportError:
     print("ddtrace import failed as expected.")
-    # Give telemetry a moment to send
-    time.sleep(2)
 """
 
     try:

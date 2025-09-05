@@ -1,6 +1,7 @@
 import atexit
 from collections import defaultdict
 from collections import deque
+from importlib.metadata import entry_points
 from itertools import chain
 import sys
 import typing as t
@@ -17,10 +18,17 @@ from ddtrace.settings._core import DDConfig
 
 log = get_logger(__name__)
 
-if sys.version_info < (3, 10):
-    from importlib_metadata import entry_points
+
+if sys.version_info >= (3, 10):
+
+    def get_product_entry_points() -> t.List[t.Any]:
+        return list(entry_points(group="ddtrace.products"))
+
 else:
-    from importlib.metadata import entry_points
+
+    def get_product_entry_points() -> t.List[t.Any]:
+        return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
+
 
 try:
     from typing import Protocol  # noqa:F401
@@ -55,7 +63,7 @@ class ProductManager:
         self._failed: t.Set[str] = set()
 
     def _load_products(self) -> None:
-        for product_plugin in entry_points(group="ddtrace.products"):
+        for product_plugin in get_product_entry_points():
             name = product_plugin.name
             log.debug("Discovered product plugin '%s'", name)
 

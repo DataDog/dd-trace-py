@@ -1,0 +1,4 @@
+fixes:
+  - |
+    pydantic_ai: This fix resolves an issue where enabling the Pydantic AI for pydantic-ai-slim >= 0.4.4 would
+    fail. See ``this issue <https://github.com/DataDog/dd-trace-py/issues/14161>``_ for more details.

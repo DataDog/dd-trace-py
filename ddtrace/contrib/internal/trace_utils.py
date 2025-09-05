@@ -21,6 +21,9 @@ from urllib import parse
 
 import wrapt
 
+from ddtrace._trace.pin import Pin
+from ddtrace._trace.span import Span
+from ddtrace.constants import _ORIGIN_KEY
 from ddtrace.contrib.internal.trace_utils_base import USER_AGENT_PATTERNS  # noqa:F401
 from ddtrace.contrib.internal.trace_utils_base import _get_header_value_case_insensitive
 from ddtrace.contrib.internal.trace_utils_base import _get_request_header_user_agent
@@ -32,13 +35,13 @@ from ddtrace.ext import net
 from ddtrace.internal import core
 from ddtrace.internal.compat import ensure_text
 from ddtrace.internal.compat import ip_is_global
+from ddtrace.internal.constants import SAMPLING_DECISION_TRACE_TAG_KEY
 from ddtrace.internal.core.event_hub import dispatch
 from ddtrace.internal.logger import get_logger
 import ddtrace.internal.utils.wrappers
 from ddtrace.propagation.http import HTTPPropagator
 from ddtrace.settings._config import config
 from ddtrace.settings.asm import config as asm_config
-from ddtrace.trace import Pin
 
 
 if TYPE_CHECKING:  # pragma: no cover
@@ -67,6 +70,7 @@ IP_PATTERNS = (
     "x-real-ip",
     "true-client-ip",
     "x-client-ip",
+    "forwarded",
     "forwarded-for",
     "x-cluster-client-ip",
     "fastly-client-ip",
@@ -129,6 +133,23 @@ def _get_request_header_referrer_host(headers, headers_are_case_sensitive=False)
     return ""
 
 
+def _parse_ip_header(ip_header_value: str) -> str:
+    """Parse the ip header, either in Forwarded-For format or Forwarded format.
+
+    references: https://developer.mozilla.org/en-US/docs/Web/HTTP/Reference/Headers/Forwarded
+    """
+    IP_EXTRACTIONS = [
+        r"^\s*(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)$",  # ipv4 simple format
+        r'(?:^|;)\s*for="?(?P<ip>[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)',  # ipv4 forwarded format
+        r"^\s*(?P<ip>[0-9a-fA-F:]+)$",  # ipv6 simple format
+        r'(?:^|;)\s*for="\[(?P<ip>[0-9a-fA-F:]+)\]',  # ipv6 forwarded format
+    ]
+    for pattern in IP_EXTRACTIONS:
+        if m := re.search(pattern, ip_header_value, re.IGNORECASE):
+            return m.group("ip")
+    return ""
+
+
 def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensitive=False):
     # type: (Optional[Mapping[str, str]], Optional[str], bool) -> str
 
@@ -181,12 +202,12 @@ def _get_request_header_client_ip(headers, peer_ip=None, headers_are_case_sensit
 
     if ip_header_value:
         # At this point, we have one IP header, check its value and retrieve the first public IP
+
         ip_list = ip_header_value.split(",")
         for ip in ip_list:
-            ip = ip.strip()
+            ip = _parse_ip_header(ip)
             if not ip:
                 continue
-
             try:
                 if ip_is_global(ip):
                     return ip
@@ -451,7 +472,7 @@ def set_http_meta(
         # https://datadoghq.atlassian.net/wiki/spaces/APS/pages/2118779066/Client+IP+addresses+resolution
         if asm_config._asm_enabled or config._retrieve_client_ip:
             # Retrieve the IP if it was calculated on AppSecProcessor.on_span_start
-            request_ip = core.get_item("http.request.remote_ip")
+            request_ip = core.find_item("http.request.remote_ip")
 
             if not request_ip:
                 # Not calculated: framework does not support IP blocking or testing env
@@ -547,6 +568,24 @@ def activate_distributed_headers(tracer, int_config=None, request_headers=None, 
         core.dispatch("http.activate_distributed_headers", (request_headers, context))
 
         dispatch("distributed_context.activated", (context,))
+
+
+def _copy_trace_level_tags(target_span: Span, parent: Span):
+    """
+    Copies baggage, tags, origin, sampling decision from parent span to target span.
+    """
+    for key, value in parent.context._baggage.items():
+        target_span.context.set_baggage_item(key, value)
+        target_span.set_tag_str(f"baggage.{key}", value)
+
+    if parent.context.sampling_priority is not None:
+        target_span.context.sampling_priority = parent.context.sampling_priority
+
+    if parent.context._meta.get(_ORIGIN_KEY):
+        target_span.set_tag_str(_ORIGIN_KEY, parent.context._meta[_ORIGIN_KEY])
+
+    if parent.context._meta.get(SAMPLING_DECISION_TRACE_TAG_KEY):
+        target_span.set_tag_str(SAMPLING_DECISION_TRACE_TAG_KEY, parent.context._meta[SAMPLING_DECISION_TRACE_TAG_KEY])
 
 
 def _flatten(

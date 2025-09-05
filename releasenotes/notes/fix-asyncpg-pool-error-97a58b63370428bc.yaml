@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    asyncpg: Fix the error "Error: expected pool connect callback to return an instance of 'asyncpg.connection.Connection', got 'ddtrace.contrib.internal.asyncpg.patch._TracedConnection'`" when a pool connection" due to using the custom connect option. With this fix, postgres.connect spans will be created when this option is used.

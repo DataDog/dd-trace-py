@@ -446,7 +446,7 @@ def _large_event():
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 900_000,
+                        "content": "A" * 2_000_000,
                         "role": "assistant",
                     },
                 ]
@@ -477,14 +477,14 @@ def _oversized_llm_event():
                         "role": "system",
                         "content": "You are an evil dark lord looking for his one ring to rule them all",
                     },
-                    {"role": "user", "content": "A" * 700_000},
+                    {"role": "user", "content": "A" * 2_600_000},
                 ],
                 "parameters": {"temperature": 0.9, "max_tokens": 256},
             },
             "output": {
                 "messages": [
                     {
-                        "content": "A" * 700_000,
+                        "content": "A" * 2_600_000,
                         "role": "assistant",
                     },
                 ]
@@ -507,8 +507,8 @@ def _oversized_workflow_event():
         "status": "ok",
         "meta": {
             "span.kind": "workflow",
-            "input": {"value": "A" * 700_000},
-            "output": {"value": "A" * 700_000},
+            "input": {"value": "A" * 2_600_000},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -527,8 +527,8 @@ def _oversized_retrieval_event():
         "status": "ok",
         "meta": {
             "span.kind": "retrieval",
-            "input": {"documents": {"content": "A" * 700_000}},
-            "output": {"value": "A" * 700_000},
+            "input": {"documents": {"content": "A" * 2_600_000}},
+            "output": {"value": "A" * 2_600_000},
         },
         "metrics": {"input_tokens": 64, "output_tokens": 128, "total_tokens": 192},
     }
@@ -873,3 +873,29 @@ def _assert_span_link(from_span_event, to_span_event, from_io, to_io):
             found = True
             break
     assert found
+
+
+def iterate_stream(stream):
+    for _ in stream:
+        pass
+
+
+async def aiterate_stream(stream):
+    async for _ in stream:
+        pass
+
+
+def next_stream(stream):
+    while True:
+        try:
+            next(stream)
+        except StopIteration:
+            break
+
+
+async def anext_stream(stream):
+    while True:
+        try:
+            await stream.__anext__()
+        except StopAsyncIteration:
+            break

@@ -59,7 +59,7 @@ AGENTLESS_EXP_BASE_URL = "https://{}".format(EXP_SUBDOMAIN_NAME)
 DD_SITES_NEEDING_APP_SUBDOMAIN = {"datadoghq.com", "datadoghq.eu", "ddog-gov.com"}
 
 EVP_PAYLOAD_SIZE_LIMIT = 5 << 20  # 5MB (actual limit is 5.1MB)
-EVP_EVENT_SIZE_LIMIT = (1 << 20) - 1024  # 999KB (actual limit is 1MB)
+EVP_EVENT_SIZE_LIMIT = 5_000_000  # 5MB LLM Obs event size limit
 
 EXPERIMENT_CSV_FIELD_MAX_SIZE = 10 * 1024 * 1024
 
@@ -93,6 +93,10 @@ DISPATCH_ON_TOOL_CALL_OUTPUT_USED = "on_tool_call_output_used"
 DISPATCH_ON_LLM_TOOL_CHOICE = "on_llm_tool_choice"
 DISPATCH_ON_TOOL_CALL = "on_tool_call"
 
+DISPATCH_ON_GUARDRAIL_SPAN_START = "on_guardrail_span_start"
+DISPATCH_ON_LLM_SPAN_FINISH = "on_llm_span_finish"
+DISPATCH_ON_OPENAI_AGENT_SPAN_FINISH = "on_openai_agent_span_finish"
+
 # Tool call arguments are used to lookup the associated tool call info.
 # When there are no tool call args, we use this as a place-holder lookup key
 OAI_HANDOFF_TOOL_ARG = "{}"
@@ -103,4 +107,6 @@ PROXY_REQUEST = "llmobs.proxy_request"
 
 EXPERIMENT_ID_KEY = "_ml_obs.experiment_id"
 EXPERIMENT_EXPECTED_OUTPUT = "_ml_obs.meta.input.expected_output"
+EXPERIMENTS_INPUT = "_ml_obs.meta.input"
+EXPERIMENTS_OUTPUT = "_ml_obs.meta.output"
 DEFAULT_PROJECT_NAME = "default-project"

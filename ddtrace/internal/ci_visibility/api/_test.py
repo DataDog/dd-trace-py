@@ -1,10 +1,14 @@
+import os
 from pathlib import Path
 from time import time_ns
+from typing import ContextManager
 from typing import Dict
 from typing import List
 from typing import Optional
 from typing import Union
 
+import ddtrace
+from ddtrace._trace.context import Context
 from ddtrace.contrib.internal.pytest_benchmark.constants import BENCHMARK_INFO
 from ddtrace.ext import SpanTypes
 from ddtrace.ext import test
@@ -39,6 +43,7 @@ from ddtrace.internal.test_visibility._benchmark_mixin import BENCHMARK_TAG_MAP
 from ddtrace.internal.test_visibility._benchmark_mixin import BenchmarkDurationData
 from ddtrace.internal.test_visibility._efd_mixins import EFDTestStatus
 from ddtrace.internal.test_visibility.coverage_lines import CoverageLines
+from ddtrace.internal.utils.formats import asbool
 
 
 log = get_logger(__name__)
@@ -103,6 +108,23 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
         # Some parameters can be overwritten:
         self._overwritten_suite_name: Optional[str] = None
+
+        self._main_tracer_context: Optional[ContextManager] = None
+
+    def _start_span(self, context: Optional[Context] = None) -> None:
+        super()._start_span(context)
+
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._span:
+            self._main_tracer_context = ddtrace.tracer._activate_context(
+                Context(trace_id=self._span.trace_id, span_id=self._span.span_id)
+            )
+            self._main_tracer_context.__enter__()
+
+    def _finish_span(self, override_finish_time: Optional[float] = None) -> None:
+        super()._finish_span(override_finish_time)
+
+        if asbool(os.getenv("DD_CIVISIBILITY_USE_BETA_WRITER")) and self._main_tracer_context:
+            self._main_tracer_context.__exit__(None, None, None)
 
     def __repr__(self) -> str:
         suite_name = self.parent.name if self.parent is not None else "none"
@@ -238,8 +260,7 @@ class TestVisibilityTest(TestVisibilityChildItem[TestId], TestVisibilityItemBase
 
     def finish_itr_skipped(self) -> None:
         log.debug("Finishing Test Visibility test %s with ITR skipped", self)
-        if self._session_settings.itr_test_skipping_level == ITR_SKIPPING_LEVEL.TEST:
-            self.count_itr_skipped()
+        self.count_itr_skipped()
         self.mark_itr_skipped()
         self.finish_test(TestStatus.SKIP)
 
