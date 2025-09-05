@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "ddtrace_subprocess_dir",
       "_dd.p.dm": "-3",
+      "_dd.p.ksr": "1",
       "_dd.p.tid": "65cd344600000000",
       "language": "python",
       "runtime-id": "9356e035b52344f6b4a7227820d797d5",

@@ -11,6 +11,7 @@
     "meta": {
       "_dd.base_service": "tests.integration",
       "_dd.p.dm": "-3",
+      "_dd.p.ksr": "1",
       "_dd.p.tid": "6670641f00000000",
       "language": "python",
       "runtime-id": "423178dbb29d4ca784743ac73e5678c8"

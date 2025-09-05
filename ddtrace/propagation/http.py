@@ -17,7 +17,7 @@ from ddtrace._trace.context import Context
 from ddtrace._trace.span import Span  # noqa:F401
 from ddtrace._trace.span import _get_64_highest_order_bits_as_hex
 from ddtrace._trace.span import _get_64_lowest_order_bits_as_int
-from ddtrace._trace.span import _MetaDictType
+from ddtrace._trace.types import _MetaDictType
 from ddtrace.appsec._constants import APPSEC
 from ddtrace.internal import core
 from ddtrace.internal.telemetry import telemetry_writer
@@ -220,7 +220,7 @@ class _DatadogMultiHeader:
             meta = {
                 "_dd.propagation_error": "extract_max_size",
             }
-            log.warning("failed to decode x-datadog-tags", exc_info=True)
+            log.warning("failed to decode x-datadog-tags: %r", tags_value, exc_info=True)
         except TagsetDecodeError:
             meta = {
                 "_dd.propagation_error": "decoding_error",
@@ -360,7 +360,6 @@ class _DatadogMultiHeader:
 
         if not meta:
             meta = {}
-
         # Try to parse values into their expected types
         try:
             if sampling_priority is not None:
@@ -672,7 +671,7 @@ class _TraceContext:
 
     The format for ``tracestate`` is key value pairs with each entry limited to 256 characters.
     An example of the ``dd`` list member we would add is::
-    "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64"
+    "dd=s:2;o:rum;t.dm:-4;t.usr.id:baz64;t.ksr:0.0001"
 
     Implementation details:
       - Datadog Trace and Span IDs are 64-bit unsigned integers.
