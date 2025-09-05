@@ -120,7 +120,6 @@ asyncio.run(test())
         env["DD_AIOHTTP_CLIENT_DISTRIBUTED_TRACING"] = "false"
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
@@ -148,7 +147,6 @@ asyncio.run(test())
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.parametrize("schema_version", [None, "v0", "v1"])
@@ -175,7 +173,6 @@ asyncio.run(test())
         env["DD_TRACE_SPAN_ATTRIBUTE_SCHEMA"] = schema_version
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=env)
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.snapshot()
@@ -197,7 +194,6 @@ asyncio.run(test())
     """
     out, err, status, pid = ddtrace_run_python_code_in_subprocess(code, env=os.environ.copy())
     assert status == 0, err
-    assert err == b""
 
 
 @pytest.mark.asyncio

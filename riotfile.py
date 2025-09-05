@@ -16,6 +16,7 @@ SUPPORTED_PYTHON_VERSIONS: List[Tuple[int, int]] = [
     (3, 11),
     (3, 12),
     (3, 13),
+    (3, 14),
 ]  # type: List[Tuple[int, int]]
 
 
@@ -32,6 +33,10 @@ def version_to_str(version: Tuple[int, int]) -> str:
     '3.11'
     >>> version_to_str((3, 12))
     '3.12'
+    >>> version_to_str((3, 13))
+    '3.13'
+    >>> version_to_str((3, 14))
+    '3.14'
     >>> version_to_str((3, ))
     '3'
     """
@@ -51,6 +56,10 @@ def str_to_version(version: str) -> Tuple[int, int]:
     (3, 11)
     >>> str_to_version("3.12")
     (3, 12)
+    >>> str_to_version("3.13")
+    (3, 13)
+    >>> str_to_version("3.14")
+    (3, 14)
     >>> str_to_version("3")
     (3,)
     """
@@ -65,9 +74,9 @@ def select_pys(min_version: str = MIN_PYTHON_VERSION, max_version: str = MAX_PYT
     """Helper to select python versions from the list of versions we support
 
     >>> select_pys()
-    ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+    ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
     >>> select_pys(min_version='3')
-    ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13']
+    ['3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
     >>> select_pys(max_version='3')
     []
     >>> select_pys(min_version='3.8', max_version='3.9')
@@ -360,7 +369,16 @@ venv = Venv(
                 "DD_INSTRUMENTATION_TELEMETRY_ENABLED": "0",
             },
             venvs=[
-                Venv(pys=select_pys()),
+                Venv(
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.13")),
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ]
+                ),
                 # This test variant ensures tracer tests are compatible with both 64bit trace ids.
                 # 128bit trace ids are tested by the default case above.
                 Venv(
@@ -375,6 +393,14 @@ venv = Venv(
                     env={"PYTHONOPTIMIZE": "1"},
                     # Test with the latest version of Python only
                     pys=MAX_PYTHON_VERSION,
+                    venvs=[
+                        Venv(pys=select_pys(max_version="3.13")),
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
                 Venv(
                     name="tracer-legacy-attrs",
@@ -1152,6 +1178,14 @@ venv = Venv(
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
                     },
+                    venvs=[
+                        Venv(
+                            pys="3.14",
+                            pkgs={
+                                "pydantic": "==2.12.0a1",
+                            },
+                        )
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.8"),
@@ -1168,6 +1202,14 @@ venv = Venv(
                         # Flask 3.x.x requires Werkzeug >= 3.0.0
                         "werkzeug": ">=3.0",
                     },
+                    venvs=[
+                        Venv(
+                            pys="3.14",
+                            pkgs={
+                                "pydantic": "==2.12.0a1",
+                            },
+                        )
+                    ],
                 ),
             ],
         ),
@@ -1218,7 +1260,12 @@ venv = Venv(
                         Venv(
                             pys=select_pys(min_version="3.8", max_version="3.11"),
                         ),
-                        Venv(pys=select_pys(min_version="3.12"), pkgs={"redis": latest}),
+                        Venv(
+                            pys=select_pys(min_version="3.12"),
+                            pkgs={
+                                "redis": latest,
+                            },
+                        ),
                     ],
                 ),
                 Venv(
@@ -1575,10 +1622,24 @@ venv = Venv(
                 Venv(
                     pys=select_pys(min_version="3.8"),
                     pkgs={"botocore": "==1.34.49", "boto3": "==1.34.49"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
                 Venv(
                     pys=select_pys(min_version="3.9"),
                     pkgs={"vcrpy": "==7.0.0", "botocore": "==1.38.26", "boto3": "==1.38.26"},
+                    venvs=[
+                        Venv(
+                            pys=select_pys(min_version="3.14"),
+                            # pydantic 2.2.12.0a1 is the first version to support Python 3.14
+                            pkgs={"pydantic": "==2.12.0a1"},
+                        ),
+                    ],
                 ),
             ],
         ),
@@ -3006,7 +3067,7 @@ venv = Venv(
             env={
                 "DD_TRACE_OTEL_ENABLED": "true",
             },
-            pys=select_pys(min_version="3.9"),
+            pys=select_pys(min_version="3.9", max_version="3.13"),
             pkgs={
                 "pytest-asyncio": latest,
                 "ray": ["~=2.48.0", latest],
@@ -3070,7 +3131,7 @@ venv = Venv(
                             pkgs={"confluent-kafka": ["~=1.9.2", latest]},
                         ),
                         # confluent-kafka added support for Python 3.11 in 2.0.2
-                        Venv(pys=select_pys(min_version="3.11"), pkgs={"confluent-kafka": latest}),
+                        Venv(pys=select_pys(min_version="3.11", max_version="3.13"), pkgs={"confluent-kafka": latest}),
                     ],
                 ),
             ],
