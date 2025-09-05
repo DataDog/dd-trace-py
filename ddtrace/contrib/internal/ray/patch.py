@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 from functools import wraps
 import inspect
+import logging
 import os
 import threading
 from typing import Any
@@ -36,6 +37,17 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray._private.worker
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.dashboard.modules.job.job_supervisor
+import ray.exceptions
+import ray.train
 
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
@@ -44,6 +56,9 @@ from .utils import _inject_dd_trace_ctx_kwarg
 from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 config._add(
     "ray",
@@ -141,30 +156,21 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
             raise e
 
 
-def traced_remote_function_init(wrapped, instance, args, kwargs):
-    """Inject Tracing/Wrapped the function that will be executed
-    when calling func.remote()
-    """
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
-    result = wrapped(*args, **kwargs)
-    with instance._inject_lock:
-        if instance._function_signature is None:
-            instance._function = _inject_tracing_into_remote_function(instance._function)
-            instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
-            instance._function_signature = extract_signature(instance._function)
-
-    return result
-
-
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
+
     if not tracer:
         return wrapped(*args, **kwargs)
 
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
+
+    # Inject dd_trace_ctx args in the function being executed by ray
+    with instance._inject_lock:
+        if instance._function_signature is None:
+            instance._function = _inject_tracing_into_remote_function(instance._function)
+            instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
+            instance._function_signature = extract_signature(instance._function)
 
     with tracer.trace(
         f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
@@ -241,6 +247,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
     actor_name = instance._ray_actor_creation_function_descriptor.class_name
     method_name = args[0]
+
     # if _dd_trace_ctx was not injected in the param of the function, it means
     # we do not want to trace this function, for example: JobSupervisor.ping
     if not any(p.name == "_dd_trace_ctx" for p in instance._ray_method_signatures[method_name]):
@@ -419,7 +426,6 @@ def patch():
 
     tracer._span_aggregator.user_processors.append(RayTraceProcessor())
 
-    _w(ray.remote_function.RemoteFunction, "__init__", traced_remote_function_init)
     _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
 
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
@@ -439,7 +445,6 @@ def unpatch():
         p for p in tracer._span_aggregator.user_processors if not isinstance(p, RayTraceProcessor)
     ]
 
-    _u(ray.remote_function.RemoteFunction, "__init__")
     _u(ray.remote_function.RemoteFunction, "_remote")
 
     _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")

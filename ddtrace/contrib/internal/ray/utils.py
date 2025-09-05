@@ -9,8 +9,6 @@ from typing import List
 import ray
 from ray.runtime_context import get_runtime_context
 
-from ddtrace.propagation.http import _TraceContext
-
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     old_sig = inspect.signature(method)
