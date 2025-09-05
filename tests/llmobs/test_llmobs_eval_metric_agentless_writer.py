@@ -152,7 +152,6 @@ def test_send_timed_events(mock_writer_logs):
     llmobs_eval_metric_writer.stop()
 
 
-# TODO: use vcr proxy for this test
 @pytest.mark.vcr_logs
 def test_send_multiple_events(mock_writer_logs):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(1, 1, is_agentless=True, _site=DD_SITE, _api_key=DD_API_KEY)
