@@ -720,7 +720,7 @@ class LLMObs(Service):
             csv.field_size_limit(original_field_size_limit)
 
         if len(ds) > 0:
-            ds.push()
+            cls._instance._dne_client.dataset_bulk_upload(ds._id, ds._records)
         return ds
 
     @classmethod
