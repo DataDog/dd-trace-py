@@ -266,9 +266,13 @@ class Dataset:
                 flat_record[("expected_output", "")] = expected_output
                 column_tuples.add(("expected_output", ""))
 
-            for metadata_col, metadata_val in record.get("metadata", {}).items():
-                flat_record[("metadata", metadata_col)] = metadata_val
-                column_tuples.add(("metadata", metadata_col))
+            metadata = record.get("metadata", {})
+            if isinstance(metadata, dict):
+                for metadata_col, metadata_val in metadata.items():
+                    flat_record[("metadata", metadata_col)] = metadata_val
+                    column_tuples.add(("metadata", metadata_col))
+            else:
+                logger.warning("unexpected metadata format %s", type(metadata))
 
             data_rows.append(flat_record)
 

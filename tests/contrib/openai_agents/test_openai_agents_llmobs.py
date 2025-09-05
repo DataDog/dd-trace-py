@@ -29,6 +29,26 @@ AGENT_TO_EXPECTED_AGENT_MANIFEST = {
         "model": "gpt-4o",
         "model_settings": mock.ANY,  # different versions of the library have different model settings
     },
+    "Simple Agent with Guardrails": {
+        "framework": "OpenAI",
+        "name": "Simple Agent",
+        "instructions": "You are a helpful assistant specialized in addition calculations.",
+        "handoff_description": None,
+        "model": "gpt-4o",
+        "model_settings": mock.ANY,  # different versions of the library have different model settings
+        "tools": [
+            {
+                "name": "add",
+                "description": "Add two numbers together",
+                "strict_json_schema": True,
+                "parameters": {
+                    "a": {"type": "integer", "title": "A", "required": True},
+                    "b": {"type": "integer", "title": "B", "required": True},
+                },
+            }
+        ],
+        "guardrails": mock.ANY,
+    },
     "Addition Agent": {
         "framework": "OpenAI",
         "name": "Addition Agent",
@@ -690,3 +710,21 @@ async def test_llmobs_oai_agents_with_chat_completions_span_linking(
         previous_tool_events=previous_tool_events[-1:],
         is_chat=True,
     )
+
+
+async def test_llmobs_oai_agents_with_guardrail_spans(
+    agents, mock_tracer_chat_completions, request_vcr, llmobs_events, simple_agent_with_guardrail
+):
+    with request_vcr.use_cassette("test_oai_agents_with_guardrail_spans.yaml"):
+        await agents.Runner.run(simple_agent_with_guardrail, "What is the sum of 1 and 2?")
+
+    spans = mock_tracer_chat_completions.pop_traces()[0]
+    spans.sort(key=lambda span: span.start_ns)
+    llmobs_events.sort(key=lambda event: event["start_ns"])
+
+    assert len(spans) == len(llmobs_events) == 7
+
+    # assert input guardrail span links to LLM span
+    _assert_span_link(llmobs_events[2], llmobs_events[3], "output", "input")
+    # assert LLM span links to output guardrail span
+    _assert_span_link(llmobs_events[5], llmobs_events[6], "output", "input")
