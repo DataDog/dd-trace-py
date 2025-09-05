@@ -112,16 +112,21 @@ class RayTraceProcessor:
         return filtered_spans
 
 
+RAY_JOB_MANAGER_LOGGER_NAME = "ray.dashboard.modules.job.job_manager"
+RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX = "Starting job with submission_id: "
+
 class ActiveSpanFilter(logging.Filter):
         def filter(self, record):
 
             context = tracer.get_log_correlation_context()
 
+            # Only capture log lines from inside an active Ray traces
             if context.get(LOG_ATTR_TRACE_ID) and context.get(LOG_ATTR_TRACE_ID) != "0":
                 job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+                # We can get the Ray job submission id out of Ray job_manager's initial message (before it is avaiable in the runtime env):
                 if not job_submission_id:
-                    if record.name == "ray.dashboard.modules.job.job_manager" and record.message.startswith("Starting job with submission_id: "):
-                        _, _, job_submission_id = record.message.partition("Starting job with submission_id: ")
+                    if record.name == RAY_JOB_MANAGER_LOGGER_NAME and record.message.startswith(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX):
+                        _, _, job_submission_id = record.message.partition(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX)
                         if job_submission_id:
                             ray_job_submission_id.set(job_submission_id)
                     else:
