@@ -105,6 +105,7 @@ class ASM_Environment:
         self.finalized: bool = False
         self.api_security_reported: int = 0
         self.rc_products: str = rc_products
+        self.downstream_requests: int = 0
 
 
 def _get_asm_context() -> Optional[ASM_Environment]:
@@ -138,6 +139,25 @@ def get_entry_span() -> Optional[Span]:
         else:
             return core.get_root_span()
     return env.entry_span
+
+
+KNUTH_FACTOR: int = 11400714819323199488
+UINT64_MAX: int = (1 << 64) - 1
+
+
+class DownstreamRequests:
+    counter: int = 0
+    sampling_rate: int = int(asm_config._dr_sample_rate * UINT64_MAX)
+
+
+def should_analyze_body_response(env) -> bool:
+    """Must be called only after should_analyze_downstream returned True."""
+    DownstreamRequests.counter += 1
+    env.downstream_requests += 1
+    return (
+        env.downstream_requests <= asm_config._dr_body_limit_per_request
+        and (DownstreamRequests.counter * KNUTH_FACTOR) % UINT64_MAX <= DownstreamRequests.sampling_rate
+    )
 
 
 def get_framework() -> str:

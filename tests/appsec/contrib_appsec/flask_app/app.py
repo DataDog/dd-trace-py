@@ -163,6 +163,32 @@ def rasp(endpoint: str):
     return f"Unknown endpoint: {endpoint}"
 
 
+@app.route("/redirect/<string:url>/", methods=["GET", "POST"])
+def redirect(url: str):
+    import urllib.request
+
+    url = "http://" + url
+    body_str = request.data.decode()
+    if body_str:
+        body = json.loads(body_str)
+    else:
+        body = None
+    try:
+        if body:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+            )
+        else:
+            request_urllib = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            payload = {"payload": f.read().decode(errors="ignore")}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return payload
+
+
 # Auto user event manual instrumentation
 
 
