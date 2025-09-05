@@ -17,7 +17,7 @@
 #include "aspects/aspect_str.h"
 #include "aspects/aspects_exports.h"
 #include "constants.h"
-#include "context/_application_context.h"
+#include "context/_taint_engine_context.h"
 #include "initializer/_initializer.h"
 #include "taint_tracking/taint_tracking.h"
 #include "tainted_ops/tainted_ops.h"
@@ -67,23 +67,23 @@ static struct PyModuleDef ops = { PyModuleDef_HEAD_INIT,
 PYBIND11_MODULE(_native, m)
 {
     initializer = make_unique<Initializer>();
-    application_context = make_unique<ApplicationContext>();
+    taint_engine_context = make_unique<TaintEngineContext>();
 
     // Create a atexit callback to cleanup the Initializer before the interpreter finishes
     auto atexit_register = safe_import("atexit", "register");
     atexit_register(py::cpp_function([]() {
         initializer->reset_contexts();
         initializer.reset();
-        if (application_context) {
-            application_context->clear_contexts_array();
-            application_context.reset();
+        if (taint_engine_context) {
+            taint_engine_context->clear_all_request_context_slots();
+            taint_engine_context.reset();
         }
     }));
 
     m.doc() = "Native Python module";
 
     py::module m_initializer = pyexport_m_initializer(m);
-    py::module m_appctx = pyexport_m_application_context(m);
+    py::module m_appctx = pyexport_m_taint_engine_context(m);
     pyexport_m_taint_tracking(m);
 
     pyexport_m_aspect_helpers(m);

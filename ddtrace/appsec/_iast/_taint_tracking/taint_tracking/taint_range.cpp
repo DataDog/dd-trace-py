@@ -1,5 +1,5 @@
 #include "taint_range.h"
-#include "context/application_context.h"
+#include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
 #include "utils/string_utils.h"
 
@@ -204,7 +204,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
             py::set_error(PyExc_ValueError, "invalid context_id");
             return nullptr;
         }
-        const auto tx_map = application_context->get_taint_map_by_ctx_id(context_id);
+        const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
         if (not tx_map) {
             py::set_error(PyExc_ValueError, MSG_ERROR_TAINT_MAP);
             return nullptr;
@@ -240,7 +240,7 @@ api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs
 }
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
+get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
     if (not is_tainteable(string_input)) {
@@ -264,7 +264,7 @@ get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map)
 }
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map)
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map)
 {
     if (ranges.empty()) {
         return false;
@@ -389,7 +389,7 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1,
 }
 
 TaintedObjectPtr
-get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_map)
+get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_map)
 {
     if (not str)
         return nullptr;
@@ -445,7 +445,7 @@ get_internal_hash(PyObject* obj)
 }
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map)
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintedObjectMapTypePtr& tx_map)
 {
     if (not str or not is_tainteable(str)) {
         return;
