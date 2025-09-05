@@ -141,7 +141,7 @@ def get_entry_span() -> Optional[Span]:
     return env.entry_span
 
 
-KNUTH_FACTOR: int = 1111111111111111111
+KNUTH_FACTOR: int = 11400714819323199488
 UINT64_MAX: int = (1 << 64) - 1
 
 
