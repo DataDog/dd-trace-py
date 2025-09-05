@@ -138,16 +138,6 @@ class ResetObject(wrapt.ObjectProxy, typing.Generic[_T]):
         self.__wrapped__ = self._self_wrapped_class()
 
 
-def Lock():
-    # type: (...) -> ResetObject[threading.Lock]
-    return ResetObject(threading.Lock)
-
-
-def RLock():
-    # type: (...) -> ResetObject[threading.RLock]
-    return ResetObject(threading.RLock)
-
-
 def Event():
     # type: (...) -> ResetObject[threading.Event]
     return ResetObject(threading.Event)
