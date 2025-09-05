@@ -22,9 +22,9 @@
 //
 #include "taint_engine_context.h"
 #include "taint_tracking/tainted_object.h"
-#include <initializer_list>
 #include <cstdint>
 #include <cstdlib>
+#include <initializer_list>
 
 using namespace std;
 

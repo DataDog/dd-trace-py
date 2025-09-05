@@ -63,11 +63,9 @@ class TaintEngineContext
 
     // AIDEV-NOTE: Convenience helpers to scan multiple PyObjects and return the
     // first non-empty taint map found among them. Returns nullptr if none found.
-    TaintedObjectMapTypePtr
-    get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*> objects);
+    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(std::initializer_list<PyObject*> objects);
 
-    TaintedObjectMapTypePtr
-    get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>& objects);
+    TaintedObjectMapTypePtr get_tainted_object_map_from_list_of_pyobjects(const std::vector<PyObject*>& objects);
 
     // Clear a specific map if present; leaves the slot free for reuse.
     void finish_request_context(size_t ctx_id);
