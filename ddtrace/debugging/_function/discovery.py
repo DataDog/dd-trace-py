@@ -1,18 +1,6 @@
 from collections import defaultdict
 from collections import deque
 from pathlib import Path
-
-from wrapt import FunctionWrapper
-
-from ddtrace.internal.compat import PYTHON_VERSION_INFO
-from ddtrace.internal.utils.inspection import undecorated
-
-
-try:
-    from typing import Protocol
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
-
 from types import CodeType
 from types import FunctionType
 from types import ModuleType
@@ -21,17 +9,22 @@ from typing import Dict
 from typing import Iterator
 from typing import List
 from typing import Optional
+from typing import Protocol
 from typing import Tuple
 from typing import Type
 from typing import Union
 from typing import cast
 
+from wrapt import FunctionWrapper
+
+from ddtrace.internal.compat import PYTHON_VERSION_INFO
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.module import origin
 from ddtrace.internal.safety import _isinstance
 from ddtrace.internal.utils.inspection import collect_code_objects
 from ddtrace.internal.utils.inspection import functions_for_code
 from ddtrace.internal.utils.inspection import linenos
+from ddtrace.internal.utils.inspection import undecorated
 
 
 log = get_logger(__name__)

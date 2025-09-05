@@ -5,6 +5,7 @@ from importlib.metadata import entry_points
 from itertools import chain
 import sys
 import typing as t
+from typing import Protocol  # noqa:F401
 
 from ddtrace.internal import forksafe
 from ddtrace.internal.logger import get_logger
@@ -28,12 +29,6 @@ else:
 
     def get_product_entry_points() -> t.List[t.Any]:
         return [ep for _, eps in entry_points().items() for ep in eps if ep.group == "ddtrace.products"]
-
-
-try:
-    from typing import Protocol  # noqa:F401
-except ImportError:
-    from typing_extensions import Protocol  # type: ignore[assignment]
 
 
 class Product(Protocol):
