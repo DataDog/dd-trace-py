@@ -1,0 +1,47 @@
+interactions:
+- request:
+    body: '{"data": {"type": "evaluation_metric", "attributes": {"metrics": [{"join_on":
+      {"span": {"span_id": "12345678901", "trace_id": "98765432101"}}, "metric_type":
+      "categorical", "categorical_value": "very", "label": "toxicity", "ml_app": "dummy-ml-app",
+      "timestamp_ms": 1756910127022}]}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '283'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.4
+    method: POST
+    uri: https://api.datadoghq.com/api/intake/llm-obs/v2/eval-metric
+  response:
+    body:
+      string: '{"data":{"id":"1ef94721-392d-4612-ad63-5f3b289c1cd5","type":"evaluation_metric","attributes":{"metrics":[{"id":"-Xbd-WStY2","join_on":{"span":{"trace_id":"98765432101","span_id":"12345678901"}},"timestamp_ms":1756910127022,"ml_app":"dummy-ml-app","metric_type":"categorical","label":"toxicity","categorical_value":"very"}]}}}'
+    headers:
+      content-length:
+      - '325'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 03 Sep 2025 14:41:13 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 202
+      message: Accepted
+version: 1
