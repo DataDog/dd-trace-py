@@ -2,13 +2,14 @@ import os
 
 from _ddtrace.internal.utils.formats import asbool
 
+
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
 
 if asbool(os.getenv("DD_CIVISIBILITY_ENABLED", "true")):
-    import ddtrace.contrib.internal.pytest_bdd.plugin
+    import ddtrace.contrib.internal.pytest_bdd.plugin  # noqa:F401
 
 else:
     # Avoid breaking arg parsing
