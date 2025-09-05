@@ -42,7 +42,7 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
@@ -50,7 +50,7 @@ jobs:
           ref: 'de83dd5f4888e7f9fd6ad5efcc932e31b85131d0'
 
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           pattern: wheels-*
           path: binaries/
@@ -89,7 +89,7 @@ jobs:
     steps:
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
@@ -99,7 +99,7 @@ jobs:
       - name: Build runner
         uses: ./.github/actions/install_runner
 
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           name: ${{ matrix.weblog-variant }}_${{ github.sha }}
           path: images_artifacts/
@@ -274,14 +274,14 @@ jobs:
         run: sudo apt-get install -y patchelf
 
       - name: Checkout system tests
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
           ref: 'de83dd5f4888e7f9fd6ad5efcc932e31b85131d0'
       - name: Download wheels to binaries directory
-        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5.0.0
         with:
           pattern: wheels-*
           path: binaries/
