@@ -183,6 +183,7 @@ class LLMObs(Service):
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
+    _project_id: str = ""
 
     def __init__(
         self,
@@ -212,6 +213,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
+            _default_project_id=self._project_id,
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
@@ -604,6 +606,15 @@ class LLMObs(Service):
             cls.enabled = True
             cls._instance.start()
 
+            try:
+                cls._project_id = cls._instance._dne_client.project_create_or_get(cls._project_name)
+            except Exception as e:
+                log.error(
+                    "failed to get project ID with %s, dataset & experiments features may not be functional: %s",
+                    cls._project_name,
+                    e,
+                )
+
             # Register hooks for span events
             core.on("trace.span_start", cls._instance._on_span_start)
             core.on("trace.span_finish", cls._instance._on_span_finish)
@@ -645,15 +656,23 @@ class LLMObs(Service):
             )
 
     @classmethod
-    def pull_dataset(cls, name: str) -> Dataset:
-        ds = cls._instance._dne_client.dataset_get_with_records(name)
+    def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
+        ds = cls._instance._dne_client.dataset_get_with_records(
+            dataset_name, (project_name or cls._project_name)
+        )
         return ds
 
     @classmethod
-    def create_dataset(cls, name: str, description: str = "", records: Optional[List[DatasetRecord]] = None) -> Dataset:
+    def create_dataset(
+        cls,
+        dataset_name: str,
+        project_name: Optional[str] = None,
+        description: str = "",
+        records: Optional[List[DatasetRecord]] = None,
+    ) -> Dataset:
         if records is None:
             records = []
-        ds = cls._instance._dne_client.dataset_create(name, description)
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
         for r in records:
             ds.append(r)
         if len(records) > 0:
@@ -669,13 +688,14 @@ class LLMObs(Service):
         expected_output_columns: Optional[List[str]] = None,
         metadata_columns: Optional[List[str]] = None,
         csv_delimiter: str = ",",
-        description="",
+        description: str = "",
+        project_name: Optional[str] = None,
     ) -> Dataset:
         if expected_output_columns is None:
             expected_output_columns = []
         if metadata_columns is None:
             metadata_columns = []
-        ds = cls._instance._dne_client.dataset_create(dataset_name, description)
+        ds = cls._instance._dne_client.dataset_create(dataset_name, project_name, description)
 
         # Store the original field size limit to restore it later
         original_field_size_limit = csv.field_size_limit()
