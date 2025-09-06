@@ -144,7 +144,7 @@ bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
 py::object
-api_set_ranges(py::handle& str, const TaintRangeRefs& ranges);
+api_set_ranges(py::handle& str, const TaintRangeRefs& ranges, const size_t contextid);
 
 TaintRangeRefs
 api_get_ranges(const py::handle& string_input);

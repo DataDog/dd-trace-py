@@ -48,9 +48,9 @@ from ddtrace.appsec._iast._taint_tracking import shift_taint_range
 from ddtrace.appsec._iast._taint_tracking._native import aspects  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_iterable_with_strings
 from ddtrace.appsec._iast._taint_tracking._taint_objects import copy_ranges_to_string
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import get_tainted_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
-from ddtrace.appsec._iast._taint_tracking._taint_objects_base import taint_pyobject_with_ranges
 
 
 TEXT_TYPES = Union[str, bytes, bytearray]

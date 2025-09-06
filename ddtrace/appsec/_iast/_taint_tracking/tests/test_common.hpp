@@ -1,4 +1,5 @@
 #pragma once
+#include <context/taint_engine_context.h>
 #include <gtest/gtest.h>
 #include <initializer/initializer.h>
 #include <pybind11/embed.h>
@@ -18,19 +19,25 @@ class PyEnvWithContext : public ::testing::Test
   protected:
     void SetUp() override
     {
+        if (!Py_IsInitialized()) {
+            py::initialize_interpreter();
+        }
         initializer = make_unique<Initializer>();
-        py::initialize_interpreter();
-        initializer->create_context();
+        taint_engine_context = make_unique<TaintEngineContext>();
+        taint_engine_context->clear_all_request_context_slots();
     }
 
     void TearDown() override
     {
         initializer->reset_contexts();
         initializer.reset();
+        taint_engine_context->finish_request_context(context_id.value());
         py::finalize_interpreter();
     }
 
   public:
+    std::optional<size_t> context_id;
+
     PyObject* StringToPyObjectStr(const string& ob) { return PyUnicode_FromString(ob.c_str()); }
     string PyObjectStrToString(PyObject* ob)
     {

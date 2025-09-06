@@ -2,6 +2,7 @@ from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -57,7 +58,7 @@ def patch():
 
 
 def _unvalidated_redirect_for_django(wrapped, instance, args, kwargs):
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "to", optional=True))
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
@@ -65,7 +66,7 @@ def _unvalidated_redirect_for_django(wrapped, instance, args, kwargs):
 
 
 def _unvalidated_redirect_for_flask(wrapped, instance, args, kwargs):
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "location", optional=True))
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)
@@ -73,7 +74,7 @@ def _unvalidated_redirect_for_flask(wrapped, instance, args, kwargs):
 
 
 def _unvalidated_redirect_forfastapi(wrapped, instance, args, kwargs):
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         _iast_report_unvalidated_redirect(get_argument_value(args, kwargs, 0, "url", optional=True))
     if hasattr(wrapped, "__func__"):
         return wrapped.__func__(instance, *args, **kwargs)

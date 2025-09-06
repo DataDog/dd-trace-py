@@ -7,8 +7,8 @@ from ddtrace.appsec._constants import IAST_SPAN_TAGS
 from ddtrace.appsec._iast._iast_env import IASTEnvironment
 from ddtrace.appsec._iast._iast_env import _get_iast_env
 from ddtrace.appsec._iast._overhead_control_engine import oce
-from ddtrace.appsec._iast._taint_tracking._context import create_context as create_propagation_context
-from ddtrace.appsec._iast._taint_tracking._context import reset_context as reset_propagation_context
+from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
+from ddtrace.appsec._iast._taint_tracking._context import start_request_context
 from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.sampling.vulnerability_detection import update_global_vulnerability_limit
 from ddtrace.internal import core
@@ -20,7 +20,7 @@ log = get_logger(__name__)
 
 # Stopgap module for providing ASM context for the blocking features wrapping some contextvars.
 
-IAST_CONTEXT = contextvars.ContextVar("iast_var", default=None)
+IAST_CONTEXT: "contextvars.ContextVar[Optional[int]]" = contextvars.ContextVar("iast_var", default=None)
 
 
 def _set_span_tag_iast_request_tainted(span):
@@ -28,24 +28,6 @@ def _set_span_tag_iast_request_tainted(span):
 
     if total_objects_tainted > 0:
         span.set_tag(IAST_SPAN_TAGS.TELEMETRY_REQUEST_TAINTED, total_objects_tainted)
-
-
-def start_iast_context(span: Optional["Span"] = None):
-    if asm_config._iast_enabled:
-        create_propagation_context()
-        core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
-
-
-def end_iast_context(span: Optional["Span"] = None):
-    env = _get_iast_env()
-    if env is not None and env.span is span:
-        update_global_vulnerability_limit(env)
-        finalize_iast_env(env)
-    reset_propagation_context()
-
-
-def finalize_iast_env(env: IASTEnvironment) -> None:
-    core.discard_item(IAST.REQUEST_CONTEXT_KEY)
 
 
 def get_iast_stacktrace_reported() -> bool:
@@ -61,14 +43,6 @@ def set_iast_stacktrace_reported(reported: bool) -> None:
         env.iast_stack_trace_reported = reported
 
 
-def set_iast_request_enabled(request_enabled) -> None:
-    env = _get_iast_env()
-    if env:
-        env.request_enabled = request_enabled
-    else:
-        log.debug("iast::propagation::context::Trying to set IAST reporter but no context is present")
-
-
 def set_iast_request_endpoint(method, route) -> None:
     if asm_config._iast_enabled:
         env = _get_iast_env()
@@ -81,13 +55,34 @@ def set_iast_request_endpoint(method, route) -> None:
             log.debug("iast::propagation::context::Trying to set IAST request endpoint but no context is present")
 
 
-def _iast_start_request(span=None, *args, **kwargs):
+def _iast_start_request(span=None):
+    context_id = None
     try:
         if asm_config._iast_enabled:
-            start_iast_context(span)
-            request_iast_enabled = False
             if oce.acquire_request(span):
-                request_iast_enabled = True
-            set_iast_request_enabled(request_iast_enabled)
+                context_id = start_request_context()
+                if context_id is not None:
+                    IAST_CONTEXT.set(context_id)
+                    core.set_item(IAST.REQUEST_CONTEXT_KEY, IASTEnvironment(span))
     except Exception:
         log.debug("iast::propagation::context::Error starting IAST context", exc_info=True)
+    return context_id
+
+
+def _get_iast_context_id():
+    return IAST_CONTEXT.get()
+
+
+def _iast_finish_request(span: Optional["Span"] = None):
+    env = _get_iast_env()
+    if env is not None and env.span is span:
+        update_global_vulnerability_limit(env)
+        core.discard_item(IAST.REQUEST_CONTEXT_KEY)
+    context_id = _get_iast_context_id()
+    if context_id is not None:
+        finish_request_context(context_id)
+        IAST_CONTEXT.set(None)
+
+
+def is_iast_request_enabled():
+    return _get_iast_context_id() is not None

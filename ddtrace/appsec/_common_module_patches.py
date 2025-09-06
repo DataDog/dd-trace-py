@@ -176,10 +176,13 @@ def wrapped_request_D8CB81E472AF98A2(original_request_callable, instance, args, 
     wrapper for third party requests.request function
     https://requests.readthedocs.io
     """
-    if asm_config._iast_enabled and asm_config.is_iast_request_enabled:
-        from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 
-        _iast_report_ssrf(original_request_callable, *args, **kwargs)
+        if is_iast_request_enabled():
+            from ddtrace.appsec._iast.taint_sinks.ssrf import _iast_report_ssrf
+
+            _iast_report_ssrf(original_request_callable, *args, **kwargs)
 
     if _get_rasp_capability("ssrf"):
         try:

@@ -5,6 +5,7 @@ from typing import Set
 from typing import Text
 
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast.constants import BLOWFISH_DEF
 from ddtrace.appsec._iast.constants import DEFAULT_WEAK_CIPHER_ALGORITHMS
 from ddtrace.appsec._iast.constants import DES_DEF
@@ -123,7 +124,7 @@ def wrapped_aux_blowfish_function(wrapped, instance, args, kwargs):
 
 
 def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if WeakCipher.has_quota():
             WeakCipher.report(
                 evidence_value="RC4",
@@ -139,7 +140,7 @@ def wrapped_rc4_function(wrapped: Callable, instance: Any, args: Any, kwargs: An
 
 
 def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         if hasattr(instance, "_dd_weakcipher_algorithm"):
             if WeakCipher.has_quota():
                 evidence = instance._dd_weakcipher_algorithm + "_" + str(instance.__class__.__name__)
@@ -156,7 +157,7 @@ def wrapped_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -
 
 
 def wrapped_cryptography_function(wrapped: Callable, instance: Any, args: Any, kwargs: Any) -> Any:
-    if asm_config.is_iast_request_enabled:
+    if is_iast_request_enabled():
         algorithm_name = instance.algorithm.name.lower()
         if algorithm_name in get_weak_cipher_algorithms():
             if WeakCipher.has_quota():

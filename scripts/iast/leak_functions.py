@@ -9,7 +9,7 @@ import pytest
 
 from ddtrace.appsec._iast import disable_iast_propagation
 from ddtrace.appsec._iast import enable_iast_propagation
-from ddtrace.appsec._iast._iast_request_context_base import end_iast_context
+from ddtrace.appsec._iast._iast_request_context_base import _iast_finish_request
 from ddtrace.appsec._iast._iast_request_context_base import set_iast_request_enabled
 from ddtrace.appsec._iast._iast_request_context_base import start_iast_context
 from ddtrace.appsec._iast._taint_tracking import active_map_addreses_size
@@ -23,7 +23,7 @@ def _start_iast_context_and_oce():
 
 
 def _end_iast_context_and_oce():
-    end_iast_context()
+    _iast_finish_request()
 
 
 def parse_arguments():

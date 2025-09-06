@@ -1,9 +1,7 @@
 #include "helpers.h"
-#include "initializer/initializer.h"
 #include "utils/python_error_guard.h"
 
 #include <algorithm>
-#include <iostream>
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -25,7 +23,12 @@ api_common_replace(const py::str& string_method,
 {
     const StrType res = py::getattr(candidate_text, string_method)(*args, **kwargs);
 
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text.ptr());
+
+    /*    std::cerr << "api_common_replace: candidate_text = '" << StrType(candidate_text) << "'" << std::endl;
+        std::cerr << "api_common_replace: tx_map is "
+        << (!tx_map ? "null" : (tx_map->empty() ? "empty" : "non-empty"))
+        << std::endl;*/
     if (not tx_map or tx_map->empty()) {
         return res;
     }
@@ -45,10 +48,6 @@ as_formatted_evidence(const string& text,
                       const optional<TagMappingMode>& tag_mapping_mode,
                       const optional<const py::dict>& new_ranges)
 {
-    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
-        return text;
-    }
-
     if (text_ranges.empty() or text.empty()) {
         return text;
     }
@@ -107,7 +106,7 @@ api_as_formatted_evidence(const StrType& text,
                           const optional<TagMappingMode>& tag_mapping_mode,
                           const optional<const py::dict>& new_ranges)
 {
-    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+    if (const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr()); !tx_map) {
         return text;
     }
 
@@ -125,7 +124,7 @@ py::bytearray
 api_convert_escaped_text_to_taint_text(const py::bytearray& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
 
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(taint_escaped_text.ptr());
 
     const py::bytes bytes_text = py::bytes() + taint_escaped_text;
 
@@ -139,7 +138,7 @@ template<class StrType>
 StrType
 api_convert_escaped_text_to_taint_text(const StrType& taint_escaped_text, const TaintRangeRefs& ranges_orig)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map(taint_escaped_text.ptr());
 
     auto [result_text, result_ranges] = convert_escaped_text_to_taint_text<StrType>(taint_escaped_text, ranges_orig);
     PyObject* new_result = new_pyobject_id(result_text.ptr());
@@ -351,14 +350,16 @@ set_ranges_on_splitted(const py::object& source_str,
     return some_set;
 }
 
+// TODO: we can remove api_set_ranges_on_splitted because it is not used, in tests only
 template<class StrType>
 bool
 api_set_ranges_on_splitted(const StrType& source_str,
                            const TaintRangeRefs& source_ranges,
                            const py::list& split_result,
-                           bool include_separator)
+                           bool include_separator,
+                           size_t context_id)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id);
     if (not tx_map or tx_map->empty()) {
         return false;
     }
@@ -381,17 +382,6 @@ has_pyerr_as_string()
     }
 
     return error_guard.error_as_stdstring();
-}
-
-py::str
-has_pyerr_as_pystr()
-{
-    PythonErrorGuard error_guard;
-    if (not error_guard.has_error()) {
-        return {};
-    }
-
-    return error_guard.error_as_pystr();
 }
 
 void
@@ -417,22 +407,22 @@ pyexport_aspect_helpers(py::module& m)
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          // cppcheck-suppress assignBoolToPointer
-          "include_separator"_a = false);
+          "include_separator"_a,
+          "context_id"_a);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::str>,
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          // cppcheck-suppress assignBoolToPointer
-          "include_separator"_a = false);
+          "include_separator"_a,
+          "context_id"_a);
     m.def("set_ranges_on_splitted",
           &api_set_ranges_on_splitted<py::bytearray>,
           "source_str"_a,
           "source_ranges"_a,
           "split_result"_a,
-          // cppcheck-suppress assignBoolToPointer
-          "include_separator"_a = false);
+          "include_separator"_a,
+          "context_id"_a);
     m.def("as_formatted_evidence",
           &api_as_formatted_evidence<py::bytes>,
           "text"_a,

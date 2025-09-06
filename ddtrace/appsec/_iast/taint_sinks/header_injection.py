@@ -59,6 +59,7 @@ from typing import Text
 
 from ddtrace.appsec._constants import IAST
 from ddtrace.appsec._constants import IAST_SPAN_TAGS
+from ddtrace.appsec._iast._iast_request_context_base import is_iast_request_enabled
 from ddtrace.appsec._iast._logs import iast_error
 from ddtrace.appsec._iast._metrics import _set_metric_iast_executed_sink
 from ddtrace.appsec._iast._metrics import _set_metric_iast_instrumented_sink
@@ -196,7 +197,7 @@ def _iast_django_response(wrapped, instance, args, kwargs):
 
 class HeaderInjectionDict(dict):
     def __setitem__(self, key, value):
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             _check_type_headers_and_report_header_injection(value)
         dict.__setitem__(self, key, value)
 
@@ -213,7 +214,7 @@ def _iast_set_headers(wrapped, instance, args, kwargs):
         # We call `_check_type_headers_and_report_header_injection` after the wrapped function because it may
         # contain validators and serializers that modify the `args` ranges.
         result = wrapped.__func__(instance, *args, **kwargs)
-        if asm_config.is_iast_request_enabled:
+        if is_iast_request_enabled():
             _check_type_headers_and_report_header_injection(args, check_header_injection=False)
         return result
     return wrapped(*args, **kwargs)

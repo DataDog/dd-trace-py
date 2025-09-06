@@ -1,11 +1,13 @@
 #pragma once
 
-#include "initializer/initializer.h"
-#include "taint_tracking/taint_range.h"
 #include <iostream>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <regex>
+
+#include "context/taint_engine_context.h"
+#include "initializer/initializer.h"
+#include "taint_tracking/taint_range.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -18,13 +20,15 @@ StrType
 api_common_replace(const py::str& string_method,
                    const StrType& candidate_text,
                    const py::args& args,
-                   const py::kwargs& kwargs);
+                   const py::kwargs& kwargs
+
+);
 
 template<class StrType>
 StrType
 all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
 {
-    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+    if (const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr()); !tx_map) {
         return text;
     }
     TaintRangeRefs text_ranges = api_get_ranges(text);
@@ -35,7 +39,7 @@ template<class StrType>
 StrType
 int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
 {
-    if (const auto tx_map = Initializer::get_tainting_map(); !tx_map) {
+    if (const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr()); !tx_map) {
         return text;
     }
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
@@ -77,7 +81,8 @@ bool
 api_set_ranges_on_splitted(const StrType& source_str,
                            const TaintRangeRefs& source_ranges,
                            const py::list& split_result,
-                           bool include_separator = false);
+                           bool include_separator,
+                           size_t context_id);
 
 PyObject*
 api_convert_escaped_text_to_taint_text(PyObject* taint_escaped_text,
@@ -88,9 +93,6 @@ has_pyerr();
 
 std::string
 has_pyerr_as_string();
-
-py::str
-has_pyerr_as_pystr();
 
 struct EVIDENCE_MARKS
 {
