@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    bedrock: Handle non-string tool input types.
