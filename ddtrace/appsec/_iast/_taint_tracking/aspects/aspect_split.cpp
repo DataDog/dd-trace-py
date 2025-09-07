@@ -6,7 +6,7 @@ static std::optional<py::object>
 handle_potential_re_split(const py::tuple& args,
                           const py::tuple& sliced_args,
                           const py::kwargs& kwargs,
-                          const TaintRangeMapTypePtr& tx_map)
+                          const TaintedObjectMapTypePtr& tx_map)
 {
     const py::module re = py::module::import("re");
     const py::object re_pattern_type = re.attr("Pattern");
