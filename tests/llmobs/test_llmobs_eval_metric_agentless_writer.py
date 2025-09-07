@@ -63,12 +63,12 @@ def test_buffer_limit(mock_writer_logs):
 
 
 @pytest.mark.skip(reason="Skipping due to flakiness in hitting the staging endpoint")
-def test_send_metric_bad_api_key(mock_writer_logs):
+def test_send_metric_bad_api_key(mock_writer_logs, llmobs_api_proxy_url):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=1,
         timeout=1,
         is_agentless=True,
-        _override_url="http://localhost:9126/vcr/datadog/",
+        _override_url=llmobs_api_proxy_url,
         _api_key="<bad-api-key>",
     )
 
@@ -79,7 +79,7 @@ def test_send_metric_bad_api_key(mock_writer_logs):
         "failed to send %d LLMObs %s events to %s, got response code %d, status: %s",
         1,
         "evaluation_metric",
-        "http://localhost:9126/vcr/datadog/api/intake/llm-obs/v2/eval-metric",
+        f"{llmobs_api_proxy_url}/api/intake/llm-obs/v2/eval-metric",
         403,
         b'{"status":"error","code":403,"errors":["Forbidden"],"statuspage":"http://status.datadoghq.com","twitter":"http://twitter.com/datadogops","email":"support@datadoghq.com"}',  # noqa
     )
@@ -97,13 +97,13 @@ def test_send_metric_no_api_key(mock_writer_logs):
     )
 
 
-def test_send_categorical_metric(mock_writer_logs):
+def test_send_categorical_metric(mock_writer_logs, llmobs_api_proxy_url):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=1,
         timeout=1,
         is_agentless=True,
         _api_key=DD_API_KEY,
-        _override_url="http://localhost:9126/vcr/datadog/",
+        _override_url=llmobs_api_proxy_url,
     )
     llmobs_eval_metric_writer.enqueue(_categorical_metric_event(label="toxicity", value="very"))
     llmobs_eval_metric_writer.periodic()
@@ -112,14 +112,14 @@ def test_send_categorical_metric(mock_writer_logs):
     )
 
 
-def test_send_score_metric(mock_writer_logs):
+def test_send_score_metric(mock_writer_logs, llmobs_api_proxy_url):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=1,
         timeout=1,
         is_agentless=True,
         _site=DD_SITE,
         _api_key=DD_API_KEY,
-        _override_url="http://localhost:9126/vcr/datadog/",
+        _override_url=llmobs_api_proxy_url,
     )
     llmobs_eval_metric_writer.enqueue(_score_metric_event(label="sentiment", value=0.9))
     llmobs_eval_metric_writer.periodic()
@@ -128,13 +128,13 @@ def test_send_score_metric(mock_writer_logs):
     )
 
 
-def test_send_timed_events(mock_writer_logs):
+def test_send_timed_events(mock_writer_logs, llmobs_api_proxy_url):
     llmobs_eval_metric_writer = LLMObsEvalMetricWriter(
         interval=0.01,
         timeout=1,
         is_agentless=True,
         _api_key=DD_API_KEY,
-        _override_url="http://localhost:9126/vcr/datadog/",
+        _override_url=llmobs_api_proxy_url,
     )
     llmobs_eval_metric_writer.start()
     mock_writer_logs.reset_mock()

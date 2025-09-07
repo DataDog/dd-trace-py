@@ -159,12 +159,7 @@ class BaseLLMObsWriter(PeriodicService):
 
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
         override_url_parsed = urlparse(self._override_url)
-        if (
-            self._override_url
-            and override_url_parsed.scheme != "unix"
-            and override_url_parsed.path != "/"
-            and override_url_parsed.path != ""
-        ):
+        if self._override_url and override_url_parsed.scheme != "unix" and override_url_parsed.path not in ("/", ""):
             # handles cases where the override url includes a base path, ie
             # http://localhost:8080/foo/bar and endpoint /buz/baz
             # we need to strip the base path from the endpoint so the eventual urljoin works properly
