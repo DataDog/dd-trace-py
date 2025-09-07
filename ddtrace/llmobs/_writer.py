@@ -156,7 +156,6 @@ class BaseLLMObsWriter(PeriodicService):
         self._intake: str = self._override_url or (
             f"{self.AGENTLESS_BASE_URL}.{self._site}" if is_agentless else agent_config.trace_agent_url
         )
-
         self._endpoint: str = self.ENDPOINT if is_agentless else f"{EVP_PROXY_AGENT_BASE_PATH}{self.ENDPOINT}"
         override_url_parsed = urlparse(self._override_url)
         if self._override_url and override_url_parsed.scheme != "unix" and override_url_parsed.path not in ("/", ""):
