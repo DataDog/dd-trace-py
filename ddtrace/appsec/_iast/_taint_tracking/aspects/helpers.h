@@ -4,10 +4,17 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <regex>
+#include <sstream>
+#include <utility>
+#include <unordered_map>
 
 #include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
 #include "taint_tracking/taint_range.h"
+#include "structmember.h"
+#include "constants.h"
+#include "taint_tracking/source.h"
+#include "utils/string_utils.h"
 
 using namespace pybind11::literals;
 namespace py = pybind11;
@@ -26,13 +33,13 @@ api_common_replace(const py::str& string_method,
 
 template<class StrType>
 StrType
-all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode)
+all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode, const TaintedObjectMapTypePtr& tx_map)
 {
-    if (const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr()); !tx_map) {
+    auto [ranges, ranges_error] = get_ranges(text.ptr(), tx_map);
+    if (ranges_error) {
         return text;
     }
-    TaintRangeRefs text_ranges = api_get_ranges(text);
-    return StrType(as_formatted_evidence(AnyTextObjectToString(text), text_ranges, tag_mapping_mode, nullopt));
+    return StrType(as_formatted_evidence(AnyTextObjectToString(text), ranges, tag_mapping_mode, nullopt));
 }
 
 template<class StrType>

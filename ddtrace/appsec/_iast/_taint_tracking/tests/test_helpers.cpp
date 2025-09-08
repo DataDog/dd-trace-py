@@ -274,7 +274,8 @@ TEST_F(AsFormattedEvidenceCheckNoContext, NoTaintMapSameString)
 {
     const py::str text("This is a test string.");
     // With no request context and no ranges, the output should equal the input
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
@@ -372,14 +373,16 @@ using AllAsFormattedEvidenceCheckNoContext = PyEnvCheck;
 TEST_F(AllAsFormattedEvidenceCheckNoContext, NoTaintMapSameString)
 {
     const py::str text("This is a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
 TEST_F(AllAsFormattedEvidenceCheck, NoRangesSameString)
 {
     const py::str text("This is a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 
@@ -396,7 +399,8 @@ TEST_F(AllAsFormattedEvidenceCheck, SingleTaintRangeWithNormalMapper)
     api_set_ranges(text, taint_ranges, context_id.value());
 
     const py::str expected_result("This :+-<source1>is<source1>-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Normal);
+    const auto tx_map_after = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Normal, tx_map_after);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -416,7 +420,8 @@ TEST_F(AllAsFormattedEvidenceCheck, SingleTaintRangeWithMapper)
     auto taint_range_1_hash = taint_ranges[0]->get_hash();
     const py::str expected_result("This :+-<" + std::to_string(taint_range_1_hash) + ">is<" +
                                   std::to_string(taint_range_1_hash) + ">-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map_after = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map_after);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -439,7 +444,8 @@ TEST_F(AllAsFormattedEvidenceCheck, DISABLED_SingleTaintRangeWithMapperReplace)
     new_ranges[py::cast(taint_ranges[0])] = new_range;
 
     const py::str expected_result("This :+-<new_source>is<new_source>-+: a test string.");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper_Replace);
+    const auto tx_map_after3 = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper_Replace, tx_map_after3);
 
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(expected_result).c_str());
 }
@@ -447,7 +453,8 @@ TEST_F(AllAsFormattedEvidenceCheck, DISABLED_SingleTaintRangeWithMapperReplace)
 TEST_F(AllAsFormattedEvidenceCheck, EmptyText)
 {
     const py::str text("");
-    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper);
+    const auto tx_map = taint_engine_context->get_tainted_object_map(text.ptr());
+    const py::str result = all_as_formatted_evidence(text, TagMappingMode::Mapper, tx_map);
     EXPECT_STREQ(AnyTextObjectToString(result).c_str(), AnyTextObjectToString(text).c_str());
 }
 

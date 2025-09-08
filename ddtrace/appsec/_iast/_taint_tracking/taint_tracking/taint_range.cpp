@@ -1,7 +1,6 @@
 #include "taint_range.h"
 #include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
-#include "utils/string_utils.h"
 
 namespace py = pybind11;
 
@@ -243,6 +242,9 @@ std::pair<TaintRangeRefs, bool>
 get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs result;
+    if (not tx_map or tx_map->empty()) {
+        return { result, true };
+    }
     if (not is_tainteable(string_input)) {
         return std::make_pair(result, true);
     }
@@ -279,35 +281,6 @@ set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTy
 
     tx_map->insert({ obj_id, std::make_pair(get_internal_hash(str), new_tainted_object) });
     return true;
-}
-
-// Returns a tuple with (all ranges, ranges of candidate_text)
-// FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the
-// result)
-std::tuple<TaintRangeRefs, TaintRangeRefs>
-are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list)
-{
-    if (not is_tainteable(candidate_text))
-        return {};
-
-    TaintRangeRefs all_ranges;
-    const auto tx_map = taint_engine_context->get_tainted_object_map(candidate_text);
-    if (not tx_map or tx_map->empty()) {
-        return { {}, {} };
-    }
-
-    auto [candidate_text_ranges, ranges_error] = get_ranges(candidate_text, tx_map);
-    if (not ranges_error) {
-        for (const auto& param_handler : parameter_list) {
-            if (const auto param = param_handler.cast<py::object>().ptr(); is_tainteable(param)) {
-                if (auto [ranges, ranges_error] = get_ranges(param, tx_map); not ranges_error) {
-                    all_ranges.insert(all_ranges.end(), ranges.begin(), ranges.end());
-                }
-            }
-        }
-        all_ranges.insert(all_ranges.end(), candidate_text_ranges.begin(), candidate_text_ranges.end());
-    }
-    return { all_ranges, candidate_text_ranges };
 }
 
 TaintRangePtr
@@ -480,12 +453,6 @@ pyexport_taintrange(py::module& m)
           py::overload_cast<PyObject*>(&set_fast_tainted_if_notinterned_unicode),
           "candidate_text"_a);
     m.def("set_fast_tainted_if_notinterned_unicode", &api_set_fast_tainted_if_unicode, "text"_a);
-
-    m.def("are_all_text_all_ranges",
-          &api_are_all_text_all_ranges,
-          "candidate_text"_a,
-          "parameter_list"_a,
-          py::return_value_policy::move);
 
     m.def("shift_taint_range",
           &api_shift_taint_range,

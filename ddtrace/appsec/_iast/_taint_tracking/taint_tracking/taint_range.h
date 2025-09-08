@@ -161,15 +161,6 @@ api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nar
 PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
 
-// Returns a tuple with (all ranges, ranges of candidate_text)
-std::tuple<TaintRangeRefs, TaintRangeRefs>
-are_all_text_all_ranges(PyObject* candidate_text, const py::tuple& parameter_list);
-inline std::tuple<TaintRangeRefs, TaintRangeRefs>
-api_are_all_text_all_ranges(py::handle& candidate_text, const py::tuple& parameter_list)
-{
-    return are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
-}
-
 TaintRangePtr
 get_range_by_hash(size_t range_hash, optional<TaintRangeRefs>& taint_ranges);
 
