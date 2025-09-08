@@ -11,57 +11,14 @@ to be run at specific points during pytest execution. The most important hooks u
         expected failures.
 
 """
+
 import os
-from typing import Dict  # noqa:F401
-
-import pytest
-
-from ddtrace import config
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol_wrapper  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
-from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
-from ddtrace.contrib.internal.pytest._utils import _extract_span
-from ddtrace.settings._telemetry import config as telemetry_config
-from ddtrace.settings.asm import config as asm_config
-
-
-if asm_config._iast_enabled:
-    from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
-
-
-# pytest default settings
-config._add(
-    "pytest",
-    dict(
-        _default_service="pytest",
-        operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
-    ),
-)
 
 
 DDTRACE_HELP_MSG = "Enable tracing of pytest functions."
 NO_DDTRACE_HELP_MSG = "Disable tracing of pytest functions."
 DDTRACE_INCLUDE_CLASS_HELP_MSG = "Prepend 'ClassName.' to names of class-based tests."
 PATCH_ALL_HELP_MSG = "Call ddtrace._patch_all before running tests."
-
-
-def _disable_telemetry_dependency_collection():
-    telemetry_config.DEPENDENCY_COLLECTION = False
-
-
-def is_enabled(config):
-    """Check if the ddtrace plugin is enabled."""
-    return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
 
 def pytest_addoption(parser):
@@ -112,56 +69,100 @@ def pytest_addoption(parser):
     parser.addini("no-ddtrace", DDTRACE_HELP_MSG, type="bool")
     parser.addini("ddtrace-patch-all", PATCH_ALL_HELP_MSG, type="bool")
     parser.addini("ddtrace-include-class-name", DDTRACE_INCLUDE_CLASS_HELP_MSG, type="bool")
+
+    if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() not in ("true", "1"):
+        return
+
+    from ddtrace.settings.asm import config as asm_config
+
     if asm_config._iast_enabled:
         from ddtrace.appsec._iast import _iast_pytest_activation
 
         _iast_pytest_activation()
 
 
-def pytest_configure(config):
-    config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
-    if is_enabled(config):
-        _disable_telemetry_dependency_collection()
-        _versioned_pytest_configure(config)
+if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
 
+    from typing import Dict  # noqa:F401
 
-@pytest.hookimpl
-def pytest_addhooks(pluginmanager):
-    from ddtrace.contrib.internal.pytest import newhooks
+    import pytest
 
-    pluginmanager.add_hookspecs(newhooks)
+    from ddtrace import config
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_collection_finish  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_configure as _versioned_pytest_configure
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_module_name  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_suite_name  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_ddtrace_get_item_test_name  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_load_initial_conftests  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_report_teststatus  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_makereport  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_runtest_protocol_wrapper  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionfinish  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_sessionstart  # noqa: F401
+    from ddtrace.contrib.internal.pytest._plugin_v2 import pytest_terminal_summary  # noqa: F401
+    from ddtrace.contrib.internal.pytest._utils import _extract_span
+    from ddtrace.settings._telemetry import config as telemetry_config
 
+    if asm_config._iast_enabled:
+        from ddtrace.appsec._iast._pytest_plugin import ddtrace_iast  # noqa:F401
 
-@pytest.fixture(scope="function")
-def ddspan(request):
-    """Return the :class:`ddtrace.trace.Span` instance associated with the
-    current test when Datadog CI Visibility is enabled.
-    """
-    from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+    # pytest default settings
+    config._add(
+        "pytest",
+        dict(
+            _default_service="pytest",
+            operation_name=os.getenv("DD_PYTEST_OPERATION_NAME", default="pytest.test"),
+        ),
+    )
 
-    if _CIVisibility.enabled:
-        return _extract_span(request.node)
+    def _disable_telemetry_dependency_collection():
+        telemetry_config.DEPENDENCY_COLLECTION = False
 
+    def is_enabled(config):
+        """Check if the ddtrace plugin is enabled."""
+        return (config.getoption("ddtrace") or config.getini("ddtrace")) and not config.getoption("no-ddtrace")
 
-@pytest.fixture(scope="session")
-def ddtracer():
-    """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
-    visibility if it is enabled, otherwise return the default Datadog tracer.
-    """
-    import ddtrace
-    from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+    def pytest_configure(config):
+        config.addinivalue_line("markers", "dd_tags(**kwargs): add tags to current span")
+        if is_enabled(config):
+            _disable_telemetry_dependency_collection()
+            _versioned_pytest_configure(config)
 
-    if _CIVisibility.enabled:
-        return _CIVisibility._instance.tracer
-    return ddtrace.tracer
+    @pytest.hookimpl
+    def pytest_addhooks(pluginmanager):
+        from ddtrace.contrib.internal.pytest import newhooks
 
+        pluginmanager.add_hookspecs(newhooks)
 
-@pytest.fixture(scope="session", autouse=True)
-def patch_all(request):
-    """Patch all available modules for Datadog tracing when ddtrace-patch-all
-    is specified in command or .ini.
-    """
-    if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
-        from ddtrace._monkey import _patch_all
+    @pytest.fixture(scope="function")
+    def ddspan(request):
+        """Return the :class:`ddtrace.trace.Span` instance associated with the
+        current test when Datadog CI Visibility is enabled.
+        """
+        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
 
-        _patch_all()
+        if _CIVisibility.enabled:
+            return _extract_span(request.node)
+
+    @pytest.fixture(scope="session")
+    def ddtracer():
+        """Return the :class:`ddtrace.tracer.Tracer` instance for Datadog CI
+        visibility if it is enabled, otherwise return the default Datadog tracer.
+        """
+        import ddtrace
+        from ddtrace.internal.ci_visibility import CIVisibility as _CIVisibility
+
+        if _CIVisibility.enabled:
+            return _CIVisibility._instance.tracer
+        return ddtrace.tracer
+
+    @pytest.fixture(scope="session", autouse=True)
+    def patch_all(request):
+        """Patch all available modules for Datadog tracing when ddtrace-patch-all
+        is specified in command or .ini.
+        """
+        if request.config.getoption("ddtrace-patch-all") or request.config.getini("ddtrace-patch-all"):
+            from ddtrace._monkey import _patch_all
+
+            _patch_all()
