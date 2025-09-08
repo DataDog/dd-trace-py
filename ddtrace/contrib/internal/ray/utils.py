@@ -6,9 +6,11 @@ from typing import Any
 from typing import Callable
 from typing import List
 
-from ddtrace.propagation.http import _TraceContext
 import ray
 from ray.runtime_context import get_runtime_context
+
+from ddtrace.propagation.http import _TraceContext
+
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
     old_sig = inspect.signature(method)
@@ -132,7 +134,7 @@ def extract_signature(func: Any, ignore_first: bool = False) -> List[Parameter]:
     if ignore_first:
         if len(signature_parameters) == 0:
             raise ValueError(
-                "Methods must take a 'self' argument, but the " f"method '{func.__name__}' does not have one."
+                f"Methods must take a 'self' argument, but the method '{func.__name__}' does not have one."
             )
         signature_parameters = signature_parameters[1:]
 

@@ -57,16 +57,15 @@ def assert_mock_execute_request_call(
     current: Evaluation,
     meta: Optional[Dict[str, Any]] = None,
 ):
-    expected_payload = {
-        "data": {
-            "attributes": {
-                "history": history,
-                "current": current,
-            }
-        }
+    expected_attributes = {
+        "history": history,
+        "current": current,
     }
+
     if meta is not None:
-        expected_payload["meta"] = meta
+        expected_attributes["meta"] = meta
+
+    expected_payload = {"data": {"attributes": expected_attributes}}
 
     mock_execute_request.assert_called_once_with(
         f"{ai_guard_client._endpoint}/evaluate",

@@ -3,6 +3,7 @@ from contextvars import ContextVar
 from functools import wraps
 import inspect
 import logging
+import logging
 import os
 import threading
 from typing import Any
@@ -11,14 +12,15 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
-from pythonjsonlogger import jsonlogger
 import ray
 from ray._private.inspect_util import is_class_method
 from ray._private.inspect_util import is_function_or_method
 from ray._private.inspect_util import is_static_method
+import ray._private.worker
 import ray.actor
 import ray.dashboard.modules.job.job_manager
 from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.dashboard.modules.job.job_supervisor
 import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
@@ -54,6 +56,9 @@ from .utils import extract_signature
 LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
 
 ray_job_submission_id = ContextVar("ray_job_submission_id")
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 config._add(
     "ray",
@@ -177,7 +182,7 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
     function_module = getattr(wrapped, "__module__", "unknown_module")
 
     with tracer.trace(
-        f"{function_module}.{function_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{function_module}.{function_name}", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags(span)
@@ -191,33 +196,24 @@ def _wrap_task_execution(wrapped, *args, **kwargs):
             raise e
 
 
-def traced_remote_function_init(wrapped, instance, args, kwargs):
-    """Inject Tracing/Wrapped the function that will be executed
-    when calling func.remote()
-    """
-    if not tracer:
-        return wrapped(*args, **kwargs)
-
-    result = wrapped(*args, **kwargs)
-    with instance._inject_lock:
-        if instance._function_signature is None:
-            instance._function = _inject_tracing_into_remote_function(instance._function)
-            instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
-            instance._function_signature = extract_signature(instance._function)
-
-    return result
-
-
 def traced_submit_task(wrapped, instance, args, kwargs):
     """Trace task submission, i.e the func.remote() call"""
+
     if not tracer:
         return wrapped(*args, **kwargs)
 
     if tracer.current_span() is None:
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
+    # Inject dd_trace_ctx args in the function being executed by ray
+    with instance._inject_lock:
+        if instance._function_signature is None:
+            instance._function = _inject_tracing_into_remote_function(instance._function)
+            instance._function.__signature__ = _inject_dd_trace_ctx_kwarg(instance._function)
+            instance._function_signature = extract_signature(instance._function)
+
     with tracer.trace(
-        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{instance._function_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -249,15 +245,16 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     kwargs["submission_id"] = submission_id
 
     # Root span creation
-    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.ML)
+    job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
+    job_span.set_tag_str("ray.submission_id", submission_id)
     # This will allow to finish the span at the end of the job
     _job_span_manager.add_span(submission_id, job_span)
 
     # Set global span as the root span
     tracer.context_provider.activate(job_span)
     try:
-        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.ML) as submit_span:
+        with tracer.trace("ray.job.submit", service=submission_id, span_type=SpanTypes.RAY) as submit_span:
             submit_span.set_tag_str("component", "ray")
             submit_span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
 
@@ -291,6 +288,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
 
     actor_name = instance._ray_actor_creation_function_descriptor.class_name
     method_name = args[0]
+
     # if _dd_trace_ctx was not injected in the param of the function, it means
     # we do not want to trace this function, for example: JobSupervisor.ping
     if not any(p.name == "_dd_trace_ctx" for p in instance._ray_method_signatures[method_name]):
@@ -300,7 +298,7 @@ def traced_actor_method_call(wrapped, instance, args, kwargs):
         tracer.context_provider.activate(_extract_tracing_context_from_env())
 
     with tracer.trace(
-        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.ML
+        f"{actor_name}.{method_name}.remote()", service=os.environ.get("_RAY_SUBMISSION_ID"), span_type=SpanTypes.RAY
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.PRODUCER)
         _inject_ray_span_tags(span)
@@ -326,7 +324,7 @@ def job_supervisor_run_wrapper(method: Callable[..., Any]) -> Any:
         job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
 
         with dd_tracer.trace(
-            f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.ML
+            f"{self.__class__.__name__}.{method.__name__}", service=job_submission_id, span_type=SpanTypes.RAY
         ) as span:
             span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
             _inject_ray_span_tags(span)
@@ -356,7 +354,7 @@ def _trace_actor_method(self: Any, method: Callable[..., Any], dd_trace_ctx):
     with tracer.trace(
         f"{self.__class__.__name__}.{method.__name__}",
         service=os.environ.get("_RAY_SUBMISSION_ID"),
-        span_type=SpanTypes.ML,
+        span_type=SpanTypes.RAY,
     ) as span:
         span.set_tag_str(SPAN_KIND, SpanKind.CONSUMER)
         _inject_ray_span_tags(span)
@@ -497,7 +495,6 @@ def patch():
 
     setup_logging()
 
-    _w(ray.remote_function.RemoteFunction, "__init__", traced_remote_function_init)
     _w(ray.remote_function.RemoteFunction, "_remote", traced_submit_task)
 
     _w(ray.dashboard.modules.job.job_manager.JobManager, "submit_job", traced_submit_job)
@@ -519,7 +516,6 @@ def unpatch():
 
     remove_logging()
 
-    _u(ray.remote_function.RemoteFunction, "__init__")
     _u(ray.remote_function.RemoteFunction, "_remote")
 
     _u(ray.dashboard.modules.job.job_manager.JobManager, "submit_job")

@@ -4,9 +4,10 @@ stages:
   - notify
 
 include:
-  project: 'DataDog/benchmarking-platform-tools'
-  file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
-  ref: '925e0a3e7dd628885f6fc69cdaea5c8cc9e212bc'
+  - project: 'DataDog/benchmarking-platform-tools'
+    file: 'images/templates/gitlab/notify-slo-breaches.template.yml'
+  - project: 'DataDog/benchmarking-platform-tools'
+    file: 'images/templates/gitlab/check-slo-breaches.template.yml'
 
 variables:
   MACROBENCHMARKS_CI_IMAGE: 486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/benchmarking-platform:dd-trace-py-macrobenchmarks
@@ -396,19 +397,19 @@ attack-appsec-enabled-iast-enabled-ep-enabled:
     DD_SERVICE: "ddtrace-mb-attack-appsec-enabled-iast-enabled-ep-enabled"
 
 check-slo-breaches:
+  extends: .check-slo-breaches
   stage: gate
   when: always
-  tags: ["arch:amd64"]
-  image: registry.ddbuild.io/images/benchmarking-platform-tools-ubuntu:latest
   artifacts:
     name: "artifacts"
     when: always
     paths:
       - platform/artifacts/
     expire_in: 3 months
-  script:
-    - export ARTIFACTS_DIR="$(pwd)/platform/artifacts/"
-    - bp-runner .gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml
+  variables:
+    DDOCTOSTS_POLICY: "gitlab.github-access.read"
+    ARTIFACTS_DIR: "platform/artifacts"
+    SLO_FILE: ".gitlab/benchmarks/bp-runner.macrobenchmarks.fail-on-breach.yml"
 
 notify-slo-breaches:
   extends: .notify-slo-breaches
