@@ -1,3 +1,4 @@
+from importlib.metadata import version
 import os
 import re
 import signal
@@ -172,6 +173,10 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         assert len(samples) > 0
 
 
+@pytest.mark.skipif(
+    tuple(int(x) for x in version("uwsgi").split(".")) >= (2, 0, 30),
+    reason="uwsgi>=2.0.30 does not require --skip-atexit",
+)
 def test_uwsgi_require_skip_atexit_when_lazy(uwsgi, tmp_path, monkeypatch):
     filename = str(tmp_path / "uwsgi.pprof")
     monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
