@@ -170,3 +170,18 @@ def test_uwsgi_threads_processes_no_primary_lazy_apps(uwsgi, tmp_path, monkeypat
         profile = pprof_utils.parse_newest_profile("%s.%d" % (filename, pid))
         samples = pprof_utils.get_samples_with_value_type(profile, "wall-time")
         assert len(samples) > 0
+
+
+def test_uwsgi_require_skip_atexit_when_lazy(uwsgi, tmp_path, monkeypatch):
+    filename = str(tmp_path / "uwsgi.pprof")
+    monkeypatch.setenv("DD_PROFILING_OUTPUT_PPROF", filename)
+    monkeypatch.setenv("DD_PROFILING_UPLOAD_INTERVAL", "1")
+    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy-apps")
+    stdout, _ = proc.communicate()
+    assert proc.wait() != 0
+    assert b"skip-atexit option must be set" in stdout
+
+    proc = uwsgi("--enable-threads", "--processes", "2", "--lazy")
+    stdout, _ = proc.communicate()
+    assert proc.wait() != 0
+    assert b"skip-atexit option must be set" in stdout
