@@ -1,6 +1,6 @@
 from typing import List
 
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
+from ddtrace.appsec._iast._taint_tracking._context import debug_debug_num_tainted_objects
 from ddtrace.settings.asm import config as asm_config
 
 
@@ -22,4 +22,4 @@ def _is_iast_propagation_debug_enabled():
 
 
 def _num_objects_tainted_in_request():
-    return num_objects_tainted()
+    return debug_debug_num_tainted_objects()

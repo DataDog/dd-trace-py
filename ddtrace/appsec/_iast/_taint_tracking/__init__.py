@@ -1,10 +1,10 @@
 from ddtrace.appsec._iast._taint_tracking._native import ops  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_format import _format_aspect  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import _convert_escaped_text_to_tainted_text
-
-# noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import as_formatted_evidence  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import (
+    _convert_escaped_text_to_tainted_text,
+)  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import are_all_text_all_ranges  # noqa: F401
+from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import as_formatted_evidence  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import common_replace  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import parse_params  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspect_helpers import set_ranges_on_splitted  # noqa: F401
@@ -19,10 +19,6 @@ from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitdrive  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitext  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.aspects_ospath import _aspect_ospathsplitroot  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.context import is_in_taint_map  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.initializer import active_map_addreses_size  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.initializer import debug_taint_map  # noqa: F401
-from ddtrace.appsec._iast._taint_tracking._native.initializer import num_objects_tainted  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import OriginType  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import Source  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import TagMappingMode  # noqa: F401
@@ -33,8 +29,6 @@ from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_rang
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import get_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import is_tainted  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import origin_to_str  # noqa: F401
-
-# noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import set_ranges  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_range  # noqa: F401
 from ddtrace.appsec._iast._taint_tracking._native.taint_tracking import shift_taint_ranges  # noqa: F401
@@ -76,7 +70,6 @@ __all__ = [
     "is_in_taint_map",
     "is_tainted",
     "new_pyobject_id",
-    "num_objects_tainted",
     "origin_to_str",
     "parse_params",
     "set_ranges",
@@ -86,5 +79,4 @@ __all__ = [
     "str_to_origin",
 ]
 new_pyobject_id = ops.new_pyobject_id
-set_ranges_from_values = ops.set_ranges_from_values
 taint_pyobject = ops.taint_pyobject

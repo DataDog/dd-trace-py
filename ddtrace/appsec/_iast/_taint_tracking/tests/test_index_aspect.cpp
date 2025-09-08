@@ -8,14 +8,16 @@ using AspectIndexCheck = PyEnvWithContext;
 TEST_F(AspectIndexCheck, check_index_internal_all_nullptr)
 {
     const TaintRangeRefs refs;
-    index_aspect(nullptr, nullptr, nullptr, refs, Initializer::get_tainting_map());
+    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
+    index_aspect(nullptr, nullptr, nullptr, refs, tx_map);
 }
 
 TEST_F(AspectIndexCheck, check_index_internal_all_nullptr_negative_index)
 {
     PyObject* idx = PyLong_FromLong(-1);
     const TaintRangeRefs refs;
-    auto ret = index_aspect(nullptr, nullptr, idx, refs, Initializer::get_tainting_map());
+    const auto tx_map = taint_engine_context->get_tainted_object_map_by_ctx_id(context_id.value());
+    auto ret = index_aspect(nullptr, nullptr, idx, refs, tx_map);
     EXPECT_EQ(ret, nullptr);
     Py_DecRef(idx);
 }
@@ -40,3 +42,4 @@ TEST_F(AspectIndexCheck, check_api_index_aspect_wrong_index)
     Py_DecRef(py_str);
     Py_DecRef(idx);
 }
+

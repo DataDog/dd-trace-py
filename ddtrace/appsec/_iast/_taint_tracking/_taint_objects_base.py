@@ -7,9 +7,9 @@ from ddtrace.appsec._iast._logs import iast_propagation_debug_log
 from ddtrace.appsec._iast._logs import iast_propagation_error_log
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import is_in_taint_map
 from ddtrace.appsec._iast._taint_tracking import origin_to_str
 from ddtrace.appsec._iast._taint_tracking import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._context import is_in_taint_map
 
 
 def _taint_pyobject_base(pyobject: Any, source_name: Any, source_value: Any, source_origin=None, contextid=None) -> Any:

@@ -156,9 +156,6 @@ inline void
 api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int offset, int new_length);
 
 PyObject*
-api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
-
-PyObject*
 api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
 
 TaintRangePtr

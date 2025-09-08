@@ -12,7 +12,7 @@ from ddtrace.appsec._iast._taint_tracking import _aspect_rsplit
 from ddtrace.appsec._iast._taint_tracking import _aspect_split
 from ddtrace.appsec._iast._taint_tracking import _aspect_splitlines
 from ddtrace.appsec._iast._taint_tracking import get_ranges
-from ddtrace.appsec._iast._taint_tracking import set_ranges
+from ddtrace.appsec._iast._taint_tracking import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._context import create_context
 from ddtrace.appsec._iast._taint_tracking._context import reset_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
@@ -36,13 +36,13 @@ def test_aspect_split(text):
 
 
 # These tests are simple ones testing the calls and replacements since most of the
-# actual testing is in test_aspect_helpers' test for set_ranges_on_splitted which these
+# actual testing is in test_aspect_helpers' test for taint_pyobject_with_ranges_on_splitted which these
 # functions call internally.
 def test_aspect_split_simple():
     s = "abc def"
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, " def")
-    set_ranges(s, (range1, range2))
+    taint_pyobject_with_ranges(s, (range1, range2))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_split, s)
@@ -55,7 +55,7 @@ def test_aspect_rsplit_simple():
     s = "abc def"
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, " def")
-    set_ranges(s, (range1, range2))
+    taint_pyobject_with_ranges(s, (range1, range2))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_rsplit, s)
@@ -68,7 +68,7 @@ def test_aspect_split_with_separator():
     s = "abc:def"
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, ":def")
-    set_ranges(s, (range1, range2))
+    taint_pyobject_with_ranges(s, (range1, range2))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_split, s, ":")
@@ -81,7 +81,7 @@ def test_aspect_rsplit_with_separator():
     s = "abc:def"
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, ":def")
-    set_ranges(s, (range1, range2))
+    taint_pyobject_with_ranges(s, (range1, range2))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_rsplit, s, ":")
@@ -95,7 +95,7 @@ def test_aspect_split_with_maxsplit():
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, " def")
     range3 = _build_sample_range(7, 4, " ghi")
-    set_ranges(s, (range1, range2, range3))
+    taint_pyobject_with_ranges(s, (range1, range2, range3))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_split, s, maxsplit=1)
@@ -122,7 +122,7 @@ def test_aspect_rsplit_with_maxsplit():
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, " def")
     range3 = _build_sample_range(7, 4, " ghi")
-    set_ranges(s, (range1, range2, range3))
+    taint_pyobject_with_ranges(s, (range1, range2, range3))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_rsplit, s, maxsplit=1)
@@ -147,7 +147,7 @@ def test_aspect_splitlines_simple():
     s = "abc\ndef"
     range1 = _build_sample_range(0, 3, "abc")
     range2 = _build_sample_range(3, 4, " def")
-    set_ranges(s, (range1, range2))
+    taint_pyobject_with_ranges(s, (range1, range2))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_splitlines, s)
@@ -161,7 +161,7 @@ def test_aspect_splitlines_keepend_true():
     range1 = _build_sample_range(0, 4, "abc\n")
     range2 = _build_sample_range(4, 4, "def\n")
     range3 = _build_sample_range(8, 4, "hij\n")
-    set_ranges(s, (range1, range2, range3))
+    taint_pyobject_with_ranges(s, (range1, range2, range3))
     ranges = get_ranges(s)
     assert ranges
     res = wrap_somesplit(_aspect_splitlines, s, keepends=True)

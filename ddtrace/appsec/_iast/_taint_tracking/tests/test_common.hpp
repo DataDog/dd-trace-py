@@ -23,8 +23,6 @@ class PyEnvCheck : public ::testing::Test
 
     void TearDown() override
     {
-        initializer->reset_contexts();
-        initializer.reset();
         if (taint_engine_context) {
             taint_engine_context->clear_all_request_context_slots();
             taint_engine_context.reset();
@@ -50,8 +48,6 @@ class PyEnvWithContext : public ::testing::Test
 
     void TearDown() override
     {
-        initializer->reset_contexts();
-        initializer.reset();
         if (context_id.has_value()) {
             taint_engine_context->finish_request_context(context_id.value());
         }

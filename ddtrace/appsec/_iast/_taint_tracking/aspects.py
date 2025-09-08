@@ -668,7 +668,7 @@ def _distribute_ranges_and_escape(
             element_new_id = new_pyobject_id(bytes([element]))
         else:
             element_new_id = new_pyobject_id(element)
-        set_ranges(element_new_id, element_ranges)
+        taint_pyobject_with_ranges(element_new_id, element_ranges)
 
         formatted_elements_append(
             as_formatted_evidence(

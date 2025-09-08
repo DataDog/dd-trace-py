@@ -8,12 +8,12 @@ import pytest
 
 from ddtrace.appsec._iast._taint_tracking import OriginType
 from ddtrace.appsec._iast._taint_tracking import TaintRange
-from ddtrace.appsec._iast._taint_tracking import num_objects_tainted
-from ddtrace.appsec._iast._taint_tracking import set_ranges
-from ddtrace.appsec._iast._taint_tracking._context import reset_context
+from ddtrace.appsec._iast._taint_tracking._context import finish_request_context
 from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject
+from ddtrace.appsec._iast._taint_tracking._taint_objects import taint_pyobject_with_ranges
 from ddtrace.appsec._iast._taint_tracking._taint_objects_base import is_pyobject_tainted
 from ddtrace.appsec._iast._taint_tracking.aspects import add_aspect
+from ddtrace.appsec._iast._utils import _num_objects_tainted_in_request
 from ddtrace.appsec._iast.reporter import IastSpanReporter
 from ddtrace.appsec._iast.reporter import Source
 from tests.appsec.iast.iast_utils import iast_hypothesis_test
@@ -59,16 +59,16 @@ def test_taint_ranges_as_evidence_info_all_tainted():
 
 @pytest.mark.skip_iast_check_logs
 def test_taint_object_with_no_context_should_be_noop():
-    reset_context()
+    finish_request_context()
     arg = "all tainted"
     tainted_text = taint_pyobject(arg, source_name="request_body", source_value=arg, source_origin=OriginType.PARAMETER)
     assert tainted_text == arg
-    assert num_objects_tainted() == 0
+    assert _num_objects_tainted_in_request() == 0
 
 
 @pytest.mark.skip_iast_check_logs
 def test_propagate_ranges_with_no_context(caplog):
-    reset_context()
+    finish_request_context()
     with override_global_config(dict(_iast_debug=True)), caplog.at_level(logging.DEBUG):
         string_input = taint_pyobject(
             pyobject="abcde", source_name="abcde", source_value="abcde", source_origin=OriginType.PARAMETER
@@ -79,13 +79,13 @@ def test_propagate_ranges_with_no_context(caplog):
 
 
 @pytest.mark.skip_iast_check_logs
-def test_call_to_set_ranges_directly_raises_a_exception(caplog):
+def test_call_to_taint_pyobject_with_ranges_directly_raises_a_exception(caplog):
     from ddtrace.appsec._iast._taint_tracking import Source as TaintRangeSource
 
-    reset_context()
+    finish_request_context()
     input_str = "abcde"
     with pytest.raises(ValueError) as excinfo:
-        set_ranges(
+        taint_pyobject_with_ranges(
             input_str,
             [TaintRange(0, len(input_str), TaintRangeSource(input_str, "sample_value", OriginType.PARAMETER), [])],
         )
