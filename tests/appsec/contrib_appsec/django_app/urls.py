@@ -171,6 +171,32 @@ def rasp(request, endpoint: str):
 
 
 @csrf_exempt
+def redirect(request, url: str):
+    import urllib.request
+
+    url = "http://" + url
+    body_str = request.body.decode()
+    if body_str:
+        body = json.loads(body_str)
+    else:
+        body = None
+    try:
+        if body:
+            request_urllib = urllib.request.Request(
+                url, method="POST", data=json.dumps(body).encode(), headers={"Content-Type": "application/json"}
+            )
+        else:
+            request_urllib = urllib.request.Request(url, method="GET")
+        with urllib.request.urlopen(request_urllib, timeout=0.5) as f:
+            payload = {"payload": f.read().decode(errors="ignore")}
+    except Exception as e:
+        import traceback
+
+        payload = {"error": repr(e), "trace": traceback.format_exc()}
+    return JsonResponse(payload)
+
+
+@csrf_exempt
 def login_user(request):
     from django.contrib.auth import authenticate
     from django.contrib.auth import get_user_model
@@ -287,6 +313,7 @@ if django.VERSION >= (2, 0, 0):
         path("new_service/<str:service_name>", new_service, name="new_service"),
         path("rasp/<str:endpoint>/", rasp, name="rasp"),
         path("rasp/<str:endpoint>", rasp, name="rasp"),
+        path("redirect/<str:url>/", redirect, name="redirect"),
         path(route="login/", view=login_user, name="login"),
         path("login", login_user, name="login"),
         path("login_sdk/", login_user_sdk, name="login_sdk"),
@@ -300,6 +327,7 @@ else:
         path(r"new_service/(?P<service_name>\w+)$", new_service, name="new_service"),
         path(r"rasp/(?P<endpoint>\w+)/$", new_service, name="rasp"),
         path(r"rasp/(?P<endpoint>\w+)$", new_service, name="rasp"),
+        path(r"redirect/(?P<url>\w+)$", redirect, name="redirect"),
         path("login/", login_user, name="login"),
         path("login", login_user, name="login"),
     ]
