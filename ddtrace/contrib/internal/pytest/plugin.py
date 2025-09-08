@@ -82,7 +82,6 @@ def pytest_addoption(parser):
 
 
 if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
-
     from typing import Dict  # noqa:F401
 
     import pytest

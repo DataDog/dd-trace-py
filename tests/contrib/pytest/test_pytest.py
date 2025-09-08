@@ -4938,14 +4938,14 @@ def test_simple():
             def test_modules_not_imported():
                 import sys
                 import os
-                
+
                 # Verify the environment variable is set correctly
                 assert os.getenv('DD_CIVISIBILITY_ENABLED') == 'false'
-                
+
                 # Check that key modules were not imported (killswitch working)
                 logger_module_imported = 'ddtrace._logger' in sys.modules
                 telemetry_module_imported = 'ddtrace.internal.telemetry' in sys.modules
-                
+
                 # When killswitch is active, these modules should not be imported
                 assert not logger_module_imported and not telemetry_module_imported
         """

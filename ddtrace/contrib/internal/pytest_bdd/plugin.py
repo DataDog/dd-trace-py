@@ -1,5 +1,6 @@
 import os
 
+
 if os.getenv("DD_CIVISIBILITY_ENABLED", "true").lower() in ("true", "1"):
     from ddtrace import config
 
