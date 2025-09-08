@@ -3,7 +3,6 @@ from contextvars import ContextVar
 from functools import wraps
 import inspect
 import logging
-import logging
 import os
 import threading
 from typing import Any
@@ -12,11 +11,11 @@ from typing import Dict
 from typing import List
 from typing import Optional
 
+from pythonjsonlogger.json import JsonFormatter
 import ray
 from ray._private.inspect_util import is_class_method
 from ray._private.inspect_util import is_function_or_method
 from ray._private.inspect_util import is_static_method
-import ray._private.worker
 import ray.actor
 import ray.dashboard.modules.job.job_manager
 from ray.dashboard.modules.job.job_manager import generate_job_id
@@ -57,8 +56,11 @@ LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %
 
 ray_job_submission_id = ContextVar("ray_job_submission_id")
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger = logging.getLogger()
+try:
+    logger.setLevel(os.environ.get("DD_TRACE_RAY_LOG_LEVEL", "INFO").upper())
+except ValueError:
+    logger.setLevel(logging.INFO)
 
 config._add(
     "ray",
@@ -464,17 +466,11 @@ class RayLoggingFileHandler(logging.FileHandler):
 
 
 def setup_logging():
-    logger = logging.getLogger()
-    log_level = os.environ.get("DD_TRACE_RAY_LOG_LEVEL", "INFO").upper()
-    try:
-        logger.setLevel(log_level)
-    except ValueError:
-        logger.setLevel(logging.INFO)
-    json_formatter = jsonlogger.JsonFormatter(fmt=LOG_FORMAT)  # type: ignore
     dd_trace_ray_output_log_dir = os.environ.get("DD_TRACE_RAY_OUTPUT_LOG_DIR", "/tmp/ray/session_latest/logs/")
     os.makedirs(dd_trace_ray_output_log_dir, exist_ok=True)
     dd_trace_ray_output_log_path = os.path.join(dd_trace_ray_output_log_dir, "dd-trace-ray.log")
     file_handler = RayLoggingFileHandler(dd_trace_ray_output_log_path)
+    json_formatter = JsonFormatter(fmt=LOG_FORMAT)  # type: ignore
     file_handler.setFormatter(json_formatter)
     file_handler.addFilter(ActiveSpanFilter())
     logger.addHandler(file_handler)
