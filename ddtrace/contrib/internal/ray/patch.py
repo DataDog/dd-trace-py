@@ -196,6 +196,7 @@ def traced_submit_job(wrapped, instance, args, kwargs):
     # Root span creation
     job_span = tracer.start_span("ray.job", service=submission_id, span_type=SpanTypes.RAY)
     job_span.set_tag_str("component", "ray")
+    job_span.set_tag_str("ray.submission_id", submission_id)
     # This will allow to finish the span at the end of the job
     _job_span_manager.add_span(submission_id, job_span)
 
