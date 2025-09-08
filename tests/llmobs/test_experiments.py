@@ -104,6 +104,24 @@ def tmp_csv_file_for_upload(llmobs) -> Generator[MagicMock, None, None]:
         os.remove(stable_path)
 
 
+@pytest.fixture
+def test_dataset_large_num_records(llmobs):
+    records = []
+    for i in range(3000):
+        records.append({"input_data": f"input_{i}", "expected_output": f"output_{i}"})
+
+    ds = llmobs.create_dataset(
+        name="test-dataset-large-num-records",
+        description="A test dataset with a large number of records",
+        records=records,
+    )
+    wait_for_backend()
+
+    yield ds
+
+    llmobs._delete_dataset(dataset_id=ds._id)
+
+
 def test_dataset_create_delete(llmobs):
     dataset = llmobs.create_dataset(name="test-dataset-2", description="A second test dataset")
     assert dataset._id is not None
@@ -342,6 +360,19 @@ def test_dataset_csv_pipe_separated(llmobs, tmp_csv_file_for_upload):
 def test_dataset_pull_non_existent(llmobs):
     with pytest.raises(ValueError):
         llmobs.pull_dataset(name="test-dataset-non-existent")
+
+
+def test_dataset_pull_large_num_records(llmobs, test_dataset_large_num_records):
+    pds = llmobs.pull_dataset(name=test_dataset_large_num_records.name)
+    assert len(pds) == len(test_dataset_large_num_records)
+    assert pds.name == test_dataset_large_num_records.name
+    assert pds.description == test_dataset_large_num_records.description
+    assert pds._version == test_dataset_large_num_records._version == 1
+
+    dataset = sorted(pds, key=lambda r: int(r["input_data"].lstrip("input_")))
+    for i, d in enumerate(dataset):
+        assert d["input_data"] == f"input_{i}"
+        assert d["expected_output"] == f"output_{i}"
 
 
 @pytest.mark.parametrize("test_dataset_records", [[]])

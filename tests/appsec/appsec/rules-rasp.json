@@ -245,6 +245,75 @@
       "on_match": [
         "stack_trace"
       ]
+    },
+    {
+      "id": "apiA-100-001",
+      "name": "API 10 tag rule on headers",
+      "tags": {
+        "type": "api10 request headers",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.net.request.headers",
+                "key_path": [
+                  "Host"
+                ]
+              }
+            ],
+            "list": ["www.datadoghq.com"]
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "output": {
+        "event": true,
+        "keep": true,
+        "attributes": {
+          "_dd.appsec.trace.mark": {
+            "value": "TAG_API10_HEADER"
+          }
+        }
+      },
+      "on_match": []
+    },
+    {
+      "id": "apiA-100-002",
+      "name": "API 10 tag rule on body",
+      "tags": {
+        "type": "api10 request body",
+        "category": "attack_attempt"
+      },
+      "conditions": [
+        {
+          "parameters": {
+            "inputs": [
+              {
+                "address": "server.io.net.request.body",
+                "key_path": [
+                  "payload"
+                ]
+              }
+            ],
+            "list": ["qw2jedrkjerbgol23ewpfirj2qw3or"]
+          },
+          "operator": "exact_match"
+        }
+      ],
+      "output": {
+        "event": true,
+        "keep": true,
+        "attributes": {
+          "_dd.appsec.trace.mark": {
+            "value": "TAG_API10_BODY"
+          }
+        }
+      },
+      "on_match": []
     }
+
   ]
 }
