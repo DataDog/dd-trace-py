@@ -36,7 +36,7 @@ def assert_ai_guard_span(
     span = find_ai_guard_span(tracer)
     for key, value in tags.items():
         assert span.get_tag(key) == value
-    struct = span.get_struct_tag(AI_GUARD.TAG)
+    struct = span.get_struct_tag(AI_GUARD.REQUEST_STRUCT)
     assert struct["history"] == history
     assert struct["current"] == current
 

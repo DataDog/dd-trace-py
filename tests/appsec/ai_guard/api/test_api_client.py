@@ -253,7 +253,7 @@ def test_span_meta_history_truncation(mock_execute_request, ai_guard_client, tra
     workflow.evaluate_prompt("user", "Tell me 10 things I should know about DataDog")
 
     span = find_ai_guard_span(tracer)
-    meta = span.get_struct_tag(AI_GUARD.TAG)
+    meta = span.get_struct_tag(AI_GUARD.REQUEST_STRUCT)
     assert len(meta["history"]) == ai_guard_config._ai_guard_max_history_length
 
 
@@ -268,7 +268,7 @@ def test_span_meta_content_truncation(mock_execute_request, ai_guard_client, tra
     workflow.evaluate_prompt("user", random_output)
 
     span = find_ai_guard_span(tracer)
-    meta = span.get_struct_tag(AI_GUARD.TAG)
+    meta = span.get_struct_tag(AI_GUARD.REQUEST_STRUCT
     tool_call = meta["history"][0]
     assert len(tool_call["output"]) == ai_guard_config._ai_guard_max_content_size
 

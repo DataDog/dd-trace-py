@@ -259,7 +259,7 @@ class AIGuardClient:
             return evaluation
 
         span.set_struct_tag(
-            AI_GUARD.STRUCT,
+            AI_GUARD.REQUEST_STRUCT,
             {
                 "history": [truncate_content(e) for e in history],
                 "current": truncate_content(current),
