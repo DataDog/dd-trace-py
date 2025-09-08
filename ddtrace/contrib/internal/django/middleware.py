@@ -145,7 +145,6 @@ def traced_middleware_factory(func: FunctionType, args: Tuple[Any], kwargs: Dict
 
     if iscoroutinefunction(middleware):
         # Handle async middleware - create async wrapper
-
         async def traced_async_middleware_func(*args, **kwargs):
             # The first argument for all middleware is the request object
             # DEV: Do `optional=true` to avoid raising an error for middleware that don't follow the convention
