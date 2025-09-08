@@ -47,7 +47,23 @@ from urllib.request import urlretrieve
 
 HERE = Path(__file__).resolve().parent
 
-COMPILE_MODE = "Release"
+CURRENT_OS = platform.system()
+
+# What's meant by each build mode is similar to that from CMake, except that
+# non-CMake extensions are by default built with debug symbols. And we build
+# with Release by default for Windows.
+# Released wheels on Linux and macOS are stripped of debug symbols. We use
+# scripts/extract_debug_symbols.py to extract the debug symbols from the wheels.
+# C/C++ and Cython extensions built with setuptools.Extension, and
+# Cython.Distutils.Extension by default inherits CFLAGS from the Python
+# interpreter, and it usually has -O3 -g. So they're built with debug symbols
+# by default.
+# RustExtension src/native has two build profiles, release and debug, and only
+# DD_COMPILE_MODE=Debug will build with debug profile, and rest will build with
+# release profile, which also has debug symbols by default.
+# And when MinSizeRel or Release is used, we strip the debug symbols from the
+# wheels, see try_strip_symbols() below.
+COMPILE_MODE = "Release" if CURRENT_OS == "Windows" else "RelWithDebInfo"
 if "DD_COMPILE_DEBUG" in os.environ:
     warnings.warn(
         "The DD_COMPILE_DEBUG environment variable is deprecated and will be deleted, "
@@ -55,7 +71,7 @@ if "DD_COMPILE_DEBUG" in os.environ:
     )
     COMPILE_MODE = "Debug"
 else:
-    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", "Release")
+    COMPILE_MODE = os.environ.get("DD_COMPILE_MODE", COMPILE_MODE)
 
 FAST_BUILD = os.getenv("DD_FAST_BUILD", "false").lower() in ("1", "yes", "on", "true")
 if FAST_BUILD:
@@ -81,7 +97,7 @@ BUILD_PROFILING_NATIVE_TESTS = os.getenv("DD_PROFILING_NATIVE_TESTS", "0").lower
 
 CURRENT_OS = platform.system()
 
-LIBDDWAF_VERSION = "1.27.0"
+LIBDDWAF_VERSION = "1.28.0"
 
 # DEV: update this accordingly when src/native upgrades libdatadog dependency.
 # libdatadog v15.0.0 requires rust 1.78.
@@ -614,7 +630,7 @@ class CustomBuildExt(build_ext):
         cmake_args += [
             "-S{}".format(ext.source_dir),  # cmake>=3.13
             "-B{}".format(cmake_build_dir),  # cmake>=3.13
-            "-DPython3_ROOT_DIR={}".format(sysconfig.get_config_var("prefix")),
+            "-DPython3_ROOT_DIR={}".format(sys.prefix),
             "-DPYTHON_EXECUTABLE={}".format(sys.executable),
             "-DCMAKE_BUILD_TYPE={}".format(ext.build_type),
             "-DLIB_INSTALL_DIR={}".format(output_dir),

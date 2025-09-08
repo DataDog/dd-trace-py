@@ -7,7 +7,7 @@ using namespace pybind11::literals;
 
 struct ThreadContextCache_
 {
-    TaintRangeMapTypePtr tx_map = nullptr;
+    TaintedObjectMapTypePtr tx_map = nullptr;
 } ThreadContextCache;
 
 Initializer::Initializer()
@@ -23,16 +23,16 @@ Initializer::Initializer()
     }
 }
 
-TaintRangeMapTypePtr
+TaintedObjectMapTypePtr
 Initializer::create_tainting_map()
 {
-    auto map_ptr = make_shared<TaintRangeMapType>();
+    auto map_ptr = make_shared<TaintedObjectMapType>();
     active_map_addreses[map_ptr.get()] = map_ptr;
     return map_ptr;
 }
 
 void
-Initializer::clear_tainting_map(const TaintRangeMapTypePtr& tx_map)
+Initializer::clear_tainting_map(const TaintedObjectMapTypePtr& tx_map)
 {
     if (tx_map == nullptr) {
         return;
@@ -62,7 +62,7 @@ Initializer::clear_tainting_maps()
 }
 
 // User must check for nullptr return
-TaintRangeMapTypePtr
+TaintedObjectMapTypePtr
 Initializer::get_tainting_map()
 {
     return ThreadContextCache.tx_map;
@@ -93,12 +93,6 @@ Initializer::debug_taint_map()
     }
     output << "]";
     return output.str();
-}
-
-int
-Initializer::initializer_size() const
-{
-    return sizeof(*this);
 }
 
 int
@@ -194,7 +188,7 @@ Initializer::create_context()
 }
 
 void
-Initializer::reset_context(const TaintRangeMapTypePtr& tx_map)
+Initializer::reset_context(const TaintedObjectMapTypePtr& tx_map)
 {
     if (tx_map == nullptr) {
         return;
@@ -233,10 +227,18 @@ pyexport_initializer(py::module& m)
     m.def("debug_taint_map", [] { return Initializer::debug_taint_map(); });
 
     m.def("num_objects_tainted", [] { return Initializer::num_objects_tainted(); });
-    m.def("initializer_size", [] { return initializer->initializer_size(); });
     m.def("active_map_addreses_size", [] { return initializer->active_map_addreses_size(); });
 
     m.def("create_context", []() { return initializer->create_context(); }, py::return_value_policy::reference);
     m.def("reset_context", [] { initializer->reset_context(); });
     m.def("reset_contexts", [] { initializer->reset_contexts(); });
+
+    // Benchmark helpers (no type exposure required)
+    m.def("create_tainting_map_bench", [] { (void)initializer->create_tainting_map(); });
+    m.def("get_tainting_map_bench", [] { (void)Initializer::get_tainting_map(); });
+    // Return the raw pointer value of the current initializer map (0 if none)
+    m.def("get_tainting_map_addr", []() -> unsigned long long {
+        auto map_ptr = Initializer::get_tainting_map();
+        return map_ptr ? static_cast<unsigned long long>(reinterpret_cast<uintptr_t>(map_ptr.get())) : 0ULL;
+    });
 }

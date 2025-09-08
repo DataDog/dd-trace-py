@@ -1,0 +1,50 @@
+interactions:
+- request:
+    body: '{"data": {"type": "datasets", "id": "0db64595-86bd-4c4d-aca7-00a13885b5a5",
+      "attributes": {"insert_records": [{"input": {"prompt": "What is the capital
+      of Italy?"}, "expected_output": {"answer": "Rome"}, "metadata": null}, {"input":
+      {"prompt": "What is the capital of Sweden?"}, "expected_output": {"answer":
+      "Stockholm"}, "metadata": null}], "update_records": [], "delete_records": []}}}'
+    headers:
+      Accept:
+      - '*/*'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Accept-Encoding
+      : - identity
+      Connection:
+      - keep-alive
+      Content-Length:
+      - '388'
+      ? !!python/object/apply:multidict._multidict.istr
+      - Content-Type
+      : - application/json
+      User-Agent:
+      - python-requests/2.32.3
+    method: POST
+    uri: https://api.datadoghq.com/api/unstable/llm-obs/v1/datasets/0db64595-86bd-4c4d-aca7-00a13885b5a5/batch_update
+  response:
+    body:
+      string: '{"data":[{"id":"a637c787-dc8e-4830-9a41-a02e5a548933","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-03T21:44:08.71890938Z","dataset_id":"0db64595-86bd-4c4d-aca7-00a13885b5a5","expected_output":{"answer":"Rome"},"input":{"prompt":"What
+        is the capital of Italy?"},"updated_at":"2025-09-03T21:44:08.71890938Z","version":2}},{"id":"588601d8-5b7c-4bcf-a590-c89cc8628024","type":"datasets","attributes":{"author":{"id":"de473b30-eb9f-11e9-a77a-c7405862b8bd"},"created_at":"2025-09-03T21:44:08.71890938Z","dataset_id":"0db64595-86bd-4c4d-aca7-00a13885b5a5","expected_output":{"answer":"Stockholm"},"input":{"prompt":"What
+        is the capital of Sweden?"},"updated_at":"2025-09-03T21:44:08.71890938Z","version":2}}]}'
+    headers:
+      content-length:
+      - '766'
+      content-security-policy:
+      - frame-ancestors 'self'; report-uri https://logs.browser-intake-datadoghq.com/api/v2/logs?dd-api-key=pube4f163c23bbf91c16b8f57f56af9fc58&dd-evp-origin=content-security-policy&ddsource=csp-report&ddtags=site%3Adatadoghq.com
+      content-type:
+      - application/vnd.api+json
+      date:
+      - Wed, 03 Sep 2025 21:44:09 GMT
+      strict-transport-security:
+      - max-age=31536000; includeSubDomains; preload
+      vary:
+      - Accept-Encoding
+      x-content-type-options:
+      - nosniff
+      x-frame-options:
+      - SAMEORIGIN
+    status:
+      code: 200
+      message: OK
+version: 1

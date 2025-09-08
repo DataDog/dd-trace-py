@@ -16,9 +16,11 @@ from typing import TextIO
 import ddtrace
 from ddtrace import config
 import ddtrace.internal.native as native
+from ddtrace.internal.runtime import get_runtime_id
 import ddtrace.internal.utils.http
 from ddtrace.internal.utils.retry import fibonacci_backoff_with_jitter
 from ddtrace.settings._agent import config as agent_config
+from ddtrace.settings.asm import ai_guard_config
 from ddtrace.settings.asm import config as asm_config
 
 from ...constants import _KEEP_SPANS_RATE_KEY
@@ -541,6 +543,7 @@ class AgentWriter(HTTPWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 
@@ -733,6 +736,7 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             or in_azure_function()
             or asm_config._asm_enabled
             or asm_config._iast_enabled
+            or ai_guard_config._ai_guard_enabled
         ):
             default_api_version = "v0.4"
 
@@ -809,6 +813,13 @@ class NativeWriter(periodic.PeriodicService, TraceWriter, AgentWriterInterface):
             stats_interval = float(os.getenv("_DD_TRACE_STATS_WRITER_INTERVAL") or 10.0)
             bucket_size_ns: int = int(stats_interval * 1e9)
             builder.enable_stats(bucket_size_ns)
+
+        # TODO (APMSP-2204): Enable telemetry for all platforms, currently only enabled for Linux.
+        if config._telemetry_enabled and sys.platform.startswith("linux"):
+            heartbeat_ms = int(
+                config._telemetry_heartbeat_interval * 1000
+            )  # Convert DD_TELEMETRY_HEARTBEAT_INTERVAL to milliseconds
+            builder.enable_telemetry(heartbeat_ms, get_runtime_id())
 
         return builder.build()
 

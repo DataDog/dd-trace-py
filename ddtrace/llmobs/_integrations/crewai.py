@@ -1,15 +1,18 @@
 from collections.abc import Iterable
+import json
 from typing import Any
 from typing import Dict
 from typing import List
 from typing import Optional
 from weakref import WeakKeyDictionary
 
+from ddtrace._trace.pin import Pin
 from ddtrace.internal import core
 from ddtrace.internal.logger import get_logger
 from ddtrace.internal.utils import get_argument_value
 from ddtrace.internal.utils.formats import format_trace_id
 from ddtrace.llmobs._constants import AGENT_MANIFEST
+from ddtrace.llmobs._constants import DISPATCH_ON_TOOL_CALL
 from ddtrace.llmobs._constants import INPUT_VALUE
 from ddtrace.llmobs._constants import METADATA
 from ddtrace.llmobs._constants import NAME
@@ -21,7 +24,6 @@ from ddtrace.llmobs._constants import SPAN_LINKS
 from ddtrace.llmobs._integrations.base import BaseLLMIntegration
 from ddtrace.llmobs._utils import _get_nearest_llmobs_ancestor
 from ddtrace.llmobs._utils import safe_json
-from ddtrace.trace import Pin
 from ddtrace.trace import Span
 
 
@@ -212,16 +214,29 @@ class CrewAIIntegration(BaseLLMIntegration):
         tool_instance = kwargs.pop("_dd.instance", None)
         tool_name = getattr(tool_instance, "name", "")
         description = _extract_tool_description_field(getattr(tool_instance, "description", ""))
+        tool_input = kwargs.get("input", "")
         span._set_ctx_items(
             {
                 NAME: tool_name if tool_name else "CrewAI Tool",
                 METADATA: {"description": description},
-                INPUT_VALUE: kwargs.get("input", ""),
+                INPUT_VALUE: tool_input,
             }
         )
         if span.error:
             return
         span._set_ctx_item(OUTPUT_VALUE, response)
+
+        try:
+            if isinstance(tool_input, str):
+                tool_input = json.loads(tool_input)
+            tool_input = {k: v for k, v in tool_input.items() if k != "security_context"}
+        except (json.JSONDecodeError, TypeError):
+            log.warning("Failed to filter out security context from tool input.", exc_info=True)
+
+        core.dispatch(
+            DISPATCH_ON_TOOL_CALL,
+            (tool_name, safe_json(tool_input), "function", span),
+        )
 
     def _tag_agent_manifest(self, span, agent):
         if not agent:

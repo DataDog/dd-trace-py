@@ -1,5 +1,7 @@
+import os
 import platform
 import shutil
+import sys
 from typing import Dict
 from typing import Optional
 
@@ -77,8 +79,16 @@ def _get_tags(additional_tags: Optional[Dict[str, str]]) -> Dict[str, str]:
 
 def _get_args(additional_tags: Optional[Dict[str, str]]):
     dd_crashtracker_receiver = shutil.which("_dd_crashtracker_receiver")
+
+    # If not found in PATH, try ddtrace installation directory. This can happen
+    # in an injected environment
     if dd_crashtracker_receiver is None:
-        print("Failed to find _dd_crashtracker_receiver")
+        script_path = os.path.join(os.path.dirname(__file__), "..", "..", "commands", "_dd_crashtracker_receiver.py")
+        if os.path.exists(script_path):
+            dd_crashtracker_receiver = script_path
+
+    if dd_crashtracker_receiver is None:
+        print("Failed to find _dd_crashtracker_receiver", file=sys.stderr)
         return (None, None, None)
 
     if crashtracker_config.stacktrace_resolver is None:
@@ -92,7 +102,7 @@ def _get_args(additional_tags: Optional[Dict[str, str]]):
     else:
         # This should never happen, as the value is validated in the crashtracker_config
         # module.
-        print(f"Invalid stacktrace_resolver value: {crashtracker_config.stacktrace_resolver}")
+        print(f"Invalid stacktrace_resolver value: {crashtracker_config.stacktrace_resolver}", file=sys.stderr)
         stacktrace_resolver = StacktraceCollection.EnabledWithInprocessSymbols
 
     # Create crashtracker configuration
@@ -137,7 +147,7 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
     try:
         config, receiver_config, metadata = _get_args(additional_tags)
         if config is None or receiver_config is None or metadata is None:
-            print("Failed to start crashtracker: failed to construct crashtracker configuration")
+            print("Failed to start crashtracker: failed to construct crashtracker configuration", file=sys.stderr)
             return False
 
         crashtracker_init(config, receiver_config, metadata)
@@ -147,12 +157,15 @@ def start(additional_tags: Optional[Dict[str, str]] = None) -> bool:
             # fork
             config, receiver_config, metadata = _get_args(additional_tags)
             if config is None or receiver_config is None or metadata is None:
-                print("Failed to restart crashtracker after fork: failed to construct crashtracker configuration")
+                print(
+                    "Failed to restart crashtracker after fork: failed to construct crashtracker configuration",
+                    file=sys.stderr,
+                )
                 return
             crashtracker_on_fork(config, receiver_config, metadata)
 
         forksafe.register(crashtracker_fork_handler)
     except Exception as e:
-        print(f"Failed to start crashtracker: {e}")
+        print(f"Failed to start crashtracker: {e}", file=sys.stderr)
         return False
     return True
