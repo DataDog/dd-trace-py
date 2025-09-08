@@ -1,4 +1,3 @@
-from ddtrace import config
 import ddtrace.auto  # noqa: F401
 from ddtrace.constants import _DJM_ENABLED_KEY
 from ddtrace.constants import _FILTER_KEPT_KEY
@@ -9,7 +8,6 @@ from ddtrace.trace import tracer
 
 
 RAY_JOB_ID_TAG_KEY = "ray.job_id"
-DEFAULT_SERVICE_NAME = "unspecified-ray-job"
 DEFAULT_SPAN_NAME = "ray.job"
 
 
@@ -19,7 +17,7 @@ class RayTraceFilter(TraceFilter):
             if span.get_tag(RAY_JOB_ID_TAG_KEY) is not None:
                 span.span_type = f"ray.{span.name}"
                 span.name = DEFAULT_SPAN_NAME
-                span.service = config.service or DEFAULT_SERVICE_NAME
+                del span.tags["_dd.base_service"]
                 span.set_metric(_DJM_ENABLED_KEY, 1)
                 span.set_metric(_FILTER_KEPT_KEY, 1)
                 span.set_metric(_SPAN_MEASURED_KEY, 1)

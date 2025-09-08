@@ -1,15 +1,22 @@
 import inspect
 from inspect import Parameter
 from inspect import Signature
+import logging
 import os
+import re
 from typing import Any
 from typing import Callable
 from typing import List
+from typing import Optional
 
 import ray
 from ray.runtime_context import get_runtime_context
 
 from ddtrace.propagation.http import _TraceContext
+
+
+DEFAULT_JOB_NAME = "unspecified-ray-job"
+JOB_NAME_REGEX = re.compile(r"^[A-Za-z0-9\.]+")
 
 
 def _inject_dd_trace_ctx_kwarg(method: Callable) -> Signature:
@@ -153,3 +160,17 @@ def is_cython(obj):
 
     # Check if function or method, respectively
     return check_cython(obj) or (hasattr(obj, "__func__") and check_cython(obj.__func__))
+
+
+def get_dd_job_name(submission_id: Optional[str] = None):
+    """
+    Get the job name from the submission id.
+    If the submission id is not a valid job name, return the default job name.
+    If the submission id is not set, return the default job name.
+    """
+    if submission_id is None:
+        submission_id = os.environ.get("_RAY_SUBMISSION_ID") or ""
+    match = JOB_NAME_REGEX.match(submission_id)
+    if match:
+        return match.group(0)
+    return DEFAULT_JOB_NAME
