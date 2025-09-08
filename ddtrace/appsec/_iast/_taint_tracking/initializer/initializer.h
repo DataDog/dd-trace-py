@@ -24,7 +24,7 @@ class Initializer
     stack<TaintRangePtr> available_ranges_stack;
     // This is a map instead of a set so we can change the contents on iteration; otherwise
     // keys and values are the same pointer.
-    unordered_map<TaintRangeMapType*, TaintRangeMapTypePtr> active_map_addreses;
+    unordered_map<TaintedObjectMapType*, TaintedObjectMapTypePtr> active_map_addreses;
 
     std::mutex active_map_addreses_mutex;
 
@@ -39,21 +39,21 @@ class Initializer
      *
      * @return A pointer to the created taint range map.
      */
-    TaintRangeMapTypePtr create_tainting_map();
+    TaintedObjectMapTypePtr create_tainting_map();
 
     /**
      * Clears a taint range map.
      *
      * @param tx_map The taint range map to be freed.
      */
-    void clear_tainting_map(const TaintRangeMapTypePtr& tx_map);
+    void clear_tainting_map(const TaintedObjectMapTypePtr& tx_map);
 
     /**
      * Gets the current taint range map.
      *
      * @return A pointer to the current taint range map.
      */
-    static TaintRangeMapTypePtr get_tainting_map();
+    static TaintedObjectMapTypePtr get_tainting_map();
 
     /**
      * Clears all active taint maps.
@@ -84,7 +84,7 @@ class Initializer
     /**
      * Resets the current taint tracking context.
      */
-    void reset_context(const TaintRangeMapTypePtr& tx_map);
+    void reset_context(const TaintedObjectMapTypePtr& tx_map);
     /**
      * Resets the current taint tracking context.
      */
