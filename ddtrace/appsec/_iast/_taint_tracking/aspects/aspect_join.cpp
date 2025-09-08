@@ -187,7 +187,29 @@ api_join_aspect(PyObject* self, PyObject* const* args, const Py_ssize_t nargs)
         return nullptr;
     }
     TRY_CATCH_ASPECT("join_aspect", return result, , {
-        const auto ctx_map = Initializer::get_tainting_map();
+        // AIDEV-NOTE: Scan sep and arg0 (including elements if list/tuple) to get the active taint map.
+        std::vector<PyObject*> candidates;
+        candidates.reserve(1 +
+                           (PyList_Check(arg0) ? PyList_Size(arg0) : (PyTuple_Check(arg0) ? PyTuple_Size(arg0) : 1)));
+        candidates.push_back(sep);
+        if (PyList_Check(arg0)) {
+            const Py_ssize_t n = PyList_Size(arg0);
+            for (Py_ssize_t i = 0; i < n; i++) {
+                PyObject* item = PyList_GetItem(arg0, i); // borrowed
+                if (item)
+                    candidates.push_back(item);
+            }
+        } else if (PyTuple_Check(arg0)) {
+            const Py_ssize_t n = PyTuple_Size(arg0);
+            for (Py_ssize_t i = 0; i < n; i++) {
+                PyObject* item = PyTuple_GetItem(arg0, i); // borrowed
+                if (item)
+                    candidates.push_back(item);
+            }
+        } else {
+            candidates.push_back(arg0);
+        }
+        auto ctx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(candidates);
         if (not ctx_map or ctx_map->empty() or get_pyobject_size(result) == 0) {
             // Empty result cannot have taint ranges
             if (decref_arg0) {

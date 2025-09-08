@@ -1,4 +1,5 @@
 #include "aspect_format.h"
+#include "helpers.h"
 
 /**
  * @brief This function is used to format the candidate_text with the given parameter_list, args and kwargs.
@@ -17,13 +18,19 @@ api_format_aspect(StrType& candidate_text,
                   const py::args& args,
                   const py::kwargs& kwargs)
 {
-    const auto tx_map = Initializer::get_tainting_map();
+    std::vector<PyObject*> candidates;
+    candidates.reserve(1 + parameter_list.size());
+    candidates.push_back(candidate_text.ptr());
+    for (const auto& item : parameter_list) {
+        candidates.push_back(item.ptr());
+    }
+    auto tx_map = taint_engine_context->get_tainted_object_map_from_list_of_pyobjects(candidates);
 
     if (not tx_map or tx_map->empty()) {
         return py::getattr(candidate_text, "format")(*args, **kwargs);
     }
 
-    auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameter_list);
+    auto [ranges_orig, candidate_text_ranges] = are_all_text_all_ranges(candidate_text.ptr(), parameter_list, tx_map);
     if (ranges_orig.empty() and candidate_text_ranges.empty()) {
         return py::getattr(candidate_text, "format")(*args, **kwargs);
     }
@@ -36,7 +43,7 @@ api_format_aspect(StrType& candidate_text,
     for (const auto arg : args) {
         if (is_text(arg.ptr())) {
             auto str_arg = py::cast<py::str>(arg);
-            auto n_arg = all_as_formatted_evidence<py::str>(str_arg, TagMappingMode::Mapper);
+            auto n_arg = all_as_formatted_evidence<py::str>(str_arg, TagMappingMode::Mapper, tx_map);
             new_args.append(n_arg);
         } else {
             new_args.append(arg);
@@ -45,7 +52,7 @@ api_format_aspect(StrType& candidate_text,
     for (auto [key, value] : kwargs) {
         if (is_text(value.ptr())) {
             auto str_value = py::cast<py::str>(value);
-            auto n_value = all_as_formatted_evidence<py::str>(str_value, TagMappingMode::Mapper);
+            auto n_value = all_as_formatted_evidence<py::str>(str_value, TagMappingMode::Mapper, tx_map);
             new_kwargs[key] = n_value;
         } else {
             new_kwargs[key] = value;

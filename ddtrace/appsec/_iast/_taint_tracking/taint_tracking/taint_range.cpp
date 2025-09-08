@@ -265,6 +265,14 @@ get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map)
 bool
 set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map)
 {
+    // Guard: invalid taint map
+    if (not tx_map) {
+        return false;
+    }
+    // Guard: only text-like objects are supported for taint
+    if (not is_tainteable(str)) {
+        return false;
+    }
     if (ranges.empty()) {
         return false;
     }

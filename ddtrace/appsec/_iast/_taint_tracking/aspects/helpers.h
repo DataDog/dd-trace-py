@@ -42,6 +42,11 @@ all_as_formatted_evidence(const StrType& text, TagMappingMode tag_mapping_mode, 
     return StrType(as_formatted_evidence(AnyTextObjectToString(text), ranges, tag_mapping_mode, nullopt));
 }
 
+tuple<TaintRangeRefs, TaintRangeRefs>
+are_all_text_all_ranges(PyObject* candidate_text,
+                        const py::tuple& parameter_list,
+                        const TaintedObjectMapTypePtr& tx_map);
+
 template<class StrType>
 StrType
 int_as_formatted_evidence(const StrType& text, TaintRangeRefs& text_ranges, TagMappingMode tag_mapping_mode)
