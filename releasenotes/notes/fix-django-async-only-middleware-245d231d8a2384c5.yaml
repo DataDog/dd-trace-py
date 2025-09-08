@@ -1,4 +1,4 @@
 ---
 fixes:
   - |
-    django: Fixes issue causing ``ValueError: coroutine already executing`` on Python 3.12+ with ``django.utils.decorators.async_only_middleware``.
+    django: Fixes issue causing ``ValueError: coroutine already executing`` on Python 3.13+ with ``django.utils.decorators.async_only_middleware``.
