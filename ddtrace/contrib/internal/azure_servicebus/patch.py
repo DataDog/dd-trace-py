@@ -21,7 +21,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("azure_servicebus"),
         distributed_tracing=asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)),
-        distributed_batch_tracing=asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_BATCH_TRACING", default=False)),
+        batch_links=asbool(os.getenv("DD_TRACE_SERVICEBUS_BATCH_LINKS_ENABLED", default=False)),
     ),
 )
 
@@ -53,14 +53,14 @@ def _patch(azure_servicebus_module):
         _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
         _w("azure.servicebus.aio", "ServiceBusSender.schedule_messages", _patched_schedule_messages_async)
 
-        if config.azure_servicebus.distributed_batch_tracing:
+        if config.azure_servicebus.batch_links:
             _w("azure.servicebus.aio", "ServiceBusSender.create_message_batch", _patched_create_message_batch_async)
     else:
         Pin().onto(azure_servicebus_module.ServiceBusSender)
         _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
         _w("azure.servicebus", "ServiceBusSender.schedule_messages", _patched_schedule_messages)
 
-        if config.azure_servicebus.distributed_batch_tracing:
+        if config.azure_servicebus.batch_links:
             Pin().onto(azure_servicebus_module.ServiceBusMessageBatch)
             _w("azure.servicebus", "ServiceBusMessageBatch.add_message", _patched_add_message)
             _w("azure.servicebus", "ServiceBusSender.create_message_batch", _patched_create_message_batch)

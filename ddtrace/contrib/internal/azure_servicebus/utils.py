@@ -33,7 +33,7 @@ def handle_service_bus_message_context(span, message_arg_value):
         for message in message_arg_value:
             inject_context(span, message)
     elif isinstance(message_arg_value, azure_servicebus.ServiceBusMessageBatch):
-        if config.azure_servicebus.distributed_batch_tracing:
+        if config.azure_servicebus.batch_links:
             for message in message_arg_value._messages:
                 parent_context = HTTPPropagator.extract(message._message.application_properties)
                 span.link_span(parent_context)

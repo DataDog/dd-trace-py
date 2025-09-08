@@ -3,4 +3,4 @@ SERVICE = "servicebus"
 
 SEND = "send"
 CREATE = "create"
-PROCESS = "process"
+RECEIVE = "receive"

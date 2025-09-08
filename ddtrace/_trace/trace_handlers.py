@@ -863,7 +863,7 @@ def _set_azure_messaging_tags(ctx, entity_name, operation, system, fully_qualifi
     span.set_tag_str(MESSAGING_SYSTEM, system)
 
     if fully_qualified_namespace is not None:
-        span.set_tag_str(net.SERVER_ADDRESS, fully_qualified_namespace)
+        span.set_tag_str(net.TARGET_NAME, fully_qualified_namespace)
 
     if batch_count is not None:
         span.set_tag_str(MESSAGING_BATCH_COUNT, batch_count)
@@ -920,7 +920,7 @@ def _on_azure_functions_service_bus_trigger_span_modifier(
     _set_azure_messaging_tags(
         ctx,
         entity_name,
-        azure_servicebusx.PROCESS,
+        azure_servicebusx.RECEIVE,
         azure_servicebusx.SERVICE,
         fully_qualified_namespace,
         message_id,
