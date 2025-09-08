@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from django.utils.decorators import async_only_middleware
 
 
 try:
@@ -96,3 +97,12 @@ class EverythingMiddleware:
 
     def process_template_response(self, req, resp):
         return resp
+
+
+@async_only_middleware
+def my_async_only_middleware(get_response):
+    async def handle(request):
+        raise Exception()
+        return await get_response(request)
+
+    return handle
