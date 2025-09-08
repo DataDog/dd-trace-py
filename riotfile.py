@@ -2998,6 +2998,7 @@ venv = Venv(
                 "pytest-asyncio": latest,
                 "pydantic-ai": ["==0.3.0", "==0.4.4", latest],
                 "vcrpy": "==7.0.0",
+                "typing_extensions": latest,
             },
         ),
         Venv(

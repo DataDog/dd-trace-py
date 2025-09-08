@@ -1,8 +1,7 @@
-from typing import TypedDict
-
 import mock
 import pydantic_ai
 import pytest
+from typing_extensions import TypedDict
 
 from ddtrace.internal.utils.version import parse_version
 from ddtrace.llmobs._utils import safe_json
