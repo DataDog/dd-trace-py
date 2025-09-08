@@ -12,6 +12,14 @@ from typing import List
 from typing import Optional
 
 from pythonjsonlogger import jsonlogger
+import ray
+from ray._private.inspect_util import is_class_method
+from ray._private.inspect_util import is_function_or_method
+from ray._private.inspect_util import is_static_method
+import ray.actor
+import ray.dashboard.modules.job.job_manager
+from ray.dashboard.modules.job.job_manager import generate_job_id
+import ray.exceptions
 from wrapt import wrap_function_wrapper as _w
 
 from ddtrace import config
@@ -34,15 +42,6 @@ from ddtrace.internal.utils.formats import asbool
 from ddtrace.internal.utils.wrappers import unwrap as _u
 from ddtrace.propagation.http import _TraceContext
 from ddtrace.settings._config import _get_config
-import ray
-from ray._private.inspect_util import is_class_method
-from ray._private.inspect_util import is_function_or_method
-from ray._private.inspect_util import is_static_method
-import ray.actor
-import ray.dashboard.modules.job.job_manager
-from ray.dashboard.modules.job.job_manager import generate_job_id
-import ray.exceptions
-from ray.runtime_context import get_runtime_context
 
 from .utils import _extract_tracing_context_from_env
 from .utils import _inject_context_in_env
@@ -52,7 +51,7 @@ from .utils import _inject_ray_span_tags
 from .utils import extract_signature
 
 
-LOG_FORMAT = ('%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s')
+LOG_FORMAT = "%(asctime)s %(levelname)s [%(name)s] [%(filename)s:%(lineno)d] - %(message)s"
 
 ray_job_submission_id = ContextVar("ray_job_submission_id")
 
@@ -115,38 +114,42 @@ class RayTraceProcessor:
 RAY_JOB_MANAGER_LOGGER_NAME = "ray.dashboard.modules.job.job_manager"
 RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX = "Starting job with submission_id: "
 
+
 class ActiveSpanFilter(logging.Filter):
-        def filter(self, record):
+    def filter(self, record):
 
-            context = tracer.get_log_correlation_context()
+        context = tracer.get_log_correlation_context()
 
-            # Only capture log lines from inside an active Ray traces
-            if context.get(LOG_ATTR_TRACE_ID) and context.get(LOG_ATTR_TRACE_ID) != "0":
-                job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
-                # We can get the Ray job submission id out of Ray job_manager's initial message (before it is avaiable in the runtime env):
-                if not job_submission_id:
-                    if record.name == RAY_JOB_MANAGER_LOGGER_NAME and record.message.startswith(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX):
-                        _, _, job_submission_id = record.message.partition(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX)
-                        if job_submission_id:
-                            ray_job_submission_id.set(job_submission_id)
-                    else:
-                        job_submission_id = ray_job_submission_id.get()
+        # Only capture log lines from inside an active Ray traces
+        if context.get(LOG_ATTR_TRACE_ID) and context.get(LOG_ATTR_TRACE_ID) != "0":
+            job_submission_id = os.environ.get("_RAY_SUBMISSION_ID")
+            # We can get the Ray job submission id out of Ray job_manager's initial message
+            # before it is avaiable in the runtime env:
+            if not job_submission_id:
+                if record.name == RAY_JOB_MANAGER_LOGGER_NAME and record.message.startswith(
+                    RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX
+                ):
+                    _, _, job_submission_id = record.message.partition(RAY_JOB_MANAGER_JOB_START_MESSAGE_PREFIX)
+                    if job_submission_id:
+                        ray_job_submission_id.set(job_submission_id)
+                else:
+                    job_submission_id = ray_job_submission_id.get()
 
-                record.__setattr__("dd.trace_id", context.get(LOG_ATTR_TRACE_ID))
-                record.__setattr__("dd.span_id", context.get(LOG_ATTR_SPAN_ID))
-                record.__setattr__("dd.env", context.get(LOG_ATTR_ENV))
-                record.__setattr__("dd.service", context.get(LOG_ATTR_SERVICE))
-                record.__setattr__("dd.version", context.get(LOG_ATTR_VERSION))
+            record.__setattr__("dd.trace_id", context.get(LOG_ATTR_TRACE_ID))
+            record.__setattr__("dd.span_id", context.get(LOG_ATTR_SPAN_ID))
+            record.__setattr__("dd.env", context.get(LOG_ATTR_ENV))
+            record.__setattr__("dd.service", context.get(LOG_ATTR_SERVICE))
+            record.__setattr__("dd.version", context.get(LOG_ATTR_VERSION))
 
-                record.__setattr__("ray.job_submission_id", job_submission_id)
-                record.source = "ray"
-                record.team = "aiobs"
+            record.__setattr__("ray.job_submission_id", job_submission_id)
+            record.source = "ray"
+            record.team = "aiobs"
 
-                return True
-            
-            else:
-                return False
-                        
+            return True
+
+        else:
+            return False
+
 
 def _inject_tracing_into_remote_function(function):
     """Inject trace context parameter into function signature"""
@@ -456,6 +459,7 @@ async def traced_end_job(wrapped, instance, args, kwargs):
     job_span.finish()
 
     return result
+
 
 class RayLoggingFileHandler(logging.FileHandler):
     pass
