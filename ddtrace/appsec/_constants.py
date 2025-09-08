@@ -419,7 +419,7 @@ class AI_GUARD(metaclass=Constant_Class):
     TOOL_NAME_TAG: str = TAG + ".tool_name"
 
     # meta struct
-    REQUEST_STRUCT: Literal["ai_guard.request"] = "ai_guard.request"
+    REQUEST_STRUCT: Literal["ai_guard_request"] = "ai_guard_request"
 
     # metrics
     METRIC_PREFIX: Literal["ai_guard"] = "ai_guard"
