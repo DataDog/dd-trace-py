@@ -35,7 +35,7 @@ Global Configuration
 
    Include create spans and links for service bus messages added to and sent in a batch.
 
-   This option can also be set with the ``DD_TRACE_SERVICEBUS_BATCH_LINKS_ENABLED``
+   This option can also be set with the ``DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED``
    environment variable.
 
    Default: ``True``
