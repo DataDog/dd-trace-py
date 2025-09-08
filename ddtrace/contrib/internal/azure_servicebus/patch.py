@@ -21,7 +21,7 @@ config._add(
     dict(
         _default_service=schematize_service_name("azure_servicebus"),
         distributed_tracing=asbool(os.getenv("DD_AZURE_SERVICEBUS_DISTRIBUTED_TRACING", default=True)),
-        batch_links=asbool(os.getenv("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", default=False)),
+        batch_links=asbool(os.getenv("DD_TRACE_AZURE_SERVICEBUS_BATCH_LINKS_ENABLED", default=True)),
     ),
 )
 
