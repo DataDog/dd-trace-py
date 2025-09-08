@@ -70,7 +70,13 @@ jobs:
       # `platform.mac_ver()` reports incorrect MacOS version at 11.0
       # See: https://stackoverflow.com/a/65402241
       CIBW_ENVIRONMENT_MACOS: CMAKE_BUILD_PARALLEL_LEVEL=24 SYSTEM_VERSION_COMPAT=0 CMAKE_ARGS="-DNATIVE_TESTING=OFF"
+      # cibuildwheel repair will copy anything's under /output directory from the
+      # build container to the host machine. This is a bit hacky way, but seems
+      # to be the only way getting debug symbols out from the container while
+      # we don't mess up with RECORD file.
       CIBW_REPAIR_WHEEL_COMMAND_LINUX: |
+        mkdir -p /output/debugwheelhouse &&
+        python scripts/extract_debug_symbols.py {wheel} --output-dir /output/debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         mkdir ./tempwheelhouse &&
         unzip -l {wheel} | grep '\.so' &&
@@ -78,6 +84,8 @@ jobs:
         mv ./tempwheelhouse/*.whl {dest_dir} &&
         rm -rf ./tempwheelhouse
       CIBW_REPAIR_WHEEL_COMMAND_MACOS: |
+        mkdir -p ./debugwheelhouse &&
+        python scripts/extract_debug_symbols.py {wheel} --output-dir ./debugwheelhouse &&
         python scripts/zip_filter.py {wheel} \*.c \*.cpp \*.cc \*.h \*.hpp \*.pyx \*.md &&
         MACOSX_DEPLOYMENT_TARGET=12.7 delocate-wheel --require-archs {delocate_archs} -w {dest_dir} -v {wheel}
       CIBW_REPAIR_WHEEL_COMMAND_WINDOWS: python scripts/zip_filter.py "{wheel}" "*.c" "*.cpp" "*.cc" "*.h" "*.hpp" "*.pyx" "*.md" && mv "{wheel}" "{dest_dir}"
@@ -126,3 +134,11 @@ jobs:
         with:
           name: wheels-${{ env.ARTIFACT_NAME }}
           path: ./wheelhouse/*.whl
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: runner.os != 'Windows'
+        with:
+          name: debug-symbols-${{ env.ARTIFACT_NAME }}
+          path: |
+            ./debugwheelhouse/*.zip
+            ./wheelhouse/debugwheelhouse/*.zip

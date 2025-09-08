@@ -22,10 +22,10 @@ using TaintedObjectPtr = shared_ptr<TaintedObject>;
 // Use Abseil only if NDEBUG is set and DONT_COMPILE_ABSEIL is not set
 #if defined(NDEBUG) && !defined(DONT_COMPILE_ABSEIL)
 #include "absl/container/node_hash_map.h"
-using TaintRangeMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
+using TaintedObjectMapType = absl::node_hash_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
 #else
 #include <unordered_map>
-using TaintRangeMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
+using TaintedObjectMapType = std::unordered_map<uintptr_t, std::pair<Py_hash_t, TaintedObjectPtr>>;
 #endif
 
 /**
@@ -53,7 +53,7 @@ enum class VulnerabilityType
     XSS,                  ///< Cross-Site Scripting vulnerability
 };
 
-using TaintRangeMapTypePtr = shared_ptr<TaintRangeMapType>;
+using TaintedObjectMapTypePtr = shared_ptr<TaintedObjectMapType>;
 using SecureMarks = uint64_t;
 
 /**
@@ -138,10 +138,10 @@ TaintRangeRefs
 api_shift_taint_ranges(const TaintRangeRefs&, RANGE_START offset, RANGE_LENGTH new_length);
 
 std::pair<TaintRangeRefs, bool>
-get_ranges(PyObject* string_input, const TaintRangeMapTypePtr& tx_map);
+get_ranges(PyObject* string_input, const TaintedObjectMapTypePtr& tx_map);
 
 bool
-set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintRangeMapTypePtr& tx_map);
+set_ranges(PyObject* str, const TaintRangeRefs& ranges, const TaintedObjectMapTypePtr& tx_map);
 
 py::object
 api_set_ranges(py::handle& str, const TaintRangeRefs& ranges);
@@ -157,6 +157,9 @@ api_copy_and_shift_ranges_from_strings(py::handle& str_1, py::handle& str_2, int
 
 PyObject*
 api_set_ranges_from_values(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
+
+PyObject*
+api_taint_pyobject(PyObject* self, PyObject* const* args, const Py_ssize_t nargs);
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 std::tuple<TaintRangeRefs, TaintRangeRefs>
@@ -183,7 +186,7 @@ api_is_unicode_and_not_fast_tainted(const py::handle& str)
 }
 
 TaintedObjectPtr
-get_tainted_object(PyObject* str, const TaintRangeMapTypePtr& tx_taint_map);
+get_tainted_object(PyObject* str, const TaintedObjectMapTypePtr& tx_taint_map);
 
 Py_hash_t
 bytearray_hash(PyObject* bytearray);
@@ -192,14 +195,14 @@ Py_hash_t
 get_internal_hash(PyObject* obj);
 
 void
-set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintRangeMapTypePtr& tx_map);
+set_tainted_object(PyObject* str, TaintedObjectPtr tainted_object, const TaintedObjectMapTypePtr& tx_map);
 
 inline void
 copy_and_shift_ranges_from_strings(const py::handle& str_1,
                                    const py::handle& str_2,
                                    const int offset,
                                    const int new_length,
-                                   const TaintRangeMapTypePtr& tx_map)
+                                   const TaintedObjectMapTypePtr& tx_map)
 {
     if (!tx_map)
         return;

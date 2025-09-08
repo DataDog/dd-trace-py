@@ -17,7 +17,7 @@ index_aspect(PyObject* result_o,
              const PyObject* candidate_text,
              PyObject* idx,
              const TaintRangeRefs& ranges,
-             const TaintRangeMapTypePtr& tx_map)
+             const TaintedObjectMapTypePtr& tx_map)
 {
     TaintRangeRefs ranges_to_set;
 
