@@ -47,7 +47,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'de83dd5f4888e7f9fd6ad5efcc932e31b85131d0'
+          ref: '04070bed4dd644284690650abe291e632eb27cd9'
 
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
@@ -94,7 +94,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'de83dd5f4888e7f9fd6ad5efcc932e31b85131d0'
+          ref: '04070bed4dd644284690650abe291e632eb27cd9'
 
       - name: Build runner
         uses: ./.github/actions/install_runner
@@ -279,7 +279,7 @@ jobs:
           persist-credentials: false
           repository: 'DataDog/system-tests'
           # Automatically managed, use scripts/update-system-tests-version to update
-          ref: 'de83dd5f4888e7f9fd6ad5efcc932e31b85131d0'
+          ref: '04070bed4dd644284690650abe291e632eb27cd9'
       - name: Download wheels to binaries directory
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
