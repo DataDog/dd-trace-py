@@ -37,7 +37,7 @@ log = get_logger(__name__)
 
 def _on_request_init(wrapped, instance, args, kwargs):
     wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if is_iast_request_enabled():
         try:
             instance.query_string = taint_pyobject(
                 pyobject=instance.query_string,
@@ -322,7 +322,7 @@ def _on_grpc_response(message):
 
 
 def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if is_iast_request_enabled():
         try:
             for key, value in wrapped(*args, **kwargs):
                 new_key = taint_pyobject(pyobject=key, source_name=key, source_value=key, source_origin=origins[0])
@@ -339,7 +339,7 @@ def if_iast_taint_yield_tuple_for(origins, wrapped, instance, args, kwargs):
 
 def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if is_iast_request_enabled():
         try:
             if not is_pyobject_tainted(value):
                 name = str(args[0]) if len(args) else "http.request.body"
@@ -353,7 +353,7 @@ def if_iast_taint_returned_object_for(origin, wrapped, instance, args, kwargs):
 
 def if_iast_taint_starlette_datastructures(origin, wrapped, instance, args, kwargs):
     value = wrapped(*args, **kwargs)
-    if asm_config._iast_enabled and is_iast_request_enabled():
+    if is_iast_request_enabled():
         try:
             res = []
             for element in value:
