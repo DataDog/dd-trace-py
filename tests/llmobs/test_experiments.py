@@ -1013,7 +1013,7 @@ def test_experiment_init(llmobs, test_dataset_one_record):
     assert exp._evaluators == [dummy_evaluator]
     assert exp._project_name == "test-project"
     assert exp._description == "lorem ipsum"
-    assert exp._project_id is None
+    assert exp._project is None
     assert exp._run_name is None
     assert exp._id is None
 

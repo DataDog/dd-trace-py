@@ -49,6 +49,7 @@ from ddtrace.llmobs._experiment import Dataset
 from ddtrace.llmobs._experiment import DatasetRecord
 from ddtrace.llmobs._experiment import DatasetRecordRaw
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._experiment import UpdatableDatasetRecord
 from ddtrace.llmobs._utils import safe_json
 from ddtrace.settings._agent import config as agent_config
@@ -141,7 +142,7 @@ class BaseLLMObsWriter(PeriodicService):
         _api_key: str = "",
         _app_key: str = "",
         _override_url: str = "",
-        _default_project_id: str = "",
+        _default_project: Project = Project(name="", _id=""),
     ) -> None:
         super(BaseLLMObsWriter, self).__init__(interval=interval)
         self._lock = forksafe.RLock()
@@ -152,7 +153,7 @@ class BaseLLMObsWriter(PeriodicService):
         self._site: str = _site or config._dd_site
         self._app_key: str = _app_key
         self._override_url: str = _override_url or os.environ.get("DD_LLMOBS_OVERRIDE_ORIGIN", "")
-        self._default_project_id: str = _default_project_id
+        self._default_project: Project = _default_project
 
         self._agentless: bool = is_agentless
         self._intake: str = self._override_url or (
@@ -379,7 +380,8 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         project_name: Optional[str],
         description: str,
     ) -> Dataset:
-        project_id = self.project_create_or_get(project_name)
+        project = self.project_create_or_get(project_name)
+        project_id = project.get("_id")
         logger.debug("getting records with project ID %s for %s", project_id, project_name)
 
         path = f"/api/unstable/llm-obs/v1/{project_id}/datasets"
@@ -397,7 +399,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if dataset_id is None or dataset_id == "":
             raise ValueError(f"unexpected dataset state, invalid ID (is None: {dataset_id is None})")
         curr_version = response_data["data"]["attributes"]["current_version"]
-        return Dataset(dataset_name, dataset_id, [], description, curr_version, _dne_client=self)
+        return Dataset(dataset_name, project, dataset_id, [], description, curr_version, _dne_client=self)
 
     @staticmethod
     def _get_record_json(record: Union[UpdatableDatasetRecord, DatasetRecordRaw], is_update: bool) -> JSONType:
@@ -456,13 +458,16 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         return new_version, new_record_ids
 
     def dataset_get_with_records(self, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
-        project_id = self.project_create_or_get(project_name)
+        project = self.project_create_or_get(project_name)
+        project_id = project.get("_id")
         logger.debug("getting records with project ID %s for %s", project_id, project_name)
 
         path = f"/api/unstable/llm-obs/v1/{project_id}/datasets?filter[name]={quote(dataset_name)}"
         resp = self.request("GET", path)
         if resp.status != 200:
-            raise ValueError(f"Failed to pull dataset {dataset_name} from project {project_name} (id={project_id}): {resp.status}")
+            raise ValueError(
+                f"Failed to pull dataset {dataset_name} from project {project_name} (id={project_id}): {resp.status}"
+            )
 
         response_data = resp.get_json()
         data = response_data["data"]
@@ -504,7 +509,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
                 list_path = f"{list_base_path}?page[cursor]={next_cursor}"
                 logger.debug("next list records request path %s", list_path)
                 page_num += 1
-        return Dataset(dataset_name, dataset_id, class_records, dataset_description, curr_version, _dne_client=self)
+        return Dataset(
+            dataset_name, project, dataset_id, class_records, dataset_description, curr_version, _dne_client=self
+        )
 
     def dataset_bulk_upload(self, dataset_id: str, records: List[DatasetRecord]):
         with tempfile.NamedTemporaryFile(suffix=".csv") as tmp:
@@ -557,9 +564,9 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
             raise ValueError(f"Failed to upload dataset from file: {resp.status} {resp.get_json()}")
         logger.debug("successfully uploaded with code %d", resp.status)
 
-    def project_create_or_get(self, name: Optional[str] = None) -> str:
+    def project_create_or_get(self, name: Optional[str] = None) -> Project:
         if not name:
-            return self._default_project_id
+            return self._default_project
 
         path = "/api/unstable/llm-obs/v1/projects"
         resp = self.request(
@@ -575,7 +582,7 @@ class LLMObsExperimentsClient(BaseLLMObsWriter):
         if not project_id:
             raise ValueError(f"project ID is required for dataset & experiments features (project name: {name})")
 
-        return project_id
+        return Project(name=name, _id=project_id)
 
     def experiment_create(
         self,

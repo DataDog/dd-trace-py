@@ -92,6 +92,7 @@ from ddtrace.llmobs._experiment import DatasetRecordInputType
 from ddtrace.llmobs._experiment import Experiment
 from ddtrace.llmobs._experiment import ExperimentConfigType
 from ddtrace.llmobs._experiment import JSONType
+from ddtrace.llmobs._experiment import Project
 from ddtrace.llmobs._utils import AnnotationContext
 from ddtrace.llmobs._utils import LinkTracker
 from ddtrace.llmobs._utils import _get_ml_app
@@ -183,7 +184,7 @@ class LLMObs(Service):
     enabled = False
     _app_key: str = os.getenv("DD_APP_KEY", "")
     _project_name: str = os.getenv("DD_LLMOBS_PROJECT_NAME", DEFAULT_PROJECT_NAME)
-    _project_id: str = ""
+    _project: Project = Project(name="", _id="")
 
     def __init__(
         self,
@@ -213,7 +214,7 @@ class LLMObs(Service):
             interval=float(os.getenv("_DD_LLMOBS_WRITER_INTERVAL", 1.0)),
             timeout=float(os.getenv("_DD_LLMOBS_WRITER_TIMEOUT", 5.0)),
             _app_key=self._app_key,
-            _default_project_id=self._project_id,
+            _default_project=self._project,
             is_agentless=True,  # agent proxy doesn't seem to work for experiments
         )
 
@@ -607,7 +608,9 @@ class LLMObs(Service):
             cls._instance.start()
 
             try:
-                cls._project_id = cls._instance._dne_client.project_create_or_get(cls._project_name)
+                default_project = cls._instance._dne_client.project_create_or_get(cls._project_name)
+                cls._instance._project = default_project
+                cls._instance._dne_client._default_project = default_project
             except Exception as e:
                 log.error(
                     "failed to get project ID with %s, dataset & experiments features may not be functional: %s",
@@ -657,9 +660,7 @@ class LLMObs(Service):
 
     @classmethod
     def pull_dataset(cls, dataset_name: str, project_name: Optional[str] = None) -> Dataset:
-        ds = cls._instance._dne_client.dataset_get_with_records(
-            dataset_name, (project_name or cls._project_name)
-        )
+        ds = cls._instance._dne_client.dataset_get_with_records(dataset_name, (project_name or cls._project_name))
         return ds
 
     @classmethod
