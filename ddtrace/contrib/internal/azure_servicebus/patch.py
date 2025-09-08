@@ -50,25 +50,21 @@ def _patch(azure_servicebus_module):
 
     if azure_servicebus_module.__name__ == "azure.servicebus.aio":
         Pin().onto(azure_servicebus_module.ServiceBusSender)
+        _w("azure.servicebus.aio", "ServiceBusSender.create_message_batch", _patched_create_message_batch_async)
         _w("azure.servicebus.aio", "ServiceBusSender.send_messages", _patched_send_messages_async)
         _w("azure.servicebus.aio", "ServiceBusSender.schedule_messages", _patched_schedule_messages_async)
-
-        if config.azure_servicebus.batch_links:
-            _w("azure.servicebus.aio", "ServiceBusSender.create_message_batch", _patched_create_message_batch_async)
     else:
         Pin().onto(azure_servicebus_module.ServiceBusSender)
+        Pin().onto(azure_servicebus_module.ServiceBusMessageBatch)
+        _w("azure.servicebus", "ServiceBusMessageBatch.add_message", _patched_add_message)
+        _w("azure.servicebus", "ServiceBusSender.create_message_batch", _patched_create_message_batch)
         _w("azure.servicebus", "ServiceBusSender.send_messages", _patched_send_messages)
         _w("azure.servicebus", "ServiceBusSender.schedule_messages", _patched_schedule_messages)
-
-        if config.azure_servicebus.batch_links:
-            Pin().onto(azure_servicebus_module.ServiceBusMessageBatch)
-            _w("azure.servicebus", "ServiceBusMessageBatch.add_message", _patched_add_message)
-            _w("azure.servicebus", "ServiceBusSender.create_message_batch", _patched_create_message_batch)
 
 
 def _patched_create_message_batch(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
         return wrapped(*args, **kwargs)
 
     batch = wrapped(*args, **kwargs)
@@ -81,7 +77,7 @@ def _patched_create_message_batch(wrapped, instance, args, kwargs):
 
 async def _patched_create_message_batch_async(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
         return await wrapped(*args, **kwargs)
 
     batch = await wrapped(*args, **kwargs)
@@ -94,7 +90,7 @@ async def _patched_create_message_batch_async(wrapped, instance, args, kwargs):
 
 def _patched_add_message(wrapped, instance, args, kwargs):
     pin = Pin.get_from(instance)
-    if not pin or not pin.enabled():
+    if not pin or not pin.enabled() or not config.azure_servicebus.batch_links:
         return wrapped(*args, **kwargs)
 
     resource_name = instance._dd_entity_name
