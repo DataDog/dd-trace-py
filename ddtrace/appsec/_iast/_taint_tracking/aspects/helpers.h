@@ -5,15 +5,15 @@
 #include <pybind11/stl.h>
 #include <regex>
 #include <sstream>
-#include <utility>
 #include <unordered_map>
+#include <utility>
 
+#include "constants.h"
 #include "context/taint_engine_context.h"
 #include "initializer/initializer.h"
-#include "taint_tracking/taint_range.h"
 #include "structmember.h"
-#include "constants.h"
 #include "taint_tracking/source.h"
+#include "taint_tracking/taint_range.h"
 #include "utils/string_utils.h"
 
 using namespace pybind11::literals;

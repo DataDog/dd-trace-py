@@ -1,8 +1,8 @@
-#include "utils/string_utils.h"
-#include "initializer/initializer.h"
-#include "context/taint_engine_context.h"
 #include "helpers.h"
+#include "context/taint_engine_context.h"
+#include "initializer/initializer.h"
 #include "utils/python_error_guard.h"
+#include "utils/string_utils.h"
 
 #include <algorithm>
 
@@ -418,7 +418,6 @@ has_pyerr_as_string()
 
     return error_guard.error_as_stdstring();
 }
-
 
 // Returns a tuple with (all ranges, ranges of candidate_text)
 // FIXME: Take a PyList as parameter_list instead of a py::tuple (same for the

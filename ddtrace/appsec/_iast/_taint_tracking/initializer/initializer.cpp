@@ -92,8 +92,5 @@ Initializer::release_taint_range(TaintRangePtr rangeptr)
     }
 }
 
-
-
-
 // Created in the PYBIND11_MODULE in _native.cpp
 unique_ptr<Initializer> initializer;

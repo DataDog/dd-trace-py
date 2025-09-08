@@ -42,4 +42,3 @@ TEST_F(AspectIndexCheck, check_api_index_aspect_wrong_index)
     Py_DecRef(py_str);
     Py_DecRef(idx);
 }
-
